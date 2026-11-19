@@ -26,6 +26,7 @@ import {
   createInitialGreenhouseState,
 } from './greenhouse';
 import { BAKERY_PORCH_EXIT_FACING, BAKERY_PORCH_EXIT_POS, createInitialBakeryState } from './bakery';
+import { NOOK_PORCH_EXIT_FACING, NOOK_PORCH_EXIT_POS, createInitialNookState } from './bookNook';
 import { WorldState } from './types';
 
 export const STORAGE_KEY = 'little_somewhere_world_v1';
@@ -383,6 +384,17 @@ export function computeWorldSaveRevision(state: WorldState): string {
     pushNum(bk.loavesShared);
   }
 
+  // Milestone 3 Build 8 — Linden Book Nook visitable interior (WorldState v9)
+  const nk = state.nookState;
+  if (nk) {
+    pushNum(nk.shelfBrowsedDay);
+    pushNum(nk.teaSharedDay);
+    pushNum(nk.notesReadDay);
+    pushNum(nk.starterTeaDay);
+    pushNum(nk.booksRead);
+    pushNum(nk.teasShared);
+  }
+
   return `${h1.toString(36)}-${h2.toString(36)}`;
 }
 
@@ -444,9 +456,11 @@ export function advanceToNextDay(state: WorldState): WorldState {
   const wokeInsideCottage = state.playerLocation === 'cottage_interior';
   const wokeInsideGreenhouse = state.playerLocation === 'greenhouse_interior';
   const wokeInsideBakery = state.playerLocation === 'bakery_interior';
+  const wokeInsideNook = state.playerLocation === 'nook_interior';
   const prevCottage = state.cottageState ?? createInitialCottageState();
   const prevGreenhouse = state.greenhouseState ?? createInitialGreenhouseState();
   const prevBakery = state.bakeryState ?? createInitialBakeryState();
+  const prevNook = state.nookState ?? createInitialNookState();
 
   // Sunbeam Greenhouse nightly growth (M3 Build 6): watered pots advance one stage-step;
   // unwatered pots simply wait, and winter freezes all growth until spring. Nothing withers.
@@ -471,6 +485,12 @@ export function advanceToNextDay(state: WorldState): WorldState {
     ? bakeryExitPos
     : { ...BAKERY_PORCH_EXIT_POS };
 
+  // M3 Build 8: same for the book nook — waking there lands on the east porch.
+  const nookExitPos = state.exteriorPlayerPos ?? NOOK_PORCH_EXIT_POS;
+  const safeNookExit = isPointWalkable(nookExitPos.x, nookExitPos.z, 0.48)
+    ? nookExitPos
+    : { ...NOOK_PORCH_EXIT_POS };
+
   return {
     ...state,
     day: nextDay,
@@ -484,6 +504,8 @@ export function advanceToNextDay(state: WorldState): WorldState {
       ? safeGreenhouseExit
       : wokeInsideBakery
       ? safeBakeryExit
+      : wokeInsideNook
+      ? safeNookExit
       : { ...PLAYER_SPAWN },
     playerFacing: wokeInsideCottage
       ? COTTAGE_WAKE_FACING
@@ -491,16 +513,22 @@ export function advanceToNextDay(state: WorldState): WorldState {
       ? GREENHOUSE_PORCH_EXIT_FACING
       : wokeInsideBakery
       ? BAKERY_PORCH_EXIT_FACING
+      : wokeInsideNook
+      ? NOOK_PORCH_EXIT_FACING
       : PLAYER_DEFAULT_FACING,
     exteriorPlayerPos: wokeInsideGreenhouse
       ? safeGreenhouseExit
       : wokeInsideBakery
       ? safeBakeryExit
+      : wokeInsideNook
+      ? safeNookExit
       : { ...PLAYER_SPAWN },
     exteriorPlayerFacing: wokeInsideGreenhouse
       ? GREENHOUSE_PORCH_EXIT_FACING
       : wokeInsideBakery
       ? BAKERY_PORCH_EXIT_FACING
+      : wokeInsideNook
+      ? NOOK_PORCH_EXIT_FACING
       : PLAYER_DEFAULT_FACING,
     playerPosture: 'standing',
     playerSeatId: null,
@@ -520,5 +548,6 @@ export function advanceToNextDay(state: WorldState): WorldState {
     dailyActivities: createInitialDailyActivities(),
     greenhouseState: nextGreenhouseState,
     bakeryState: prevBakery,
+    nookState: prevNook,
   };
 }

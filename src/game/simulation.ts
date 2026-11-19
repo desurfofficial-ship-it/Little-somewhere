@@ -813,7 +813,8 @@ export function stepSimulationInPlace(
       const isIndoors =
         world.playerLocation === 'cottage_interior' ||
         world.playerLocation === 'greenhouse_interior' ||
-        world.playerLocation === 'bakery_interior';
+        world.playerLocation === 'bakery_interior' ||
+        world.playerLocation === 'nook_interior';
       const outdoorPlayerPos = isIndoors ? world.exteriorPlayerPos : world.playerPos;
       const pDist = isIndoors ? Infinity : distance2D(world.playerPos, rt.position);
       const rel = world.playerRelations?.[id];

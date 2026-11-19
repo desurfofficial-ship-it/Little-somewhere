@@ -1367,3 +1367,67 @@ test('Milestone 3 Build 7: Clara bakery topics gate on the kitchen side flag and
   assert.ok(builtKneaded.nodes[builtKneaded.rootId]);
   assert.ok(builtRest.nodes[builtRest.rootId]);
 });
+
+test('Milestone 3 Build 8: Nora book-nook topics gate on the reading-corner side flag and react to nook state', () => {
+  const base = createFreshWorldState();
+  const cornerTopic = DIALOGUE_TOPICS.find((t) => t.id === 'side_nora_reading_corner')!;
+  const checkinTopic = DIALOGUE_TOPICS.find((t) => t.id === 'daily_nora_nook_checkin')!;
+
+  const unmet = { ...base, residents: { ...base.residents, nora: { ...base.residents.nora, met: false } } };
+  assert.equal(
+    evaluateDialogueCondition(cornerTopic.condition, 'nora', unmet, 'morning', cornerTopic.id),
+    false,
+    'Nook topic requires the resident to be met',
+  );
+  const metBase: WorldState = {
+    ...base,
+    residents: { ...base.residents, nora: { ...base.residents.nora, met: true } },
+  };
+  assert.equal(
+    evaluateDialogueCondition(cornerTopic.condition, 'nora', metBase, 'morning', cornerTopic.id),
+    true,
+  );
+
+  const visitedWorld: WorldState = {
+    ...metBase,
+    sideFlags: { ...metBase.sideFlags, nookVisited: true },
+  };
+  assert.equal(
+    evaluateDialogueCondition(cornerTopic.condition, 'nora', visitedWorld, 'morning', cornerTopic.id),
+    false,
+  );
+  assert.equal(
+    evaluateDialogueCondition(checkinTopic.condition, 'nora', visitedWorld, 'morning', checkinTopic.id),
+    true,
+  );
+
+  // Knowledge boundary: without nookVisited, Nora never runs the check-in topic
+  assert.equal(
+    evaluateDialogueCondition(checkinTopic.condition, 'nora', base, 'morning', checkinTopic.id),
+    false,
+  );
+
+  // Check-in build reacts only to Nora's own observable nook state
+  const browsedWorld: WorldState = {
+    ...visitedWorld,
+    day: 1,
+    nookState: { ...visitedWorld.nookState, shelfBrowsedDay: 1 },
+  };
+  const builtBrowsed = checkinTopic.build('nora', browsedWorld, 'morning');
+  assert.ok(builtBrowsed.nodes.root.text.includes('The Ivy Letters'));
+
+  const teaWorld: WorldState = {
+    ...visitedWorld,
+    day: 1,
+    nookState: { ...visitedWorld.nookState, teaSharedDay: 1 },
+  };
+  const builtTea = checkinTopic.build('nora', teaWorld, 'morning');
+  assert.ok(builtTea.nodes.root.text.includes('reader’s cup suits you'));
+
+  const freshWorld: WorldState = { ...visitedWorld, day: 3 };
+  const builtFresh = checkinTopic.build('nora', freshWorld, 'morning');
+  assert.ok(builtFresh.nodes.root.text.includes('Bread & Bell'));
+
+  assert.ok(builtBrowsed.nodes[builtBrowsed.rootId]);
+  assert.ok(builtTea.nodes[builtTea.rootId]);
+});

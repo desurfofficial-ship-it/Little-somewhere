@@ -293,13 +293,14 @@ test('resolveBakeryInteriorMovement slides along walls instead of sticking', () 
   assert.equal(isBakeryInteriorWalkable(slide.x, slide.z, 0.42), true);
 });
 
-test('v7 saves migrate to v8 with a fresh bakeryState and interior locations preserved', () => {
+test('v7 saves chain to the current schema with a fresh bakeryState and interior locations preserved', () => {
   const world = createFreshWorldState();
   const parsed = JSON.parse(serializeWorldState(world)) as Record<string, unknown>;
   const v7Raw = { ...parsed, schemaVersion: 7 } as Record<string, unknown>;
   delete v7Raw.bakeryState;
+  delete v7Raw.nookState;
   const result = migrateWorldState(v7Raw);
-  assert.equal(result.state.schemaVersion, 8);
+  assert.equal(result.state.schemaVersion, 9);
   assert.ok(result.state.bakeryState);
   assert.equal(result.state.bakeryState.kneadingSessions, 0);
   assert.equal(result.warnings.length, 0);

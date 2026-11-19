@@ -55,6 +55,18 @@ import {
   summarizeGreenhousePlots,
 } from './greenhouse';
 import {
+  NOOK_BROWSE_MINUTES,
+  NOOK_DOOR_DEFAULT_FACING,
+  NOOK_DOOR_SPAWN,
+  NOOK_NOTES_MINUTES,
+  NOOK_PORCH_EXIT_FACING,
+  NOOK_PORCH_EXIT_POS,
+  NOOK_TEA_ITEM_ID,
+  NOOK_TEA_MINUTES,
+  createInitialNookState,
+  getFeaturedBookForDay,
+} from './bookNook';
+import {
   BAKERY_BAKES,
   BAKERY_CHECK_MINUTES,
   BAKERY_DOOR_DEFAULT_FACING,
@@ -95,6 +107,7 @@ import {
 } from './storylines';
 import {
   BakeryInteractableId,
+  NookInteractableId,
   CarryableItemId,
   CottageInteractableId,
   DialogueChoice,
@@ -132,6 +145,8 @@ export interface PropInteractionResult {
     | 'exit_greenhouse'
     | 'enter_bakery'
     | 'exit_bakery'
+    | 'enter_nook'
+    | 'exit_nook'
     | 'greenhouse_planting_panel'
     | 'greenhouse_harvest_panel';
   memoryUnlockedTitle?: string;
@@ -1146,6 +1161,16 @@ export function interactWithProp(
       body: 'Warm flour-scented air drifts under the cedar door. Clara’s brick bake oven, service counter, and a quiet café table wait inside.',
       actionLabel: 'Step Inside',
       actionType: 'enter_bakery',
+    };
+  }
+
+  if (propId === 'nook_door') {
+    return {
+      nextWorld: world,
+      title: 'Linden Book Nook Door',
+      body: 'Paper-and-lamp-oil hush drifts under the sage door. Nora’s bookshelf wall, lending desk, reading armchair, and a warm tea tray wait inside.',
+      actionLabel: 'Step Inside',
+      actionType: 'enter_nook',
     };
   }
 
@@ -2562,6 +2587,244 @@ export function readBakeryNotesAction(world: WorldState): PropInteractionResult 
     body: `Small oilcloth-bound notebooks, margins dusted with flour. “Warm hands make soft bread — take this one for the road.” A starter Herb & Honey Loaf is tucked beside the shelf (+${BAKERY_NOTES_MINUTES}m).`,
     memoryUnlockedTitle: unlocked ? 'Clara’s Kitchen Margins' : undefined,
     gainedItems: [{ itemId: 'herb_loaf', count: 1 }],
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Linden Book Nook interior stations (M3 Build 8, WorldState v9)
+// ---------------------------------------------------------------------------
+
+function getNookStateSafe(world: WorldState) {
+  return world.nookState ?? createInitialNookState();
+}
+
+function addNookMemory(
+  world: WorldState,
+  memId: string,
+  title: string,
+  summary: string,
+): { memories: WorldState['memories']; unlocked: boolean } {
+  const phase = getTimePhase(world.minuteOfDay);
+  if (world.memories.some((m) => m.id === memId)) {
+    return { memories: world.memories, unlocked: false };
+  }
+  return {
+    memories: [{ id: memId, day: world.day, phase, title, summary }, ...world.memories],
+    unlocked: true,
+  };
+}
+
+export function enterNookAction(world: WorldState): { nextWorld: WorldState; toast: string } {
+  if (world.playerLocation === 'nook_interior') {
+    return { nextWorld: world, toast: '' };
+  }
+  let working = world;
+  if (working.playerHeldItem && working.worldProps?.[working.playerHeldItem]) {
+    working = placeWorldPropAction(working).nextWorld;
+  }
+  const safeExteriorPos = isPointWalkable(working.playerPos.x, working.playerPos.z, 0.48)
+    ? { ...working.playerPos }
+    : { ...NOOK_PORCH_EXIT_POS };
+  return {
+    nextWorld: {
+      ...working,
+      playerLocation: 'nook_interior',
+      exteriorPlayerPos: safeExteriorPos,
+      exteriorPlayerFacing: working.playerFacing,
+      playerPos: { ...NOOK_DOOR_SPAWN },
+      playerFacing: NOOK_DOOR_DEFAULT_FACING,
+      playerPosture: 'standing',
+      playerSeatId: null,
+    },
+    toast: 'Stepped inside Linden Book Nook.',
+  };
+}
+
+export function exitNookAction(world: WorldState): { nextWorld: WorldState; toast: string } {
+  if (world.playerLocation !== 'nook_interior') {
+    return { nextWorld: world, toast: '' };
+  }
+  const exPos = world.exteriorPlayerPos ?? NOOK_PORCH_EXIT_POS;
+  const safePos = isPointWalkable(exPos.x, exPos.z, 0.48) ? { ...exPos } : { ...PLAYER_SPAWN };
+  return {
+    nextWorld: {
+      ...world,
+      playerLocation: 'exterior',
+      playerPos: safePos,
+      playerFacing: world.exteriorPlayerFacing ?? PLAYER_DEFAULT_FACING,
+      playerPosture: 'standing',
+      playerSeatId: null,
+    },
+    toast: 'Stepped out beside Linden Book Nook.',
+  };
+}
+
+export function interactWithNookProp(
+  world: WorldState,
+  nookPropId: NookInteractableId,
+): PropInteractionResult {
+  if (nookPropId === 'nook_door') {
+    const exited = exitNookAction(world);
+    return {
+      nextWorld: exited.nextWorld,
+      title: 'Book Nook Door',
+      body: 'Paper-and-lamp-oil hush follows you out beside the Linden Book Nook.',
+      actionType: 'exit_nook',
+    };
+  }
+
+  if (nookPropId === 'nook_shelf') {
+    return browseBookshelfAction(world);
+  }
+
+  if (nookPropId === 'nook_desk') {
+    return readLendingNotesAction(world);
+  }
+
+  // nook_tea
+  return pourReaderCupAction(world);
+}
+
+/**
+ * Browse the shelf's featured book (deterministic day cycle) — once per day, +12m.
+ * Each book saves its own one-time memory the first time it is settled into.
+ */
+export function browseBookshelfAction(world: WorldState): PropInteractionResult {
+  const nk = getNookStateSafe(world);
+  const book = getFeaturedBookForDay(world.day);
+  const alreadyBrowsed = nk.shelfBrowsedDay === world.day;
+  const readBefore = world.memories.some((m) => m.id === book.memoryId);
+
+  const shelfLead =
+    world.season === 'winter'
+      ? 'Frost ferns the window while the shelf holds its warm paper-and-cedar smell.'
+      : 'Evening light falls in long stripes across the shelf spines.';
+
+  if (alreadyBrowsed) {
+    return {
+      nextWorld: world,
+      title: 'Linden Bookshelf Wall',
+      body: `Today’s featured book is ${book.title}. ${book.blurb} ${shelfLead}`,
+    };
+  }
+
+  const nextMin = Math.min(DAY_END_MINUTE, world.minuteOfDay + NOOK_BROWSE_MINUTES);
+  const { memories: afterBookMemory, unlocked: bookUnlocked } = readBefore
+    ? { memories: world.memories, unlocked: false }
+    : addNookMemory(
+        { ...world, minuteOfDay: nextMin },
+        book.memoryId,
+        book.memoryTitle,
+        book.memorySummary,
+      );
+
+  return {
+    nextWorld: {
+      ...world,
+      minuteOfDay: nextMin,
+      nookState: {
+        ...nk,
+        shelfBrowsedDay: world.day,
+        booksRead: readBefore ? nk.booksRead : Math.min(4, nk.booksRead + 1),
+      },
+      memories: afterBookMemory,
+    },
+    title: 'Linden Bookshelf Wall',
+    body: `Today’s featured book is ${book.title}. ${book.blurb} You tuck into the reading chair with it (+${NOOK_BROWSE_MINUTES}m).`,
+    memoryUnlockedTitle: bookUnlocked ? book.memoryTitle : undefined,
+  };
+}
+
+/**
+ * Pour a reader's cup at the tea tray — once per day, +6m. Nora keeps the kettle warm
+ * for readers; the cup joins your satchel for the reading chair ritual.
+ */
+export function pourReaderCupAction(world: WorldState): PropInteractionResult {
+  const nk = getNookStateSafe(world);
+  const alreadyPoured = nk.teaSharedDay === world.day;
+  if (alreadyPoured) {
+    return {
+      nextWorld: world,
+      title: 'Reader’s Tea Tray',
+      body: 'Your reader’s cup is already poured and waiting in the satchel. Nora nods — “the chair by the window is free.”',
+    };
+  }
+
+  const invRes = addItemToInventory(world.inventory, world.discoveredItemIds, NOOK_TEA_ITEM_ID, 1);
+  const nextMin = Math.min(DAY_END_MINUTE, world.minuteOfDay + NOOK_TEA_MINUTES);
+  const { memories: nextMemories, unlocked } = addNookMemory(
+    { ...world, minuteOfDay: nextMin },
+    'mem_nook_first_tea',
+    'A Reader’s Cup',
+    'Nora poured a warm chamomile-pear cup at the book nook tea tray — “readers think better holding something warm.”',
+  );
+
+  return {
+    nextWorld: {
+      ...world,
+      minuteOfDay: nextMin,
+      inventory: invRes.inventory,
+      discoveredItemIds: invRes.discoveredItemIds,
+      nookState: {
+        ...nk,
+        teaSharedDay: world.day,
+        teasShared: nk.teasShared + 1,
+      },
+      memories: nextMemories,
+    },
+    title: 'Reader’s Tea Tray',
+    body: `You tip the little kettle over Nora’s stoneware cup — chamomile and pear, warm enough to hold all chapter long (+${NOOK_TEA_MINUTES}m).`,
+    memoryUnlockedTitle: unlocked ? 'A Reader’s Cup' : undefined,
+    gainedItems: [{ itemId: NOOK_TEA_ITEM_ID, count: 1 }],
+  };
+}
+
+/** Nora's lending notes at the desk — one-time starter tea + seasonal rereads, +8m. */
+export function readLendingNotesAction(world: WorldState): PropInteractionResult {
+  const nk = getNookStateSafe(world);
+
+  if (nk.starterTeaDay > 0) {
+    const reread =
+      world.season === 'winter'
+        ? '“Winter readers get the good chair and the whole afternoon.” Nora’s winter page is pinned with a snowdrop.'
+        : world.season === 'summer'
+        ? '“Prop the door on hot days — the lane likes to listen in.”'
+        : world.season === 'autumn'
+        ? '“Rainy weeks are for rereading. Bring the book back whenever, or keep it till spring.”'
+        : '“New shelves every spring — if a book hums at you, take it home for a week.”';
+    return {
+      nextWorld: world,
+      title: 'Nora’s Lending Desk',
+      body: `${reread} The lending ledger’s margins are full of tiny tea rings.`,
+    };
+  }
+
+  const invRes = addItemToInventory(world.inventory, world.discoveredItemIds, NOOK_TEA_ITEM_ID, 1);
+  const nextMin = Math.min(DAY_END_MINUTE, world.minuteOfDay + NOOK_NOTES_MINUTES);
+  const { memories: nextMemories, unlocked } = addNookMemory(
+    { ...world, minuteOfDay: nextMin },
+    'mem_nook_notes',
+    'The Lending Ledger',
+    'Read Nora’s lending notes at the Linden Book Nook desk — she poured a first cup of chamomile-pear tea “for every new reader.”',
+  );
+
+  return {
+    nextWorld: {
+      ...world,
+      minuteOfDay: nextMin,
+      inventory: invRes.inventory,
+      discoveredItemIds: invRes.discoveredItemIds,
+      nookState: {
+        ...nk,
+        notesReadDay: world.day,
+        starterTeaDay: world.day,
+      },
+      memories: nextMemories,
+    },
+    title: 'Nora’s Lending Desk',
+    body: `An oilcloth ledger of who borrowed what, margins dusted with tea rings. “Welcome, reader — take this warm cup for the chair” (+${NOOK_NOTES_MINUTES}m).`,
+    memoryUnlockedTitle: unlocked ? 'The Lending Ledger' : undefined,
+    gainedItems: [{ itemId: NOOK_TEA_ITEM_ID, count: 1 }],
   };
 }
 

@@ -700,3 +700,38 @@ test('Milestone 3 Build 7: claras_kitchen discovery tracks the bakery ritual lif
   const restBk = restView.landmarks.find((l) => l.id === 'claras_kitchen')!;
   assert.equal(restBk.statusLabel, 'Oven resting today');
 });
+
+test('Milestone 3 Build 8: linden_book_nook discovery tracks the reading lifecycle', () => {
+  const base = createFreshWorldState();
+  const initialView = buildPocketJournalView(base);
+  const initialNk = initialView.landmarks.find((l) => l.id === 'linden_book_nook')!;
+  assert.ok(initialNk, 'Book nook discovery row exists');
+  assert.equal(initialNk.statusKind, 'quiet');
+  assert.equal(initialNk.statusLabel, 'Nora’s lamp-lit shelves');
+
+  const browsedWorld: WorldState = {
+    ...base,
+    day: 2,
+    nookState: { ...base.nookState, shelfBrowsedDay: 2 },
+  };
+  const browsedView = buildPocketJournalView(browsedWorld);
+  const browsedNk = browsedView.landmarks.find((l) => l.id === 'linden_book_nook')!;
+  assert.equal(browsedNk.statusKind, 'active');
+  assert.equal(browsedNk.statusLabel, 'Reading: Sketches of Mirror Pond');
+
+  const readWorld: WorldState = {
+    ...base,
+    nookState: { ...base.nookState, booksRead: 3 },
+  };
+  const readView = buildPocketJournalView(readWorld);
+  const readNk = readView.landmarks.find((l) => l.id === 'linden_book_nook')!;
+  assert.equal(readNk.statusLabel, '3 of 4 books settled');
+
+  const teaWorld: WorldState = {
+    ...base,
+    nookState: { ...base.nookState, teasShared: 1 },
+  };
+  const teaView = buildPocketJournalView(teaWorld);
+  const teaNk = teaView.landmarks.find((l) => l.id === 'linden_book_nook')!;
+  assert.equal(teaNk.statusLabel, 'Reader’s tea poured');
+});

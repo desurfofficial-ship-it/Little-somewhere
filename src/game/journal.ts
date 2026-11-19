@@ -20,6 +20,7 @@ import { PERSONAL_ITEMS, PERSONAL_ITEM_MAP } from './inventory';
 import { describePlacedFlower } from './cottage';
 import { createInitialGreenhouseState, summarizeGreenhousePlots } from './greenhouse';
 import { createInitialBakeryState, getBakeForDay } from './bakery';
+import { createInitialNookState, getFeaturedBookForDay } from './bookNook';
 import {
   STORYLINES,
   getActiveStorylineCue,
@@ -795,6 +796,9 @@ function buildDiscoveriesSection(
   // M3 Build 7: the bakery kitchen row reads only the player-observed bakery state.
   const bkToday = world.bakeryState ?? createInitialBakeryState();
   const todayBake = getBakeForDay(world.day);
+  // M3 Build 8: the book nook row reads only the player-observed nook state.
+  const nkToday = world.nookState ?? createInitialNookState();
+  const todayBook = getFeaturedBookForDay(world.day);
 
   const landmarksRaw: Array<Omit<JournalDiscoveryLandmark, 'entryKey' | 'isNew'>> = [
     {
@@ -925,6 +929,28 @@ function buildDiscoveriesSection(
           : bkToday.loavesShared > 0
           ? 'Clara keeps a warm share wrapped in butter paper at the counter whenever a neighbor wanders in.'
           : 'A flour-warm kitchen behind the bakery porch — check the dome, help knead, take a loaf home.',
+    },
+    {
+      id: 'linden_book_nook',
+      name: 'Linden Book Nook',
+      statusKind:
+        nkToday.shelfBrowsedDay > 0 || nkToday.booksRead > 0 || nkToday.teasShared > 0
+          ? 'active'
+          : 'quiet',
+      statusLabel:
+        nkToday.shelfBrowsedDay === world.day
+          ? `Reading: ${todayBook.title}`
+          : nkToday.booksRead > 0
+          ? `${nkToday.booksRead} of 4 books settled`
+          : nkToday.teasShared > 0
+          ? 'Reader’s tea poured'
+          : 'Nora’s lamp-lit shelves',
+      summary:
+        nkToday.shelfBrowsedDay === world.day
+          ? todayBook.blurb
+          : nkToday.booksRead > 0
+          ? 'The shelf rotates one featured book a day; the armchair remembers everyone who reads in it.'
+          : 'A paper-and-lamp-oil reading corner behind the sage door — browse the shelf, take a reader’s cup, settle in.',
     },
   ];
 

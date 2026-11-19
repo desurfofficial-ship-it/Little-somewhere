@@ -28,9 +28,10 @@ export type PropInteractableId =
   | 'orchard_skep'
   | 'pond_driftwood'
   | 'greenhouse_door'
-  | 'bakery_door';
+  | 'bakery_door'
+  | 'nook_door';
 
-export type PlayerLocation = 'exterior' | 'cottage_interior' | 'greenhouse_interior' | 'bakery_interior';
+export type PlayerLocation = 'exterior' | 'cottage_interior' | 'greenhouse_interior' | 'bakery_interior' | 'nook_interior';
 
 export type CottageInteractableId =
   | 'interior_door'
@@ -82,6 +83,34 @@ export type BakeryInteractableId =
   | 'bakery_table';
 
 export type BakeryBakeId = 'sunflower_sourdough' | 'crabapple_galette' | 'lavender_butter_batch' | 'oven_rest';
+
+export type NookInteractableId =
+  | 'nook_door'
+  | 'nook_shelf'
+  | 'nook_desk'
+  | 'nook_tea'
+  | 'nook_chair';
+
+export type NookBookId = 'ivy_letters' | 'pond_sketches' | 'bread_hymns' | 'night_orchard';
+
+/**
+ * Linden Book Nook interior state (Milestone 3 Build 8, WorldState v9).
+ * Day stamps hold the last in-game day each ritual was performed; 0 means never.
+ */
+export interface NookState {
+  /** Last day the shelf's featured book was browsed. */
+  shelfBrowsedDay: number;
+  /** Last day a reader's cup was poured at the tea tray. */
+  teaSharedDay: number;
+  /** Last day Nora's lending notes were read. */
+  notesReadDay: number;
+  /** In-game day the one-time starter tea came with the notes (0 = not yet). */
+  starterTeaDay: number;
+  /** Lifetime count of distinct books settled into (max 4 in the shelf cycle). */
+  booksRead: number;
+  /** Lifetime count of reader's cups taken. */
+  teasShared: number;
+}
 
 /**
  * Hearth & Crumb Bakery interior state (Milestone 3 Build 7, WorldState v8).
@@ -608,6 +637,8 @@ export interface WorldState {
   greenhouseState: GreenhouseState;
   // Milestone 3 Build 7 — Hearth & Crumb Bakery visitable interior (WorldState v8)
   bakeryState: BakeryState;
+  // Milestone 3 Build 8 — Linden Book Nook visitable interior (WorldState v9)
+  nookState: NookState;
   simSeed: number;
   regionId: string;
   day: number;
@@ -824,7 +855,8 @@ export interface InteractiveTarget {
     | 'carryable'
     | 'cottage_prop'
     | 'greenhouse_prop'
-    | 'bakery_prop';
+    | 'bakery_prop'
+    | 'nook_prop';
   id: string;
   label: string;
   actionLabel: string;
@@ -835,6 +867,7 @@ export interface InteractiveTarget {
   cottagePropId?: CottageInteractableId;
   greenhousePropId?: GreenhouseInteractableId;
   bakeryPropId?: BakeryInteractableId;
+  nookPropId?: NookInteractableId;
   /** Set on seated cottage-seat targets when a sipable drink is in the satchel: primary action becomes the sip ritual. */
   sipItemId?: PersonalItemId;
 }

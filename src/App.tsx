@@ -19,6 +19,7 @@ import {
   GameScreenState,
   BakeryInteractableId,
   GreenhouseInteractableId,
+  NookInteractableId,
   InteractiveTarget,
   PersonalItemId,
   PlayerLocation,
@@ -54,13 +55,16 @@ import {
   exitCottageAction,
   enterBakeryAction,
   enterGreenhouseAction,
+  enterNookAction,
   exitBakeryAction,
   exitGreenhouseAction,
+  exitNookAction,
   giveInventoryItemAction,
   harvestPlotAction,
   interactWithCottageProp,
   interactWithBakeryProp,
   interactWithGreenhouseProp,
+  interactWithNookProp,
   interactWithProp,
   markResidentMet,
   performFountainWishAction,
@@ -400,6 +404,29 @@ export default function App() {
         setDialogueSession(null);
         setActivePropId(null);
         setPropCard(res);
+      } else if (target.kind === 'nook_prop') {
+        const nid = target.nookPropId ?? (target.id as NookInteractableId);
+        const res = interactWithNookProp(current, nid);
+        if (res.actionType === 'exit_nook') {
+          playSceneVeil(() => {
+            commitWorld(res.nextWorld);
+            cozyAudio.playUiTap(0.98);
+            showToast('Stepped out beside Linden Book Nook.');
+          });
+          return;
+        }
+        if (res.nextWorld !== current) {
+          commitWorld(res.nextWorld);
+        }
+        triggerPlayerPulse('interact', target.worldPos);
+        cozyAudio.playUiTap(1.04);
+        setDialogueSession(null);
+        setActivePropId(null);
+        setPropCard(res);
+        if (res.memoryUnlockedTitle) {
+          cozyAudio.playMemoryChime();
+          showToast(`Memory saved: ${res.memoryUnlockedTitle}`);
+        }
       } else if (target.kind === 'bakery_prop') {
         const bid = target.bakeryPropId ?? (target.id as BakeryInteractableId);
         const res = interactWithBakeryProp(current, bid);
@@ -450,6 +477,17 @@ export default function App() {
         if (pid === 'bakery_door') {
           playSceneVeil(() => {
             const enteredNow = enterBakeryAction(worldRef.current);
+            commitWorld(enteredNow.nextWorld);
+            cozyAudio.playUiTap(1.06);
+            if (enteredNow.toast) {
+              showToast(enteredNow.toast);
+            }
+          });
+          return;
+        }
+        if (pid === 'nook_door') {
+          playSceneVeil(() => {
+            const enteredNow = enterNookAction(worldRef.current);
             commitWorld(enteredNow.nextWorld);
             cozyAudio.playUiTap(1.06);
             if (enteredNow.toast) {
@@ -702,6 +740,24 @@ export default function App() {
           setPropCard(null);
           cozyAudio.playUiTap(1.06);
           showToast(entered.toast);
+        });
+      } else if (actionType === 'enter_nook') {
+        playSceneVeil(() => {
+          const entered = enterNookAction(worldRef.current);
+          commitWorld(entered.nextWorld);
+          setActivePropId(null);
+          setPropCard(null);
+          cozyAudio.playUiTap(1.06);
+          showToast(entered.toast);
+        });
+      } else if (actionType === 'exit_nook') {
+        playSceneVeil(() => {
+          const exited = exitNookAction(worldRef.current);
+          commitWorld(exited.nextWorld);
+          setActivePropId(null);
+          setPropCard(null);
+          cozyAudio.playUiTap(0.98);
+          showToast(exited.toast);
         });
       } else if (actionType === 'enter_bakery') {
         playSceneVeil(() => {
@@ -995,6 +1051,8 @@ export default function App() {
       ? 'Sunbeam Greenhouse'
       : playerLocation === 'bakery_interior'
       ? 'Hearth & Crumb Bakery'
+      : playerLocation === 'nook_interior'
+      ? 'Linden Book Nook'
       : landmark.name;
   const isSheetOpen = Boolean(dialogueSession || propCard);
   const anyModalOpen =

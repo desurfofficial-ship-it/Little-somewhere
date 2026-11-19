@@ -26,6 +26,7 @@ import {
   TimePhase,
   TopicHistoryEntry,
   WeatherType,
+  NookState,
   WorldEventRecord,
   WorldPropPlacement,
   WorldState,
@@ -105,8 +106,13 @@ import {
   isGreenhouseInteriorWalkable,
 } from './greenhouse';
 import { BAKERY_DOOR_SPAWN, createInitialBakeryState, isBakeryInteriorWalkable } from './bakery';
+import {
+  NOOK_DOOR_SPAWN,
+  createInitialNookState,
+  isNookInteriorWalkable,
+} from './bookNook';
 
-export const CURRENT_SCHEMA_VERSION = 8;
+export const CURRENT_SCHEMA_VERSION = 9;
 export const DEFAULT_SIM_SEED = 18042;
 
 export interface MigrationResult {
@@ -251,6 +257,7 @@ export function createDefaultWorldState(): WorldState {
     neighborGiftsReceived: [],
     greenhouseState: createInitialGreenhouseState(),
     bakeryState: createInitialBakeryState(),
+    nookState: createInitialNookState(),
   };
 }
 
@@ -1045,7 +1052,8 @@ export function sanitizeWorldState(candidate: unknown, externalWarnings: string[
   const playerLocation: PlayerLocation =
     candidate.playerLocation === 'cottage_interior' ||
     candidate.playerLocation === 'greenhouse_interior' ||
-    candidate.playerLocation === 'bakery_interior'
+    candidate.playerLocation === 'bakery_interior' ||
+    candidate.playerLocation === 'nook_interior'
       ? (candidate.playerLocation as PlayerLocation)
       : 'exterior';
   const isInteriorLocation = playerLocation !== 'exterior';
@@ -1069,6 +1077,8 @@ export function sanitizeWorldState(candidate: unknown, externalWarnings: string[
       ? GREENHOUSE_DOOR_SPAWN.x
       : playerLocation === 'bakery_interior'
       ? BAKERY_DOOR_SPAWN.x
+      : playerLocation === 'nook_interior'
+      ? NOOK_DOOR_SPAWN.x
       : PLAYER_SPAWN.x;
   let playerZ =
     playerLocation === 'cottage_interior'
@@ -1077,6 +1087,8 @@ export function sanitizeWorldState(candidate: unknown, externalWarnings: string[
       ? GREENHOUSE_DOOR_SPAWN.z
       : playerLocation === 'bakery_interior'
       ? BAKERY_DOOR_SPAWN.z
+      : playerLocation === 'nook_interior'
+      ? NOOK_DOOR_SPAWN.z
       : PLAYER_SPAWN.z;
   let playerFacing = asFiniteNumber(candidate.playerFacing, PLAYER_DEFAULT_FACING);
   if (playerPosture === 'sitting' && playerSeatId) {
@@ -1094,6 +1106,8 @@ export function sanitizeWorldState(candidate: unknown, externalWarnings: string[
         ? isGreenhouseInteriorWalkable(cx, cz, 0.42)
         : playerLocation === 'bakery_interior'
         ? isBakeryInteriorWalkable(cx, cz, 0.42)
+        : playerLocation === 'nook_interior'
+        ? isNookInteriorWalkable(cx, cz, 0.42)
         : isPointWalkable(cx, cz, 0.48);
     if (walkable) {
       playerX = cx;
@@ -1264,6 +1278,7 @@ export function sanitizeWorldState(candidate: unknown, externalWarnings: string[
 
   const greenhouseState = sanitizeGreenhouseState(candidate.greenhouseState, warnings);
   const bakeryState = sanitizeBakeryState(candidate.bakeryState, warnings);
+  const nookState = sanitizeNookState(candidate.nookState, warnings);
 
   return {
     schemaVersion: CURRENT_SCHEMA_VERSION,
@@ -1306,6 +1321,7 @@ export function sanitizeWorldState(candidate: unknown, externalWarnings: string[
     neighborGiftsReceived,
     greenhouseState,
     bakeryState,
+    nookState,
   };
 }
 
@@ -1338,6 +1354,27 @@ function sanitizeBakeryState(raw: unknown, warnings: string[]): BakeryState {
     sanitized.notesReadDay = sanitized.starterNotesDay;
   }
   return sanitized;
+}
+
+/**
+ * Defensive sanitizer for the Linden Book Nook interior state (WorldState v9).
+ * Day stamps stay >= 0; lifetime counters never go negative; booksRead clamps to the shelf cycle.
+ */
+function sanitizeNookState(raw: unknown, warnings: string[]): NookState {
+  const defaults = createInitialNookState();
+  if (!isRecord(raw)) {
+    return defaults;
+  }
+  const stamp = (value: unknown, fallback: number): number =>
+    Math.max(0, Math.floor(asFiniteNumber(value, fallback)));
+  return {
+    shelfBrowsedDay: stamp(raw.shelfBrowsedDay, defaults.shelfBrowsedDay),
+    teaSharedDay: stamp(raw.teaSharedDay, defaults.teaSharedDay),
+    notesReadDay: stamp(raw.notesReadDay, defaults.notesReadDay),
+    starterTeaDay: stamp(raw.starterTeaDay, defaults.starterTeaDay),
+    booksRead: Math.min(4, Math.max(0, Math.floor(asFiniteNumber(raw.booksRead, defaults.booksRead)))),
+    teasShared: Math.max(0, Math.floor(asFiniteNumber(raw.teasShared, defaults.teasShared))),
+  };
 }
 
 /**
@@ -1784,6 +1821,18 @@ export function migrateV7ToV8(v7Raw: Record<string, unknown>): Record<string, un
   };
 }
 
+/**
+ * Pure sequential v8 -> v9 save upgrader adding Milestone 3 Build 8 fields:
+ * the Linden Book Nook visitable-interior state. Existing interior locations are preserved.
+ */
+export function migrateV8ToV9(v8Raw: Record<string, unknown>): Record<string, unknown> {
+  return {
+    ...v8Raw,
+    schemaVersion: 9,
+    nookState: createInitialNookState(),
+  };
+}
+
 export function migrateWorldState(raw: unknown): MigrationResult {
   const warnings: string[] = [];
   const detected = detectSchemaVersion(raw);
@@ -1832,6 +1881,11 @@ export function migrateWorldState(raw: unknown): MigrationResult {
   if (version === 7) {
     working = migrateV7ToV8(working);
     version = 8;
+  }
+
+  if (version === 8) {
+    working = migrateV8ToV9(working);
+    version = 9;
   }
 
   if (version > CURRENT_SCHEMA_VERSION) {

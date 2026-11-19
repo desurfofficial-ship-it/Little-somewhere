@@ -63,7 +63,17 @@ import {
   computeBakeryWaypoints,
   isBakeryInteriorWalkable,
 } from '../game/bakery';
-import type { BakeryInteractableId, GreenhouseInteractableId } from '../game/types';
+import {
+  NOOK_BOUNDS,
+  NOOK_INTERACTABLES,
+  computeNookWaypoints,
+  isNookInteriorWalkable,
+} from '../game/bookNook';
+import type {
+  BakeryInteractableId,
+  GreenhouseInteractableId,
+  NookInteractableId,
+} from '../game/types';
 import { computeWaypointPath } from '../game/navigation';
 import { getResidentAvailableQuestCue } from '../game/narrative';
 import { composeEnvironmentState } from '../game/environment';
@@ -107,6 +117,10 @@ import {
   buildSunbeamGreenhouseInterior,
 } from './builders/greenhouseInterior';
 import { buildHearthCrumbInterior, buildHearthCrumbPorchDressing } from './builders/bakeryInterior';
+import {
+  buildLindenBookNookInterior,
+  buildLindenBookNookPorchDressing,
+} from './builders/bookNookInterior';
 import {
   buildCarryablePropMesh,
   buildStorybookBench,
@@ -212,6 +226,20 @@ function findNearestWalkablePoint(x: number, z: number, playerPos: Vec2): Vec2 |
 
 function findNearestInteriorWalkablePoint(x: number, z: number, location: PlayerLocation): Vec2 | null {
   const loc = location ?? 'exterior';
+  if (loc === 'nook_interior') {
+    const cx = THREE.MathUtils.clamp(x, NOOK_BOUNDS.minX + 0.45, NOOK_BOUNDS.maxX - 0.45);
+    const cz = THREE.MathUtils.clamp(z, NOOK_BOUNDS.minZ + 0.45, NOOK_BOUNDS.maxZ - 0.45);
+    if (isNookInteriorWalkable(cx, cz, 0.42)) return { x: cx, z: cz };
+    for (let r = 0.45; r <= 2.4; r += 0.45) {
+      for (let a = 0; a < 8; a++) {
+        const ang = (a / 8) * Math.PI * 2;
+        const nx = THREE.MathUtils.clamp(cx + Math.cos(ang) * r, NOOK_BOUNDS.minX + 0.45, NOOK_BOUNDS.maxX - 0.45);
+        const nz = THREE.MathUtils.clamp(cz + Math.sin(ang) * r, NOOK_BOUNDS.minZ + 0.45, NOOK_BOUNDS.maxZ - 0.45);
+        if (isNookInteriorWalkable(nx, nz, 0.42)) return { x: nx, z: nz };
+      }
+    }
+    return null;
+  }
   if (loc === 'bakery_interior') {
     const cx = THREE.MathUtils.clamp(x, BAKERY_BOUNDS.minX + 0.45, BAKERY_BOUNDS.maxX - 0.45);
     const cz = THREE.MathUtils.clamp(z, BAKERY_BOUNDS.minZ + 0.45, BAKERY_BOUNDS.maxZ - 0.45);
@@ -738,6 +766,11 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
     bakeryInteriorRig.group.visible = false;
     interiorRoot.add(bakeryInteriorRig.group);
 
+    // Linden Book Nook Interior Cutaway Diorama (M3 Build 8 — same cutaway contract)
+    const nookInteriorRig = buildLindenBookNookInterior(palette, shadowTex, { isSoftwareGl });
+    nookInteriorRig.group.visible = false;
+    interiorRoot.add(nookInteriorRig.group);
+
     // Exterior Sunbeam Greenhouse doorway on the west glass wall (M3 Build 6)
     const greenhouseDoorway = buildSunbeamGreenhouseDoorway(palette, shadowTex);
     greenhouseDoorway.position.set(11.14, 0, 3.2);
@@ -748,6 +781,12 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
     const bakeryPorchDressing = buildHearthCrumbPorchDressing(palette, shadowTex);
     bakeryPorchDressing.position.set(-12.4, 0, -8.16);
     exteriorRoot.add(bakeryPorchDressing);
+
+    // Exterior Linden Book Nook porch dressing on the existing east door (M3 Build 8)
+    const nookPorchDressing = buildLindenBookNookPorchDressing(palette, shadowTex);
+    nookPorchDressing.position.set(-13.1, 0, -1.0);
+    nookPorchDressing.rotation.y = Math.PI / 2; // face east toward the lane
+    exteriorRoot.add(nookPorchDressing);
 
     // Tap-to-walk destination indicator ring
     const destRing = new THREE.Mesh(
@@ -1004,6 +1043,8 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
         ? greenhouseInteriorRig.hitProxies
         : worldRef.current.playerLocation === 'bakery_interior'
         ? bakeryInteriorRig.hitProxies
+        : worldRef.current.playerLocation === 'nook_interior'
+        ? nookInteriorRig.hitProxies
         : cottageInteriorRig.hitProxies;
       const hits = _raycaster.intersectObjects(activeInteractables, false);
       if (hits.length > 0) {
@@ -1029,7 +1070,8 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
             | 'carryable'
             | 'cottage_prop'
             | 'greenhouse_prop'
-            | 'bakery_prop';
+            | 'bakery_prop'
+            | 'nook_prop';
           targetId: string;
         };
         const pPos = worldRef.current.playerPos;
@@ -1083,6 +1125,20 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
           );
           scoreDist = effDist;
           isImmediate = effDist <= prop.interactRadius;
+        } else if (ud.targetKind === 'nook_prop') {
+          const nid = ud.targetId as NookInteractableId;
+          const prop = NOOK_INTERACTABLES.find((p) => p.id === nid);
+          if (!prop) return;
+          tPos = { x: prop.focusX, z: prop.focusZ };
+          walkDest = { x: prop.x, z: prop.z };
+          label = prop.name;
+          actionLabel = prop.actionLabel;
+          const effDist = Math.min(
+            distance2D(pPos, { x: prop.x, z: prop.z }),
+            distance2D(pPos, { x: prop.focusX, z: prop.focusZ }),
+          );
+          scoreDist = effDist;
+          isImmediate = effDist <= prop.interactRadius;
         } else if (ud.targetKind === 'resident') {
           const rid = ud.targetId as ResidentId;
           tPos = worldRef.current.npcRuntime[rid].position;
@@ -1124,7 +1180,7 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
                 ? 'Ring Bell'
                 : pid === 'player_door'
                 ? 'Enter Cottage'
-                : pid === 'greenhouse_door' || pid === 'bakery_door'
+                : pid === 'greenhouse_door' || pid === 'bakery_door' || pid === 'nook_door'
                 ? 'Step Inside'
                 : pid === 'cottage_window_box' ||
                   pid === 'greenhouse_planters' ||
@@ -1153,6 +1209,8 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
             ud.targetKind === 'greenhouse_prop' ? (ud.targetId as GreenhouseInteractableId) : undefined,
           bakeryPropId:
             ud.targetKind === 'bakery_prop' ? (ud.targetId as BakeryInteractableId) : undefined,
+          nookPropId:
+            ud.targetKind === 'nook_prop' ? (ud.targetId as NookInteractableId) : undefined,
         };
 
         if (isImmediate) {
@@ -1169,6 +1227,10 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
               ? isBakeryInteriorWalkable(dest.x, dest.z, 0.42)
                 ? dest
                 : findNearestInteriorWalkablePoint(dest.x, dest.z, worldRef.current.playerLocation) ?? dest
+              : worldRef.current.playerLocation === 'nook_interior'
+              ? isNookInteriorWalkable(dest.x, dest.z, 0.42)
+                ? dest
+                : findNearestInteriorWalkablePoint(dest.x, dest.z, worldRef.current.playerLocation) ?? dest
               : isInteriorPointWalkable(dest.x, dest.z, 0.42)
               ? dest
               : findNearestInteriorWalkablePoint(dest.x, dest.z, worldRef.current.playerLocation) ?? dest;
@@ -1178,6 +1240,8 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
             ? computeGreenhouseWaypoints(pPos, walkableDest, 0.42)
             : worldRef.current.playerLocation === 'bakery_interior'
             ? computeBakeryWaypoints(pPos, walkableDest, 0.42)
+            : worldRef.current.playerLocation === 'nook_interior'
+            ? computeNookWaypoints(pPos, walkableDest, 0.42)
             : computeInteriorWaypoints(pPos, walkableDest, 0.42);
           tapStuckSeconds = 0;
           pendingTargetAfterWalk = targetObj;
@@ -1209,6 +1273,8 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
                 ? computeGreenhouseWaypoints(worldRef.current.playerPos, walkableDest, 0.42)
                 : worldRef.current.playerLocation === 'bakery_interior'
                 ? computeBakeryWaypoints(worldRef.current.playerPos, walkableDest, 0.42)
+                : worldRef.current.playerLocation === 'nook_interior'
+                ? computeNookWaypoints(worldRef.current.playerPos, walkableDest, 0.42)
                 : computeInteriorWaypoints(worldRef.current.playerPos, walkableDest, 0.42);
             tapStuckSeconds = 0;
             pendingTargetAfterWalk = null;
@@ -1324,7 +1390,8 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
       const isIndoors =
         curLoc === 'cottage_interior' ||
         curLoc === 'greenhouse_interior' ||
-        curLoc === 'bakery_interior';
+        curLoc === 'bakery_interior' ||
+        curLoc === 'nook_interior';
       envController.update(
         composed,
         world,
@@ -1339,6 +1406,7 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
         cottageInteriorRig.group.visible = curLoc === 'cottage_interior';
         greenhouseInteriorRig.group.visible = curLoc === 'greenhouse_interior';
         bakeryInteriorRig.group.visible = curLoc === 'bakery_interior';
+        nookInteriorRig.group.visible = curLoc === 'nook_interior';
         (scene.background as THREE.Color).set('#2C221B');
         if (scene.fog instanceof THREE.Fog) {
           scene.fog.near = 200;
@@ -1373,6 +1441,19 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
           scene.environmentIntensity =
             indoorPhase === 'dusk' ? 0.5 : indoorPhase === 'golden' ? 0.54 : 0.63;
           bakeryInteriorRig.update(world, indoorPhase, elapsed);
+        } else if (curLoc === 'nook_interior') {
+          // Book nook hush (M3 Build 8): slightly greener-paper daylight than the bakery,
+          // while the rig's own reading lamp carries the room toward dusk.
+          hemiLight.color.set('#F1E9D4');
+          hemiLight.groundColor.set('#5F5240');
+          hemiLight.intensity =
+            indoorPhase === 'dusk' ? 0.66 : indoorPhase === 'golden' ? 0.72 : 0.84;
+          sunLight.color.set(indoorPhase === 'dusk' ? '#FFD9A6' : '#FFECCB');
+          sunLight.intensity = indoorPhase === 'dusk' ? 0.54 : indoorPhase === 'golden' ? 0.78 : 1.14;
+          sunLight.position.set(10, 16, 11);
+          scene.environmentIntensity =
+            indoorPhase === 'dusk' ? 0.48 : indoorPhase === 'golden' ? 0.52 : 0.62;
+          nookInteriorRig.update(world, indoorPhase, elapsed);
         } else {
           // Phase-responsive indoor ambience: daylight floods the room in the
           // morning, then settles into warm lamp-and-ember twilight by dusk.
@@ -1391,6 +1472,7 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
         cottageInteriorRig.group.visible = false;
         greenhouseInteriorRig.group.visible = false;
         bakeryInteriorRig.group.visible = false;
+        nookInteriorRig.group.visible = false;
         // Pass 10: the chimney advertises the hearth — smoke only while the fire is
         // lit, breathing harder while the kettle is warm (zero-GC strength value).
         updateWillowPrototypeMotion(
@@ -1931,7 +2013,11 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
         // R-08: gaze biased east of the plaza so the slow orbit keeps the tallest
         // west-side rooflines (Bakery/Book Nook) clear of the top-left title card.
         camera.lookAt(1.5, 1.4, -2.5);
-      } else if (curLocation === 'cottage_interior' || curLocation === 'bakery_interior') {
+      } else if (
+        curLocation === 'cottage_interior' ||
+        curLocation === 'bakery_interior' ||
+        curLocation === 'nook_interior'
+      ) {
         const interiorZoom = THREE.MathUtils.clamp(zoomRef.current * 0.68, 0.56, 0.92);
         const focusX = world.playerPos.x * 0.42;
         const focusZ = world.playerPos.z * 0.42;
@@ -2016,6 +2102,7 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
       cottageInteriorRig.dispose();
       greenhouseInteriorRig.dispose();
       bakeryInteriorRig.dispose();
+      nookInteriorRig.dispose();
       meadowDressing.dispose();
       orchardRig.dispose();
       orchardMicroLifeRig.dispose();

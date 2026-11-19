@@ -248,6 +248,7 @@ export const PROP_INTERACTABLES: PropInteractable[] = [
   { id: 'pond_driftwood', name: 'Mirror Pond Driftwood Nook', x: 6.5, z: 13.8, interactRadius: 2.4 },
   { id: 'greenhouse_door', name: 'Sunbeam Greenhouse Door', x: 10.15, z: 3.2, interactRadius: 2.1 },
   { id: 'bakery_door', name: 'Hearth & Crumb Bakery Door', x: -12.4, z: -7.05, interactRadius: 2.2 },
+  { id: 'nook_door', name: 'Linden Book Nook Door', x: -11.8, z: -1.0, interactRadius: 2.2 },
 ];
 
 export interface PropInteractionMetrics {
@@ -370,6 +371,8 @@ export function getPropInteractionMetrics(
       ? { x: 11.15, z: 3.2 }
       : propId === 'bakery_door'
       ? { x: -12.4, z: -8.15 }
+      : propId === 'nook_door'
+      ? { x: -13.1, z: -1.0 }
       : propId === 'cottage_window_box'
       ? { x: -10.8, z: 12.1 }
       : propId === 'greenhouse_planters'
