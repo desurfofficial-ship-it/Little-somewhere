@@ -87,7 +87,7 @@ Before considering any change complete, run these checks in order after your fin
 1. **Unit Tests (Pure Engine Logic)**:
    ```bash
    npm test
-   # equivalent to: npx --yes tsx --test src/game/engine.test.ts
+   # equivalent to: npx --yes tsx --test src/game/*.test.ts src/scene/*.test.ts
    ```
 2. **TypeScript Check**:
    ```bash
@@ -105,5 +105,5 @@ Before considering any change complete, run these checks in order after your fin
 ## 5. Adding New Content Safely
 
 - **Adding a Resident**: Add ID to `ResidentId` in `src/game/types.ts`, add definition + all 4 walkable `ScheduleSlot` coordinates to `src/game/residents.ts`, add dialogue tree in `src/game/narrative.ts`, and run `npm test` (which automatically validates walkability for every resident across all 4 phases).
-- **Adding Environmental Reactivity**: Add flag to `StoryFlags` in `src/game/types.ts` and `createInitialStoryFlags()` in `src/game/narrative.ts`, derive visual boolean/count in `computeEnvironmentState()`, and toggle visibility/scale cleanly inside `updateEnvironmentVisuals()` in `src/scene/NeighborhoodCanvas.tsx`.
+- **Adding Environmental Reactivity**: Add flag to `StoryFlags` in `src/game/types.ts` and `createInitialStoryFlags()` in `src/game/narrative.ts`, derive visual boolean/count in `computeEnvironmentState()`, and toggle visibility/scale cleanly inside `EnvironmentVisualController.update()` in `src/scene/environmentRenderer.ts`.
 - **Documentation Discipline**: Record every completed task in `WORKLOG.md` and update `HANDOVER.md` whenever architecture, storage keys, or open backlog items change.

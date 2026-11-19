@@ -259,6 +259,9 @@ export default function App() {
         if (res.actionType === 'ring_bell') {
           setBellRingCounter((c) => c + 1);
           showToast('The restored brass bell echoes across Little Somewhere!');
+        } else if (res.memoryUnlockedTitle) {
+          cozyAudio.playMemoryChime();
+          showToast(`Memory saved: ${res.memoryUnlockedTitle}`);
         }
         setDialogueSession(null);
         setActivePropId(pid);

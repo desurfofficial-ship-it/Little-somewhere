@@ -534,6 +534,13 @@ export const DIALOGUE_TOPICS: readonly DialogueTopic[] = [
               isStoryMilestone: true,
               setEmotion: 'happy',
               setFlags: { deliveredPostcard: true },
+              unlockMemory: {
+                id: 'mem_postcard_sent',
+                title: 'Delayed Delivery',
+                summary:
+                  'Suggested Jun tuck a fresh welcome note beside Arthur’s recovered coastal postcard.',
+                residentId: 'jun',
+              },
             },
             {
               id: 'jun_scold_blunt',

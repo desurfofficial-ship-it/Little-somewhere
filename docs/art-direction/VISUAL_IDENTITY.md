@@ -70,10 +70,10 @@ Materials must visually tell you what an object is made of at a glance, using **
 Because the renderer uses `ACESFilmicToneMapping`, raw light pastel hex colors (`>#ECECEC`) wash out toward flat white under `sunLight` (`1.4–1.55`) + `HemisphereLight` + `RoomEnvironment`. Keep ground, stone, and wall albedos in **rich mid-warm storybook registers** so sunlit faces glow softly while shaded sides keep color and depth.
 
 ### Four Sacred Time Phases (Preserved & Elevated)
-1. **Morning (`6:00 AM – 11:30 AM`)**: Crisp sky `#DCEBF2`, warm honey sunlight `#FFECC4`, cool sky shadow fill `#8EB8D8`, faint fresh dew warmth.
-2. **Afternoon (`11:30 AM – 4:00 PM`)**: Clear bright sky `#D6EAF4`, sunlit cream key `#FFF3D6`, rich leaf/cobble contrast without glare.
-3. **Golden Hour (`4:00 PM – 6:30 PM`)**: Apricot sky `#F2C692`, amber directional key `#FFA958`, long cozy shadows, cottage windows begin glowing warmly.
-4. **Lantern Dusk (`6:30 PM – 9:00 PM`)**: Twilight periwinkle-indigo `#64749E`, cool moonlit fill `#6B82B8` contrasting sharply with glowing amber cottage hearths, porch lanterns, and plaza festoons (`#FFAA3B`).
+1. **Morning (`6:00 AM – 11:30 AM`)**: Crisp sky `#DCEBF2`, warm honey sunlight `#FFF1D0`, cool sky shadow fill `#B5D7EB` (warm ground bounce `#7A664E`), faint fresh dew warmth.
+2. **Afternoon (`11:30 AM – 4:00 PM`)**: Clear bright sky `#D9ECF5`, sunlit cream key `#FFF6DF`, rich leaf/cobble contrast without glare.
+3. **Golden Hour (`4:00 PM – 6:30 PM`)**: Apricot sky `#F2C28C`, amber directional key `#FF9D4A`, long cozy raking shadows, cottage windows begin glowing warmly.
+4. **Lantern Dusk (`6:30 PM – 9:30 PM`)**: Twilight periwinkle-indigo `#4C5B8F`, cool moonlit directional key `#8099D8` and sky fill `#47568C` contrasting sharply with glowing amber cottage hearths, porch lanterns, and plaza festoons (`#FFAA3B`).
 
 ### Grounding & Depth
 - Every structure, tree, prop, and actor sits flush at `y = 0` with **real contact grounding**: a soft radial contact shadow disc or subtle foundation AO skirt underneath so objects stay grounded even when dynamic shadow maps are disabled on software WebGL.
@@ -86,7 +86,7 @@ Residents must feel like **expressive miniature storybook figurines**, never rec
 - **Distinct Silhouettes & Proportions**: Meaningful variation in height (`0.78` Pip to `1.08` Barnaby), coat drape/flared hems, sleeves/cuffs, hats/hair buns, and signature carried props (satchel with sticking-out letter, watering can, violin case, sketchbook, sourdough loaf).
 - **Readable Storybook Faces**: Warm clay skin tone, subtle blush cheeks, sculpted nose hint, expressive eyes (with subtle white catchlight), and layered hair tufts/bangs visible from the elevated isometric angle.
 - **Expressive Postures**: Arms slightly angled away from torso with articulated cuffs/mittens or hands; clear front-to-back read (coat lapels, buttons, collar scarf, apron ties, back pack/case).
-- **Personality-Driven Animation**: Walk stride synced to traveled distance, gentle breathing/weight shift at rest, turning smoothly toward the player when approached, and future activity poses (tending plants, reading, brewing, playing violin).
+- **Personality-Driven Animation**: Walk stride synced to traveled distance, gentle breathing/weight shift at rest, turning smoothly toward the player when approached, and expressive activity poses (`work`, `sketch_read`, `music`, `admire`, `sit`, `converse`).
 
 ---
 

@@ -37,6 +37,7 @@ export interface PropInteractionResult {
   body: string;
   actionLabel?: string;
   actionType?: 'rest_next_day' | 'ring_bell' | 'fountain_wish' | 'skip_stone';
+  memoryUnlockedTitle?: string;
 }
 
 export function applyDialogueChoice(
@@ -601,20 +602,43 @@ export function interactWithProp(
 
   if (propId === 'hollow_oak') {
     if (world.flags.foundBrassClapper) {
+      const tobyHelped = world.memories.some(
+        (m) => m.id === 'mem_brass_clapper' && m.residentId === 'toby',
+      );
       return {
         nextWorld: world,
         title: 'Hollow Oak Root',
-        body: 'Only warm dry moss and a scrap of blue ribbon remain inside the root hollow where Toby spotted the bell clapper.',
+        body: tobyHelped
+          ? 'Only warm dry moss and a scrap of blue ribbon remain inside the root hollow where Toby spotted the bell clapper.'
+          : 'Only warm dry moss and a scrap of blue linen remain inside the quiet root hollow where you found the bell clapper.',
       };
     }
     if (world.flags.heardBellMystery) {
+      const memId = 'mem_brass_clapper';
+      const hasMem = world.memories.some((m) => m.id === memId);
+      const phase = getTimePhase(world.minuteOfDay);
+      const nextMemories = hasMem
+        ? world.memories
+        : [
+            {
+              id: memId,
+              day: world.day,
+              phase,
+              title: 'The Hidden Brass Clapper',
+              summary:
+                'Found the gazebo bell’s polished brass clapper wrapped in blue linen inside the mossy hollow oak roots.',
+            },
+            ...world.memories,
+          ];
       return {
         nextWorld: {
           ...world,
           flags: { ...world.flags, foundBrassClapper: true },
+          memories: nextMemories,
         },
         title: 'A Glint in the Hollow Oak!',
         body: 'Tucked neatly inside a fold of blue linen lies the gazebo bell’s polished brass clapper! Arthur at Copperwheel Cottage will know how to pin it back in place.',
+        memoryUnlockedTitle: hasMem ? undefined : 'The Hidden Brass Clapper',
       };
     }
     return {

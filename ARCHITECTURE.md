@@ -29,14 +29,22 @@
 ┌───────────────────────────────────────────────────────────────────────────┐
 │               Headless Game Engine (src/game/* — Zero UI/3D)              │
 │                                                                           │
-│  • types.ts      — WorldState, StoryFlags, EnvironmentalState, Dialogue   │
-│  • worldMap.ts   — Bounds, box/circle obstacles, axis-sliding collision   │
-│  • residents.ts  — 9 residents, 4-phase schedules, appearance metadata    │
-│  • narrative.ts  — Branching dialogue trees & computeEnvironmentState()   │
-│  • actions.ts    — applyDialogueChoice(), interactWithProp(), day rest    │
-│  • storage.ts    — localStorage persistence ('little_somewhere_world_v1') │
-│  • audio.ts      — Procedural Web Audio API SFX (footsteps, chimes, bell) │
-└───────────────────────────────────────────────────────────────────────────┘
+│  • types.ts      — WorldState v3, StoryFlags, EnvironmentalState, Dialogue │
+│  • time.ts/rng.ts— Unified 360–1290 clock, 10-day seasons, deterministic PRNG│
+│  • worldMap.ts   — Bounds, box/circle obstacles, seats, carryable props    │
+│  • navigation.ts — 33-node A* lane graph, LOS smoothing, stuck recovery   │
+│  • residents.ts  — Founding residents, traits, 4-phase slots & activities  │
+│  • simulation.ts — Needs, emotions, autonomous encounters & greeting logic │
+│  • relationships.ts — Player<->NPC & NPC<->NPC tiers, daily cap, events    │
+│  • dialogueEngine.ts — Declarative topic selector, gossip & quest hooks   │
+│  • narrative.ts  — Story topics, Bell & side arcs, computeEnvironmentState │
+│  • actions.ts    — Dialogue, prop, water wish/skip, & next-day reducers    │
+│  • environment.ts— 5-layer Environment Composer (time/weather/season/props)│
+│  • playerController.ts — Locomotion, bridge Y, bench sit, prop targeting   │
+│  • migrations.ts — v1 -> v2 -> v3 save migration & field sanitization      │
+│  • storage.ts    — localStorage persistence ('little_somewhere_world_v1')  │
+│  • audio.ts      — Procedural Web Audio API SFX (footsteps, chimes, bell)  │
+└────────────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
@@ -54,7 +62,7 @@ Running React `setState` inside a 60 Hz Three.js animation loop causes continuou
 ## 3. Isometric Camera & Movement Math
 
 - **Camera Rig**: `PerspectiveCamera` with narrow `fov = 28°` positioned at offset `(+19.5 * zoom, +18.2 * zoom, +19.5 * zoom)` relative to the player, smoothly damped with `THREE.MathUtils.damp(..., 6.5, dt)`.
-- **Title Mode Orbit**: When `screenState === 'title'`, the camera smoothly orbits radius `27m` around the Town Square & Old Bell Gazebo `(0, 1.4, -2.5)`.
+- **Title Mode Orbit**: When `screenState === 'title'`, the camera smoothly orbits radius `27m` around `(1.5, 1.4, -2.5)` to keep west rooflines clear of the title card.
 - **Screen-Aligned Isometric Input**:
   Because the camera looks along `(-1, 0, -1)`:
   - Screen Right (`+X_screen`) maps to world `(+0.7071, -0.7071)`.
@@ -70,14 +78,15 @@ Running React `setState` inside a 60 Hz Three.js animation loop causes continuou
 
 ## 4. Collision & Resident Schedule Steering
 
-- **Obstacle Primitives (`src/game/worldMap.ts`)**:
-  - `BOX_OBSTACLES`: Rectangular footprints for all 6 buildings + Mirror Pond water basin.
-  - `CIRCLE_OBSTACLES`: Circular footprints for the Stone Fountain, Gazebo plinth, Hollow Oak trunk, Tea Cart, and Noticeboard.
+- **Obstacle Primitives & 33-Node A* Graph (`src/game/worldMap.ts`, `src/game/navigation.ts`)**:
+  - `BOX_OBSTACLES`: Rectangular footprints for all 6 buildings, Mirror Pond water basin, and `bridge_west_rail`.
+  - `CIRCLE_OBSTACLES`: Circular footprints for the Stone Fountain, Gazebo plinth, Hollow Oak trunk, Tea Cart, Noticeboard, 5 cedar benches, Willow courtyard trees/signpost, and Fern Hollow Orchard trees/gate/props (synced with `src/scene/builders/orchard.ts`).
+  - `NAV_NODES` (`33` nodes) & `NAV_EDGES`: Connected cobblestone, bridge, and orchard waypoint graph with line-of-sight smoothing for tap-to-walk and NPC steering.
 - **Axis-Separated Sliding (`resolveMovement`)**:
   - Checks `(desired.x, desired.z)`. If blocked, falls back to `(desired.x, current.z)` or `(current.x, desired.z)` so players and NPCs glide smoothly along cottage walls and plaza rims instead of snagging.
 - **Schedule Transitions**:
-  - `getTimePhase(minuteOfDay)` maps `360–1260` (6:00 AM–9:00 PM) into `morning`, `afternoon`, `golden`, and `dusk`.
-  - When a phase changes (or when `claraArthurReconciled` flips true!), `getResidentScheduleSlot()` returns the new target coordinate and residents walk smoothly across the lanes at `2.3 m/s`.
+  - `getTimePhase(minuteOfDay)` maps `360–1290` (`6:00 AM–9:30 PM`, `src/game/time.ts`) into `morning`, `afternoon`, `golden`, and `dusk`.
+  - `stepSimulationInPlace()` blends 4-phase anchor slots (`getResidentScheduleSlot()`) with utility-scored `RESIDENT_EXTRA_ACTIVITIES`, autonomous encounters, and late-dusk porch wind-down (`1225+`), moving residents at `2.3 m/s` (`DEFAULT_NPC_SPEED`).
 
 ---
 
@@ -109,22 +118,24 @@ computeEnvironmentState(world.flags)
 
 | Path | Responsibility |
 | :--- | :--- |
-| `src/game/types.ts` | Core domain interfaces (`WorldState`, `StoryFlags`, `DialogueSession`) |
-| `src/game/worldMap.ts` | Neighborhood map, bounds, collision math, landmarks, prop zones |
-| `src/game/residents.ts` | 9 resident definitions, appearances, 4-phase schedules, clock helpers |
-| `src/game/narrative.ts` | Branching dialogue builder, quest cues, `computeEnvironmentState()` |
-| `src/game/actions.ts` | Pure state transition reducers, mailbox letters, prop interactions |
-| `src/game/storage.ts` | `localStorage` save/load/reset and `advanceToNextDay()` |
-| `src/game/audio.ts` | Procedural Web Audio synthesizer (footsteps, voice, chime, brass bell) |
-| `src/game/engine.test.ts` | Deterministic `node:test` suite for collision, schedules, and story flow |
-| `src/scene/textures.ts` | Seeded procedural `CanvasTexture` generators (meadow, cobbles, shingles, contact shadows) |
-| `src/scene/materials.ts` | Shared `MaterialPalette` cache enforcing roughness/ACES color discipline |
-| `src/scene/models.ts` | Composite clay cottages, greenhouse, lathe brass bell gazebo, stone fountain, characters |
+| `src/game/types.ts` | Core domain interfaces (`WorldState` v3, `StoryFlags`, `DialogueSession`) |
+| `src/game/time.ts`, `rng.ts` | Unified clock (`360–1290`), 10-day 4-season calendar, deterministic FNV/Mulberry PRNG |
+| `src/game/worldMap.ts`, `navigation.ts` | Neighborhood map, bounds, collision math, landmarks, props, 33-node A* graph |
+| `src/game/residents.ts`, `simulation.ts` | Founding resident definitions, traits, schedules, needs/emotions, autonomous encounters |
+| `src/game/relationships.ts` | Player–NPC & NPC–NPC relationship tiers, daily small-talk cap, event ring buffer |
+| `src/game/dialogueEngine.ts`, `narrative.ts` | Declarative topic selector, third-party gossip, Bell & side arcs, `computeEnvironmentState()` |
+| `src/game/actions.ts`, `playerController.ts` | Pure state transition reducers, mailbox letters, prop/water actions, locomotion & bench logic |
+| `src/game/environment.ts` | Pure 5-Layer Environment Composer (time, seeded weather, season, flags, NPC touches) |
+| `src/game/migrations.ts`, `storage.ts`, `audio.ts` | `v1 -> v2 -> v3` migrations, `localStorage` autosave + revision hash, Web Audio SFX |
+| `src/game/*.test.ts`, `src/scene/*.test.ts` | Deterministic `node:test` suites covering engine rules, saves, and 3D scene contracts |
+| `src/scene/textures.ts`, `materials.ts` | Seeded procedural `CanvasTexture` surfaces & shared `MaterialPalette` cache |
+| `src/scene/models.ts`, `waterShaders.ts` | Shared rig type contracts (`GazeboRig`, `FountainRig`, `MirrorPondRig`, `CharacterRig`) & water shaders |
+| `src/scene/builders/*` | Composite clay buildings, landmarks, Mirror Pond/bridge/grove, Fern Hollow Orchard, characters, reactive props & meadow botanicals |
 | `src/scene/prototypes/willowLaneDiorama.ts` | Premium Handcrafted Storybook Diorama prototype (Willow Step Cottage, lane, foliage & Jun) |
-| `src/scene/environmentRenderer.ts` | Dirty-flagged lighting, weather FX, season palettes, and prop sync |
-| `src/scene/NeighborhoodCanvas.tsx` | Three.js renderer, lighting cycle, movement, raycasting, animation loop |
+| `src/scene/environmentRenderer.ts` | Dirty-flagged lighting, weather FX, season palettes, and prop sync (`EnvironmentVisualController`) |
+| `src/scene/NeighborhoodCanvas.tsx` | Deferred (`React.lazy`) Three.js renderer, lighting cycle, movement, raycasting, animation loop |
 | `src/components/*` | `TitleOverlay`, `VirtualJoystick`, `DialogueSheet`, `JournalDrawer`, `PauseModal` |
-| `src/App.tsx` | Top-level game shell, HUD bar, keyboard shortcuts, persistence wiring |
+| `src/App.tsx` | Top-level game shell, HUD bar, keyboard shortcuts, lazy canvas mount, persistence wiring |
 | `docs/art-direction/*` | Official **Premium Handcrafted Storybook Diorama** identity, standards, audit & roadmap |
 
 ---

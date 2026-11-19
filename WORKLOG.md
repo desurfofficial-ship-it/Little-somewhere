@@ -395,3 +395,24 @@ Chronological log of design decisions, implementation milestones, verification r
 - **Verification**:
   - `npm test`: **62/62 passing on the build tree** (59 prior + 3 new orchard suites); **64/64 on the merged tree** together with Entry 020's Phase 2 regression tests. `npm run lint`: **0 errors**, `npm run build`: pass (shell 409.20 kB + scene chunk 728.36 kB).
   - Live headless Chromium desktop `1440×900` + mobile `390×844` with injected `WorldState v3` saves (`scripts/make_orchard_save.ts`): HUD location chip reads "Fern Hollow Orchard" inside the district; gate piers/arch/sign, ladder, crates, skep, bench and red loose apples all confirmed across morning / Golden Hour 4:55 PM / Lantern Dusk 9:25 PM; bench interaction prompt "Sit on Fern Hollow Orchard Bench [F]" live; **0 console errors, 0 page errors** on both viewports.
+
+---
+
+## Entry 022 — Documentation Synchronization, Narrative Memory Consistency & Development Baseline
+- **Date**: 2026-11-19
+- **Status**: Completed & Verified (Maintenance & Baseline Sync Only — Zero New Feature Milestones)
+- **Key Deliverables**:
+  - **Documentation Synchronization (`ARCHITECTURE.md`, `docs/art-direction/VISUAL_IDENTITY.md`, `HANDOVER.md`, `AGENTS.md`, `README.md`, `docs/milestones/09-milestone-2b-audit-and-design.md`)**:
+    - Left `/GAME_DESIGN.md` untouched as the approved 12-section design authority and preserved historical entries in `WORKLOG.md` (001–021) and `CHANGELOG.md`.
+    - Updated `ARCHITECTURE.md` clock bounds (`360–1290`, `6:00 AM–9:30 PM`), R-08 title orbit lookAt `(1.5, 1.4, -2.5)`, `33`-node A* nav graph + orchard/bridge obstacles, `src/scene/builders/*`, and M2A/M2B module map.
+    - Updated `docs/art-direction/VISUAL_IDENTITY.md` §5 lighting bounds and palette hexes to match `src/game/time.ts` (`9:30 PM` Dusk end) and `src/scene/environmentRenderer.ts` (Morning `#FFF1D0` / `#B5D7EB`, Afternoon `#D9ECF5` / `#FFF6DF`, Golden `#F2C28C` / `#FF9D4A`, Dusk `#4C5B8F` / `#8099D8` / `#47568C`), plus §6 implemented pose wording.
+    - Updated `HANDOVER.md` with the verified `66/66` test baseline, `33`-node A* navigation, `5` benches, Milestone 2B (`IN PROGRESS`: Phases 1–2 done, Phases 3–5 `PLANNED`) and Fern Hollow Orchard (`IN PROGRESS`: scenery/nav/bench done, gameplay `PLANNED`) lifecycle status, and build metrics.
+    - Synced minor command/path references in `AGENTS.md`, `README.md`, and `docs/milestones/09-milestone-2b-audit-and-design.md`.
+  - **Narrative Memory Consistency Fixes (`src/game/narrative.ts`, `src/game/actions.ts`, `src/App.tsx`, `src/game/dialogue.test.ts`)**:
+    - **Jun's Postcard (`quest_jun_postcard` -> `jun_advice`)**: Added `mem_postcard_sent` (`"Delayed Delivery"`) with distinct gentle fresh-note summary wording while preserving `jun_advice`'s distinct label, `'gentle'` tone, `deliveredPostcard: true`, and transition to `jun_relieved`.
+    - **Brass Clapper Discovery (`interactWithProp('hollow_oak')` vs `toby_clapper`)**: Direct Hollow Oak discovery after `heardBellMystery` now unlocks `mem_brass_clapper` with independent summary wording (without attributing Toby or altering Toby's trust/reward balance), reports `memoryUnlockedTitle` for audio/toast parity in `src/App.tsx`, and uses neutral/independent re-inspection text when Toby was not involved—while keeping Clara (`clara_bridge_truth`), Arthur (`arthur_restore_bell`), and Toby's non-clapper interactions intact and hiding `toby_clapper` cleanly once already recovered.
+    - Preserved `WorldState` `schemaVersion: 3` and all save migrations unchanged.
+- **Verification**:
+  - `npm test` (`tsx --test src/game/*.test.ts src/scene/*.test.ts`): **66/66 passing** (`0` failures).
+  - `npm run lint` (`tsc --noEmit`), `compile_applet`, `lint_applet`, and `npm run build` (`vite build`): **Passing (`0` errors)**.
+

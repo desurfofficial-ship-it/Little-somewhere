@@ -1,7 +1,7 @@
 # 09 — Milestone 2B Audit & Target Architecture Design
 
-**Status**: Audit & Design Complete — **Awaiting Explicit User Approval Before Implementation**  
-**Scope**: Deeper Social & Narrative Systems (Phases 1–5) for **LITTLE SOMEWHERE**  
+**Status**: Phases 1–2 Implemented (Paused Before Phase 3); **Phases 3–5 Remain `PLANNED` Pending Approval**  
+**Scope**: Deeper Social & Narrative Systems (Phases 1–5) for **LITTLE SOMEWHERE** *(Note: Sections 1–7 below document the pre-Phase-1 architectural audit & target blueprint; since then Phases 1–2 shipped, navigation expanded to 33 nodes, and `npm test` runs 66/66 suites.)*  
 **Repository Layer Discipline**: Strict preservation of `src/game/` (zero React / zero Three.js / zero unguarded DOM) | `src/scene/` | `src/components/` + `src/App.tsx`.
 
 ---

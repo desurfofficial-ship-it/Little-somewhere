@@ -1,8 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { applyDialogueChoice, pickupWorldPropAction } from './actions';
+import { applyDialogueChoice, interactWithProp, pickupWorldPropAction } from './actions';
 import { evaluateDialogueCondition, isChoiceAvailable } from './dialogueEngine';
-import { DIALOGUE_TOPICS, buildResidentDialogue } from './narrative';
+import { DIALOGUE_TOPICS, buildResidentDialogue, getResidentAvailableQuestCue } from './narrative';
 import { getNpcRelation } from './relationships';
 import { RESIDENT_ORDER } from './residents';
 import { createFreshWorldState } from './storage';
@@ -306,16 +306,24 @@ test('Phase 1 migration regression: zero duplicate choice IDs per session and al
   assert.equal(afterTake.flags.foundPostcard, true);
   assert.ok(afterTake.memories.some((m) => m.id === 'mem_lost_postcard'));
 
-  // 4. Jun branches: jun_reassure unlocks mem_postcard_sent, jun_advice delivers without mem_postcard_sent
+  // 4. Jun branches: both jun_reassure and jun_advice deliver postcard & unlock mem_postcard_sent with distinct tones
   const junSession = buildResidentDialogue('jun', afterTake, 'morning');
   const junReassure = junSession.nodes.root.choices.find((c) => c.id === 'jun_reassure')!;
   const junAdvice = junSession.nodes.root.choices.find((c) => c.id === 'jun_advice')!;
-  const afterReassure = applyDialogueChoice(afterTake, junSession, junReassure).nextWorld;
+  assert.equal(junReassure.tone, 'warm');
+  assert.equal(junAdvice.tone, 'gentle');
+  assert.notEqual(junReassure.label, junAdvice.label);
+  const afterReassureRes = applyDialogueChoice(afterTake, junSession, junReassure);
+  const afterReassure = afterReassureRes.nextWorld;
   assert.equal(afterReassure.flags.deliveredPostcard, true);
+  assert.equal(afterReassureRes.memoryUnlockedTitle, 'Delayed Delivery');
   assert.ok(afterReassure.memories.some((m) => m.id === 'mem_postcard_sent'));
-  const afterAdvice = applyDialogueChoice(afterTake, junSession, junAdvice).nextWorld;
+  const afterAdviceRes = applyDialogueChoice(afterTake, junSession, junAdvice);
+  const afterAdvice = afterAdviceRes.nextWorld;
   assert.equal(afterAdvice.flags.deliveredPostcard, true);
-  assert.equal(afterAdvice.memories.some((m) => m.id === 'mem_postcard_sent'), false);
+  assert.equal(afterAdviceRes.memoryUnlockedTitle, 'Delayed Delivery');
+  assert.equal(afterAdvice.residents.jun.trust, afterReassure.residents.jun.trust);
+  assert.ok(afterAdvice.memories.some((m) => m.id === 'mem_postcard_sent'));
 
   // 5. Sora tea, Toby clapper, Clara baking bridge
   const soraSession = buildResidentDialogue('sora', afterReassure, 'afternoon');
@@ -633,3 +641,61 @@ test('Phase 1 migration regression: remaining concurrent milestones, gossip/tier
     }
   }
 });
+
+test('both direct Hollow Oak discovery and Toby-assisted recovery unlock mem_brass_clapper consistently', () => {
+  const fresh = createFreshWorldState();
+  // Before heardBellMystery, Hollow Oak gives a hint without setting flag or unlocking memory
+  const earlyOak = interactWithProp(fresh, 'hollow_oak');
+  assert.equal(earlyOak.nextWorld.flags.foundBrassClapper, false);
+  assert.equal(earlyOak.nextWorld.memories.some((m) => m.id === 'mem_brass_clapper'), false);
+
+  const heardWorld: WorldState = {
+    ...fresh,
+    flags: { ...fresh.flags, heardBellMystery: true, clearedGazeboIvy: true },
+  };
+  assert.equal(getResidentAvailableQuestCue('toby', heardWorld), 'ready');
+
+  // Route A: Direct Hollow Oak discovery awards mem_brass_clapper independently without changing Toby trust
+  const soloPickup = interactWithProp(heardWorld, 'hollow_oak');
+  assert.equal(soloPickup.nextWorld.flags.foundBrassClapper, true);
+  assert.equal(soloPickup.memoryUnlockedTitle, 'The Hidden Brass Clapper');
+  assert.equal(soloPickup.nextWorld.residents.toby.trust, heardWorld.residents.toby.trust);
+  const soloMem = soloPickup.nextWorld.memories.find((m) => m.id === 'mem_brass_clapper');
+  assert.ok(soloMem);
+  assert.equal(soloMem.residentId, undefined);
+  assert.equal(soloMem.summary.includes('Toby'), false);
+
+  // Subsequent oak inspection reflects independent discovery rather than claiming Toby helped
+  const soloReinspect = interactWithProp(soloPickup.nextWorld, 'hollow_oak');
+  assert.equal(soloReinspect.body.includes('Toby'), false);
+  assert.equal(soloReinspect.memoryUnlockedTitle, undefined);
+
+  // Downstream progression and Toby's non-clapper dialogue remain valid after independent discovery
+  assert.equal(getResidentAvailableQuestCue('toby', soloPickup.nextWorld), 'none');
+  const tobyAfterSolo = buildResidentDialogue('toby', soloPickup.nextWorld, 'afternoon');
+  assert.equal(tobyAfterSolo.nodes.root.choices.some((c) => c.id === 'toby_clapper'), false);
+  assert.ok(tobyAfterSolo.nodes.root.choices.length >= 1);
+  const claraAfterSolo = buildResidentDialogue('clara', soloPickup.nextWorld, 'afternoon');
+  assert.ok(claraAfterSolo.nodes.root.choices.some((c) => c.id === 'clara_bridge_truth'));
+  const arthurAfterSolo = buildResidentDialogue('arthur', soloPickup.nextWorld, 'afternoon');
+  assert.ok(arthurAfterSolo.nodes.root.choices.some((c) => c.id === 'arthur_restore_bell'));
+
+  // Route B: Toby-assisted recovery awards Toby +1 trust, Toby-attributed mem_brass_clapper, and avoids duplicate memory on oak reinspect
+  const tobySession = buildResidentDialogue('toby', heardWorld, 'afternoon');
+  const tobyChoice = tobySession.nodes.root.choices.find((c) => c.id === 'toby_clapper')!;
+  const afterToby = applyDialogueChoice(heardWorld, tobySession, tobyChoice);
+  assert.equal(afterToby.nextWorld.flags.foundBrassClapper, true);
+  assert.equal(afterToby.memoryUnlockedTitle, 'The Hidden Brass Clapper');
+  assert.equal(afterToby.nextWorld.residents.toby.trust, heardWorld.residents.toby.trust + 1);
+  const tobyMem = afterToby.nextWorld.memories.find((m) => m.id === 'mem_brass_clapper');
+  assert.ok(tobyMem);
+  assert.equal(tobyMem.residentId, 'toby');
+
+  const oakAfterToby = interactWithProp(afterToby.nextWorld, 'hollow_oak');
+  assert.ok(oakAfterToby.body.includes('Toby'));
+  assert.equal(
+    oakAfterToby.nextWorld.memories.filter((m) => m.id === 'mem_brass_clapper').length,
+    1,
+  );
+});
+

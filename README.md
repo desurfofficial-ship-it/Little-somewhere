@@ -49,7 +49,7 @@ You can pass `?autostart=1` to skip the orbiting title screen and boot directly 
 ```text
 ├── AGENTS.md              # Engineering rules, visual constitution, & workflow
 ├── ARCHITECTURE.md        # System layers, camera math, & reactivity pipeline
-├── GAME_DESIGN.md         # Visual bible, 9-resident dossiers, & story graph
+├── GAME_DESIGN.md         # Authoritative Game Design Document (vision, loops, progression & lifecycle)
 ├── HANDOVER.md            # Current milestone status, gotchas, & next backlog
 ├── WORKLOG.md             # Chronological build & verification log
 ├── CHANGELOG.md           # Versioned release notes

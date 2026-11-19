@@ -1,27 +1,36 @@
 # HANDOVER.md — Agent & Engineer Handover Brief
 
 **Project**: LITTLE SOMEWHERE  
-**Current Phase**: Milestone 2B Phase 2 Complete (At Regression Checkpoint — Paused before Phase 3)  
-**Target Next Phase**: Milestone 2B Phase 3 (`npcMemories`, `WorldState v4`) upon checkpoint approval
+**Current Phase**: **Milestone 2B `IN PROGRESS`** (Phases 1–2 + Third-Party Player Gossip & Narrative Memory Fixes Done; **Phases 3–5 `PLANNED`** pending approval) · **Milestone 3 Build 1 (`Fern Hollow Orchard`) `IN PROGRESS`** (Scenery, `33`-node A* & Bench Done; Gameplay **`PLANNED`**)  
+**Target Next Milestone**: Milestone 2B Phase 3 (`npcMemories`, rumor propagation/distortion, `WorldState v4`) or Milestone 3 Foundation / Interiors upon explicit approval
 
 ---
 
 ## 1. Current State of the Repository
 
-The **Player & Character Excellence Upgrade** (Phases 1–12) plus the **Bench Sitting Clearance Fix & Mirror Pond / Mossy Stone Fountain Upgrades** are implemented, compiled, unit-tested (**`49/49`** across pure simulation/dialogue/navigation/player/relationship/persistence and Three.js scene suites), and live-browser verified on desktop (`1440×900`) and mobile (`390×844`) with **`0` console errors and `0` console warnings**:
-- **Official Visual Direction**: **PREMIUM HANDCRAFTED STORYBOOK DIORAMA** (`docs/art-direction/VISUAL_IDENTITY.md`) applied across Willow Step Cottage & Courtyard, Hearth & Crumb Bakery, Linden Book Nook, Copperwheel Cottage, Sunbeam Greenhouse, Pinecone Woodshop, Old Bell Gazebo, Mossy Stone Fountain (double-moulded basin, clog debris -> submerged wishing coins, curved `TubeGeometry` cascades, splash rings, custom water shader, coin-wish interaction), Sora's Tea Cart, Noticeboard, Hollow Oak, Mirror Pond & Cedar Bridge (custom flowing caustic/weather/winter/dusk shader, west brook culvert, swimming koi, lily blooms, reeds, dragonflies, anchored cedar pier + sailboat, stone-skipping interaction), 3-draw-call `InstancedMesh` grove, 5 carryable world props, 4 walkable cedar benches with full back-clearance seating, and all 10 articulated `CharacterRig` figures.
-- **Core Gameplay, Simulation & Character Loop**: Title Screen (`body[data-state="title"]`) -> Live Isometric Neighborhood (`body[data-state="playing"]`) -> Seeded Deterministic Simulation (`WorldState v3` with `v1 -> v2 -> v3` migration + 28-node A* lane navigation + utility-scored autonomous activities, seat reservation, & 2–3 NPC social encounters + bilateral relationship & reliability matrix) -> Analog Walk/Run/Sprint, Bridge Elevation, Carryable Prop Cradle & Gifting, Bench Sitting (`computeSitGroundY`), Contextual Player/NPC Poses (`wave`, `talk`, `interact`, `sit`, `carry`) & Dialogue Camera Framing -> Declarative `dialogueEngine.ts` (conflict mediation, `make_amends` recovery, 4 multi-beat side storylines, anti-repeat `topicHistory`) -> Interactive Water Landmarks (`fountain_plaza` lucky coin wish & `mirror_pond` stone skipping) -> Normalized `localStorage` Persistence (`little_somewhere_world_v1`).
-- **Prototype Scope Note (9 Living Residents)**: Clara, Arthur, Mina, Jun, Barnaby, Sora, Toby, Nora, and Pip form a deliberately limited testing population inside `willow_square`—architecture, UI, and tests derive counts from `RESIDENT_ORDER.length` and pair keys cleanly.
+All core simulation, dialogue, relationship, environment, water, bench, orchard diorama, and persistence baselines are compiled, unit-tested (**`66/66`** across pure simulation/dialogue/navigation/player/relationship/persistence and Three.js scene suites), and type-checked with **`0` errors**:
+- **Authoritative Design & Visual Direction**:
+  - Game Design Document: `/GAME_DESIGN.md` (12-section authoritative baseline; currency-free, zero-FOMO, 5-label lifecycle discipline).
+  - Official Visual Direction: **PREMIUM HANDCRAFTED STORYBOOK DIORAMA** (`docs/art-direction/VISUAL_IDENTITY.md`) across Willow Step Cottage & Courtyard, Hearth & Crumb Bakery, Linden Book Nook, Copperwheel Cottage, Sunbeam Greenhouse, Pinecone Woodshop, Old Bell Gazebo, Mossy Stone Fountain (double-moulded basin, clog debris -> submerged wishing coins, curved `TubeGeometry` cascades, splash rings, custom water shader, coin-wish interaction), Sora's Tea Cart, Noticeboard, Hollow Oak, Mirror Pond & Cedar Bridge (custom flowing caustic/weather/winter/dusk shader, west brook culvert, swimming koi, lily blooms, reeds, dragonflies, anchored cedar pier + sailboat, stone-skipping interaction), **Fern Hollow Orchard** (gate/sign, 6 season-tinted crabapple trees, harvest ladder/crates, bee skep, 5 nav nodes, `orchard` zone), 3-draw-call `InstancedMesh` grove, 5 carryable world props, and **`5` walkable cedar benches** (`SEAT_SPOTS`, including `seat_orchard_bench`) plus all 10 articulated `CharacterRig` figures.
+- **Core Gameplay, Simulation & Narrative Baseline (`IMPLEMENTED`)**:
+  - Title Screen (`body[data-state="title"]`) -> Live Isometric Neighborhood (`body[data-state="playing"]`) -> Seeded Deterministic Simulation (`WorldState v3` with `v1 -> v2 -> v3` migration + **`33`-node A* lane navigation** + utility-scored autonomous activities, seat reservation, & `2–3` NPC social encounters + bilateral player/NPC relationship & reliability matrix) -> Analog Walk/Run/Sprint, Bridge Elevation, Carryable Prop Cradle & Gifting, Bench Sitting (`computeSitGroundY`), Contextual Player/NPC Poses (`wave`, `talk`, `interact`, `sit`, `carry`) & Dialogue Camera Framing -> Declarative `dialogueEngine.ts` (9 categories, relationship-modulated greetings, tier icons + milestone avatar bounce, third-party player-relation gossip, conflict mediation, `make_amends` recovery, *The Silent Gazebo Bell* + 4 prototype side arcs, unified `jun_advice` `mem_postcard_sent` & direct `hollow_oak` `mem_brass_clapper` memory unlocks, anti-repeat `topicHistory`) -> Interactive Water Landmarks (`fountain_plaza` lucky coin wish & `mirror_pond` stone skipping) -> Normalized `localStorage` Persistence (`little_somewhere_world_v1`).
+- **System Lifecycle Snapshot (Aligned with `/GAME_DESIGN.md`)**:
+  - **`IMPLEMENTED`**: Core `willow_square` world (`33`-node A*, `5` benches, `5` daily-reset plaza props), 9 founding residents (`RESIDENT_ORDER` scalable registry), traits/needs/emotions/encounters, player–NPC & NPC–NPC matrices, third-party player gossip, Gazebo Bell & 4 prototype side arcs, 5-layer environment (`360–1290` `6:00 AM–9:30 PM`, `4` weathers, `10`-day `4` seasons), `cozyAudio`, `WorldState v3`.
+  - **`IN PROGRESS`**: **Milestone 2B** (Phases 1–2 done; Phases 3–5 pending) and **Fern Hollow Orchard** (scenery/nav/bench built; resident schedules & harvest/skep play pending).
+  - **`PLANNED`**: Milestone 2B Phases 3–5 (`npcMemories` & `WorldState v4`, `storylines.ts`, dynamic `JournalDrawer` removing `Reliability %`), enterable cottage interiors, personal inventory (strictly separate from 5 daily plaza props), Priority #1 Gardening & #2 Cooking, Clara & Mina Orchard play, relationship-tier unlocks, post-Bell Community Projects, additional residents.
+  - **`LONG-TERM VISION` / `UNDECIDED`**: Fishing, Decorating, Photography, Pocket Journal collectible albums, Sunday Market (separate 7-day cadence preserving `DAYS_PER_SEASON = 10`, zero-FOMO, currency-free), Seasonal Festivals, `REGIONS` districts, Pets, optional Cloud Saves; exact tier unlock tables, inventory sizing, and market swap etiquette remain `UNDECIDED`.
+- **Prototype Scope Note (9 Founding Residents)**: Clara, Arthur, Mina, Jun, Barnaby, Sora, Toby, Nora, and Pip form a controlled starting population inside `willow_square`—architecture, UI, and tests derive counts from `RESIDENT_ORDER.length` and pair keys cleanly.
 
 ---
 
 ## 2. Where to Read First
 
-1. `docs/art-direction/VISUAL_IDENTITY.md` & `VISUAL_QUALITY_STANDARDS.md` — **Official Visual Identity (PREMIUM HANDCRAFTED STORYBOOK DIORAMA)** and mandatory asset review checklist.
-2. `ARCHITECTURE.md` — System boundaries, `worldRef` vs React snapshot sync, isometric math, and narrative reactivity pipeline.
-3. `src/game/types.ts` — Single source of truth for `WorldState` (v3), `StoryFlags`, `PlayerPosture`, `CarryableItemId`, `DialogueTopic`, and `DialogueSession`.
-4. `src/game/playerController.ts`, `src/game/simulation.ts`, `src/game/dialogueEngine.ts`, `src/game/narrative.ts`, & `src/game/storage.ts` — Movement/posture/targeting math, headless NPC life simulation, declarative dialogue selector, and normalized v3 persistence.
-5. `src/scene/NeighborhoodCanvas.tsx`, `src/scene/waterShaders.ts`, & `src/scene/builders/characters.ts` — Three.js scene lifecycle, custom water shaders, A* tap-to-walk, dialogue camera framing, procedural character poses/cradle kinematics, and `isSoftwareGl` rendering.
+1. `GAME_DESIGN.md` — **Authoritative Game Design Document** (loops, reward philosophy, currency-free rules, and 5-label lifecycle status).
+2. `docs/art-direction/VISUAL_IDENTITY.md` & `VISUAL_QUALITY_STANDARDS.md` — **Official Visual Identity (PREMIUM HANDCRAFTED STORYBOOK DIORAMA)** and mandatory asset review checklist.
+3. `ARCHITECTURE.md` — System boundaries, `worldRef` vs React snapshot sync, isometric math, 33-node navigation, and reactivity pipeline.
+4. `src/game/types.ts` — Single source of truth for `WorldState` (v3), `StoryFlags`, `PlayerPosture`, `CarryableItemId`, `DialogueTopic`, and `DialogueSession`.
+5. `src/game/playerController.ts`, `src/game/simulation.ts`, `src/game/dialogueEngine.ts`, `src/game/narrative.ts`, & `src/game/storage.ts` — Movement/posture/targeting math, headless NPC life simulation, declarative dialogue selector, and normalized v3 persistence.
+6. `src/scene/NeighborhoodCanvas.tsx`, `src/scene/waterShaders.ts`, & `src/scene/builders/characters.ts` — Three.js scene lifecycle, custom water shaders, A* tap-to-walk, dialogue camera framing, procedural character poses/cradle kinematics, and `isSoftwareGl` rendering.
 
 ---
 
@@ -40,12 +49,12 @@ The **Player & Character Excellence Upgrade** (Phases 1–12) plus the **Bench S
 
 ---
 
-## 4. Verification Status (2026-11-19, after Milestone 2B Phase 2 + Milestone 3 Build 1)
+## 4. Verification Status (2026-11-19, Documentation Sync & Narrative Memory Consistency Baseline)
 
-- `npm test` (`tsx --test src/game/*.test.ts src/scene/*.test.ts`) — **64/64 passing** (`0` failures; includes 2 Phase 2 relationship regression tests from Entry 020 and the 3 new orchard obstacle-sync / season-tint / reachability suites from Entry 021)
-- `npm run lint` (`tsc --noEmit`) — **Passing (0 errors)**
-- `npm run build` (`vite build`) — **Passing**; chunks: `index` ~409 kB (shell) + `NeighborhoodCanvas` ~728 kB (deferred via React.lazy; orchard added ~8.7 kB)
-- Browser QA (headless Chromium `1440×900` & `390×844`): Entry 020 verified `DialogueSheet` relationship-tier icons (`stranger` -> `kindred`), fluctuating relationship greetings, milestone avatar bounce, zero horizontal overflow; Entry 021 (injected `WorldState v3` saves via `scripts/make_orchard_save.ts`) verified the Fern Hollow Orchard zone chip, gate arch + lettered sign, ladder, crates, skep, and bench sit prompt across morning / Golden Hour / Lantern Dusk; **0 console errors, 0 page errors** on both viewports
+- `npm test` (`tsx --test src/game/*.test.ts src/scene/*.test.ts`) — **66/66 passing** (`0` failures; includes updated `jun_advice` memory test + new regression test covering both direct `hollow_oak` and `toby_clapper` Brass Clapper routes)
+- `npm run lint` (`tsc --noEmit`) — **Passing (`0` errors)**
+- `npm run build` (`vite build`) — **Passing**; chunks: `index` `651.82 kB` (shell) + `NeighborhoodCanvas` `728.48 kB` (deferred via `React.lazy`)
+- Prior Browser QA (headless Chromium `1440×900` & `390×844`): Entry 020 verified `DialogueSheet` relationship-tier icons (`stranger` -> `kindred`), fluctuating relationship greetings, milestone avatar bounce, zero horizontal overflow; Entry 021 verified Fern Hollow Orchard zone chip, gate arch + sign, ladder, crates, skep, and bench prompt across morning / Golden Hour / Lantern Dusk; **0 console errors, 0 page errors** on both viewports. *(Entry 022 made zero 3D/layout changes; only added chime/toast parity in `App.tsx` when `interactWithProp` unlocks a memory.)*
 
 
 
