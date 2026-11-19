@@ -14,6 +14,7 @@ import {
   getGroundHeightAt,
   getPropInteractionMetrics,
   getSeatById,
+  isPlayerInCottageInterior,
   isPointWalkable,
   resolveMovement,
 } from './worldMap';
@@ -476,12 +477,18 @@ export function selectBestInteractiveTarget(
   for (const prop of PROP_INTERACTABLES) {
     const metrics = getPropInteractionMetrics(prop.id, world.playerPos);
     if (metrics.inRange) {
-      const actionLabel =
-        prop.id === 'gazebo_bell' && world.flags.bellRestored
-          ? 'Ring Bell'
-          : prop.id === 'player_door'
-          ? 'Rest / Porch'
-          : `Inspect ${prop.name}`;
+      let actionLabel = `Inspect ${prop.name}`;
+      if (prop.id === 'gazebo_bell' && world.flags.bellRestored) {
+        actionLabel = 'Ring Bell';
+      } else if (prop.id === 'player_door') {
+        actionLabel = isPlayerInCottageInterior(world.playerPos.x, world.playerPos.z)
+          ? 'Step Outside'
+          : 'Step Inside';
+      } else if (prop.id === 'player_bed') {
+        actionLabel = 'Rest Until Morning';
+      } else if (prop.id === 'player_hearth') {
+        actionLabel = 'Warm Hands';
+      }
       evaluateCandidate(
         {
           kind: 'prop',

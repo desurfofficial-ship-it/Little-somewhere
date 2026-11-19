@@ -32,7 +32,7 @@
 │  • types.ts      — WorldState v3, StoryFlags, EnvironmentalState, Dialogue │
 │  • time.ts/rng.ts— Unified 360–1290 clock, 10-day seasons, deterministic PRNG│
 │  • worldMap.ts   — Bounds, box/circle obstacles, seats, carryable props    │
-│  • navigation.ts — 33-node A* lane graph, LOS smoothing, stuck recovery   │
+│  • navigation.ts — 38-node A* lane graph + cottage interior, LOS smoothing  │
 │  • residents.ts  — Founding residents, traits, 4-phase slots & activities  │
 │  • simulation.ts — Needs, emotions, autonomous encounters & greeting logic │
 │  • relationships.ts — Player<->NPC & NPC<->NPC tiers, daily cap, events    │
@@ -78,10 +78,11 @@ Running React `setState` inside a 60 Hz Three.js animation loop causes continuou
 
 ## 4. Collision & Resident Schedule Steering
 
-- **Obstacle Primitives & 33-Node A* Graph (`src/game/worldMap.ts`, `src/game/navigation.ts`)**:
-  - `BOX_OBSTACLES`: Rectangular footprints for all 6 buildings, Mirror Pond water basin, and `bridge_west_rail`.
-  - `CIRCLE_OBSTACLES`: Circular footprints for the Stone Fountain, Gazebo plinth, Hollow Oak trunk, Tea Cart, Noticeboard, 5 cedar benches, Willow courtyard trees/signpost, and Fern Hollow Orchard trees/gate/props (synced with `src/scene/builders/orchard.ts`).
-  - `NAV_NODES` (`33` nodes) & `NAV_EDGES`: Connected cobblestone, bridge, and orchard waypoint graph with line-of-sight smoothing for tap-to-walk and NPC steering.
+- **Obstacle Primitives & 38-Node A* Graph (`src/game/worldMap.ts`, `src/game/navigation.ts`)**:
+  - `BOX_OBSTACLES`: Rectangular footprints for all 6 buildings, Mirror Pond water basin, `bridge_west_rail`, and the **Willow Step Cottage shell** (5 wall segments leaving a 1.4-wide east doorway gap) + its furniture (bed, hearth, bookshelf, kitchenette, porch rails — synced with `src/scene/builders/cottageInterior.ts`).
+  - `CIRCLE_OBSTACLES`: Circular footprints for the Stone Fountain, Gazebo plinth, Hollow Oak trunk, Tea Cart, Noticeboard, 5 cedar benches, Willow courtyard trees/signpost, Fern Hollow Orchard trees/gate/props (synced with `src/scene/builders/orchard.ts`), and cottage table/stools/porch dressing.
+  - `NAV_NODES` (`38` nodes) & `NAV_EDGES`: Connected cobblestone, bridge, orchard, and **cottage interior** waypoint graph (porch -> doorway -> room/bedside/hearth) with line-of-sight smoothing for tap-to-walk and NPC steering.
+  - **Walkable Cottage Plates**: `getGroundHeightAt()` composes hard porch (0.42) & interior floor (0.46) plateaus with a smoothstep entry ramp (lawn -> deck through the stair gap), so walkers climb the threshold without popping; `isPlayerInCottageInterior()` provides the hysteresis ON/OFF rects that drive the dollhouse occlusion swap.
 - **Axis-Separated Sliding (`resolveMovement`)**:
   - Checks `(desired.x, desired.z)`. If blocked, falls back to `(desired.x, current.z)` or `(current.x, desired.z)` so players and NPCs glide smoothly along cottage walls and plaza rims instead of snagging.
 - **Schedule Transitions**:
@@ -120,7 +121,7 @@ computeEnvironmentState(world.flags)
 | :--- | :--- |
 | `src/game/types.ts` | Core domain interfaces (`WorldState` v3, `StoryFlags`, `DialogueSession`) |
 | `src/game/time.ts`, `rng.ts` | Unified clock (`360–1290`), 10-day 4-season calendar, deterministic FNV/Mulberry PRNG |
-| `src/game/worldMap.ts`, `navigation.ts` | Neighborhood map, bounds, collision math, landmarks, props, 33-node A* graph |
+| `src/game/worldMap.ts`, `navigation.ts` | Neighborhood map, bounds, collision math, landmarks, props, cottage interior plates, 38-node A* graph |
 | `src/game/residents.ts`, `simulation.ts` | Founding resident definitions, traits, schedules, needs/emotions, autonomous encounters |
 | `src/game/relationships.ts` | Player–NPC & NPC–NPC relationship tiers, daily small-talk cap, event ring buffer |
 | `src/game/dialogueEngine.ts`, `narrative.ts` | Declarative topic selector, third-party gossip, Bell & side arcs, `computeEnvironmentState()` |
@@ -130,8 +131,8 @@ computeEnvironmentState(world.flags)
 | `src/game/*.test.ts`, `src/scene/*.test.ts` | Deterministic `node:test` suites covering engine rules, saves, and 3D scene contracts |
 | `src/scene/textures.ts`, `materials.ts` | Seeded procedural `CanvasTexture` surfaces & shared `MaterialPalette` cache |
 | `src/scene/models.ts`, `waterShaders.ts` | Shared rig type contracts (`GazeboRig`, `FountainRig`, `MirrorPondRig`, `CharacterRig`) & water shaders |
-| `src/scene/builders/*` | Composite clay buildings, landmarks, Mirror Pond/bridge/grove, Fern Hollow Orchard, characters, reactive props & meadow botanicals |
-| `src/scene/prototypes/willowLaneDiorama.ts` | Premium Handcrafted Storybook Diorama prototype (Willow Step Cottage, lane, foliage & Jun) |
+| `src/scene/builders/*` | Composite clay buildings, landmarks, Mirror Pond/bridge/grove, Fern Hollow Orchard, **walkable cottage interior (dollhouse shell, furniture, door swing, ember)**, characters, reactive props & meadow botanicals |
+| `src/scene/prototypes/willowLaneDiorama.ts` | Premium Handcrafted Storybook Diorama prototype (Willow Step Cottage with hideable roof/body/window assemblies + swinging door pivot, lane, foliage & Jun) |
 | `src/scene/environmentRenderer.ts` | Dirty-flagged lighting, weather FX, season palettes, and prop sync (`EnvironmentVisualController`) |
 | `src/scene/NeighborhoodCanvas.tsx` | Deferred (`React.lazy`) Three.js renderer, lighting cycle, movement, raycasting, animation loop |
 | `src/components/*` | `TitleOverlay`, `VirtualJoystick`, `DialogueSheet`, `JournalDrawer`, `PauseModal` |

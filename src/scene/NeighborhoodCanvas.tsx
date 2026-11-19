@@ -33,6 +33,7 @@ import {
   getGroundHeightAt,
   getPropInteractionMetrics,
   getSeatById,
+  isPlayerInCottageInterior,
   isPointWalkable,
 } from '../game/worldMap';
 import {
@@ -56,6 +57,7 @@ import {
 } from './models';import {
   createCobblestoneTexture,
   createContactShadowTexture,
+  createCottageFloorTexture,
   createMeadowMacroTexture,
   createMeadowTexture,
   createOrchardSignTexture,
@@ -78,6 +80,10 @@ import {
 } from './builders/vegetation';
 import { buildMeadowDressing } from './builders/botanicalDressing';
 import { buildFernHollowOrchard } from './builders/orchard';
+import {
+  buildWillowCottageInterior,
+  updateWillowCottageInteriorMotion,
+} from './builders/cottageInterior';
 import { buildAllReactiveRigs } from './builders/reactiveProps';
 import {
   buildCarryablePropMesh,
@@ -183,6 +189,15 @@ function findNearestWalkablePoint(x: number, z: number, playerPos: Vec2): Vec2 |
   const midX = (playerPos.x + cx) * 0.5;
   const midZ = (playerPos.z + cz) * 0.5;
   return isPointWalkable(midX, midZ, 0.48) ? { x: midX, z: midZ } : null;
+}
+
+function isObjectEffectivelyVisible(obj: THREE.Object3D | null): boolean {
+  let cursor = obj;
+  while (cursor) {
+    if (!cursor.visible) return false;
+    cursor = cursor.parent;
+  }
+  return true;
 }
 
 export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
@@ -331,6 +346,7 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
     const slateRoofTex = createRoofShingleTexture('#5D7082', '#73889C', maxAniso);
     const shadowTex = createContactShadowTexture();
     const orchardSignTex = createOrchardSignTexture();
+    const cottageFloorTex = createCottageFloorTexture(maxAniso);
 
     // Extended natural meadow floor (no boxed void)
     const groundMat = new THREE.MeshStandardMaterial({
@@ -426,6 +442,17 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
     const willowCottage = buildWillowStepCottage(willowProtoCtx);
     willowCottage.group.position.set(-14.5, 0, 10.0);
     scene.add(willowCottage.group);
+
+    // 1b. Walkable cottage interior: dollhouse shell + furniture. The shell is
+    // hidden until the player steps onto the porch (interior-mode occlusion).
+    const cottageInteriorRig = buildWillowCottageInterior({
+      palette,
+      shadowTex,
+      floorTex: cottageFloorTex,
+      lanternMaterials: prototypeLanternMats,
+    });
+    scene.add(cottageInteriorRig.interiorOnly);
+    scene.add(cottageInteriorRig.group);
 
     const willowCourtyard = buildWillowLaneCourtyardProps(willowProtoCtx);
     scene.add(willowCourtyard.group);
@@ -702,6 +729,7 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
 
     // Add invisible raycast proxies for interactive landmark props (full-perimeter proxies for Fountain & Mirror Pond)
     const proxyMat = new THREE.MeshBasicMaterial({ visible: false });
+    const cottagePropProxies: THREE.Object3D[] = [];
     for (const prop of PROP_INTERACTABLES) {
       if (prop.id === 'fountain_plaza') {
         const hit = new THREE.Mesh(new THREE.CylinderGeometry(2.45, 2.55, 2.5, 12), proxyMat);
@@ -727,6 +755,9 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
         hit.userData = { targetKind: 'prop', targetId: prop.id };
         scene.add(hit);
         interactableMeshes.push(hit);
+        if (prop.id === 'player_bed' || prop.id === 'player_hearth') {
+          cottagePropProxies.push(hit);
+        }
       }
     }
 
@@ -785,6 +816,7 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
     let activePulseFocusZ = 0;
     let hasActivePulseFocus = false;
     let smoothedOcclusionLift = 0;
+    let cottageInteriorMode = false;
     let smoothedDialogueZoom = 1.0;
     let smoothedDialogueDropY = 0;
     let smoothedSprintZoom = 1.0;
@@ -858,8 +890,9 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
       _raycaster.setFromCamera(_pointer, camera);
 
       const hits = _raycaster.intersectObjects(interactableMeshes, false);
-      if (hits.length > 0) {
-        const ud = hits[0].object.userData as {
+      const visibleHit = hits.find((h) => isObjectEffectivelyVisible(h.object));
+      if (visibleHit) {
+        const ud = visibleHit.object.userData as {
           targetKind: 'resident' | 'prop' | 'seat' | 'carryable';
           targetId: string;
         };
@@ -912,7 +945,13 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
               pid === 'gazebo_bell' && worldRef.current.flags.bellRestored
                 ? 'Ring Bell'
                 : pid === 'player_door'
-                ? 'Rest / Porch'
+                ? isPlayerInCottageInterior(pPos.x, pPos.z)
+                  ? 'Step Outside'
+                  : 'Step Inside'
+                : pid === 'player_bed'
+                ? 'Rest Until Morning'
+                : pid === 'player_hearth'
+                ? 'Warm Hands'
                 : `Inspect ${prop.name}`;
             scoreDist = metrics.scoreDistance;
             isImmediate = metrics.inRange;
@@ -1112,6 +1151,30 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
       const composed = composeEnvironmentState(world);
       envController.update(composed, world, world.playerPos, elapsed, dt);
       updateWillowPrototypeMotion(willowCottage, willowCourtyard, elapsed);
+
+      // Walkable cottage interior: hysteresis dollhouse swap + door swing + hearth ember
+      const cottagePhase = getTimePhase(world.minuteOfDay);
+      cottageInteriorMode = isPlayerInCottageInterior(
+        world.playerPos.x,
+        world.playerPos.z,
+        cottageInteriorMode,
+      );
+      const showCottageInterior = cottageInteriorMode;
+      willowCottage.roofAssembly.visible = !showCottageInterior;
+      willowCottage.bodyMesh.visible = !showCottageInterior;
+      willowCottage.porchRoofGroup.visible = !showCottageInterior;
+      for (const w of willowCottage.southWallWindows) w.visible = !showCottageInterior;
+      for (const w of willowCottage.eastWallWindows) w.visible = !showCottageInterior;
+      cottageInteriorRig.interiorOnly.visible = showCottageInterior;
+      for (const proxy of cottagePropProxies) proxy.visible = showCottageInterior;
+      updateWillowCottageInteriorMotion(cottageInteriorRig, willowCottage.doorPivot, {
+        playerX: world.playerPos.x,
+        playerZ: world.playerPos.z,
+        phase: cottagePhase,
+        interiorMode: cottageInteriorMode,
+        elapsed,
+        dt,
+      });
 
       // Update chime sparkle particles
       for (const p of chimeParticles) {
@@ -1781,6 +1844,7 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
       slateRoofTex.dispose();
       shadowTex.dispose();
       orchardSignTex.dispose();
+      cottageFloorTex.dispose();
       palette.disposeAll();
       timer.dispose();
       renderer.dispose();

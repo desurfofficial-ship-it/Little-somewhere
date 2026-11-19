@@ -15,6 +15,8 @@ export type ResidentId =
 
 export type PropInteractableId =
   | 'player_door'
+  | 'player_bed'
+  | 'player_hearth'
   | 'player_mailbox'
   | 'gazebo_bell'
   | 'fountain_plaza'
