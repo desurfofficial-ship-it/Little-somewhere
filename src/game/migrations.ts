@@ -35,8 +35,10 @@ import {
   getTimePhase,
 } from './time';
 import {
+  DEFAULT_REGION_ID,
   PLAYER_DEFAULT_FACING,
   PLAYER_SPAWN,
+  REGIONS,
   isPointWalkable,
 } from './worldMap';
 import { createInitialNpcRuntime } from './simulation';
@@ -113,6 +115,7 @@ export function createDefaultWorldState(): WorldState {
   return {
     schemaVersion: CURRENT_SCHEMA_VERSION,
     simSeed: DEFAULT_SIM_SEED,
+    regionId: DEFAULT_REGION_ID,
     day,
     minuteOfDay,
     season: getSeasonForDay(day).season,
@@ -391,17 +394,23 @@ function sanitizeNpcRelations(
   if (!isRecord(raw)) return defaults;
 
   const out: Record<string, NpcNpcRelation> = { ...defaults };
-  for (const key of Object.keys(defaults)) {
+  const allKeys = new Set([...Object.keys(defaults), ...Object.keys(raw)]);
+  for (const key of allKeys) {
     const entry = raw[key];
     if (!isRecord(entry)) continue;
+    const parts = key.split(':');
+    if (parts.length !== 2 || !parts[0] || !parts[1] || parts[0] === parts[1]) continue;
     const def = defaults[key];
-    const affinity = Math.max(-50, Math.min(100, Math.round(asFiniteNumber(entry.affinity, def.affinity))));
-    const tension = Math.max(0, Math.min(100, Math.round(asFiniteNumber(entry.tension, def.tension))));
+    const fallbackAffinity = def ? def.affinity : 24;
+    const fallbackTension = def ? def.tension : 0;
+    const fallbackTags = def ? def.sharedTags : [];
+    const affinity = Math.max(-50, Math.min(100, Math.round(asFiniteNumber(entry.affinity, fallbackAffinity))));
+    const tension = Math.max(0, Math.min(100, Math.round(asFiniteNumber(entry.tension, fallbackTension))));
     const sharedTags = Array.isArray(entry.sharedTags)
       ? entry.sharedTags.filter((t): t is string => typeof t === 'string').slice(-6)
-      : def.sharedTags;
+      : fallbackTags;
     out[key] = {
-      pair: def.pair,
+      pair: def ? def.pair : (key as NpcNpcRelation['pair']),
       affinity: key === 'arthur:clara' && reconciled ? Math.max(55, affinity) : affinity,
       tension: key === 'arthur:clara' && reconciled ? Math.min(5, tension) : tension,
       sharedTags,
@@ -582,9 +591,15 @@ export function sanitizeWorldState(candidate: unknown, externalWarnings: string[
       )
     : [];
 
+  const regionId =
+    typeof candidate.regionId === 'string' && REGIONS[candidate.regionId]
+      ? candidate.regionId
+      : DEFAULT_REGION_ID;
+
   return {
     schemaVersion: CURRENT_SCHEMA_VERSION,
     simSeed,
+    regionId,
     day,
     minuteOfDay,
     season,
@@ -630,6 +645,7 @@ export function migrateV1ToV2(v1Raw: Record<string, unknown>): Record<string, un
     ...v1Raw,
     schemaVersion: 2,
     simSeed: DEFAULT_SIM_SEED,
+    regionId: DEFAULT_REGION_ID,
     day,
     minuteOfDay,
     season,

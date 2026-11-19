@@ -148,3 +148,22 @@ Chronological log of design decisions, implementation milestones, verification r
   - `npm test` (`23/23` pass), `npm run lint` (`tsc --noEmit`, 0 errors), and `npm run build` (`vite build`) passed.
   - Headless Chromium inspection across Title (`1440×900`), Plaza & Pond gameplay (`1440×900`), and Mobile (`390×844`) confirmed cohesive *PREMIUM HANDCRAFTED STORYBOOK DIORAMA* craft and `0` console errors / `0` console warnings.
 
+---
+
+## Entry 009 — Milestone 2A Phase 4: Environmental Foundations & Verification
+- **Date**: 2026-11-18
+- **Status**: Completed & Verified
+- **Key Deliverables**:
+  - **Five-Layer Environment Composer (`src/game/environment.ts`, `src/game/environment.test.ts`)**:
+    - Implemented deterministic pure `composeEnvironmentState()` combining Time of Day, Weather (`sunlit`, `breezy`, `misty_morning` clearing after 10:30 AM, `light_rain` with deterministic `rollWeatherForDay()`), 10-day Seasonal Transitions (`spring`, `summer`, `autumn`, `winter` palettes), Player-Driven `StoryFlags`, and NPC-Driven daily touches (`noticeboardFlyerCount`, `minaGreenhouseStage`, `claraPastryBasketVisible`, `arthurEarlyPorchLamp`) with a deterministic `revision` stamp.
+  - **Dirty-Flagged Visual Controller & Instanced Weather FX (`src/scene/environmentRenderer.ts`, `src/scene/NeighborhoodCanvas.tsx`)**:
+    - Added `EnvironmentVisualController` with revision-gated prop/material/window/lantern updates, season-gated tint updates for meadow and `InstancedMesh` grove foliage, continuous zero-GC atmosphere/fog/IBL curves, fixed-`dt` bell swing damping, and software-GL-capped `InstancedMesh` rain streaks (`24`/`48`) and drifting seasonal petals/leaves/flurries (`12`/`24`).
+  - **HUD, Journal & Save Robustness (`src/App.tsx`, `src/components/JournalDrawer.tsx`)**:
+    - Surfaced live season & weather in desktop HUD and Pocket Journal (`World & Time` tab with tomorrow's forecast, flyer counts, and greenhouse bloom stage).
+    - Fixed `lastSavedStampRef` initialization in `src/App.tsx` so unchanged initial state does not spuriously write to `localStorage` on `pagehide`.
+- **Verification**:
+  - `npm test`: `27/27` tests pass across `engine.test.ts`, `environment.test.ts`, `navigation.test.ts`, `relationships.test.ts`, `simulation.test.ts`, and `storage.test.ts`.
+  - `npm run lint` (`tsc --noEmit`) and `npm run build` (`vite build`) passed with `0` errors.
+  - Headless Chromium (`1440×900` and `390×844`) verified live `v1 -> v2` localStorage migration (Day 24 Autumn, restored plaza, `little_somewhere_world_v1_backup` creation), `light_rain` / seasonal rendering, mobile layout, Pocket Journal, and `0` console errors / `0` console warnings.
+
+

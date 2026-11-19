@@ -32,12 +32,28 @@ export interface PropInteractable {
   interactRadius: number;
 }
 
+export interface RegionDefinition {
+  id: string;
+  name: string;
+  bounds: { minX: number; maxX: number; minZ: number; maxZ: number };
+}
+
+export const DEFAULT_REGION_ID = 'willow_square';
+
 export const WORLD_BOUNDS = {
   minX: -25,
   maxX: 25,
   minZ: -23,
   maxZ: 23,
 } as const;
+
+export const REGIONS: Record<string, RegionDefinition> = {
+  [DEFAULT_REGION_ID]: {
+    id: DEFAULT_REGION_ID,
+    name: 'Willow Lane & Fountain Square',
+    bounds: WORLD_BOUNDS,
+  },
+};
 
 export const PLAYER_SPAWN: Vec2 = { x: -8.5, z: 9.5 };
 export const PLAYER_DEFAULT_FACING = Math.PI * 0.75; // Facing northeast toward town square

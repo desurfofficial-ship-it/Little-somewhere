@@ -100,7 +100,7 @@ export const JournalDrawer: React.FC<JournalDrawerProps> = ({
             }`}
           >
             <Users className="w-4 h-4" />
-            <span>Neighbors (9)</span>
+            <span>Neighbors ({RESIDENT_ORDER.length})</span>
           </button>
           <button
             type="button"

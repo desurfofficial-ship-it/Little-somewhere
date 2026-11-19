@@ -206,6 +206,7 @@ export interface ActiveSocialEncounter {
 export interface WorldState {
   schemaVersion: number;
   simSeed: number;
+  regionId: string;
   day: number;
   minuteOfDay: number; // 360 (6:00 AM) to 1290 (9:30 PM)
   season: SeasonType;

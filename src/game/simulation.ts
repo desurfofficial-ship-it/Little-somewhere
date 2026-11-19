@@ -452,10 +452,11 @@ export function stepSimulationInPlace(
   }
 
   // 3. Evaluate NPC-to-NPC social encounter pairing (bounded, deterministic per 15m slot)
-  if (!dialogueOpen && world.activeEncounters.length < 2) {
+  const maxConcurrentEncounters = Math.max(2, Math.floor(RESIDENT_ORDER.length / 4));
+  if (!dialogueOpen && world.activeEncounters.length < maxConcurrentEncounters) {
     const socialSlot = Math.floor(world.minuteOfDay / 15);
     for (let i = 0; i < RESIDENT_ORDER.length; i++) {
-      if (world.activeEncounters.length >= 2) break;
+      if (world.activeEncounters.length >= maxConcurrentEncounters) break;
       const a = RESIDENT_ORDER[i];
       const rtA = world.npcRuntime[a];
       if (rtA.socialPartnerId !== null || rtA.waypoints.length > 0) continue;

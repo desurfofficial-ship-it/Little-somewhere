@@ -54,6 +54,11 @@ import { DialogueSheet } from './components/DialogueSheet';
 import { JournalDrawer } from './components/JournalDrawer';
 import { PauseModal } from './components/PauseModal';
 
+const getSaveStamp = (w: WorldState): string =>
+  `${w.day}:${Math.floor(w.minuteOfDay)}:${Math.round(w.playerPos.x * 10)},${Math.round(
+    w.playerPos.z * 10,
+  )}:${w.memories.length}:${w.bellRungCount}:${w.worldEvents?.length ?? 0}:${w.weather}:${w.season}`;
+
 export default function App() {
   const initialAutostart =
     typeof window !== 'undefined' &&
@@ -64,7 +69,7 @@ export default function App() {
   const worldRef = useRef<WorldState>(initialLoaded);
   const joystickVectorRef = useRef<ScreenVec2>({ x: 0, y: 0 });
   const zoomRef = useRef<number>(1.0);
-  const lastSavedStampRef = useRef<string>('');
+  const lastSavedStampRef = useRef<string>(getSaveStamp(initialLoaded));
 
   const [screenState, setScreenState] = useState<GameScreenState>(
     initialAutostart ? 'playing' : 'title',
@@ -101,11 +106,6 @@ export default function App() {
   useEffect(() => {
     document.body.dataset.state = screenState;
   }, [screenState]);
-
-  const getSaveStamp = (w: WorldState): string =>
-    `${w.day}:${Math.floor(w.minuteOfDay)}:${Math.round(w.playerPos.x * 10)},${Math.round(
-      w.playerPos.z * 10,
-    )}:${w.memories.length}:${w.bellRungCount}:${w.worldEvents?.length ?? 0}:${w.weather}:${w.season}`;
 
   const commitWorld = useCallback((next: WorldState) => {
     const composed = composeEnvironmentState(next);

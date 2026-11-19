@@ -146,3 +146,24 @@ test('advanceToNextDay advances season at day 11 and resets npcRuntime to 8:00 A
   assert.equal(day11.npcRuntime.pip.currentPlaceName, 'Fountain Plaza');
   assert.equal(day11.mailboxUnread, true);
 });
+
+test('regionId defaults cleanly and sparse non-baseline npcRelations survive sanitization', () => {
+  const sanitized = sanitizeWorldState({
+    schemaVersion: 2,
+    regionId: 'unknown_future_region',
+    npcRelations: {
+      'barnaby:sora': {
+        pair: 'barnaby:sora',
+        affinity: 44,
+        tension: 2,
+        sharedTags: ['bench_repair'],
+        lastInteractionDay: 5,
+      },
+    },
+  });
+
+  assert.equal(sanitized.regionId, 'willow_square');
+  assert.equal(sanitized.npcRelations['barnaby:sora']?.affinity, 44);
+  assert.deepEqual(sanitized.npcRelations['barnaby:sora']?.sharedTags, ['bench_repair']);
+});
+

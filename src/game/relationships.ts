@@ -75,21 +75,6 @@ const BASELINE_NPC_BONDS: ReadonlyArray<{
 
 export function createInitialNpcRelations(reconciled: boolean): Record<string, NpcNpcRelation> {
   const out: Record<string, NpcNpcRelation> = {};
-  for (let i = 0; i < RESIDENT_ORDER.length; i++) {
-    for (let j = i + 1; j < RESIDENT_ORDER.length; j++) {
-      const a = RESIDENT_ORDER[i];
-      const b = RESIDENT_ORDER[j];
-      const key = getNpcPairKey(a, b);
-      const isArthurPair = a === 'arthur' || b === 'arthur';
-      out[key] = {
-        pair: key,
-        affinity: isArthurPair ? 10 : 24,
-        tension: isArthurPair ? 10 : 0,
-        sharedTags: [],
-        lastInteractionDay: null,
-      };
-    }
-  }
 
   for (const bond of BASELINE_NPC_BONDS) {
     const key = getNpcPairKey(bond.a, bond.b);
@@ -121,15 +106,17 @@ export function getNpcRelation(
   b: ResidentId,
 ): NpcNpcRelation {
   const key = getNpcPairKey(a, b);
-  return (
-    npcRelations[key] ?? {
-      pair: key,
-      affinity: 20,
-      tension: 0,
-      sharedTags: [],
-      lastInteractionDay: null,
-    }
-  );
+  if (npcRelations[key]) {
+    return npcRelations[key];
+  }
+  const isArthurPair = a === 'arthur' || b === 'arthur';
+  return {
+    pair: key,
+    affinity: isArthurPair ? 10 : 24,
+    tension: isArthurPair ? 10 : 0,
+    sharedTags: [],
+    lastInteractionDay: null,
+  };
 }
 
 export function recordPlayerTalkAffinity(

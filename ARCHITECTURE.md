@@ -121,8 +121,19 @@ computeEnvironmentState(world.flags)
 | `src/scene/materials.ts` | Shared `MaterialPalette` cache enforcing roughness/ACES color discipline |
 | `src/scene/models.ts` | Composite clay cottages, greenhouse, lathe brass bell gazebo, stone fountain, characters |
 | `src/scene/prototypes/willowLaneDiorama.ts` | Premium Handcrafted Storybook Diorama prototype (Willow Step Cottage, lane, foliage & Jun) |
+| `src/scene/environmentRenderer.ts` | Dirty-flagged lighting, weather FX, season palettes, and prop sync |
 | `src/scene/NeighborhoodCanvas.tsx` | Three.js renderer, lighting cycle, movement, raycasting, animation loop |
 | `src/components/*` | `TitleOverlay`, `VirtualJoystick`, `DialogueSheet`, `JournalDrawer`, `PauseModal` |
 | `src/App.tsx` | Top-level game shell, HUD bar, keyboard shortcuts, persistence wiring |
 | `docs/art-direction/*` | Official **Premium Handcrafted Storybook Diorama** identity, standards, audit & roadmap |
+
+---
+
+## 7. Prototype Scope vs. Expandable Architecture
+
+The current nine-resident cast (`RESIDENT_ORDER`) and Willow Lane & Fountain Square (`DEFAULT_REGION_ID = 'willow_square'`) represent a **controlled playable prototype slice**, not the final world size or resident cap. Core subsystems are structured to scale without architectural rewrites:
+- **Dynamic Resident Registry**: Simulation loops, relationship initialization, migration sanitization, and UI counters iterate `RESIDENT_ORDER` / `RESIDENTS` rather than hardcoding a fixed population of 9, and concurrent social encounter caps scale proportionally (`Math.max(2, Math.floor(RESIDENT_ORDER.length / 4))`).
+- **Sparse Pairwise Relations**: `createInitialNpcRelations()` seeds only non-neutral lore bonds while `getNpcRelation()` resolves neutral defaults lazily and `sanitizeNpcRelations()` preserves arbitrary interacted pairs—avoiding $O(N^2)$ save bloat as the cast expands.
+- **Region-Aware World State**: `WorldState.regionId` and `REGIONS` in `src/game/worldMap.ts` establish region-scoped bounds and landmark lookups for future neighborhoods and districts.
+
 

@@ -1,18 +1,18 @@
 # HANDOVER.md — Agent & Engineer Handover Brief
 
 **Project**: LITTLE SOMEWHERE  
-**Current Phase**: Milestone 1 Complete (Playable Vertical Slice & Core Engine)  
-**Target Next Phase**: Milestone 2 (Deeper Daily Life, Cottage Interiors, Gifting & Ambient NPC Socializing)
+**Current Phase**: Milestone 2A Complete (Simulation Foundation, NPC Ambient Life, Full Diorama Visual Transformation & 5-Layer Environment)  
+**Target Next Phase**: Milestone 2B / 3 (Cottage Cutaway Interiors, Lightweight Item Gifting, Weekly Plaza Market & Declarative Dialogue Expansion)
 
 ---
 
 ## 1. Current State of the Repository
 
-The playable vertical slice and **Willow Lane Storybook Visual Prototype** are **complete, compiled, unit-tested, and browser-verified** on both desktop (`1440×900`) and mobile (`390×844`):
-- **Official Visual Direction**: **PREMIUM HANDCRAFTED STORYBOOK DIORAMA** (`docs/art-direction/VISUAL_IDENTITY.md`), demonstrated in-engine via `src/scene/prototypes/willowLaneDiorama.ts` (Willow Step Cottage, Willow Mailbox, Willow Lane flagstones/curbs/signpost/fence/trees, and Storybook Jun) and shared `MaterialPalette` (`src/scene/materials.ts`). Remaining cottages, landmarks, and the other 8 residents remain queued for staged Stage 1–3 transformation per `docs/art-direction/VISUAL_TRANSFORMATION_ROADMAP.md`.
-- **Core Gameplay Loop**: Title Screen (`body[data-state="title"]`) -> Live Isometric Neighborhood (`body[data-state="playing"]`) -> Branching Resident Dialogue / Prop Inspection -> Pocket Journal -> Porch Rest to Advance Day -> `localStorage` Persistence.
-- **9 Living Residents**: Clara, Arthur, Mina, Jun, Barnaby, Sora, Toby, Nora, and Pip each have distinct 3D silhouettes, 4-phase schedules (`morning`, `afternoon`, `golden`, `dusk`), trust levels (`0–5`), and interconnected dialogue for *The Silent Gazebo Bell*.
-- **Environmental Reactivity**: Resolving beats visibly transforms the 3D scene (window-box flowers bloom in 3 stages, gazebo ivy clears, brass clapper installs upon restoration, stone fountain water & droplets activate, bakery outdoor café tables appear, plaza festoon lanterns glow, marigold ribbon drapes the gazebo, Hollow Oak glint vanishes on pickup, and the brass bell physically swings and emits particles when rung).
+Milestone 2A (Phases 1–4) is **complete, compiled, unit-tested (`27/27`), and browser-verified** on both desktop (`1440×900`) and mobile (`390×844`):
+- **Official Visual Direction**: **PREMIUM HANDCRAFTED STORYBOOK DIORAMA** (`docs/art-direction/VISUAL_IDENTITY.md`) applied across the full neighborhood: Willow Step Cottage & Courtyard, Hearth & Crumb Bakery, Linden Book Nook, Copperwheel Cottage, Sunbeam Greenhouse, Pinecone Woodshop, Old Bell Gazebo, Mossy Stone Fountain, Sora's Tea Cart, Noticeboard, Hollow Oak, Mirror Pond & Cedar Bridge, `InstancedMesh` grove, and all 10 articulated `CharacterRig` figures.
+- **Core Gameplay & Simulation Loop**: Title Screen (`body[data-state="title"]`) -> Live Isometric Neighborhood (`body[data-state="playing"]`) -> Seeded Deterministic Simulation (`WorldState v2` + `v1 -> v2` migration + A* lane navigation + trait-driven autonomous activities & NPC-to-NPC encounters + bilateral relationship matrix) -> 5-Layer Weather & Seasonal Environment -> Pocket Journal -> Porch Rest to Advance Day -> `localStorage` Persistence (`little_somewhere_world_v1` with `little_somewhere_world_v1_backup`).
+- **9 Living Residents**: Clara, Arthur, Mina, Jun, Barnaby, Sora, Toby, Nora, and Pip each have distinct 3D silhouettes, individual traits, 4-phase schedules + extra activities, bilateral trust/relationships (`0–5` hearts with daily small-talk caps), and interconnected dialogue for *The Silent Gazebo Bell*.
+- **Environmental Reactivity**: 5-layer composer (`composeEnvironmentState`) + dirty-flagged `EnvironmentVisualController` drives time-of-day curves, weather (`sunlit`, `breezy`, `misty_morning`, `light_rain`), 10-day seasons (`spring`, `summer`, `autumn`, `winter`), story-reactive props, and instanced rain/petal effects.
 
 ---
 
