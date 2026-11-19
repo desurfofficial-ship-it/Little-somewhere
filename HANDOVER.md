@@ -32,17 +32,19 @@ The **Player & Character Excellence Upgrade** (Phases 1–12) plus the **Bench S
 2. **Environmental Hooks Now Wired (Milestone 3 polish foundation)**:
    - `puddlesActive`, `claraPastryBasketVisible`, `minaGreenhouseStage`, and `arthurEarlyPorchLamp` all have 3D visual layers in `src/scene/builders/reactiveProps.ts` (built once in `NeighborhoodCanvas.tsx`, toggled/animated by `environmentRenderer.ts`).
    - Meadow margins additionally carry instanced botanical dressing (`src/scene/builders/botanicalDressing.ts`); when adding lanes or obstacles, keep `COBBLE_LANE_RECTS` in sync with the cobble strips and the dressing placement tests will guard walkability.
-   - **Visual backlog**: `docs/audits/09-comprehensive-asset-visual-audit.md` (2026-11-19) supersedes `docs/art-direction/VISUAL_AUDIT.md`; it confirms zero P0 defects and defines the approved-roadmap-pending priorities R-01 golden/dusk lighting drama, R-02 water material elevation, R-03 touch-only VirtualJoystick, plus P2 polish items R-04..R-09.
+   - **Visual backlog**: `docs/audits/09-comprehensive-asset-visual-audit.md` (2026-11-19) supersedes `docs/art-direction/VISUAL_AUDIT.md`; it confirms zero P0 defects. **All roadmap items R-01..R-09 are now implemented** (WORKLOG Entries 017-019): R-01 golden/dusk lighting drama, R-02 water elevation (Entry 014), R-03 touch-only VirtualJoystick (`(pointer: coarse)` OR `maxTouchPoints > 0`), R-04 sculpted 3-blade tufts, R-05 meadow macro lightMap, R-06 legacy builder removal, R-07 Copperwheel signature props, R-08 title orbit gaze bias + slimmed card, R-09 lazy scene chunk (408 kB shell / 720 kB deferred).
+   - **VirtualJoystick rule update**: the thumbstick renders only when `hasTouchInput` (`pointer: coarse` media query or `navigator.maxTouchPoints > 0`); it is hidden on mouse-first desktops with an inert spacer preserving the bottom-bar flex layout.
+   - **Ground material rule**: the meadow ground uses `map` (512², 9x9) + `lightMap` macro variation (256², 2x2) over a cloned `uv1` channel; season tint multiplies on top. Keep both when touching `groundMat`.
    - Remaining Milestone 3 work: multi-region map expansion, walkable interiors, and additional residents.
 
 ---
 
-## 4. Verification Status (2026-11-19)
+## 4. Verification Status (2026-11-19, after audit roadmap Builds 1-3)
 
-- `npm test` (`tsx --test src/game/*.test.ts src/scene/*.test.ts`) — **55/55 passing** on the merged tree (`0` failures; see WORKLOG Entry 016 for the post-merge verification run)
+- `npm test` (`tsx --test src/game/*.test.ts src/scene/*.test.ts`) — **59/59 passing** (`0` failures; includes 4 dialogue tests from the parallel dialogue-availability refactor)
 - `npm run lint` (`tsc --noEmit`) — **Passing (0 errors)**
-- `npm run build` (`vite build`) & `compile_applet` — **Passing**
-- Browser QA (headless Chromium on `1440×900` Desktop & `390×844` Mobile): branch QA — morning dressing pass, dusk festoon/fireflies/window glow, rain-day puddles & rain streaks, `+2h` phase advance; main-line QA — bench sitting clearance, repaired Fountain coin-wish ripple & cascades, Mirror Pond Lantern Dusk stone-skip ripple + west brook + pier & sailboat — **0 console errors, 0 console warnings**
+- `npm run build` (`vite build`) — **Passing**; chunks: `index` 407.97 kB (shell) + `NeighborhoodCanvas` 719.62 kB (deferred via React.lazy)
+- Browser QA (headless Chromium `1440×900`): golden hour 4:18 PM (amber cast + long shadows), Lantern Dusk 8:20 PM (deep twilight, high-contrast window/lantern/festoon glow), desktop thumbstick absent, title orbit framing clear at 4 phases, Copperwheel props live, `Begin Your Day` -> playing clean; `390×844` zero overflow; **0 console errors, 0 page errors**
 
 
 

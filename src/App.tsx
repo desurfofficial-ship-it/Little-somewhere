@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import {
   BookOpen,
   Clock,
@@ -55,7 +55,13 @@ import {
 import { interruptSocialEncounter } from './game/simulation';
 import { getLandmarkAt, getPropInteractionMetrics } from './game/worldMap';
 import { cozyAudio } from './game/audio';
-import { HudBubbleSnapshot, NeighborhoodCanvas, PlayerActionPulse } from './scene/NeighborhoodCanvas';
+// R-09: the whole Three.js scene stack (~1 MB) is code-split behind a dynamic import so
+// first paint (title screen shell) only parses React + game logic. The canvas keeps its
+// single-mount lifecycle — Suspense merely defers the first mount until the chunk arrives.
+const NeighborhoodCanvas = lazy(() =>
+  import('./scene/NeighborhoodCanvas').then((m) => ({ default: m.NeighborhoodCanvas })),
+);
+import type { HudBubbleSnapshot, PlayerActionPulse } from './scene/NeighborhoodCanvas';
 import { TitleOverlay } from './components/TitleOverlay';
 import { VirtualJoystick } from './components/VirtualJoystick';
 import { DialogueSheet } from './components/DialogueSheet';
@@ -494,22 +500,24 @@ export default function App() {
 
   return (
     <main className="relative w-full h-full overflow-hidden">
-      {/* Persistent 3D Isometric World Viewport */}
-      <NeighborhoodCanvas
-        screenState={screenState}
-        worldRef={worldRef}
-        joystickVectorRef={joystickVectorRef}
-        zoomRef={zoomRef}
-        bellRingCounter={bellRingCounter}
-        fountainWishCounter={fountainWishCounter}
-        pondSkipCounter={pondSkipCounter}
-        isDialogueOpen={isSheetOpen || journalOpen}
-        activeDialogueResidentId={dialogueSession?.residentId ?? null}
-        activePropId={propCard ? activePropId : null}
-        playerActionPulse={playerActionPulse}
-        onHudSync={handleHudSync}
-        onSelectTarget={openTargetInteraction}
-      />
+      {/* Persistent 3D Isometric World Viewport (lazy chunk, R-09) */}
+      <Suspense fallback={<div className="absolute inset-0 bg-[#DCEBF2]" aria-hidden="true" />}>
+        <NeighborhoodCanvas
+          screenState={screenState}
+          worldRef={worldRef}
+          joystickVectorRef={joystickVectorRef}
+          zoomRef={zoomRef}
+          bellRingCounter={bellRingCounter}
+          fountainWishCounter={fountainWishCounter}
+          pondSkipCounter={pondSkipCounter}
+          isDialogueOpen={isSheetOpen || journalOpen}
+          activeDialogueResidentId={dialogueSession?.residentId ?? null}
+          activePropId={propCard ? activePropId : null}
+          playerActionPulse={playerActionPulse}
+          onHudSync={handleHudSync}
+          onSelectTarget={openTargetInteraction}
+        />
+      </Suspense>
 
       {/* Title Screen */}
       {screenState === 'title' && (

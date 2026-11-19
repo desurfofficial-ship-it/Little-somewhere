@@ -1460,7 +1460,9 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
         const r = 27;
         _vec3B.set(Math.cos(orbitAngle) * r, 16.5, Math.sin(orbitAngle) * r);
         camera.position.lerp(_vec3B, Math.min(1, dt * 3));
-        camera.lookAt(0, 1.4, -2.5);
+        // R-08: gaze biased east of the plaza so the slow orbit keeps the tallest
+        // west-side rooflines (Bakery/Book Nook) clear of the top-left title card.
+        camera.lookAt(1.5, 1.4, -2.5);
       } else {
         const targetOcclusionLift =
           world.playerPos.z > 8.5 && Math.abs(world.playerPos.x) > 8.5 ? 1.5 : 0;

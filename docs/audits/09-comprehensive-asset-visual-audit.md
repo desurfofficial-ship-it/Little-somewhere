@@ -195,3 +195,22 @@ While this audit was being written, `main` advanced with a parallel visual assig
 - **R-02 (water materials) is substantially delivered by main's Entry 014** and narrows to: cross-phase visual confirmation (morning/golden/dusk/rain/winter), fountain basin readability from the default isometric angle, and pond-shore blend polish where the new shader meets the cobble/ground planes. Re-classified **P1 → P2 (polish)**; the remaining P1 items are **R-01 (golden/dusk lighting drama)** and **R-03 (touch-only VirtualJoystick)** — both re-confirmed unchanged on the merged tree.
 - P2 items R-04..R-09 stand as written (grass-tuft cones, meadow tiling, Copperwheel dressing, legacy dead builders — note the `buildStoneFountain` legacy copy in `models.ts` remains and is still only reachable from the equivalence test).
 - The category-matrix "water" row and finding #1 in Phase 2 describe the **branch-tree baseline** and are superseded by this addendum for the pond/fountain materials specifically.
+
+---
+
+## Addendum 2 — Roadmap Implementation Complete (2026-11-19, later same day)
+
+Following the user's "continue building" approval, all remaining roadmap items were implemented in three verified builds pushed directly to `main` (WORKLOG Entries 017–019):
+
+| Item | Status | Build | Notes |
+| :--- | :--- | :--- | :--- |
+| R-01 golden/dusk lighting drama | **Done** | Build 1 (Entry 017) | Golden sky/sun deepened, dusk hemi 0.22 / IBL 0.15 / sun 0.44 floors, longer sun sweep + lower raking elevation, glow contrast raised (windows 2.1, lantern 2.15, prototype 2.35) |
+| R-03 touch-only VirtualJoystick | **Done** | Build 1 (Entry 017) | `(pointer: coarse)` OR `maxTouchPoints > 0` gate; inert spacer preserves layout; verified absent on desktop |
+| R-04 sculpted grass tufts | **Done** | Build 2 (Entry 018) | 3 fanned tapered blades merged into one geometry; same draw call/budget/placement |
+| R-05 meadow macro variation | **Done** | Build 2 (Entry 018) | 256² `lightMap` macro layer at 2x2 via cloned `uv1`; tiling broken at mid zoom; ~256 KB |
+| R-06 legacy builder removal | **Done** | Build 2 (Entry 018) | ~370 dead lines deleted; fountain assertions folded into `buildStorybookFountain` test |
+| R-07 Copperwheel signature props | **Done** | Build 3 (Entry 019) | Vent pipe, gear medallion, workbench crate + ruler; inside obstacle bounds; ~230 tris |
+| R-08 title framing | **Done** | Build 3 (Entry 019) | Orbit gaze biased east `lookAt(1.5, 1.4, -2.5)`; card padding slimmed; verified at 4 orbit phases |
+| R-09 bundle split | **Done** | Build 3 (Entry 019) | React.lazy scene chunk: 407.97 kB shell + 719.62 kB deferred (first-paint JS −62%) |
+
+Post-implementation verification on the final tree: `npm test` **59/59** (includes 4 tests from a parallel dialogue-availability refactor landed on `main`), `tsc --noEmit` **0 errors**, `vite build` pass, live Chromium desktop + mobile-width captures **0 console errors / 0 page errors**. The audit is closed: no P0/P1 or P2 backlog remains; next visual work belongs to Milestone 3 (multi-region map, interiors, additional residents).

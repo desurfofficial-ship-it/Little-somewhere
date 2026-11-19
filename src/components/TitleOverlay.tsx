@@ -15,8 +15,9 @@ export const TitleOverlay: React.FC<TitleOverlayProps> = ({
 }) => {
   return (
     <div className="fixed inset-0 z-20 flex flex-col justify-between items-start pointer-events-none p-4 sm:p-8 md:p-12">
-      {/* Upper-left calm storybook card */}
-      <div className="max-w-md bg-[#FAF5EC]/92 border border-[#D4C4AE] rounded-2xl p-5 sm:p-7 shadow-[0_14px_38px_rgba(45,36,30,0.18)] pointer-events-auto">
+      {/* Upper-left calm storybook card (R-08: slimmer vertical padding keeps more
+          of the title-orbit diorama visible above and below the card) */}
+      <div className="max-w-md bg-[#FAF5EC]/92 border border-[#D4C4AE] rounded-2xl p-4 sm:p-5.5 shadow-[0_14px_38px_rgba(45,36,30,0.18)] pointer-events-auto">
         {/* Custom inline SVG storybook crest + title lockup */}
         <div className="inline-flex items-center gap-3 mb-3">
           <svg

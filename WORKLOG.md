@@ -328,3 +328,24 @@ Chronological log of design decisions, implementation milestones, verification r
 - **Verification**:
   - `npm test`: **59/59 passing**, `npm run lint`: **0 errors**, `npm run build`: pass.
   - Live headless Chromium desktop `1440×900` morning capture + 3x zoom crops: tufts read as fanned multi-blade clumps (no cone silhouettes), macro light/dark patches visibly break the 9x9 meadow tiling at mid zoom; **0 console errors, 0 page errors**.
+
+---
+
+## Entry 019 — Roadmap Build 3: R-07 Copperwheel Signature Props + R-08 Title Framing + R-09 Scene Chunk Split (P2 items)
+- **Date**: 2026-11-19
+- **Status**: Completed & Verified
+- **Key Deliverables**:
+  - **R-07 Copperwheel Cottage dressing (`src/scene/builders/buildings.ts`)** — the thinnest-dressed building now carries three workshop signature props beside the existing clock gable emblem:
+    - Brass vent pipe + elbow + sphere cap on the roof ridge beside the chimney;
+    - Wall-mounted bronze gear medallion (12-seg hub, brass core, 8 teeth) left of the south door (porch lamp occupies the right side);
+    - Weathered workbench crate with lid rim, 4 brass bolts, and a leaning cedar ruler.
+    - All props sit inside `BOX_OBSTACLES['workshop_arthur']` (group-local |x| <= 3.3, z <= 3.3), palette-cached materials, cast shadows on, ~230 extra triangles. Obstacle bounds and navigation untouched.
+  - **R-08 Title framing (`src/scene/NeighborhoodCanvas.tsx`, `src/components/TitleOverlay.tsx`)**:
+    - Title-orbit gaze biased east (`lookAt(1.5, 1.4, -2.5)`, was `0, 1.4, -2.5`) so west-side rooflines (Bakery / Book Nook) clear the top-left card during the orbit; verified live across 4 orbit phases.
+    - Title card vertical padding slimmed (`p-5 sm:p-7` -> `p-4 sm:p-5.5`) to shrink the covered viewport area.
+  - **R-09 Scene chunk split (`src/App.tsx`)**:
+    - `NeighborhoodCanvas` now loads via `React.lazy` dynamic import behind a `<Suspense>` cream-sky fallback; types moved to a standalone `import type` line.
+    - Bundle: single 1.08 MB chunk -> **407.97 kB main shell + 719.62 kB deferred scene chunk** (first-paint JS -62%); single-mount canvas lifecycle preserved; title screen renders immediately, canvas mounts as the chunk arrives.
+- **Verification**:
+  - `npm test`: **59/59 passing**, `npm run lint`: **0 errors**, `npm run build`: pass.
+  - Live headless Chromium desktop `1440×900`: title orbit re-captured at 4 phases (card overlap reduced to gazebo dais edge only), Copperwheel gear medallion / vent pipe / crate confirmed on the workshop facade, "Begin Your Day" -> playing transition clean; `390×844` title capture shows zero horizontal overflow; **0 console errors, 0 page errors**.

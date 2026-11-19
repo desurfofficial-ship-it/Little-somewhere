@@ -530,6 +530,71 @@ export function buildStorybookArthurWorkshop(ctx: BuildingBuildContext): THREE.G
   clockFace.position.set(0, 3.68, 2.73);
   group.add(clockRing, clockFace);
 
+  // R-07: workshop signature props (Copperwheel was the thinnest-dressed building).
+  // All props stay inside BOX_OBSTACLES 'workshop_arthur' (world x 9.4..16.8, z -14.8..-8.2)
+  // -> group-local |x| <= 3.3, z <= 3.3; <= ~230 extra triangles, palette-cached materials.
+
+  // 1. Brass vent pipe + elbow cap on the roof ridge beside the chimney
+  const pipeMat = palette.standard('#B98E4A', 0.3, 0.82);
+  const pipe = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.11, 0.78, 8, 1, true), pipeMat);
+  pipe.position.set(-1.35, 4.62, -0.55);
+  pipe.castShadow = true;
+  const pipeElbow = new THREE.Mesh(new THREE.CylinderGeometry(0.095, 0.095, 0.42, 8), pipeMat);
+  pipeElbow.rotation.z = Math.PI / 2.6;
+  pipeElbow.position.set(-1.19, 5.03, -0.55);
+  pipeElbow.castShadow = true;
+  const pipeCap = new THREE.Mesh(new THREE.SphereGeometry(0.13, 8, 6), pipeMat);
+  pipeCap.position.set(-1.04, 5.14, -0.55);
+  group.add(pipe, pipeElbow, pipeCap);
+
+  // 2. Wall-mounted bronze gear medallion left of the south door
+  const gearMat = palette.standard('#8C6B3C', 0.38, 0.72);
+  const gearHub = new THREE.Mesh(new THREE.CylinderGeometry(0.24, 0.24, 0.07, 12), gearMat);
+  gearHub.rotation.x = Math.PI / 2;
+  gearHub.position.set(-1.85, 2.14, 2.72);
+  gearHub.castShadow = true;
+  const gearCore = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 0.09, 10), brassMat);
+  gearCore.rotation.x = Math.PI / 2;
+  gearCore.position.set(-1.85, 2.14, 2.72);
+  group.add(gearHub, gearCore);
+  for (let t = 0; t < 8; t++) {
+    const tooth = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.12, 0.07), gearMat);
+    const angle = (t / 8) * Math.PI * 2;
+    tooth.position.set(
+      -1.85 + Math.cos(angle) * 0.3,
+      2.14 + Math.sin(angle) * 0.3,
+      2.72,
+    );
+    tooth.rotation.z = angle;
+    group.add(tooth);
+  }
+
+  // 3. Weathered workbench crate with brass bolts against the south wall
+  const crateMat = palette.standard('#C9A876', 0.8, 0.02);
+  const crateEdgeMat = palette.standard('#9A7A50', 0.84, 0.02);
+  const crate = new THREE.Mesh(new THREE.BoxGeometry(0.82, 0.52, 0.58), crateMat);
+  crate.position.set(-2.55, 0.26, 2.72);
+  crate.castShadow = true;
+  crate.receiveShadow = true;
+  const crateLid = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.09, 0.64), crateEdgeMat);
+  crateLid.position.set(-2.55, 0.56, 2.72);
+  crateLid.castShadow = true;
+  group.add(crate, crateLid);
+  const boltMat = palette.standard(STORYBOOK_PALETTE.agedBrass, 0.3, 0.8);
+  for (const bx of [-2.86, -2.24]) {
+    for (const bz of [2.46, 2.98]) {
+      const bolt = new THREE.Mesh(new THREE.SphereGeometry(0.035, 6, 5), boltMat);
+      bolt.position.set(bx, 0.34, bz);
+      group.add(bolt);
+    }
+  }
+  // A folded cedar ruler leaning on the crate (workshop storytelling detail)
+  const ruler = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.5, 0.09), crateEdgeMat);
+  ruler.rotation.z = 0.32;
+  ruler.position.set(-2.13, 0.62, 2.74);
+  ruler.castShadow = true;
+  group.add(ruler);
+
   return group;
 }
 
