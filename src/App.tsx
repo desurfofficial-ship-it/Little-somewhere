@@ -90,9 +90,6 @@ export default function App() {
   const [hudWeather, setHudWeather] = useState<WeatherType>(initialComposed.weather.effective);
   const [hudSeason, setHudSeason] = useState<SeasonType>(initialComposed.season.season);
   const [playerPos, setPlayerPos] = useState<Vec2>(initialLoaded.playerPos);
-  const [playerPosture, setPlayerPosture] = useState<PlayerPosture>(
-    initialLoaded.playerPosture ?? 'standing',
-  );
   const [playerHeldItem, setPlayerHeldItem] = useState<CarryableItemId | null>(
     initialLoaded.playerHeldItem ?? null,
   );
@@ -109,6 +106,7 @@ export default function App() {
   const [toastText, setToastText] = useState<string | null>(null);
   const [playerActionPulse, setPlayerActionPulse] = useState<PlayerActionPulse | null>(null);
   const pulseSeqRef = useRef(0);
+  const spawnPosRef = useRef<Vec2>(initialLoaded.playerPos);
   // R-03: touch-only thumbstick — the on-screen joystick is a touch affordance and must not
   // render on mouse-first desktop viewports (primary pointer = fine, no touch digitizer).
   const [hasTouchInput] = useState<boolean>(
@@ -118,11 +116,6 @@ export default function App() {
         window.matchMedia('(pointer: coarse)').matches) ||
         (typeof navigator !== 'undefined' && navigator.maxTouchPoints > 0)),
   );
-
-  const triggerPlayerPulse = useCallback((kind: PlayerActionPulse['kind'], focusPos?: Vec2) => {
-    pulseSeqRef.current += 1;
-    setPlayerActionPulse({ kind, seq: pulseSeqRef.current, focusPos });
-  }, []);
 
   const hasSavedProgress =
     worldSnapshot.day > 1 ||
@@ -134,6 +127,19 @@ export default function App() {
       k === 'mediationStyle' ? v !== 'none' : v === true,
     );
 
+  const [introTipDismissed, setIntroTipDismissed] = useState<boolean>(() =>
+    initialLoaded.day > 1 ||
+    initialLoaded.memories.length > 1 ||
+    initialLoaded.dailyLettersRead.length > 0 ||
+    initialLoaded.bellRungCount > 0 ||
+    Object.values(initialLoaded.residents).some((r) => r.met),
+  );
+
+  const triggerPlayerPulse = useCallback((kind: PlayerActionPulse['kind'], focusPos?: Vec2) => {
+    pulseSeqRef.current += 1;
+    setPlayerActionPulse({ kind, seq: pulseSeqRef.current, focusPos });
+  }, []);
+
   const showToast = useCallback((msg: string) => {
     setToastText(msg);
   }, []);
@@ -143,6 +149,13 @@ export default function App() {
     const t = window.setTimeout(() => setToastText(null), 3400);
     return () => window.clearTimeout(t);
   }, [toastText]);
+
+  // Brief intro tip auto-dismisses so the play screen never holds an idle box forever
+  useEffect(() => {
+    if (screenState !== 'playing' || introTipDismissed) return;
+    const timer = window.setTimeout(() => setIntroTipDismissed(true), 5000);
+    return () => window.clearTimeout(timer);
+  }, [screenState, introTipDismissed]);
 
   // Keep document.body.dataset.state in sync
   useEffect(() => {
@@ -157,7 +170,6 @@ export default function App() {
     setHudWeather(composed.weather.effective);
     setHudSeason(composed.season.season);
     setPlayerPos(next.playerPos);
-    setPlayerPosture(next.playerPosture ?? 'standing');
     setPlayerHeldItem(next.playerHeldItem ?? null);
     lastSavedStampRef.current = getSaveStamp(next);
     saveWorldState(next);
@@ -177,12 +189,12 @@ export default function App() {
     const fresh: WorldState = resetWorldState();
     const composed = composeEnvironmentState(fresh);
     worldRef.current = fresh;
+    spawnPosRef.current = fresh.playerPos;
     setWorldSnapshot(fresh);
     setHudClock(fresh.minuteOfDay);
     setHudWeather(composed.weather.effective);
     setHudSeason(composed.season.season);
     setPlayerPos(fresh.playerPos);
-    setPlayerPosture(fresh.playerPosture ?? 'standing');
     setPlayerHeldItem(fresh.playerHeldItem ?? null);
     setNearbyBubble(null);
     lastSavedStampRef.current = getSaveStamp(fresh);
@@ -190,6 +202,7 @@ export default function App() {
     setActivePropId(null);
     setPropCard(null);
     setJournalOpen(false);
+    setIntroTipDismissed(false);
     if (document.activeElement instanceof HTMLElement) {
       document.activeElement.blur();
     }
@@ -200,6 +213,7 @@ export default function App() {
 
   const openTargetInteraction = useCallback(
     (target: InteractiveTarget) => {
+      setIntroTipDismissed(true);
       const current = worldRef.current;
       if (target.kind === 'resident') {
         const rid = target.id as ResidentId;
@@ -476,14 +490,22 @@ export default function App() {
     }) => {
       setHudClock(snap.minuteOfDay);
       setPlayerPos(snap.playerPos);
-      setPlayerPosture(snap.playerPosture);
       setPlayerHeldItem(snap.playerHeldItem);
       setNearestTarget(snap.nearestTarget);
       setNearbyBubble(snap.nearbyBubble);
       setHudWeather(snap.weather);
       setHudSeason(snap.season);
+      if (!introTipDismissed) {
+        const moved = Math.hypot(
+          snap.playerPos.x - spawnPosRef.current.x,
+          snap.playerPos.z - spawnPosRef.current.z,
+        );
+        if (moved > 0.35 || snap.nearestTarget) {
+          setIntroTipDismissed(true);
+        }
+      }
     },
-    [],
+    [introTipDismissed],
   );
 
   const phase = getTimePhase(hudClock);
@@ -619,10 +641,10 @@ export default function App() {
             </div>
           </div>
 
-          {/* Gentle Memory / Story Toast or Nearby Neighbor Greeting Whisper */}
+          {/* Gentle Memory / Story Toast or Lightweight Nearby Neighbor Whisper */}
           {toastText ? (
-            <div className="self-center mt-2 bg-[#FAF5EC] border border-[#C86446]/40 rounded-xl px-4 py-2 shadow-[0_8px_24px_rgba(45,36,30,0.18)] flex items-center gap-2 text-xs sm:text-sm font-medium text-[#2D241E]">
-              <Sparkles className="w-4 h-4 text-[#C86446] shrink-0" />
+            <div className="self-center mt-1.5 bg-[#FAF5EC]/95 border border-[#C86446]/40 rounded-xl px-3.5 py-1.5 shadow-[0_6px_18px_rgba(45,36,30,0.16)] flex items-center gap-2 text-xs sm:text-sm font-medium text-[#2D241E]">
+              <Sparkles className="w-3.5 h-3.5 text-[#C86446] shrink-0" />
               <span>{toastText}</span>
             </div>
           ) : (
@@ -630,7 +652,7 @@ export default function App() {
             !isSheetOpen &&
             !journalOpen &&
             screenState === 'playing' && (
-              <div className="self-center mt-2 max-w-md bg-[#FAF5EC]/95 border border-[#D4C4AE] rounded-2xl px-4 py-2 shadow-[0_6px_20px_rgba(45,36,30,0.14)] text-xs sm:text-sm text-[#2D241E] text-center">
+              <div className="self-center mt-1.5 max-w-[300px] sm:max-w-sm bg-[#FAF5EC]/88 border border-[#D4C4AE]/80 rounded-xl px-3 py-1 shadow-sm text-[11px] sm:text-xs text-[#2D241E] text-center">
                 <span className="font-display font-semibold text-[#C86446]">
                   {nearbyBubble.name}:
                 </span>{' '}
@@ -639,7 +661,7 @@ export default function App() {
             )
           )}
 
-          {/* Bottom Controls: Left Thumbstick (touch devices only) + Center/Right Contextual Interact & Held Item CTA */}
+          {/* Bottom Controls: Left Thumbstick (touch devices only) + Contextual Interact & Held Item CTA */}
           {!isSheetOpen && !journalOpen && screenState === 'playing' && (
             <div className="flex items-end justify-between gap-3 sm:gap-4 pb-1">
               {hasTouchInput ? (
@@ -648,7 +670,7 @@ export default function App() {
                 <div className="hidden" aria-hidden="true" />
               )}
 
-              <div className="flex flex-col items-end gap-2 pointer-events-auto min-w-0 max-w-[240px] sm:max-w-none">
+              <div className="ml-auto flex flex-col items-end gap-2 pointer-events-auto min-w-0 max-w-[240px] sm:max-w-none">
                 {playerHeldItem && worldSnapshot.worldProps?.[playerHeldItem] && (
                   <button
                     type="button"
@@ -678,18 +700,17 @@ export default function App() {
                     <span className="hidden sm:inline text-xs opacity-80 font-mono-nums shrink-0">[E]</span>
                   </button>
                 ) : (
-                  <div className="bg-[#FAF5EC]/90 border border-[#D4C4AE] rounded-xl px-3.5 py-2.5 text-[11px] sm:text-xs text-[#5E5046] shadow-sm text-right leading-relaxed">
-                    {playerPosture === 'sitting'
-                      ? 'Resting on bench — move or tap Stand Up'
-                      : hudClock >= 1260
-                      ? 'Lanterns are glowing low — rest on your porch anytime'
-                      : (
-                        <>
-                          <span>Tap or walk to neighbors &amp; benches</span>
-                          <span className="hidden sm:inline"> (Hold Shift to sprint)</span>
-                        </>
-                      )}
-                  </div>
+                  !introTipDismissed && (
+                    <button
+                      type="button"
+                      data-testid="intro-control-tip"
+                      onClick={() => setIntroTipDismissed(true)}
+                      className="min-h-[44px] bg-[#FAF5EC]/90 hover:bg-[#FAF5EC] border border-[#D4C4AE] rounded-xl px-3.5 py-2 text-[11px] sm:text-xs text-[#5E5046] shadow-sm text-right leading-snug cursor-pointer transition-opacity"
+                    >
+                      <span>Walk or tap neighbors to talk</span>
+                      <span className="hidden sm:inline"> · Shift sprints</span>
+                    </button>
+                  )
                 )}
               </div>
             </div>

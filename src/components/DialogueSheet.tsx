@@ -1,5 +1,7 @@
 import React from 'react';
 import {
+  ChevronRight,
+  Gift,
   Heart,
   HeartHandshake,
   Smile,
@@ -39,7 +41,7 @@ function renderRelationshipTierIcon(tier: RelationshipTier, label: string) {
           aria-label={title}
           data-relationship-tier={tier}
         >
-          <Sparkles className="w-4 h-4 fill-[#E5A93C]/25" />
+          <Sparkles className="w-3.5 h-3.5 fill-[#E5A93C]/25" />
         </span>
       );
     case 'close':
@@ -50,7 +52,7 @@ function renderRelationshipTierIcon(tier: RelationshipTier, label: string) {
           aria-label={title}
           data-relationship-tier={tier}
         >
-          <HeartHandshake className="w-4 h-4" />
+          <HeartHandshake className="w-3.5 h-3.5" />
         </span>
       );
     case 'friendly':
@@ -61,7 +63,7 @@ function renderRelationshipTierIcon(tier: RelationshipTier, label: string) {
           aria-label={title}
           data-relationship-tier={tier}
         >
-          <Smile className="w-4 h-4" />
+          <Smile className="w-3.5 h-3.5" />
         </span>
       );
     case 'acquaintance':
@@ -72,7 +74,7 @@ function renderRelationshipTierIcon(tier: RelationshipTier, label: string) {
           aria-label={title}
           data-relationship-tier={tier}
         >
-          <Sprout className="w-4 h-4" />
+          <Sprout className="w-3.5 h-3.5" />
         </span>
       );
     case 'stranger':
@@ -84,7 +86,7 @@ function renderRelationshipTierIcon(tier: RelationshipTier, label: string) {
           aria-label={title}
           data-relationship-tier={tier}
         >
-          <UserRound className="w-4 h-4" />
+          <UserRound className="w-3.5 h-3.5" />
         </span>
       );
   }
@@ -121,33 +123,35 @@ export const DialogueSheet: React.FC<DialogueSheetProps> = ({
 
   if (propCard) {
     return (
-      <div className="fixed inset-x-0 bottom-0 z-30 p-3 sm:p-5 pointer-events-none flex justify-center">
+      <div
+        className="fixed inset-0 z-30 flex items-end justify-center p-2.5 sm:p-4 bg-[#2D241E]/10"
+        onClick={onClose}
+      >
         <div
           role="dialog"
           aria-label={propCard.title}
-          className="w-full max-w-xl bg-[#FAF5EC] border border-[#D4C4AE] rounded-2xl shadow-[0_14px_38px_rgba(45,36,30,0.22)] p-5 sm:p-6 pointer-events-auto"
+          onClick={(e) => e.stopPropagation()}
+          className="w-full max-w-lg bg-[#FAF5EC] border border-[#CBB9A0] ring-1 ring-inset ring-[#E9DFCE] rounded-2xl shadow-[0_14px_36px_rgba(45,36,30,0.22)] p-3.5 sm:p-5"
         >
-          <div className="flex items-start justify-between gap-4">
-            <div>
-              <h2 className="font-display text-xl sm:text-2xl font-semibold text-[#2D241E]">
-                {propCard.title}
-              </h2>
-            </div>
+          <div className="flex items-center justify-between gap-3">
+            <h2 className="font-display text-lg sm:text-xl font-semibold text-[#2D241E] truncate">
+              {propCard.title}
+            </h2>
             <button
               type="button"
               onClick={onClose}
               aria-label="Close inspection"
-              className="min-h-[44px] min-w-[44px] -mt-1 -mr-1 flex items-center justify-center rounded-xl text-[#6A5B50] hover:bg-[#EFE5D5] transition-colors cursor-pointer"
+              className="min-h-[44px] min-w-[44px] -my-1 -mr-1.5 flex items-center justify-center rounded-xl text-[#6A5B50] hover:bg-[#EFE5D5] transition-colors cursor-pointer shrink-0"
             >
-              <X className="w-5 h-5" />
+              <X className="w-4 h-4" />
             </button>
           </div>
 
-          <p className="mt-2.5 text-sm sm:text-base text-[#3D3128] leading-relaxed">
+          <p className="mt-2 text-sm sm:text-[15px] text-[#3D3128] leading-relaxed max-h-[26vh] overflow-y-auto storybook-scroll pr-1">
             {propCard.body}
           </p>
 
-          <div className="mt-5 flex flex-wrap items-center justify-end gap-3">
+          <div className="mt-3.5 flex flex-wrap items-center justify-end gap-2.5">
             <button
               type="button"
               onClick={onClose}
@@ -159,7 +163,7 @@ export const DialogueSheet: React.FC<DialogueSheetProps> = ({
               <button
                 type="button"
                 onClick={() => onPropAction(propCard.actionType!)}
-                className="min-h-[44px] px-5 py-2 rounded-xl bg-[#C86446] hover:bg-[#B45539] text-sm font-semibold text-[#FAF5EC] transition-colors cursor-pointer whitespace-nowrap"
+                className="min-h-[44px] px-4.5 py-2 rounded-xl bg-[#C86446] hover:bg-[#B45539] text-sm font-semibold text-[#FAF5EC] transition-colors cursor-pointer whitespace-nowrap"
               >
                 {propCard.actionLabel}
               </button>
@@ -194,20 +198,24 @@ export const DialogueSheet: React.FC<DialogueSheetProps> = ({
   );
 
   return (
-    <div className="fixed inset-x-0 bottom-0 z-30 p-3 sm:p-5 pointer-events-none flex justify-center">
+    <div
+      className="fixed inset-0 z-30 flex items-end justify-center p-2.5 sm:p-4 bg-[#2D241E]/10"
+      onClick={onClose}
+    >
       <div
         role="dialog"
         aria-label={`Conversation with ${node.speakerName}`}
-        className="w-full max-w-2xl bg-[#FAF5EC] border border-[#D4C4AE] rounded-2xl shadow-[0_14px_40px_rgba(45,36,30,0.24)] p-5 sm:p-6 pointer-events-auto"
+        onClick={(e) => e.stopPropagation()}
+        className="w-full max-w-xl bg-[#FAF5EC] border border-[#CBB9A0] ring-1 ring-inset ring-[#E9DFCE] rounded-2xl shadow-[0_14px_36px_rgba(45,36,30,0.22)] p-3.5 sm:p-5"
       >
-        {/* Header with character color medallion, name, relationship tier icon, trust hearts, and clean metadata */}
-        <div className="flex items-start justify-between gap-3">
-          <div className="flex items-center gap-3 min-w-0">
+        {/* Compact Storybook Header */}
+        <div className="flex items-start justify-between gap-2.5">
+          <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
             <div
               key={milestoneSeq > 0 ? `${session.residentId}-milestone-${milestoneSeq}` : `${session.residentId}-idle`}
               data-testid="resident-dialogue-avatar"
               data-milestone-seq={milestoneSeq}
-              className={`w-11 h-11 rounded-full shrink-0 border-2 flex items-center justify-center font-display font-bold text-lg text-[#FAF5EC] shadow-sm ${
+              className={`w-10 h-10 rounded-full shrink-0 border-2 flex items-center justify-center font-display font-bold text-base text-[#FAF5EC] shadow-sm ${
                 milestoneSeq > 0
                   ? 'animate-avatar-milestone border-[#E5A93C]'
                   : 'border-[#E6DAC7]'
@@ -218,16 +226,16 @@ export const DialogueSheet: React.FC<DialogueSheetProps> = ({
               {node.speakerName.charAt(0)}
             </div>
             <div className="min-w-0">
-              <div className="flex items-center gap-2 flex-wrap">
-                <h2 className="font-display text-xl font-semibold text-[#2D241E] truncate">
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <h2 className="font-display text-lg sm:text-xl font-semibold text-[#2D241E] truncate">
                   {node.speakerName}
                 </h2>
                 {renderRelationshipTierIcon(resolvedTier, tierLabel)}
-                <div className="flex items-center gap-1" aria-label={`Friendship ${trust} of 5`}>
+                <div className="flex items-center gap-0.5 ml-0.5" aria-label={`Friendship ${trust} of 5`}>
                   {[0, 1, 2, 3, 4].map((idx) => (
                     <Heart
                       key={idx}
-                      className={`w-3.5 h-3.5 ${
+                      className={`w-3 h-3 ${
                         idx < trust
                           ? 'fill-[#C86446] text-[#C86446]'
                           : 'fill-transparent text-[#C7B7A2]'
@@ -236,13 +244,12 @@ export const DialogueSheet: React.FC<DialogueSheetProps> = ({
                   ))}
                 </div>
               </div>
-              <div className="text-xs text-[#6A5B50] flex items-center gap-x-1.5 gap-y-0.5 flex-wrap">
+              <div className="text-[11px] sm:text-xs text-[#6A5B50] flex items-center gap-x-1.5 flex-wrap leading-tight mt-0.5">
                 <span>{node.speakerRole}</span>
                 <span aria-hidden="true">·</span>
                 <span>{emotionLabel}</span>
-                <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
-                  <span aria-hidden="true">·</span>
-                  <span className="font-medium text-[#5E8062]">{tierLabel}</span>
+                <span className="font-medium text-[#5E8062] whitespace-nowrap">
+                  · {tierLabel}
                 </span>
               </div>
             </div>
@@ -252,58 +259,63 @@ export const DialogueSheet: React.FC<DialogueSheetProps> = ({
             type="button"
             onClick={onClose}
             aria-label="Close conversation"
-            className="min-h-[44px] min-w-[44px] -mt-1 -mr-1 flex items-center justify-center rounded-xl text-[#6A5B50] hover:bg-[#EFE5D5] transition-colors cursor-pointer shrink-0"
+            className="min-h-[44px] min-w-[44px] -mt-1 -mr-1.5 flex items-center justify-center rounded-xl text-[#6A5B50] hover:bg-[#EFE5D5] transition-colors cursor-pointer shrink-0"
           >
-            <X className="w-5 h-5" />
+            <X className="w-4 h-4" />
           </button>
         </div>
 
         {(session.recentToast || session.milestoneLabel) && (
-          <div className="mt-3 flex items-center gap-2 text-xs font-semibold text-[#5E8062]">
+          <div className="mt-2.5 flex items-center gap-1.5 text-xs font-semibold text-[#5E8062]">
             <Sparkles className="w-3.5 h-3.5 shrink-0" />
             <span>{session.recentToast ?? session.milestoneLabel}</span>
           </div>
         )}
 
         {/* Dialogue Prose */}
-        <p className="mt-3.5 text-base text-[#2D241E] leading-relaxed max-w-[68ch]">
+        <p className="mt-2.5 sm:mt-3 text-sm sm:text-[15px] text-[#2D241E] leading-relaxed max-h-[24vh] sm:max-h-[28vh] overflow-y-auto storybook-scroll pr-1 max-w-[65ch]">
           “{node.text}”
         </p>
 
-        {/* Branching Choices or Close */}
-        <div className="mt-4 flex flex-col gap-2">
-          {availableChoices.map((choice) => (
-            <button
-              key={choice.id}
-              type="button"
-              onClick={() => onSelectChoice(choice)}
-              className="w-full min-h-[46px] px-4 py-2.5 text-left rounded-xl bg-[#F2E9DA] hover:bg-[#E7DAC6] active:scale-[0.995] border border-[#D8C9B3] text-sm sm:text-base font-medium text-[#2D241E] transition-all cursor-pointer flex items-center justify-between gap-3"
-            >
-              <span>{choice.label}</span>
-              <span
-                className={`text-xs font-semibold shrink-0 ${
-                  choice.deliverHeldItem
-                    ? 'text-[#5E8062]'
-                    : choice.tone === 'blunt' || choice.isNegative
-                    ? 'text-[#8A5A44]'
-                    : 'text-[#C86446]'
+        {/* Clean Tactile Choices or Close */}
+        <div className="mt-3 flex flex-col gap-1.5">
+          {availableChoices.map((choice) => {
+            const isGift = Boolean(choice.deliverHeldItem);
+            const isBlunt = choice.tone === 'blunt' || Boolean(choice.isNegative);
+            return (
+              <button
+                key={choice.id}
+                type="button"
+                onClick={() => onSelectChoice(choice)}
+                className={`w-full min-h-[44px] px-3.5 py-2 text-left rounded-xl active:scale-[0.995] border text-sm font-medium transition-all cursor-pointer flex items-center justify-between gap-2.5 ${
+                  isGift
+                    ? 'bg-[#EEF3EC] hover:bg-[#E2ECE0] border-[#B6CBB5] text-[#263829]'
+                    : isBlunt
+                    ? 'bg-[#F7ECE6] hover:bg-[#EFE0D7] border-[#DEC1B4] text-[#4E2F23]'
+                    : 'bg-[#F3E9D9] hover:bg-[#E9DBC6] border-[#D8C9B3] text-[#2D241E]'
                 }`}
               >
-                {choice.deliverHeldItem
-                  ? 'Gift'
-                  : choice.tone === 'blunt' || choice.isNegative
-                  ? 'Blunt'
-                  : 'Reply'}
-              </span>
-            </button>
-          ))}
+                <span className="leading-snug">{choice.label}</span>
+                {isGift ? (
+                  <Gift className="w-4 h-4 text-[#5E8062] shrink-0" aria-hidden="true" />
+                ) : (
+                  <ChevronRight
+                    className={`w-4 h-4 shrink-0 ${
+                      isBlunt ? 'text-[#9E614C]' : 'text-[#C86446]'
+                    }`}
+                    aria-hidden="true"
+                  />
+                )}
+              </button>
+            );
+          })}
 
           {(node.isEnd || availableChoices.length === 0) && (
             <div className="flex justify-end pt-1">
               <button
                 type="button"
                 onClick={onClose}
-                className="min-h-[44px] px-6 py-2 rounded-xl bg-[#C86446] hover:bg-[#B45539] text-sm font-semibold text-[#FAF5EC] transition-colors cursor-pointer"
+                className="min-h-[44px] px-5 py-2 rounded-xl bg-[#C86446] hover:bg-[#B45539] text-sm font-semibold text-[#FAF5EC] transition-colors cursor-pointer"
               >
                 {emotion === 'frustrated' || emotion === 'angry' || emotion === 'sad'
                   ? 'Step Back Gently'

@@ -360,6 +360,16 @@ export interface DialogueStorylineCondition {
   outcome?: string;
 }
 
+export interface ThirdPartyRelationCondition {
+  residentId: ResidentId;
+  minTier?: RelationshipTier;
+  maxTier?: RelationshipTier;
+  minAffinity?: number;
+  maxAffinity?: number;
+  requiresMet?: boolean;
+  requiresGuarded?: boolean;
+}
+
 export interface DialogueCondition {
   flagsTrue?: Array<keyof StoryFlags>;
   flagsFalse?: Array<keyof StoryFlags>;
@@ -371,6 +381,8 @@ export interface DialogueCondition {
   minTier?: RelationshipTier;
   maxTier?: RelationshipTier;
   minReliability?: number;
+  playerRelationWith?: ThirdPartyRelationCondition;
+  requiresThirdPartyGossip?: boolean;
   minNpcAffinity?: { a: ResidentId; b: ResidentId; min: number };
   maxNpcAffinity?: { a: ResidentId; b: ResidentId; max: number };
   minNpcTension?: { a: ResidentId; b: ResidentId; min: number };

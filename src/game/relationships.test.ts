@@ -211,3 +211,96 @@ test('Phase 2: relationship tiers drive NPC greeting distance, bubble warmth, an
   );
 });
 
+test('gossip dialogue lines mention another resident based on player third-party relationship status', () => {
+  const base = createFreshWorldState();
+  // Suppress Arthur/Bell quest priority so Jun and Sora cleanly reach npc_gossip topics
+  const calmFlags = {
+    ...base.flags,
+    heardBellMystery: true,
+    foundPostcard: true,
+    deliveredPostcard: true,
+    brewedChamomileTea: true,
+    foundBrassClapper: true,
+    borrowedBarnabyLadder: true,
+    clearedGazeboIvy: true,
+    repairedFountain: false,
+    plantedMoonPetals: true,
+    claraArthurReconciled: true,
+    bellRestored: true,
+  };
+
+  // 1. Handcrafted pair gossip: Jun mentions Clara warmly once player is friendly+ with Clara
+  const friendlyClaraWorld = {
+    ...base,
+    flags: calmFlags,
+    sideFlags: {
+      ...base.sideFlags,
+      watchTuneStarted: true,
+      watchTuneFinished: true,
+    },
+    residents: {
+      ...base.residents,
+      clara: { ...base.residents.clara, met: true, trust: 2 },
+    },
+    playerRelations: {
+      ...base.playerRelations,
+      clara: { ...base.playerRelations.clara, affinity: 50 },
+    },
+  };
+  const junSession = buildResidentDialogue('jun', friendlyClaraWorld, 'afternoon');
+  assert.equal(junSession.topicId, 'gossip_jun_clara_bond');
+  assert.ok(junSession.nodes.root.text.includes('Clara'));
+
+  // 2. Generalized third-party gossip dynamically reacts to kindred, stranger (met), and guarded statuses
+  const kindredSoraWorld = {
+    ...base,
+    flags: calmFlags,
+    residents: {
+      ...base.residents,
+      toby: { ...base.residents.toby, met: true, trust: 5 },
+    },
+    playerRelations: {
+      ...base.playerRelations,
+      toby: { ...base.playerRelations.toby, affinity: 92 },
+    },
+  };
+  const soraAboutTobyKindred = buildResidentDialogue('sora', kindredSoraWorld, 'afternoon');
+  assert.equal(soraAboutTobyKindred.topicId, 'gossip_third_party_relation');
+  assert.ok(soraAboutTobyKindred.nodes.root.text.includes('Toby'));
+  assert.ok(soraAboutTobyKindred.nodes.root.text.includes('kindred'));
+
+  const metStrangerWorld = {
+    ...base,
+    flags: calmFlags,
+    residents: {
+      ...base.residents,
+      toby: { ...base.residents.toby, met: true, trust: 0 },
+    },
+    playerRelations: {
+      ...base.playerRelations,
+      toby: { ...base.playerRelations.toby, affinity: 5 },
+    },
+  };
+  const soraAboutTobyStranger = buildResidentDialogue('sora', metStrangerWorld, 'afternoon');
+  assert.equal(soraAboutTobyStranger.topicId, 'gossip_third_party_relation');
+  assert.ok(soraAboutTobyStranger.nodes.root.text.includes('Toby'));
+  assert.ok(soraAboutTobyStranger.nodes.root.text.includes('mostly strangers'));
+
+  const guardedTobyWorld = {
+    ...metStrangerWorld,
+    playerRelations: {
+      ...metStrangerWorld.playerRelations,
+      toby: { ...metStrangerWorld.playerRelations.toby, affinity: 10, negativeCount: 1, reliability: 18 },
+    },
+    npcRuntime: {
+      ...metStrangerWorld.npcRuntime,
+      toby: { ...metStrangerWorld.npcRuntime.toby, emotion: 'frustrated' as const },
+    },
+  };
+  const soraAboutTobyGuarded = buildResidentDialogue('sora', guardedTobyWorld, 'afternoon');
+  assert.equal(soraAboutTobyGuarded.topicId, 'gossip_third_party_relation');
+  assert.ok(soraAboutTobyGuarded.nodes.root.text.includes('Toby'));
+  assert.ok(soraAboutTobyGuarded.nodes.root.text.includes('tense'));
+});
+
+

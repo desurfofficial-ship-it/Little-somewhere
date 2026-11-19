@@ -13,7 +13,7 @@ import {
   TopicHistoryEntry,
   WorldState,
 } from './types';
-import { RESIDENTS } from './residents';
+import { RESIDENTS, RESIDENT_ORDER } from './residents';
 import {
   TIER_RANK,
   getEmotionLabel,
@@ -60,6 +60,70 @@ export function getTopicHistoryEntry(
   if (!topicId) return undefined;
   const hist = world.topicHistory ?? {};
   return hist[`${residentId}:${topicId}`] ?? hist[topicId];
+}
+
+export interface ThirdPartyGossipSubject {
+  targetId: ResidentId;
+  tier: RelationshipTier;
+  guarded: boolean;
+  affinity: number;
+  met: boolean;
+}
+
+export function selectThirdPartyGossipSubject(
+  speakerId: ResidentId,
+  world: WorldState,
+): ThirdPartyGossipSubject | null {
+  const speakerIdx = RESIDENT_ORDER.indexOf(speakerId);
+  let best: { subject: ThirdPartyGossipSubject; score: number } | null = null;
+
+  for (let i = 0; i < RESIDENT_ORDER.length; i++) {
+    const otherId = RESIDENT_ORDER[i];
+    if (otherId === speakerId) continue;
+    const prog = world.residents[otherId];
+    if (!prog) continue;
+    const rel = world.playerRelations?.[otherId];
+    const rt = world.npcRuntime?.[otherId];
+    const affinity = rel?.affinity ?? prog.trust * 20;
+    const tier = getRelationshipTier(affinity);
+    const emotion: CharacterEmotion =
+      rt?.emotion ?? rel?.lastEmotion ?? moodToEmotion(prog.mood);
+    const guarded = isResidentGuarded(rel, emotion);
+
+    // Avoid firing premature third-party gossip before the player has met or bonded/clashed with the neighbor
+    if (!guarded && !prog.met && affinity < 40) continue;
+
+    let score = guarded
+      ? 120
+      : tier === 'kindred'
+      ? 100
+      : tier === 'close'
+      ? 85
+      : tier === 'friendly'
+      ? 70
+      : tier === 'acquaintance'
+      ? 50
+      : 30;
+
+    const npcRel = getNpcRelation(world.npcRelations ?? {}, speakerId, otherId);
+    if (npcRel.affinity >= 45) score += 12;
+    score += ((i + world.day + Math.max(0, speakerIdx)) % RESIDENT_ORDER.length) * 0.25;
+
+    if (!best || score > best.score) {
+      best = {
+        subject: {
+          targetId: otherId,
+          tier,
+          guarded,
+          affinity,
+          met: prog.met,
+        },
+        score,
+      };
+    }
+  }
+
+  return best?.subject ?? null;
 }
 
 function isWorldStateArg(arg: StoryFlags | WorldState): arg is WorldState {
@@ -166,6 +230,30 @@ export function evaluateDialogueCondition(
   if (cond.minReliability !== undefined && (rel?.reliability ?? 25) < cond.minReliability) return false;
   if (cond.requiresMet !== undefined && prog.met !== cond.requiresMet) return false;
   if (cond.talkedCountMin !== undefined && (rel?.talkedCount ?? 0) < cond.talkedCountMin) return false;
+
+  if (cond.playerRelationWith) {
+    const req = cond.playerRelationWith;
+    if (req.residentId === residentId) return false;
+    const tProg = world.residents[req.residentId];
+    const tRel = world.playerRelations?.[req.residentId];
+    const tRt = world.npcRuntime?.[req.residentId];
+    if (!tProg) return false;
+    const tAffinity = tRel?.affinity ?? tProg.trust * 20;
+    const tTier = getRelationshipTier(tAffinity);
+    const tEmotion: CharacterEmotion =
+      tRt?.emotion ?? tRel?.lastEmotion ?? moodToEmotion(tProg.mood);
+    const tGuarded = isResidentGuarded(tRel, tEmotion);
+    if (req.minAffinity !== undefined && tAffinity < req.minAffinity) return false;
+    if (req.maxAffinity !== undefined && tAffinity > req.maxAffinity) return false;
+    if (req.minTier && TIER_RANK[tTier] < TIER_RANK[req.minTier]) return false;
+    if (req.maxTier && TIER_RANK[tTier] > TIER_RANK[req.maxTier]) return false;
+    if (req.requiresMet !== undefined && tProg.met !== req.requiresMet) return false;
+    if (req.requiresGuarded !== undefined && tGuarded !== req.requiresGuarded) return false;
+  }
+
+  if (cond.requiresThirdPartyGossip && !selectThirdPartyGossipSubject(residentId, world)) {
+    return false;
+  }
 
   if (cond.minNpcAffinity) {
     const pairRel = getNpcRelation(world.npcRelations ?? {}, cond.minNpcAffinity.a, cond.minNpcAffinity.b);
