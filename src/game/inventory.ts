@@ -261,8 +261,8 @@ export const RESIDENT_GIFT_PREFS: Record<
     liked: ['lavender_shortbread', 'crabapple', 'heron_feather'],
   },
   rowan: {
-    loved: ['wild_honey', 'crabapple_tart', 'pressed_fern'],
-    liked: ['crabapple', 'chamomile_pear_tea', 'lavender_sprig'],
+    loved: ['wild_honey', 'herb_loaf', 'chamomile_pear_tea'],
+    liked: ['crabapple', 'crabapple_tart', 'lemon_thyme', 'lavender_shortbread'],
   },
 };
 
