@@ -52,3 +52,26 @@
   background: rgba(106, 91, 80, 0.25);
   border-radius: 9999px;
 }
+
+@keyframes avatar-milestone-bounce {
+  0% {
+    transform: scale(1) translateY(0);
+    box-shadow: 0 0 0 0 rgba(229, 169, 60, 0.55);
+  }
+  35% {
+    transform: scale(1.16) translateY(-4px);
+    box-shadow: 0 0 0 8px rgba(229, 169, 60, 0);
+  }
+  68% {
+    transform: scale(0.97) translateY(1px);
+  }
+  100% {
+    transform: scale(1) translateY(0);
+    box-shadow: 0 0 0 0 rgba(229, 169, 60, 0);
+  }
+}
+
+.animate-avatar-milestone {
+  animation: avatar-milestone-bounce 0.72s cubic-bezier(0.22, 1, 0.36, 1) 1;
+}
+

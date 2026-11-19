@@ -7,8 +7,12 @@ import {
   getWeatherLabel,
 } from './environment';
 import {
+  TIER_RANK,
   adjustNpcRelationPair,
   emotionToMood,
+  getHeartLevel,
+  getRelationshipTier,
+  getRelationshipTierLabel,
   pushWorldEventInPlace,
   reconcileClaraAndArthurRelation,
   recordPlayerTalkAffinity,
@@ -236,15 +240,48 @@ export function applyDialogueChoice(
     memories: nextMemories,
   };
 
+  const prevTier = getRelationshipTier(existingPlayerRel.affinity);
+  const prevHearts = getHeartLevel(existingPlayerRel.affinity);
+  const nextTier = getRelationshipTier(nextPlayerRel.affinity);
+  const nextHearts = getHeartLevel(nextPlayerRel.affinity);
+  const tierAdvanced = !choice.isNegative && TIER_RANK[nextTier] > TIER_RANK[prevTier];
+  const heartAdvanced = !choice.isNegative && nextHearts > prevHearts;
+  const significantMilestone =
+    !choice.isNegative &&
+    (tierAdvanced || heartAdvanced || Boolean(memoryUnlockedTitle) || Boolean(choice.isStoryMilestone));
+
   const giftToast = isGift
     ? `Shared ${world.worldProps?.[choice.deliverHeldItem!]?.label ?? 'item'} with ${RESIDENTS[residentId].name}!`
     : undefined;
 
+  const tierToast = tierAdvanced
+    ? `Friendship grew: ${getRelationshipTierLabel(nextTier)}!`
+    : heartAdvanced
+    ? `Friendship grew with ${RESIDENTS[residentId].name}!`
+    : undefined;
+
+  const milestoneLabel = tierAdvanced
+    ? `New bond: ${getRelationshipTierLabel(nextTier)}`
+    : heartAdvanced
+    ? 'Friendship deepened!'
+    : memoryUnlockedTitle
+    ? 'Memory unlocked!'
+    : choice.isStoryMilestone
+    ? 'Story milestone!'
+    : undefined;
+
   const nextSession: DialogueSession = {
     ...session,
+    tier: nextTier,
     currentNodeId: choice.nextNodeId,
     emotion: nextNpcRuntime?.[residentId]?.emotion ?? session.emotion,
-    recentToast: memoryUnlockedTitle ? `Memory saved: ${memoryUnlockedTitle}` : giftToast,
+    recentToast: memoryUnlockedTitle
+      ? `Memory saved: ${memoryUnlockedTitle}`
+      : giftToast ?? tierToast,
+    milestonePulseSeq: significantMilestone
+      ? (session.milestonePulseSeq ?? 0) + 1
+      : session.milestonePulseSeq,
+    milestoneLabel: significantMilestone ? milestoneLabel : undefined,
   };
 
   return { nextWorld, nextSession, memoryUnlockedTitle };

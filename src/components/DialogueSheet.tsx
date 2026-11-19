@@ -1,10 +1,19 @@
 import React from 'react';
-import { Heart, Sparkles, X } from 'lucide-react';
+import {
+  Heart,
+  HeartHandshake,
+  Smile,
+  Sparkles,
+  Sprout,
+  UserRound,
+  X,
+} from 'lucide-react';
 import {
   CharacterEmotion,
   DialogueChoice,
   DialogueSession,
   PlayerNpcRelation,
+  RelationshipTier,
   ResidentProgress,
   StoryFlags,
   WorldState,
@@ -12,11 +21,74 @@ import {
 import { isChoiceAvailable } from '../game/narrative';
 import {
   getEmotionLabel,
+  getHeartLevel,
   getRelationshipTier,
   getRelationshipTierLabel,
 } from '../game/relationships';
 import { RESIDENTS } from '../game/residents';
 import { PropInteractionResult } from '../game/actions';
+
+function renderRelationshipTierIcon(tier: RelationshipTier, label: string) {
+  const title = `Relationship status: ${label}`;
+  switch (tier) {
+    case 'kindred':
+      return (
+        <span
+          className="inline-flex items-center justify-center text-[#D48B1F]"
+          title={title}
+          aria-label={title}
+          data-relationship-tier={tier}
+        >
+          <Sparkles className="w-4 h-4 fill-[#E5A93C]/25" />
+        </span>
+      );
+    case 'close':
+      return (
+        <span
+          className="inline-flex items-center justify-center text-[#B45539]"
+          title={title}
+          aria-label={title}
+          data-relationship-tier={tier}
+        >
+          <HeartHandshake className="w-4 h-4" />
+        </span>
+      );
+    case 'friendly':
+      return (
+        <span
+          className="inline-flex items-center justify-center text-[#C86446]"
+          title={title}
+          aria-label={title}
+          data-relationship-tier={tier}
+        >
+          <Smile className="w-4 h-4" />
+        </span>
+      );
+    case 'acquaintance':
+      return (
+        <span
+          className="inline-flex items-center justify-center text-[#5E8062]"
+          title={title}
+          aria-label={title}
+          data-relationship-tier={tier}
+        >
+          <Sprout className="w-4 h-4" />
+        </span>
+      );
+    case 'stranger':
+    default:
+      return (
+        <span
+          className="inline-flex items-center justify-center text-[#8C7D6F]"
+          title={title}
+          aria-label={title}
+          data-relationship-tier={tier}
+        >
+          <UserRound className="w-4 h-4" />
+        </span>
+      );
+  }
+}
 
 interface DialogueSheetProps {
   session: DialogueSession | null;
@@ -105,13 +177,15 @@ export const DialogueSheet: React.FC<DialogueSheetProps> = ({
     Object.values(session.nodes)[0];
   if (!node) return null;
   const resDef = RESIDENTS[session.residentId];
-  const trust = residentProgress?.trust ?? 0;
-  const tierLabel = playerRelation
-    ? getRelationshipTierLabel(getRelationshipTier(playerRelation.affinity))
-    : session.tier
-    ? getRelationshipTierLabel(session.tier)
-    : null;
+  const trust = playerRelation
+    ? getHeartLevel(playerRelation.affinity)
+    : residentProgress?.trust ?? 0;
+  const resolvedTier: RelationshipTier = playerRelation
+    ? getRelationshipTier(playerRelation.affinity)
+    : session.tier ?? 'stranger';
+  const tierLabel = getRelationshipTierLabel(resolvedTier);
   const emotionLabel = emotion ? getEmotionLabel(emotion) : node.moodLabel;
+  const milestoneSeq = session.milestonePulseSeq ?? 0;
 
   const availableChoices = node.choices.filter((c) =>
     world
@@ -126,21 +200,29 @@ export const DialogueSheet: React.FC<DialogueSheetProps> = ({
         aria-label={`Conversation with ${node.speakerName}`}
         className="w-full max-w-2xl bg-[#FAF5EC] border border-[#D4C4AE] rounded-2xl shadow-[0_14px_40px_rgba(45,36,30,0.24)] p-5 sm:p-6 pointer-events-auto"
       >
-        {/* Header with character color medallion, name, clean unboxed metadata, and trust pips */}
+        {/* Header with character color medallion, name, relationship tier icon, trust hearts, and clean metadata */}
         <div className="flex items-start justify-between gap-3">
           <div className="flex items-center gap-3 min-w-0">
             <div
-              className="w-11 h-11 rounded-full shrink-0 border-2 border-[#E6DAC7] flex items-center justify-center font-display font-bold text-lg text-[#FAF5EC] shadow-sm"
+              key={milestoneSeq > 0 ? `${session.residentId}-milestone-${milestoneSeq}` : `${session.residentId}-idle`}
+              data-testid="resident-dialogue-avatar"
+              data-milestone-seq={milestoneSeq}
+              className={`w-11 h-11 rounded-full shrink-0 border-2 flex items-center justify-center font-display font-bold text-lg text-[#FAF5EC] shadow-sm ${
+                milestoneSeq > 0
+                  ? 'animate-avatar-milestone border-[#E5A93C]'
+                  : 'border-[#E6DAC7]'
+              }`}
               style={{ backgroundColor: resDef.appearance.coatColor }}
               aria-hidden="true"
             >
               {node.speakerName.charAt(0)}
             </div>
             <div className="min-w-0">
-              <div className="flex items-center gap-2.5 flex-wrap">
+              <div className="flex items-center gap-2 flex-wrap">
                 <h2 className="font-display text-xl font-semibold text-[#2D241E] truncate">
                   {node.speakerName}
                 </h2>
+                {renderRelationshipTierIcon(resolvedTier, tierLabel)}
                 <div className="flex items-center gap-1" aria-label={`Friendship ${trust} of 5`}>
                   {[0, 1, 2, 3, 4].map((idx) => (
                     <Heart
@@ -154,16 +236,14 @@ export const DialogueSheet: React.FC<DialogueSheetProps> = ({
                   ))}
                 </div>
               </div>
-              <div className="text-xs text-[#6A5B50] flex items-center gap-1.5 flex-wrap">
+              <div className="text-xs text-[#6A5B50] flex items-center gap-x-1.5 gap-y-0.5 flex-wrap">
                 <span>{node.speakerRole}</span>
                 <span aria-hidden="true">·</span>
                 <span>{emotionLabel}</span>
-                {tierLabel && (
-                  <>
-                    <span aria-hidden="true">·</span>
-                    <span className="font-medium text-[#5E8062]">{tierLabel}</span>
-                  </>
-                )}
+                <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
+                  <span aria-hidden="true">·</span>
+                  <span className="font-medium text-[#5E8062]">{tierLabel}</span>
+                </span>
               </div>
             </div>
           </div>
@@ -178,10 +258,10 @@ export const DialogueSheet: React.FC<DialogueSheetProps> = ({
           </button>
         </div>
 
-        {session.recentToast && (
+        {(session.recentToast || session.milestoneLabel) && (
           <div className="mt-3 flex items-center gap-2 text-xs font-semibold text-[#5E8062]">
             <Sparkles className="w-3.5 h-3.5 shrink-0" />
-            <span>{session.recentToast}</span>
+            <span>{session.recentToast ?? session.milestoneLabel}</span>
           </div>
         )}
 

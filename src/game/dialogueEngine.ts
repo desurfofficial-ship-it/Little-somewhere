@@ -15,9 +15,11 @@ import {
 } from './types';
 import { RESIDENTS } from './residents';
 import {
+  TIER_RANK,
   getEmotionLabel,
   getNpcRelation,
   getRelationshipTier,
+  isResidentGuarded,
   moodToEmotion,
 } from './relationships';
 import { getTimePhase } from './time';
@@ -33,14 +35,6 @@ const CATEGORY_PRIORITY: Record<DialogueCategory, number> = {
   npc_gossip: 48,
   weather_season: 42,
   daily_slice: 34,
-};
-
-const TIER_RANK: Record<RelationshipTier, number> = {
-  stranger: 0,
-  acquaintance: 1,
-  friendly: 2,
-  close: 3,
-  kindred: 4,
 };
 
 interface ForwardWorldHooks {
@@ -280,11 +274,65 @@ export function evaluateDialogueCondition(
   return true;
 }
 
-export function phaseGreet(phase: TimePhase): string {
+export function phaseGreet(
+  phase: TimePhase,
+  tier: RelationshipTier = 'stranger',
+  residentId?: ResidentId,
+  world?: WorldState,
+): string {
+  if (residentId && world) {
+    const prog = world.residents[residentId];
+    const rel = world.playerRelations?.[residentId];
+    const rt = world.npcRuntime?.[residentId];
+    const emotion: CharacterEmotion =
+      rt?.emotion ?? rel?.lastEmotion ?? moodToEmotion(prog.mood);
+    return resolveGreetingPrefix(residentId, emotion, tier, phase, world);
+  }
+
+  if (tier === 'kindred') {
+    if (phase === 'morning') return 'Good morning, dear friend—I saved a warm spot by the lane for you.';
+    if (phase === 'afternoon') return 'Always brightens my afternoon whenever you stroll up.';
+    if (phase === 'golden') return 'Golden hour wouldn’t feel half as rich without your company here.';
+    return 'There’s my favorite person—right on cue for lantern hour.';
+  }
+  if (tier === 'close') {
+    if (phase === 'morning') return 'Morning, friend! Always easier starting the day with you around.';
+    if (phase === 'afternoon') return 'Good to see you! Come catch a breather with me for a minute.';
+    if (phase === 'golden') return 'This golden light always feels warmer when we share it.';
+    return 'Lantern dusk suits the square—glad you stopped by.';
+  }
+  if (tier === 'friendly') {
+    if (phase === 'morning') return 'Morning, neighbor! Looks like a promising day along the cobbles.';
+    if (phase === 'afternoon') return 'Hey there! The afternoon sun makes the whole square hum.';
+    if (phase === 'golden') return 'Glad we crossed paths in this golden light!';
+    return 'Evening, neighbor! Nothing beats lantern dusk after a busy day.';
+  }
+  if (tier === 'acquaintance') {
+    if (phase === 'morning') return 'Good morning—nice seeing a familiar face out early.';
+    if (phase === 'afternoon') return 'Afternoon! The cobbles are warm and steady today.';
+    if (phase === 'golden') return 'Good timing—this golden light always slows the lane down.';
+    return 'Evening! Lantern dusk is a peaceful hour to wander.';
+  }
+
   if (phase === 'morning') return 'Morning air feels crisp today.';
   if (phase === 'afternoon') return 'The afternoon sun makes the cobbles warm.';
   if (phase === 'golden') return 'This golden light always slows the lane down.';
   return 'Lantern dusk is my favorite hour here.';
+}
+
+export function resolveRelationshipGreeting(
+  residentId: ResidentId,
+  world: WorldState,
+  phase: TimePhase,
+): string {
+  const prog = world.residents[residentId];
+  const rel = world.playerRelations?.[residentId];
+  const rt = world.npcRuntime?.[residentId];
+  const affinity = rel?.affinity ?? prog.trust * 20;
+  const tier = getRelationshipTier(affinity);
+  const emotion: CharacterEmotion =
+    rt?.emotion ?? rel?.lastEmotion ?? moodToEmotion(prog.mood);
+  return resolveGreetingPrefix(residentId, emotion, tier, phase, world);
 }
 
 export function makeSimpleTopic(
@@ -396,6 +444,7 @@ function resolveGreetingPrefix(
 ): string {
   const def = RESIDENTS[id];
   const prog = world.residents[id];
+  const rel = world.playerRelations?.[id];
 
   if (!prog.met) {
     if (def.traits.temperament === 'spirited') {
@@ -407,21 +456,56 @@ function resolveGreetingPrefix(
     return `Welcome to Willow Step Lane.`;
   }
 
+  if (isResidentGuarded(rel, emotion)) {
+    return rel && rel.reliability < 20
+      ? `Let’s keep things brief for now, neighbor—I’m still sorting out earlier.`
+      : `Look, I’ve got plenty on my mind right now.`;
+  }
+
   if (emotion === 'tired') {
-    return phase === 'dusk' ? `Whew… long day on my feet.` : `Trying to catch a quick breather here.`;
+    return tier === 'close' || tier === 'kindred'
+      ? `Whew… long day on my feet, friend, though seeing you helps.`
+      : phase === 'dusk'
+      ? `Whew… long day on my feet.`
+      : `Trying to catch a quick breather here.`;
   }
   if (emotion === 'sad') {
-    return `The square feels a little heavy today…`;
+    return tier === 'close' || tier === 'kindred'
+      ? `The square feels a little heavy today… glad you’re here to sit a minute.`
+      : `The square feels a little heavy today…`;
   }
-  if (emotion === 'frustrated' || emotion === 'angry') {
-    return `Look, I’ve got plenty on my mind right now.`;
+
+  if (tier === 'kindred') {
+    const favoriteSnippet = def.favoriteThing.split(',')[0].toLowerCase();
+    return phase === 'dusk'
+      ? `There’s my kindred friend—just in time for lantern hour and ${favoriteSnippet}.`
+      : `Always good to see you! Honestly, ${def.homeName} feels twice as welcoming whenever you come by.`;
   }
-  if (tier === 'kindred' || tier === 'close') {
+  if (tier === 'close') {
     return phase === 'dusk'
       ? `There’s my favorite company—just in time for lantern hour.`
       : `Good to see you, neighbor! The lane always feels steadier when you’re around.`;
   }
-  return phaseGreet(phase);
+  if (tier === 'friendly') {
+    return phase === 'morning'
+      ? `Morning, neighbor! Glad I caught you before the lane gets busy.`
+      : phase === 'dusk'
+      ? `Evening! Always a comfort bumping into a friend under the lanterns.`
+      : `Hey there! Good seeing you out on the cobbles today.`;
+  }
+  if (tier === 'acquaintance') {
+    return phase === 'morning'
+      ? `Good morning—nice seeing a familiar face by ${def.homeName}.`
+      : `Hello again! Settling into the rhythm of Willow Step Lane?`;
+  }
+
+  // Stranger: polite, slightly reserved depending on temperament
+  if (def.traits.temperament === 'contemplative' || def.traits.sociability < 0.45) {
+    return phase === 'morning'
+      ? `Morning. Quiet walk through the square?`
+      : `Good day. Taking a look around the lane?`;
+  }
+  return phaseGreet(phase, 'stranger');
 }
 
 /**
@@ -649,6 +733,16 @@ export function selectDialogueSession(
     if (contextRemark && !rootText.includes(contextRemark.trim())) {
       rootText = `${rootText}${contextRemark}`;
     }
+  }
+
+  // If the neighbor is guarded after friction / low reliability, reflect it on non-quest/non-conflict openers
+  if (
+    isResidentGuarded(rel, emotion) &&
+    chosenEntry.topic.category !== 'quest_milestone' &&
+    chosenEntry.topic.category !== 'conflict_reconciliation' &&
+    chosenEntry.topic.category !== 'emotion_reaction'
+  ) {
+    rootText = `I’m keeping a bit of distance after earlier, though go ahead—${rootText.charAt(0).toLowerCase()}${rootText.slice(1)}`;
   }
 
   nodes['root'] = {

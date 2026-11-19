@@ -17,6 +17,7 @@ import {
   makeBranchingTopic,
   makeSimpleTopic,
   phaseGreet,
+  resolveRelationshipGreeting,
   selectDialogueSession,
 } from './dialogueEngine';
 
@@ -561,11 +562,11 @@ export const DIALOGUE_TOPICS: readonly DialogueTopic[] = [
     'quest_milestone',
     44,
     { flagsFalse: ['bellRestored'] },
-    (_id, world, phase) => ({
+    (id, world, phase) => ({
       nodes: {
         root: {
           moodLabel: 'Guarded',
-          text: `${phaseGreet(phase)} Forgive the clutter—old brass gears take patience, and I’ve been out of practice with visitors.`,
+          text: `${resolveRelationshipGreeting(id, world, phase)} Forgive the clutter—old brass gears take patience, and I’ve been out of practice with visitors.`,
           choices: [
             {
               id: 'arthur_postcard',
@@ -612,11 +613,11 @@ export const DIALOGUE_TOPICS: readonly DialogueTopic[] = [
     'quest_milestone',
     40,
     { flagsFalse: ['claraArthurReconciled'], maxSeenCount: 2 },
-    (_id, _w, phase) => ({
+    (id, world, phase) => ({
       nodes: {
         root: {
           moodLabel: 'Wistful',
-          text: `${phaseGreet(phase)} I keep baking one loaf too many every afternoon, out of habit. Arthur used to come by when the crust crackled—before the storm that cracked the gazebo bell beam.`,
+          text: `${resolveRelationshipGreeting(id, world, phase)} I keep baking one loaf too many every afternoon, out of habit. Arthur used to come by when the crust crackled—before the storm that cracked the gazebo bell beam.`,
           choices: [
             {
               id: 'clara_listen',
@@ -1173,11 +1174,73 @@ export const DIALOGUE_TOPICS: readonly DialogueTopic[] = [
 
   // ================= EMOTION & RELATIONSHIP TIER TOPICS =================
   makeSimpleTopic(
+    'tier_acquaintance_warmup',
+    'any',
+    'relationship_tier',
+    7,
+    { minTier: 'acquaintance', maxTier: 'acquaintance', talkedCountMin: 2, notSeenToday: true },
+    {
+      moodLabel: 'Warming Up',
+      buildText: (id) =>
+        `I’m glad we’ve started trading more than passing waves—${RESIDENTS[id].homeName} always feels friendlier once folks learn each other’s rhythms.`,
+      choices: [
+        {
+          id: 'tier_acq_warm',
+          label: 'Still learning the lane, though I’m glad we’re neighbors.',
+          tone: 'warm',
+          nextNodeId: 'tier_acq_end',
+          trustDelta: 1,
+          reliabilityDelta: 3,
+          setEmotion: 'happy',
+        },
+      ],
+      endings: {
+        tier_acq_end: {
+          moodLabel: 'Friendly',
+          text: `Give the cobbles a week—you’ll know every porch light by heart soon enough.`,
+        },
+      },
+    },
+  ),
+
+  makeSimpleTopic(
+    'tier_friendly_confide',
+    'any',
+    'relationship_tier',
+    7,
+    { minTier: 'friendly', maxTier: 'friendly', notSeenToday: true },
+    {
+      moodLabel: 'Welcoming',
+      buildText: (id) => {
+        const favorite = RESIDENTS[id].favoriteThing.split(',')[0].toLowerCase();
+        return `You know, neighbor, since we’ve gotten properly acquainted—whenever you’re near ${RESIDENTS[id].homeName}, don’t hesitate to linger a spell over ${favorite}.`;
+      },
+      choices: [
+        {
+          id: 'tier_friend_warm',
+          label: 'Always makes the afternoon feel twice as bright stopping by.',
+          tone: 'warm',
+          nextNodeId: 'tier_friend_end',
+          trustDelta: 1,
+          reliabilityDelta: 4,
+          setEmotion: 'happy',
+        },
+      ],
+      endings: {
+        tier_friend_end: {
+          moodLabel: 'Pleased',
+          text: `Good! Neighborly chats are the quiet heartbeat of Willow Lane.`,
+        },
+      },
+    },
+  ),
+
+  makeSimpleTopic(
     'tier_close_kindred_bond',
     'any',
     'relationship_tier',
     8,
-    { minAffinity: 60, notSeenToday: true },
+    { minAffinity: 60, maxTier: 'close', notSeenToday: true },
     {
       moodLabel: 'Warm',
       buildText: (id) =>
@@ -1197,6 +1260,66 @@ export const DIALOGUE_TOPICS: readonly DialogueTopic[] = [
         tier_close_end: {
           moodLabel: 'Joyful',
           text: `My door and porch bench are always open whenever you want company.`,
+        },
+      },
+    },
+  ),
+
+  makeSimpleTopic(
+    'tier_kindred_promise',
+    'any',
+    'relationship_tier',
+    9,
+    { minTier: 'kindred', notSeenToday: true },
+    {
+      moodLabel: 'Kindred',
+      buildText: (id) =>
+        `I was just thinking—there are few souls on Willow Lane I trust with the quiet truth of a long week the way I trust you, ${RESIDENTS[id].traits.temperament === 'spirited' ? 'my friend' : 'dear friend'}.`,
+      choices: [
+        {
+          id: 'tier_kindred_warm',
+          label: 'Same goes—this lane wouldn’t feel like home without you.',
+          tone: 'warm',
+          nextNodeId: 'tier_kindred_end',
+          trustDelta: 1,
+          reliabilityDelta: 5,
+          setEmotion: 'happy',
+        },
+      ],
+      endings: {
+        tier_kindred_end: {
+          moodLabel: 'Radiant',
+          text: `Whenever the dusk lanterns flicker on, know you’ve always got a seat waiting with me.`,
+        },
+      },
+    },
+  ),
+
+  makeSimpleTopic(
+    'emotion_guarded_tension',
+    'any',
+    'emotion_reaction',
+    7,
+    { emotions: ['frustrated', 'angry'], notSeenToday: true },
+    {
+      moodLabel: 'Guarded',
+      buildText: () =>
+        `I’m still a bit bristled from earlier, to be honest. I’d rather we take things easy before jumping back into busy talk.`,
+      choices: [
+        {
+          id: 'em_guarded_gentle',
+          label: 'Understood—no rush at all. I’m here when the air feels lighter.',
+          tone: 'gentle',
+          nextNodeId: 'em_guarded_soft',
+          trustDelta: 0,
+          reliabilityDelta: 6,
+          setEmotion: 'relaxed',
+        },
+      ],
+      endings: {
+        em_guarded_soft: {
+          moodLabel: 'Softened',
+          text: `Thanks for giving me a quiet beat, neighbor. That honestly helps.`,
         },
       },
     },
@@ -1311,7 +1434,7 @@ export const DIALOGUE_TOPICS: readonly DialogueTopic[] = [
   // Clara
   makeSimpleTopic('daily_clara_crust', 'clara', 'daily_slice', 2, {}, {
     moodLabel: 'Warm',
-    buildText: (_id, _w, p) => `${phaseGreet(p)} First score on a sourdough boule makes the whole porch smell like toasted hazelnuts.`,
+    buildText: (id, w, p) => `${resolveRelationshipGreeting(id, w, p)} First score on a sourdough boule makes the whole porch smell like toasted hazelnuts.`,
     choices: [
       { id: 'clara_d1', label: 'Any secret to getting that crisp blistered crust?', tone: 'curious', nextNodeId: 'd1_e', trustDelta: 1, setEmotion: 'happy' },
     ],
@@ -1331,7 +1454,7 @@ export const DIALOGUE_TOPICS: readonly DialogueTopic[] = [
   // Arthur
   makeSimpleTopic('daily_arthur_springs', 'arthur', 'daily_slice', 2, {}, {
     moodLabel: 'Thoughtful',
-    buildText: (_id, _w, p) => `${phaseGreet(p)} Brass escapements keep honest time if you never force a stiff gear.`,
+    buildText: (id, w, p) => `${resolveRelationshipGreeting(id, w, p)} Brass escapements keep honest time if you never force a stiff gear.`,
     choices: [
       { id: 'arthur_d1', label: 'Sounds a lot like mending friendships too.', tone: 'gentle', nextNodeId: 'a1_e', trustDelta: 1, setEmotion: 'relaxed' },
     ],
@@ -1339,7 +1462,7 @@ export const DIALOGUE_TOPICS: readonly DialogueTopic[] = [
   }),
   makeSimpleTopic('daily_arthur_peace', 'arthur', 'daily_slice', 3, { flagsTrue: ['bellRestored'] }, {
     moodLabel: 'At Peace',
-    buildText: (_id, _w, p) => `${phaseGreet(p)} Hear how steady the bell’s echo sits against the hills? Clara even brought rosemary butter to the workshop.`,
+    buildText: (id, w, p) => `${resolveRelationshipGreeting(id, w, p)} Hear how steady the bell’s echo sits against the hills? Clara even brought rosemary butter to the workshop.`,
     choices: [
       { id: 'arthur_ring_note', label: 'You built something that brings everyone together.', tone: 'warm', nextNodeId: 'a2_e', trustDelta: 1, setEmotion: 'happy' },
     ],
@@ -1349,7 +1472,7 @@ export const DIALOGUE_TOPICS: readonly DialogueTopic[] = [
   // Mina
   makeSimpleTopic('daily_mina_soil', 'mina', 'daily_slice', 2, {}, {
     moodLabel: 'Gentle',
-    buildText: (_id, _w, p) => `${phaseGreet(p)} Rain-soaked terracotta and morning sun—plants never rush, yet they always arrive right on season.`,
+    buildText: (id, w, p) => `${resolveRelationshipGreeting(id, w, p)} Rain-soaked terracotta and morning sun—plants never rush, yet they always arrive right on season.`,
     choices: [
       { id: 'mina_d1', label: 'Which blooms love the fountain mist best?', tone: 'curious', nextNodeId: 'm1_e', trustDelta: 1, setEmotion: 'curious' },
     ],
@@ -1367,7 +1490,7 @@ export const DIALOGUE_TOPICS: readonly DialogueTopic[] = [
   // Jun
   makeSimpleTopic('daily_jun_route', 'jun', 'daily_slice', 2, {}, {
     moodLabel: 'Cheerful',
-    buildText: (_id, _w, p) => `${phaseGreet(p)} I’ve already walked the cobblestone loop twice today. Checked your Willow Mailbox lately?`,
+    buildText: (id, w, p) => `${resolveRelationshipGreeting(id, w, p)} I’ve already walked the cobblestone loop twice today. Checked your Willow Mailbox lately?`,
     choices: [
       { id: 'jun_gossip', label: 'Who seems most in need of company today?', tone: 'curious', nextNodeId: 'j1_e', trustDelta: 1, setEmotion: 'happy' },
       { id: 'jun_lanterns', label: 'Think we should light the plaza festoon lanterns tonight?', tone: 'warm', nextNodeId: 'j2_e', setFlags: { lanternsLit: true }, trustDelta: 1, isStoryMilestone: true },
@@ -1389,7 +1512,7 @@ export const DIALOGUE_TOPICS: readonly DialogueTopic[] = [
   // Barnaby
   makeSimpleTopic('daily_barnaby_craft', 'barnaby', 'daily_slice', 2, {}, {
     moodLabel: 'Sturdy',
-    buildText: (_id, _w, p) => `${phaseGreet(p)} Cedar joints don’t creak if you respect the grain. Say, you’re settling into Willow Step Cottage nicely.`,
+    buildText: (id, w, p) => `${resolveRelationshipGreeting(id, w, p)} Cedar joints don’t creak if you respect the grain. Say, you’re settling into Willow Step Cottage nicely.`,
     choices: [
       { id: 'barnaby_craft', label: 'Tell me about building the cottage porches here.', tone: 'warm', nextNodeId: 'b1_e', trustDelta: 1, setEmotion: 'happy' },
     ],
@@ -1409,7 +1532,7 @@ export const DIALOGUE_TOPICS: readonly DialogueTopic[] = [
   // Sora
   makeSimpleTopic('daily_sora_chord', 'sora', 'daily_slice', 2, {}, {
     moodLabel: 'Dreamy',
-    buildText: (_id, _w, p) => `${phaseGreet(p)} Whenever I tune my violin here, I listen to how stone and pond water carry the harmonics.`,
+    buildText: (id, w, p) => `${resolveRelationshipGreeting(id, w, p)} Whenever I tune my violin here, I listen to how stone and pond water carry the harmonics.`,
     choices: [
       { id: 'sora_song', label: 'Play a little piece while we watch the plaza.', tone: 'gentle', nextNodeId: 's1_e', trustDelta: 1, setEmotion: 'relaxed' },
     ],
@@ -1427,7 +1550,7 @@ export const DIALOGUE_TOPICS: readonly DialogueTopic[] = [
   // Toby
   makeSimpleTopic('daily_toby_sketch', 'toby', 'daily_slice', 2, {}, {
     moodLabel: 'Shy',
-    buildText: (_id, _w, p) => `${phaseGreet(p)} Look how long afternoon shadows stretch across the bridge planks around golden hour.`,
+    buildText: (id, w, p) => `${resolveRelationshipGreeting(id, w, p)} Look how long afternoon shadows stretch across the bridge planks around golden hour.`,
     choices: [
       { id: 'toby_sketch', label: 'Can I peek at what you’re sketching?', tone: 'curious', nextNodeId: 't1_e', trustDelta: 1, setEmotion: 'happy' },
     ],
@@ -1465,9 +1588,9 @@ export const DIALOGUE_TOPICS: readonly DialogueTopic[] = [
   // Pip
   makeSimpleTopic('daily_pip_carp', 'pip', 'daily_slice', 2, { flagsTrue: ['heardBellMystery'] }, {
     moodLabel: 'Hopeful',
-    buildText: (_id, w, p) => w.flags.bellRestored
+    buildText: (id, w, p) => w.flags.bellRestored
       ? `Did you hear that?! The brass bell echoed all the way to Mirror Pond! Even the carp jumped!`
-      : `${phaseGreet(p)} Have you checked the hollow oak by Mirror Pond yet, or asked Barnaby about his tall cedar ladder?`,
+      : `${resolveRelationshipGreeting(id, w, p)} Have you checked the hollow oak by Mirror Pond yet, or asked Barnaby about his tall cedar ladder?`,
     choices: [
       { id: 'pip_skip', label: 'Practice skipping a pebble on Mirror Pond with me later!', tone: 'warm', nextNodeId: 'p1_e', trustDelta: 1, setEmotion: 'excited' },
     ],

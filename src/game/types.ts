@@ -220,6 +220,13 @@ export type RelationshipTier =
   | 'close'
   | 'kindred';
 
+export type NpcRelationTier =
+  | 'estranged'
+  | 'guarded'
+  | 'acquainted'
+  | 'warm'
+  | 'confidant';
+
 export interface PlayerNpcRelation {
   residentId: ResidentId;
   affinity: number; // 0..100
@@ -461,6 +468,8 @@ export interface DialogueSession {
   currentNodeId: string;
   nodes: Record<string, DialogueNode>;
   recentToast?: string;
+  milestonePulseSeq?: number;
+  milestoneLabel?: string;
 }
 
 export interface InteractiveTarget {

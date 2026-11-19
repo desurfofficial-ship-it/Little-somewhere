@@ -2,6 +2,7 @@ import {
   CharacterEmotion,
   NpcNpcRelation,
   NpcPairKey,
+  NpcRelationTier,
   PlayerNpcRelation,
   RelationshipTier,
   ResidentActivityEntry,
@@ -26,6 +27,14 @@ export function getHeartLevel(affinity: number): number {
   return Math.max(0, Math.min(5, Math.floor(affinity / 20)));
 }
 
+export const TIER_RANK: Record<RelationshipTier, number> = {
+  stranger: 0,
+  acquaintance: 1,
+  friendly: 2,
+  close: 3,
+  kindred: 4,
+};
+
 export function getRelationshipTier(affinity: number): RelationshipTier {
   const hearts = affinity / 20;
   if (hearts < 1) return 'stranger';
@@ -48,6 +57,44 @@ export function getRelationshipTierLabel(tier: RelationshipTier): string {
     case 'kindred':
       return 'Kindred Spirit';
   }
+}
+
+export function getNpcRelationTier(relation: NpcNpcRelation): NpcRelationTier {
+  if (relation.affinity < 0 || relation.tension >= 55) return 'estranged';
+  if (relation.tension >= 25 || relation.affinity < 15) return 'guarded';
+  if (relation.affinity >= 65 && relation.tension < 10) return 'confidant';
+  if (relation.affinity >= 40 && relation.tension < 20) return 'warm';
+  return 'acquainted';
+}
+
+export function getNpcRelationTierLabel(tier: NpcRelationTier): string {
+  switch (tier) {
+    case 'estranged':
+      return 'Estranged';
+    case 'guarded':
+      return 'Guarded';
+    case 'acquainted':
+      return 'Acquainted';
+    case 'warm':
+      return 'Warm';
+    case 'confidant':
+      return 'Confidant';
+  }
+}
+
+export function isResidentGuarded(
+  rel: PlayerNpcRelation | undefined,
+  emotion?: CharacterEmotion,
+): boolean {
+  if (!rel) return emotion === 'frustrated' || emotion === 'angry';
+  if (rel.reliability < 20) return true;
+  return (
+    rel.negativeCount > 0 &&
+    (rel.reliability <= 20 ||
+      emotion === 'frustrated' ||
+      emotion === 'angry' ||
+      emotion === 'embarrassed')
+  );
 }
 
 export function emotionToMood(emotion: CharacterEmotion): ResidentMood {
@@ -292,9 +339,10 @@ export function recordPlayerTalkAffinity(
       ? currentRel.dailyAffinityGained
       : Math.min(DAILY_SMALLTALK_AFFINITY_CAP, currentRel.dailyAffinityGained + Math.max(0, affinityDelta));
 
-  // Derive heart rating cleanly, never lowering an already-earned story heart except keeping sync
+  // Derive heart rating coherently from authoritative affinity:
+  // negative choices accurately reflect tier/heart setbacks without softlocking story flags
   const derivedHearts = params.isNegative
-    ? currentProg.trust
+    ? getHeartLevel(nextAffinity)
     : Math.max(currentProg.trust, getHeartLevel(nextAffinity));
 
   const resolvedEmotion: CharacterEmotion =
@@ -305,6 +353,8 @@ export function recordPlayerTalkAffinity(
       ? moodToEmotion(params.forcedMood)
       : derivedHearts >= 3
       ? 'happy'
+      : currentRel.lastEmotion === 'frustrated' || currentRel.lastEmotion === 'angry'
+      ? 'relaxed'
       : currentRel.lastEmotion ?? moodToEmotion(currentProg.mood));
 
   const nextMood: ResidentMood = params.forcedMood

@@ -446,10 +446,12 @@ function sanitizePlayerRelations(
       out[id] = def;
       continue;
     }
-    const affinity = Math.max(
-      residents[id].trust * 20,
-      Math.min(100, Math.round(asFiniteNumber(entry.affinity, def.affinity))),
-    );
+    const negativeCount = Math.max(0, Math.floor(asFiniteNumber(entry.negativeCount, 0)));
+    const rawAffinity = Math.max(0, Math.min(100, Math.round(asFiniteNumber(entry.affinity, def.affinity))));
+    const affinity =
+      negativeCount > 0 || rawAffinity > 0
+        ? rawAffinity
+        : Math.max(residents[id].trust * 20, rawAffinity);
     const mood =
       typeof entry.mood === 'string' && VALID_MOODS.has(entry.mood as ResidentProgress['mood'])
         ? (entry.mood as ResidentProgress['mood'])
@@ -482,12 +484,15 @@ function sanitizePlayerRelations(
       mood,
       moodUntilMinute: Math.max(0, asFiniteNumber(entry.moodUntilMinute, 0)),
       reliability: Math.max(0, Math.min(100, Math.round(asFiniteNumber(entry.reliability, def.reliability)))),
-      negativeCount: Math.max(0, Math.floor(asFiniteNumber(entry.negativeCount, 0))),
+      negativeCount,
       favorsCompleted: Math.max(0, Math.floor(asFiniteNumber(entry.favorsCompleted, 0))),
       giftsGiven: Math.max(0, Math.floor(asFiniteNumber(entry.giftsGiven, 0))),
       lastEmotion,
     };
-    residents[id].trust = Math.min(5, Math.max(residents[id].trust, getHeartLevel(affinity)));
+    residents[id].trust =
+      negativeCount > 0
+        ? Math.min(5, getHeartLevel(affinity))
+        : Math.min(5, Math.max(residents[id].trust, getHeartLevel(affinity)));
   }
   return out;
 }

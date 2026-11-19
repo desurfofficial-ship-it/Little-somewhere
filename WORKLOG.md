@@ -349,3 +349,28 @@ Chronological log of design decisions, implementation milestones, verification r
 - **Verification**:
   - `npm test`: **59/59 passing**, `npm run lint`: **0 errors**, `npm run build`: pass.
   - Live headless Chromium desktop `1440×900`: title orbit re-captured at 4 phases (card overlap reduced to gazebo dais edge only), Copperwheel gear medallion / vent pipe / crate confirmed on the workshop facade, "Begin Your Day" -> playing transition clean; `390×844` title capture shows zero horizontal overflow; **0 console errors, 0 page errors**.
+
+---
+
+## Entry 020 — Milestone 2B Phase 2: Simulation-Driven Relationships, Greeting Modulation, Tier Icons & Milestone Avatar Pulse
+- **Date**: 2026-11-19
+- **Status**: Completed & Verified (Paused at Phase 2 Regression Checkpoint pending review before Phase 3)
+- **Key Deliverables**:
+  - **Coherent Bidirectional Affinity & Negative Setbacks (`src/game/relationships.ts`, `src/game/migrations.ts`)**:
+    - Negative/blunt dialogue choices (`isNegative`) now coherently lower derived `residents[id].trust` via `getHeartLevel(nextAffinity)` instead of keeping an inflated trust floor, and subsequent warm conversations soften `'frustrated'`/`'angry'` emotions back to `'relaxed'`.
+    - `sanitizePlayerRelations()` preserves genuine negative affinity setbacks across save/reload (`negativeCount > 0 || rawAffinity > 0`) without snapping affinity back up to `trust * 20`, while keeping `WorldState` at `schemaVersion: 3`.
+    - Added exported `TIER_RANK`, `getNpcRelationTier`, `getNpcRelationTierLabel`, and `isResidentGuarded`.
+  - **Simulation-Driven Relationship Mechanics (`src/game/simulation.ts`)**:
+    - NPC greeting distance dynamically scales by relationship tier & guardedness (`0.72×` when guarded, `0.8×` for reserved strangers, `1.12×` friendly, `1.28×` close/kindred).
+    - Spontaneous greeting bubbles vary cleanly across all 5 tiers (`stranger` -> `kindred`), guardedness, and first-met status.
+    - Nearby `close`/`kindred` friends gain subtle `needs.social` recharge (`+0.35 * dtMinutes`) when near the player; NPC-NPC encounter pairing & affinity/tension deltas (`enc_*`) modulate via `getNpcRelationTier()`.
+  - **Relationship-Fluctuating Greetings & Tier Topics (`src/game/dialogueEngine.ts`, `src/game/narrative.ts`)**:
+    - Exported `resolveRelationshipGreeting(residentId, world, phase)` and upgraded `phaseGreet` + `resolveGreetingPrefix` so openings fluctuate meaningfully across all 5 tiers, guardedness, emotions, and resident `homeName`/`favoriteThing` across `daily_slice` and Arthur/Clara quest roots.
+    - Added guarded opener modulation on non-quest/non-conflict/non-emotion dialogues plus `tier_acquaintance_warmup` (`talkedCountMin: 2`), `tier_friendly_confide`, `tier_kindred_promise`, and `emotion_guarded_tension` topics.
+  - **Dialogue UI Tier Indicator & Milestone Avatar Bounce (`src/game/types.ts`, `src/game/actions.ts`, `src/components/DialogueSheet.tsx`, `src/index.css`)**:
+    - Added inline relationship-tier icon (`UserRound`, `Sprout`, `Smile`, `HeartHandshake`, `Sparkles` with `data-relationship-tier` and accessible label) beside the resident's name in `DialogueSheet`.
+    - `applyDialogueChoice()` tracks `milestonePulseSeq` & `milestoneLabel` on tier promotion, heart increase, memory unlock, or story milestones, triggering a one-shot `@keyframes avatar-milestone-bounce` animation and honey-amber ring highlight on the Dialogue avatar medallion.
+- **Verification**:
+  - `npm test`: **61/61 passing** (`0` failures; includes 2 new Phase 2 regression tests in `src/game/relationships.test.ts`).
+  - `npm run lint` (`tsc --noEmit`): **0 errors**; `compile_applet`: **Build succeeded**.
+  - Live headless Chromium (`1440×900` & `390×844`): verified Stranger Pip (`UserRound`), milestone click (`pip_promise` -> `Sprout` Acquaintance + 1 heart + `.animate-avatar-milestone` / `data-milestone-seq="1"`), Kindred Clara (`Sparkles`, personalized greeting referencing `Hearth & Crumb Bakery`), `390×844` zero horizontal overflow (`scrollWidth: 390`), and **0 console errors / 0 warnings**.

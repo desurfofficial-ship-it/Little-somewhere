@@ -26,6 +26,9 @@ import {
   emotionToMood,
   getNpcPairKey,
   getNpcRelation,
+  getNpcRelationTier,
+  getRelationshipTier,
+  isResidentGuarded,
   pushNpcActivityHistoryInPlace,
   pushWorldEventInPlace,
   shouldSuppressNpcSocial,
@@ -84,17 +87,50 @@ function getInitialEmotionForResident(id: ResidentId, reconciled: boolean): Char
   return 'relaxed';
 }
 
-function getGreetingBubbleText(id: ResidentId, emotion: CharacterEmotion, affinity: number): string {
+function getGreetingBubbleText(
+  id: ResidentId,
+  emotion: CharacterEmotion,
+  affinity: number,
+  reliability = 25,
+  met = true,
+): string {
   const def = RESIDENTS[id];
+  const tier = getRelationshipTier(affinity);
+
+  if (reliability < 20 || emotion === 'frustrated' || emotion === 'angry') {
+    return def.traits.temperament === 'industrious'
+      ? `Busy right now—let’s talk later.`
+      : `Still catching my breath from earlier.`;
+  }
+  if (!met) {
+    return def.traits.temperament === 'spirited'
+      ? `Oh! You’re new to Willow Lane!`
+      : `Welcome to the neighborhood.`;
+  }
   if (emotion === 'tired') return `Whew… taking a breather.`;
   if (emotion === 'sad') return `Oh… hello there.`;
-  if (emotion === 'excited' || emotion === 'happy') {
-    return affinity >= 60 ? `Good to see you, friend!` : `Lovely day on the lane!`;
+  if (tier === 'kindred') {
+    return def.traits.temperament === 'contemplative'
+      ? `Always glad when your path crosses mine.`
+      : `Favorite neighbor! Stop by anytime!`;
   }
-  if (emotion === 'curious') return `Notice anything new?`;
-  if (def.traits.temperament === 'whimsical') return `Hear the breeze today?`;
+  if (tier === 'close') {
+    return `Good to see you, friend!`;
+  }
+  if (tier === 'friendly') {
+    return emotion === 'excited' || emotion === 'happy'
+      ? `Hey there! Lovely day on the lane!`
+      : `Glad we crossed paths today!`;
+  }
+  if (tier === 'acquaintance') {
+    return def.traits.temperament === 'whimsical'
+      ? `Hear the breeze today?`
+      : `Morning, neighbor—good seeing you.`;
+  }
+  // Stranger tier keeps polite formal warmth based on temperament
   if (def.traits.temperament === 'spirited') return `Hey neighbor!`;
-  return `Good day to you.`;
+  if (def.traits.temperament === 'contemplative') return `Good day to you.`;
+  return `Hello there.`;
 }
 
 function isSeatClaimed(world: WorldState, seatId: string, selfId: ResidentId): boolean {
@@ -740,7 +776,21 @@ export function stepSimulationInPlace(
       }
 
       const pDist = distance2D(world.playerPos, rt.position);
-      const greetDist = def.traits.greetingDistance ?? 3.3;
+      const rel = world.playerRelations?.[id];
+      const affinity = rel?.affinity ?? 0;
+      const reliability = rel?.reliability ?? 25;
+      const tier = getRelationshipTier(affinity);
+      const guarded = isResidentGuarded(rel, rt.emotion);
+      const baseGreetDist = def.traits.greetingDistance ?? 3.3;
+      const greetDist = guarded
+        ? baseGreetDist * 0.72
+        : tier === 'close' || tier === 'kindred'
+        ? baseGreetDist * 1.28
+        : tier === 'friendly'
+        ? baseGreetDist * 1.12
+        : tier === 'stranger' && def.traits.sociability < 0.55
+        ? baseGreetDist * 0.8
+        : baseGreetDist;
 
       if (pDist < greetDist) {
         rt.targetLookPos = world.playerPos;
@@ -750,6 +800,10 @@ export function stepSimulationInPlace(
           rt.facing += diff * Math.min(1, dt * 4);
         }
 
+        if (dtMinutes > 0 && !guarded && (tier === 'close' || tier === 'kindred')) {
+          rt.needs.social = clampNeed(rt.needs.social + 0.35 * dtMinutes);
+        }
+
         // NPC-initiated spontaneous greeting micro-bubble when player strolls close
         if (
           !dialogueOpen &&
@@ -757,11 +811,11 @@ export function stepSimulationInPlace(
           rt.socialPartnerId === null &&
           world.minuteOfDay - rt.lastGreetedPlayerMinute >= GREETING_COOLDOWN_MINUTES
         ) {
-          const affinity = world.playerRelations?.[id]?.affinity ?? 0;
+          const met = world.residents[id]?.met ?? true;
           rt.lastGreetedPlayerMinute = world.minuteOfDay;
-          rt.activeBubbleText = getGreetingBubbleText(id, rt.emotion, affinity);
+          rt.activeBubbleText = getGreetingBubbleText(id, rt.emotion, affinity, reliability, met);
           rt.activeBubbleUntilMinute = world.minuteOfDay + 8;
-          if (rt.posture !== 'sitting' && rt.socialPartnerId === null) {
+          if (rt.posture !== 'sitting' && rt.socialPartnerId === null && !guarded) {
             rt.animState = 'wave';
           }
         }
@@ -795,13 +849,24 @@ export function stepSimulationInPlace(
 
         const relAB = getNpcRelation(world.npcRelations, a, b);
         if (shouldSuppressNpcSocial(relAB)) continue;
+        const npcTierAB = getNpcRelationTier(relAB);
 
         const encId = `enc_${world.day}_${socialSlot}_${a}_${b}`;
         if (world.worldEvents.some((e) => e.id === encId)) continue;
 
         const pairRand = mulberry32(hashSeed(world.simSeed, world.day, socialSlot, a, b))();
-        const pairChance =
-          0.32 + (RESIDENTS[a].traits.sociability + RESIDENTS[b].traits.sociability) * 0.25;
+        const tierBonus =
+          npcTierAB === 'confidant'
+            ? 0.2
+            : npcTierAB === 'warm'
+            ? 0.1
+            : npcTierAB === 'guarded'
+            ? -0.18
+            : 0;
+        const pairChance = Math.max(
+          0.12,
+          0.32 + (RESIDENTS[a].traits.sociability + RESIDENTS[b].traits.sociability) * 0.25 + tierBonus,
+        );
         if (pairRand > pairChance) continue;
 
         // Check for optional 3rd resident nearby for a 3-person cozy circle
@@ -871,7 +936,13 @@ export function stepSimulationInPlace(
           }
         }
 
-        const affinityGain = topic.tag === 'helped_chore' ? 4 : 3;
+        const affinityGain =
+          topic.tag === 'helped_chore' || npcTierAB === 'confidant'
+            ? 4
+            : npcTierAB === 'guarded'
+            ? 2
+            : 3;
+        const tensionDelta = npcTierAB === 'guarded' ? -3 : -2;
         for (let p1 = 0; p1 < participants.length; p1++) {
           for (let p2 = p1 + 1; p2 < participants.length; p2++) {
             applyNpcSocialRelationInPlace(
@@ -881,7 +952,7 @@ export function stepSimulationInPlace(
               world.day,
               topic.tag,
               affinityGain,
-              -2,
+              tensionDelta,
             );
           }
         }

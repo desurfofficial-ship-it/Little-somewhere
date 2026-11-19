@@ -1,8 +1,8 @@
 # HANDOVER.md — Agent & Engineer Handover Brief
 
 **Project**: LITTLE SOMEWHERE  
-**Current Phase**: Milestone 2B + Player & Character Excellence Upgrade Complete  
-**Target Next Phase**: Milestone 3 Expansion (Walkable Interiors, Multi-Region Map, & Additional Residents)
+**Current Phase**: Milestone 2B Phase 2 Complete (At Regression Checkpoint — Paused before Phase 3)  
+**Target Next Phase**: Milestone 2B Phase 3 (`npcMemories`, `WorldState v4`) upon checkpoint approval
 
 ---
 
@@ -39,12 +39,12 @@ The **Player & Character Excellence Upgrade** (Phases 1–12) plus the **Bench S
 
 ---
 
-## 4. Verification Status (2026-11-19, after audit roadmap Builds 1-3)
+## 4. Verification Status (2026-11-19, Milestone 2B Phase 2 Checkpoint)
 
-- `npm test` (`tsx --test src/game/*.test.ts src/scene/*.test.ts`) — **59/59 passing** (`0` failures; includes 4 dialogue tests from the parallel dialogue-availability refactor)
+- `npm test` (`tsx --test src/game/*.test.ts src/scene/*.test.ts`) — **61/61 passing** (`0` failures; includes 2 Phase 2 simulation/dialogue/persistence tests in `src/game/relationships.test.ts`)
 - `npm run lint` (`tsc --noEmit`) — **Passing (0 errors)**
-- `npm run build` (`vite build`) — **Passing**; chunks: `index` 407.97 kB (shell) + `NeighborhoodCanvas` 719.62 kB (deferred via React.lazy)
-- Browser QA (headless Chromium `1440×900`): golden hour 4:18 PM (amber cast + long shadows), Lantern Dusk 8:20 PM (deep twilight, high-contrast window/lantern/festoon glow), desktop thumbstick absent, title orbit framing clear at 4 phases, Copperwheel props live, `Begin Your Day` -> playing clean; `390×844` zero overflow; **0 console errors, 0 page errors**
+- `npm run build` (`vite build`) — **Passing**
+- Browser QA (headless Chromium `1440×900` & `390×844`): verified `DialogueSheet` relationship tier icons (`stranger` -> `acquaintance` -> `kindred`), fluctuating relationship greetings, milestone avatar bounce (`data-milestone-seq="1"` + `.animate-avatar-milestone`), `390×844` zero horizontal overflow, and **0 console errors / 0 warnings**
 
 
 
