@@ -48,3 +48,21 @@ Chronological log of design decisions, implementation milestones, verification r
 - **Summary**:
   - Authored `AGENTS.md`, `WORKLOG.md`, `HANDOVER.md`, `ARCHITECTURE.md`, `GAME_DESIGN.md`, `README.md`, `CHANGELOG.md`, and `.editorconfig`.
   - Added `"test"` script to `package.json` (`tsx --test src/game/engine.test.ts`).
+
+---
+
+## Entry 004 — Deep Simulation Architecture Audit & Milestone 2 Blueprint
+- **Date**: 2026-11-18
+- **Status**: Completed (Review Ready — Zero Gameplay Changes)
+- **Key Deliverables**:
+  - Audited `src/game/`, `src/scene/`, `src/components/`, `src/App.tsx`, and `src/game/engine.test.ts` across all 7 simulation, persistence, performance, and testing domains.
+  - Authored six architecture audit and blueprint documents under `docs/audits/`:
+    1. `01-current-simulation-audit.md`
+    2. `02-npc-life-simulation-blueprint.md`
+    3. `03-relationship-and-dialogue-blueprint.md`
+    4. `04-environmental-simulation-blueprint.md`
+    5. `05-persistence-and-performance-review.md`
+    6. `06-milestone-2-implementation-roadmap.md`
+- **Confirmed Baseline Verification**:
+  - `npm test`, `npm run lint`, and `npm run build` verified cleanly without modifying gameplay behavior.
+
