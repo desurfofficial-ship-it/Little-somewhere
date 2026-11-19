@@ -64,6 +64,56 @@ export function createMeadowTexture(maxAnisotropy: number): THREE.CanvasTexture 
   return tex;
 }
 
+/**
+ * R-05: low-contrast large-scale meadow macro variation, applied as the ground
+ * material's `lightMap` over a second UV set (repeat 2x2 vs the detail map's 9x9).
+ * Breaks up the visible blotch tiling of the 512px detail texture across the 110m
+ * plane by multiplying gentle warm/cool luminance patches (~0.78-1.0) at a scale
+ * the detail tile cannot express. Darken-only so the season tint stays in charge.
+ */
+export function createMeadowMacroTexture(maxAnisotropy: number): THREE.CanvasTexture {
+  const canvas = document.createElement('canvas');
+  canvas.width = 256;
+  canvas.height = 256;
+  const ctx = canvas.getContext('2d')!;
+  const rand = makeSeededRandom(77);
+
+  ctx.fillStyle = '#F4F4F4';
+  ctx.fillRect(0, 0, 256, 256);
+
+  // Broad soft cool/warm patches at 60-110px radius (tile-scale invisible)
+  const patches = ['#DCDFD2', '#E2DCC6', '#D5DAC9', '#E6DFC9', '#D8D8D8'];
+  for (let i = 0; i < 14; i++) {
+    ctx.fillStyle = patches[Math.floor(rand() * patches.length)];
+    ctx.globalAlpha = 0.24;
+    ctx.beginPath();
+    ctx.arc(rand() * 256, rand() * 256, 52 + rand() * 58, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // Two very broad radial gradients anchor macro composition (dusk-safe subtlety)
+  ctx.globalAlpha = 0.18;
+  let g = ctx.createRadialGradient(88, 150, 10, 88, 150, 120);
+  g.addColorStop(0, '#CDD2C2');
+  g.addColorStop(1, 'rgba(205,210,194,0)');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, 256, 256);
+  g = ctx.createRadialGradient(196, 70, 10, 196, 70, 100);
+  g.addColorStop(0, '#E8DDBE');
+  g.addColorStop(1, 'rgba(232,221,190,0)');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, 256, 256);
+  ctx.globalAlpha = 1;
+
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.wrapS = THREE.RepeatWrapping;
+  tex.wrapT = THREE.RepeatWrapping;
+  tex.repeat.set(2, 2);
+  tex.anisotropy = Math.min(4, maxAnisotropy);
+  return tex;
+}
+
 export function createCobblestoneTexture(maxAnisotropy: number): THREE.CanvasTexture {
   const canvas = document.createElement('canvas');
   canvas.width = 512;

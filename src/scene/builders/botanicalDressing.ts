@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { MaterialPalette, STORYBOOK_PALETTE } from '../materials';
 import { isPointWalkable } from '../../game/worldMap';
 
@@ -161,9 +162,27 @@ export function buildMeadowDressing(
   cloverInst.computeBoundingSphere();
   group.add(cloverInst);
 
-  // 2. Grass tufts — slim tapered cones with asymmetry
-  const grassGeo = new THREE.ConeGeometry(0.09, 0.34, 5);
-  grassGeo.translate(0, 0.17, 0);
+  // 2. Grass tufts — sculpted 3-blade tufts (R-04: replaces the primitive single cone).
+  //    Three open-ended tapered blades fanned at 120° with staggered heights/leans, merged
+  //    into one BufferGeometry so each instance still costs a single instanced draw slot
+  //    (same InstancedMesh budget & placement legality as before; 12 tris per tuft).
+  const bladeGeos: THREE.BufferGeometry[] = [];
+  const bladeSpecs = [
+    { h: 0.36, r: 0.052, lean: 0.17, yaw: 0.0 },
+    { h: 0.3, r: 0.046, lean: -0.13, yaw: (Math.PI * 2) / 3 },
+    { h: 0.25, r: 0.04, lean: 0.22, yaw: (Math.PI * 4) / 3 },
+  ];
+  for (const spec of bladeSpecs) {
+    const blade = new THREE.ConeGeometry(spec.r, spec.h, 4, 1, true);
+    blade.translate(0, spec.h / 2, 0);
+    blade.rotateX(spec.lean);
+    blade.rotateY(spec.yaw);
+    bladeGeos.push(blade);
+  }
+  const grassGeo = mergeGeometries(bladeGeos, false) ?? bladeGeos[0];
+  for (const g of bladeGeos) {
+    if (g !== grassGeo) g.dispose();
+  }
   const grassMat = palette.get('dressing_grass', {
     color: '#FFFFFF',
     roughness: 0.88,

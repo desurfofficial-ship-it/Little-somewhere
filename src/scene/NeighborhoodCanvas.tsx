@@ -54,6 +54,7 @@ import {
 import {
   createCobblestoneTexture,
   createContactShadowTexture,
+  createMeadowMacroTexture,
   createMeadowTexture,
   createRoofShingleTexture,
 } from './textures';
@@ -315,6 +316,7 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
     // Procedural textures
     const maxAniso = renderer.capabilities.getMaxAnisotropy();
     const meadowTex = createMeadowTexture(maxAniso);
+    const meadowMacroTex = createMeadowMacroTexture(maxAniso);
     const cobbleTex = createCobblestoneTexture(maxAniso);
     const terracottaRoofTex = createRoofShingleTexture('#C46347', '#D97B5E', maxAniso);
     const sageRoofTex = createRoofShingleTexture('#5F8267', '#759B7D', maxAniso);
@@ -328,7 +330,12 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
       roughness: 0.92,
       metalness: 0.0,
     });
-    const ground = new THREE.Mesh(new THREE.PlaneGeometry(110, 110), groundMat);
+    // R-05: second UV channel drives the large-scale macro-variation lightMap
+    // (repeat 2x2) so the 9x9 detail tiling of the meadow texture no longer reads.
+    const groundGeo = new THREE.PlaneGeometry(110, 110);
+    groundGeo.setAttribute('uv1', groundGeo.getAttribute('uv').clone());
+    groundMat.lightMap = meadowMacroTex;
+    const ground = new THREE.Mesh(groundGeo, groundMat);
     ground.rotation.x = -Math.PI / 2;
     ground.receiveShadow = true;
     scene.add(ground);
@@ -1526,6 +1533,7 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
       envController.dispose();
       meadowDressing.dispose();
       groundMat.dispose();
+      groundGeo.dispose();
       cobbleMat.dispose();
       lanternMat.dispose();
       chimeGeo.dispose();
@@ -1533,6 +1541,7 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
       splashGeo.dispose();
       splashMat.dispose();
       meadowTex.dispose();
+      meadowMacroTex.dispose();
       cobbleTex.dispose();
       terracottaRoofTex.dispose();
       sageRoofTex.dispose();

@@ -10,7 +10,6 @@ import { EnvironmentVisualController } from './environmentRenderer';
 import { animateCharacterRig, buildStorybookCharacter } from './builders/characters';
 import { buildStorybookBench, buildStorybookFountain } from './builders/landmarks';
 import { buildMirrorPondAndBridge } from './builders/vegetation';
-import { buildStoneFountain } from './models';
 import { buildStorybookJun } from './prototypes/willowLaneDiorama';
 import { MaterialPalette } from './materials';
 import { getWaterShaderUniforms } from './waterShaders';
@@ -138,38 +137,40 @@ test('EnvironmentVisualController applies non-default season, weather, lighting,
   controller.dispose();
 });
 
-test('buildStorybookFountain and buildStoneFountain preserve stone walls and keep water visible above dry stone bed', () => {
+test('buildStorybookFountain preserves stone walls and keeps water visible above dry stone bed', () => {
   const palette = new MaterialPalette();
   const dummyTex = new THREE.Texture();
 
-  for (const [name, rig] of [
-    ['buildStorybookFountain', buildStorybookFountain(palette, dummyTex)],
-    ['buildStoneFountain', buildStoneFountain()],
-  ] as const) {
-    const circleMeshes = rig.group.children.filter(
-      (c): c is THREE.Mesh => c instanceof THREE.Mesh && c.geometry instanceof THREE.CircleGeometry,
-    );
-    assert.ok(circleMeshes.length >= 2, `${name}: expected dryFloor and waterMesh circle discs`);
-    const dryFloor = circleMeshes.find((m) => m !== rig.waterMesh);
-    assert.ok(dryFloor, `${name}: expected dryFloor mesh inside fountain basin`);
-    assert.ok(
-      rig.waterMesh.position.y > dryFloor.position.y + 0.08,
-      `${name}: waterMesh (${rig.waterMesh.position.y}) must sit cleanly above dryFloor (${dryFloor.position.y})`,
-    );
+  const rig = buildStorybookFountain(palette, dummyTex);
+  const circleMeshes = rig.group.children.filter(
+    (c): c is THREE.Mesh => c instanceof THREE.Mesh && c.geometry instanceof THREE.CircleGeometry,
+  );
+  assert.ok(
+    circleMeshes.length >= 2,
+    'buildStorybookFountain: expected dryFloor and waterMesh circle discs',
+  );
+  const dryFloor = circleMeshes.find((m) => m !== rig.waterMesh);
+  assert.ok(dryFloor, 'buildStorybookFountain: expected dryFloor mesh inside fountain basin');
+  assert.ok(
+    rig.waterMesh.position.y > dryFloor.position.y + 0.08,
+    `buildStorybookFountain: waterMesh (${rig.waterMesh.position.y}) must sit cleanly above dryFloor (${dryFloor.position.y})`,
+  );
 
-    const dryColor = (dryFloor.material as THREE.MeshStandardMaterial).color;
-    assert.ok(
-      dryColor.r >= dryColor.b,
-      `${name}: dry stone bed should read as warm stone rather than blue water`,
-    );
+  const dryColor = (dryFloor.material as THREE.MeshStandardMaterial).color;
+  assert.ok(
+    dryColor.r >= dryColor.b,
+    'buildStorybookFountain: dry stone bed should read as warm stone rather than blue water',
+  );
 
-    const latheBasin = rig.group.children.find(
-      (c): c is THREE.Mesh =>
-        c instanceof THREE.Mesh && c.geometry instanceof THREE.LatheGeometry && c.position.y === 0,
-    );
-    assert.ok(latheBasin, `${name}: outer basin must use recessed LatheGeometry`);
-    assert.ok(rig.waterMesh.children.length >= 1, `${name}: repaired water should include ripple/pool details`);
-  }
+  const latheBasin = rig.group.children.find(
+    (c): c is THREE.Mesh =>
+      c instanceof THREE.Mesh && c.geometry instanceof THREE.LatheGeometry && c.position.y === 0,
+  );
+  assert.ok(latheBasin, 'buildStorybookFountain: outer basin must use recessed LatheGeometry');
+  assert.ok(
+    rig.waterMesh.children.length >= 1,
+    'buildStorybookFountain: repaired water should include ripple/pool details',
+  );
 
   palette.disposeAll();
   dummyTex.dispose();

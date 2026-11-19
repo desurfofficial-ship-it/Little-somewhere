@@ -309,3 +309,22 @@ Chronological log of design decisions, implementation milestones, verification r
 - **Verification**:
   - `npm test`: **55/55 passing**, `npm run lint`: **0 errors**, `npm run build`: pass.
   - Live headless Chromium desktop `1440×900`: Golden Hour 4:18 PM capture shows warm amber cast + long shadows; Lantern Dusk 8:20 PM capture shows deep twilight with high-contrast window/lantern/festoon glow; thumbstick confirmed **absent** on desktop (`aria-label` probe); **0 console errors, 0 page errors**.
+
+---
+
+## Entry 018 — Roadmap Build 2: R-04 Grass Tufts + R-05 Meadow Macro Variation + R-06 Legacy Builder Removal (P2 items)
+- **Date**: 2026-11-19
+- **Status**: Completed & Verified
+- **Key Deliverables**:
+  - **R-04 Sculpted Grass Tufts (`src/scene/builders/botanicalDressing.ts`)**:
+    - Replaced the primitive single 5-sided cone tuft with a merged 3-blade tuft: three open-ended 4-sided tapered cones (heights 0.36/0.30/0.25, staggered leans ±0.13–0.22 rad, fanned at 120°) merged via `mergeGeometries` into one BufferGeometry.
+    - Same `InstancedMesh`, same budget (104 GPU / 64 software-GL), same placement legality, per-instance tint unchanged -> still a single draw call; ~12 tris per tuft.
+  - **R-05 Meadow Macro Variation (`src/scene/textures.ts`, `src/scene/NeighborhoodCanvas.tsx`)**:
+    - New `createMeadowMacroTexture` (256², ~256 KB, seeded 77): broad soft warm/cool luminance patches (0.78–1.0 darken-only) + two anchored radial gradients.
+    - Applied as `groundMat.lightMap` over a cloned second UV channel (`uv1`) at repeat 2x2 vs the detail map's 9x9 — breaks the visible blotch tiling of the 512² meadow texture across the 110 m plane without a second full-size texture; season tint still multiplies on top; ground geometry now disposed on cleanup.
+  - **R-06 Legacy Dead Builder Removal (`src/scene/models.ts`, `src/scene/environmentRenderer.test.ts`)**:
+    - Deleted `buildClayCottage`, `buildGreenhouse`, `buildStoneFountain` and their `CottageOptions`/`makeMat` helpers (~370 dead lines); folded the fountain dry-bed/water-level/lathe-basin assertions into a `buildStorybookFountain`-only test.
+    - `models.ts` now contains only the live rig type contracts (`GazeboRig`, `FountainRig`, `KoiFishRig`, `MirrorPondRig`, `CharacterRig`) with a provenance note.
+- **Verification**:
+  - `npm test`: **59/59 passing**, `npm run lint`: **0 errors**, `npm run build`: pass.
+  - Live headless Chromium desktop `1440×900` morning capture + 3x zoom crops: tufts read as fanned multi-blade clumps (no cone silhouettes), macro light/dark patches visibly break the 9x9 meadow tiling at mid zoom; **0 console errors, 0 page errors**.
