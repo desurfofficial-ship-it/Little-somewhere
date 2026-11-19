@@ -18,6 +18,7 @@ import {
 import { getResidentAvailableQuestCue } from './narrative';
 import { PERSONAL_ITEMS, PERSONAL_ITEM_MAP } from './inventory';
 import { describePlacedFlower } from './cottage';
+import { createInitialGreenhouseState, summarizeGreenhousePlots } from './greenhouse';
 import {
   STORYLINES,
   getActiveStorylineCue,
@@ -786,6 +787,11 @@ function buildDiscoveriesSection(
   const skips = Number(world.sideFlags?.pondPebblesSkipped ?? 0);
   const lettersRead = world.dailyLettersRead?.length ?? 0;
 
+  // M3 Build 6: the player's own journal may reflect the greenhouse's shared-corner state directly
+  // (the player has seen it); no NPC-knowledge surfaces here.
+  const gh = world.greenhouseState ?? createInitialGreenhouseState();
+  const greenhouseSummary = summarizeGreenhousePlots(gh);
+
   const landmarksRaw: Array<Omit<JournalDiscoveryLandmark, 'entryKey' | 'isNew'>> = [
     {
       id: 'willow_cottage',
@@ -857,6 +863,38 @@ function buildDiscoveriesSection(
           : env.orchardGatheringOutcome === 'blossom_honey_picnic'
           ? 'Mina’s honeyed chamomile teacups and lantern garlands welcome neighbors under the crabapple boughs.'
           : 'Dappled crabapple trees, harvest crates, and a bee skep beyond the stone gate.',
+    },
+    {
+      id: 'sunbeam_greenhouse',
+      name: 'Sunbeam Greenhouse',
+      statusKind:
+        greenhouseSummary.readyPlots > 0 || greenhouseSummary.growingPlots > 0
+          ? 'active'
+          : gh.totalHarvests > 0
+          ? 'transformed'
+          : 'quiet',
+      statusLabel:
+        greenhouseSummary.readyPlots > 0
+          ? `${greenhouseSummary.readyPlots} ready to harvest`
+          : greenhouseSummary.growingPlots > 0
+          ? greenhouseSummary.growingPlots === 1
+            ? '1 pot growing'
+            : `${greenhouseSummary.growingPlots} pots growing`
+          : gh.totalHarvests > 0
+          ? 'Resting between sowings'
+          : gh.noteReadDay > 0
+          ? 'Shared corner open'
+          : 'Mina’s glass corner',
+      summary:
+        greenhouseSummary.readyPlots > 0
+          ? 'Ripe herbs glow on the shared growing shelf, ready for a gentle harvest.'
+          : greenhouseSummary.growingPlots > 0
+          ? greenhouseSummary.thirstyPlots > 0
+            ? 'Young pots on Mina’s shelf are growing — some are still thirsty for today’s watering.'
+            : 'Watered pots on the shared shelf are growing stronger with each sunny day.'
+          : gh.totalHarvests > 0
+          ? 'The shared pots rest between sowings — seeds folded and ready for the next planting.'
+          : 'A warm glasshouse of herbs and blooms; Mina keeps a shared corner for tending neighbors.',
     },
   ];
 

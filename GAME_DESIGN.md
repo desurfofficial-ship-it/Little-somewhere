@@ -12,7 +12,7 @@
 To keep shipped reality, active work, and future product vision unmistakably separate across this document, every major system is labeled using five strict lifecycle tags:
 
 - **`IMPLEMENTED`**: Live and playable in the current build today.
-- **`IN PROGRESS`**: Partially built across completed earlier phases and pending later phases (e.g., Milestone 2B overall; Fern Hollow Orchard).
+- **`IN PROGRESS`**: Partially built across completed earlier phases and pending later phases (currently none — the next systems are `PLANNED` starts).
 - **`PLANNED`**: Committed near-to-mid-term design direction not yet implemented in gameplay code.
 - **`LONG-TERM VISION`**: Horizon systems and broader world growth requiring future architecture and scoping.
 - **`UNDECIDED / REQUIRES DESIGN DECISION`**: Open rules, parameters, or unlock details intentionally left unfixed for future design sessions.
@@ -303,7 +303,7 @@ Rather than pressuring completion percentages or trophy checklists, the Pocket J
 - **Important Personal Memories** *(extending today’s timestamped storybook cards)*
 
 ### 11.5 Persistence & Optional Cloud Saves (`IMPLEMENTED` Local → `LONG-TERM VISION` Cloud)
-- **Current Persistence (`IMPLEMENTED`)**: Browser `localStorage` (`little_somewhere_world_v1` + rolling upgrade backup) running `WorldState` schema `v6` (`v1 -> v2 -> v3 -> v4 -> v5 -> v6` migrations, coordinate sanitization, `computeWorldSaveRevision()` autosave every 5s + `visibilitychange` / `pagehide`), deterministic `simSeed`, `npcMemories`, multi-stage `storylines`, and `cottageHome`/`inventory`.
+- **Current Persistence (`IMPLEMENTED`)**: Browser `localStorage` (`little_somewhere_world_v1` + rolling upgrade backup) running `WorldState` schema `v7` (`v1 -> v2 -> v3 -> v4 -> v5 -> v6 -> v7` migrations, coordinate sanitization, `computeWorldSaveRevision()` autosave every 5s + `visibilitychange` / `pagehide`), deterministic `simSeed`, `npcMemories`, multi-stage `storylines`, `cottageHome`/`inventory`, and the greenhouse shared-corner `greenhouseState`.
 - **Optional Cloud Saves (`LONG-TERM VISION`)**: Future optional cross-device backup/sync so players may carry their neighborhood between mobile and desktop browsers. Cloud saves must **always remain 100% optional**, never gating offline or single-browser local play.
 
 ### 11.6 Open Progression & Reward Rules (`UNDECIDED / REQUIRES DESIGN DECISION`)
@@ -327,7 +327,8 @@ While the currency-free philosophy, inventory split, and qualitative unlocks are
 | **Player–NPC Matrix (`5` Tiers, Hearts, `Reliability`, `Make Amends`, Daily Cap) & NPC–NPC Matrix** | **`IMPLEMENTED`** | Includes tier icons, greeting scaling, milestone pulse & tension-suppressed `2–3` NPC circles |
 | **Declarative Dialogue (`9` Categories), Non-Omniscient Gossip, *Silent Gazebo Bell*, `6` Multi-Stage Storylines** | **`IMPLEMENTED`** | Includes `npcMemories`, rumor distortion, 4-tab qualitative Pocket Journal & `side_orchard_gathering` |
 | **5-Layer Atmosphere (`4` Phases `6:00 AM–9:30 PM`, `4` Weathers, `10`-Day `4` Seasons, Reactive NPC Props)** | **`IMPLEMENTED`** | `WorldState v6` (`v1 -> v6` migrations), Noticeboard forecast, puddles, blooms, smoke wisps |
-| **Willow Step Cottage Interior (`7` Stations), Personal Satchel (`18` Items) & Everyday Gifting/Hearth** | **`IMPLEMENTED`** | Cutaway interior, cooking/tea recipes, vase blooms, 5-slot keepsake shelf & daily gathering |
+| **Willow Step Cottage Interior (`7` Stations), Personal Satchel (`21` Items) & Everyday Gifting/Hearth** | **`IMPLEMENTED`** | Cutaway interior, cooking/tea recipes, vase blooms, 5-slot keepsake shelf & daily gathering |
+| **Sunbeam Greenhouse Interior (`5` Stations) & Mina's Shared Growing Corner (`4` Pots: sow → water → sleep → harvest → re-sow)** | **`IMPLEMENTED`** | Day-driven & winter-dormant growth, seed-sustainable harvests, Mina dialogue + journal discovery; feeds existing hearth recipes & gifting |
 | **Fern Hollow Orchard (Scenery, Nav, Bench, Rowan, `orchard_skep`, Gathering Story, Songbirds & Petal Drift)** | **`IMPLEMENTED`** | Complete district with dual Tasting Table transformation & seasonal micro-life |
 | **Additional Neighbor Interiors, Tier Gameplay Unlocks & Post-Bell Community Projects** | **`PLANNED`** | Visitable neighbor shops/cottages, hobby teaching, collaborative square improvements |
 | **Broader Everyday Hobbies: Fishing, Decorating & Photography** | **`PLANNED` / `LONG-TERM VISION`** | Calm Mirror Pond catches, expanded arrangement, framing storybook memories |
@@ -336,6 +337,6 @@ While the currency-free philosophy, inventory split, and qualitative unlocks are
 | **Exact tier unlock tables, Sunday Market swap rules & project cadence** | **`UNDECIDED / REQUIRES DESIGN DECISION`** | Deferred intentionally until dedicated design scoping |
 
 ### 12.2 Staged Development Horizon
-1. **Current Playable Baseline (`IMPLEMENTED` — Milestones 1, 2A, 2B, 2C + Milestone 3 Builds 1, 2 & 4)**: A richly simulated, self-contained sunlit diorama with 10 autonomous residents, bounded NPC memories & gossip, 6 multi-stage storylines (including *The Silent Gazebo Bell*, Plaza Lanterns conflict, and *The Fern Hollow Orchard Gathering*), the qualitative 4-tab Pocket Journal, enterable *Willow Step Cottage* interior cutaway with 7 stations, 18-item Personal Satchel & gifting, complete **Fern Hollow Orchard** gameplay & songbird/blossom micro-life, and `WorldState v6` local persistence.
-2. **Next Milestone Builds (`PLANNED`)**: Visitable neighbor interiors (`Hearth & Crumb`, `Copperwheel`, `Linden Book Nook`, `Sunbeam Greenhouse`), relationship-tier invitations/teaching, and post-Bell **Community Projects** across the square.
+1. **Current Playable Baseline (`IMPLEMENTED` — Milestones 1, 2A, 2B, 2C + Milestone 3 Builds 1, 2, 4, 5 & 6)**: A richly simulated, self-contained sunlit diorama with 10 autonomous residents, bounded NPC memories & gossip, 6 multi-stage storylines (including *The Silent Gazebo Bell*, Plaza Lanterns conflict, and *The Fern Hollow Orchard Gathering*), the qualitative 4-tab Pocket Journal, enterable *Willow Step Cottage* interior cutaway with 7 stations, the enterable *Sunbeam Greenhouse* with Mina's shared 4-pot growing corner (sow → water → sleep → harvest → re-sow), 21-item Personal Satchel & gifting, complete **Fern Hollow Orchard** gameplay & songbird/blossom micro-life, and `WorldState v7` local persistence.
+2. **Next Milestone Builds (`PLANNED`)**: Visitable neighbor interiors (`Hearth & Crumb`, `Copperwheel`, `Linden Book Nook`), relationship-tier invitations/teaching, and post-Bell **Community Projects** across the square.
 3. **Broadening Cozy Life & Long-Term Vision (`LONG-TERM VISION`)**: Adding **Fishing**, **Decorating**, **Photography**, full Pocket Journal **Collectible Albums**, the separate-week **Sunday Market** and **Seasonal Festivals**, new connected districts (`REGIONS`), **Pets**, and strictly optional **Cloud Saves**—steadily realizing **LITTLE SOMEWHERE**’s promise of *“a little world filled with thousands of little stories.”*

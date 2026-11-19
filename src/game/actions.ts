@@ -41,6 +41,20 @@ import {
   resolveAnySeatById,
 } from './cottage';
 import {
+  GREENHOUSE_CROPS,
+  GREENHOUSE_HARVEST_MINUTES,
+  GREENHOUSE_NOTE_READ_MINUTES,
+  GREENHOUSE_PLANT_MINUTES,
+  GREENHOUSE_PORCH_EXIT_FACING,
+  GREENHOUSE_PORCH_EXIT_POS,
+  GREENHOUSE_DOOR_SPAWN,
+  GREENHOUSE_DOOR_DEFAULT_FACING,
+  GREENHOUSE_WATER_MINUTES,
+  createInitialGreenhouseState,
+  getGreenhouseCropBySeed,
+  summarizeGreenhousePlots,
+} from './greenhouse';
+import {
   HEARTH_RECIPES,
   NEIGHBOR_KEEPSAKE_REWARDS,
   PERSONAL_ITEM_MAP,
@@ -73,6 +87,7 @@ import {
   DialogueSession,
   EnvironmentalState,
   GiftReactionTier,
+  GreenhouseInteractableId,
   PersonalItemId,
   PropInteractableId,
   ResidentId,
@@ -98,7 +113,11 @@ export interface PropInteractionResult {
     | 'exit_cottage'
     | 'hearth_panel'
     | 'vase_panel'
-    | 'shelf_panel';
+    | 'shelf_panel'
+    | 'enter_greenhouse'
+    | 'exit_greenhouse'
+    | 'greenhouse_planting_panel'
+    | 'greenhouse_harvest_panel';
   memoryUnlockedTitle?: string;
   /** Explicit item-gain readout rendered as chips above the prose (everyday-life polish). */
   gainedItems?: GainedItemChip[];
@@ -1094,6 +1113,16 @@ export function interactWithProp(
     };
   }
 
+  if (propId === 'greenhouse_door') {
+    return {
+      nextWorld: world,
+      title: 'Sunbeam Greenhouse Door',
+      body: 'Warm glass panels glow with afternoon light. Mina’s seed drawers, rain barrel, and the shared growing shelf wait inside.',
+      actionLabel: 'Step Inside',
+      actionType: 'enter_greenhouse',
+    };
+  }
+
   if (propId === 'cottage_window_box') {
     const da = world.dailyActivities ?? createInitialDailyActivities();
     if (da.cottagePlanterTendedToday) {
@@ -1731,6 +1760,51 @@ export function exitCottageAction(world: WorldState): { nextWorld: WorldState; t
   };
 }
 
+export function enterGreenhouseAction(world: WorldState): { nextWorld: WorldState; toast: string } {
+  if (world.playerLocation === 'greenhouse_interior') {
+    return { nextWorld: world, toast: '' };
+  }
+  let working = world;
+  if (working.playerHeldItem && working.worldProps?.[working.playerHeldItem]) {
+    working = placeWorldPropAction(working).nextWorld;
+  }
+  const safeExteriorPos = isPointWalkable(working.playerPos.x, working.playerPos.z, 0.48)
+    ? { ...working.playerPos }
+    : { ...GREENHOUSE_PORCH_EXIT_POS };
+  return {
+    nextWorld: {
+      ...working,
+      playerLocation: 'greenhouse_interior',
+      exteriorPlayerPos: safeExteriorPos,
+      exteriorPlayerFacing: working.playerFacing,
+      playerPos: { ...GREENHOUSE_DOOR_SPAWN },
+      playerFacing: GREENHOUSE_DOOR_DEFAULT_FACING,
+      playerPosture: 'standing',
+      playerSeatId: null,
+    },
+    toast: 'Stepped inside Sunbeam Greenhouse.',
+  };
+}
+
+export function exitGreenhouseAction(world: WorldState): { nextWorld: WorldState; toast: string } {
+  if (world.playerLocation !== 'greenhouse_interior') {
+    return { nextWorld: world, toast: '' };
+  }
+  const exPos = world.exteriorPlayerPos ?? GREENHOUSE_PORCH_EXIT_POS;
+  const safePos = isPointWalkable(exPos.x, exPos.z, 0.48) ? { ...exPos } : { ...PLAYER_SPAWN };
+  return {
+    nextWorld: {
+      ...world,
+      playerLocation: 'exterior',
+      playerPos: safePos,
+      playerFacing: world.exteriorPlayerFacing ?? PLAYER_DEFAULT_FACING,
+      playerPosture: 'standing',
+      playerSeatId: null,
+    },
+    toast: 'Stepped out beside Sunbeam Greenhouse.',
+  };
+}
+
 export function interactWithCottageProp(
   world: WorldState,
   cottagePropId: CottageInteractableId,
@@ -1832,6 +1906,340 @@ export function interactWithCottageProp(
     title: 'Sunlit Sill Planter',
     body: 'Clipped fresh Chamomile Blossoms from the warm wooden sill box and tucked them into your satchel (+10m).',
     gainedItems: [{ itemId: 'chamomile_blossom', count: 1 }],
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Sunbeam Greenhouse interior stations & the shared growing corner (M3 Build 6, Entry 033)
+// ---------------------------------------------------------------------------
+
+function getGreenhouseStateSafe(world: WorldState) {
+  return world.greenhouseState ?? createInitialGreenhouseState();
+}
+
+function addGreenhouseMemory(
+  world: WorldState,
+  memId: string,
+  title: string,
+  summary: string,
+): { memories: WorldState['memories']; unlocked: boolean } {
+  const phase = getTimePhase(world.minuteOfDay);
+  if (world.memories.some((m) => m.id === memId)) {
+    return { memories: world.memories, unlocked: false };
+  }
+  return {
+    memories: [{ id: memId, day: world.day, phase, title, summary }, ...world.memories],
+    unlocked: true,
+  };
+}
+
+export function interactWithGreenhouseProp(
+  world: WorldState,
+  greenhousePropId: GreenhouseInteractableId,
+): PropInteractionResult {
+  if (greenhousePropId === 'greenhouse_door') {
+    const exited = exitGreenhouseAction(world);
+    return {
+      nextWorld: exited.nextWorld,
+      title: 'Glasshouse Door',
+      body: 'Warm glass light fades behind you as you step back out beside Sunbeam Greenhouse.',
+      actionType: 'exit_greenhouse',
+    };
+  }
+
+  if (greenhousePropId === 'greenhouse_potting') {
+    return {
+      nextWorld: world,
+      title: 'Potting Bench & Seed Drawers',
+      body:
+        world.season === 'winter'
+          ? 'Mina’s seed drawers are tidy and full, and the bench waits in wintry quiet. Seeds sown now will rest safely until spring wakes the glasshouse.'
+          : 'Fir-minster potting soil, folded paper seed pockets, and a row of empty terracotta pots wait on the cedar bench. Choose a seed from your satchel and tuck it into a pot.',
+      actionLabel: 'Sow Seeds in a Pot',
+      actionType: 'greenhouse_planting_panel',
+    };
+  }
+
+  if (greenhousePropId === 'greenhouse_shelf') {
+    const gh = getGreenhouseStateSafe(world);
+    const summary = summarizeGreenhousePlots(gh);
+    if (summary.readyPlots > 0) {
+      return {
+        nextWorld: world,
+        title: 'Growing Shelf',
+        body: `${summary.readyPlots === 1 ? 'One pot is' : `${summary.readyPlots} pots are`} thriving and ready for a gentle harvest on the sunlit shelf.`,
+        actionLabel: 'Harvest Ready Pots',
+        actionType: 'greenhouse_harvest_panel',
+      };
+    }
+    const details = gh.plots
+      .map((plot, idx) => {
+        if (!plot.cropId) return `Pot ${idx + 1} — empty soil, waiting for seeds.`;
+        const crop = GREENHOUSE_CROPS.find((c) => c.id === plot.cropId);
+        const stageText =
+          plot.stage >= 3
+            ? 'ready to harvest'
+            : plot.stage === 0
+            ? 'newly sown'
+            : plot.stage === 1
+            ? 'a small sprout'
+            : 'leafy and growing';
+        const thirst = plot.stage < 3 && !plot.wateredToday ? ' · thirsty today' : '';
+        return `Pot ${idx + 1} — ${crop?.label ?? 'seedling'}, ${stageText}${thirst}.`;
+      })
+      .join(' ');
+    return {
+      nextWorld: world,
+      title: 'Growing Shelf',
+      body: `Four terracotta pots line the sunlit shelf. ${details || 'All quiet for now.'}`,
+    };
+  }
+
+  if (greenhousePropId === 'greenhouse_water') {
+    return waterGreenhousePlotsAction(world);
+  }
+
+  // greenhouse_table — Mina's planting notes & starter seed packet
+  return readGreenhouseNotesAction(world);
+}
+
+export function waterGreenhousePlotsAction(world: WorldState): PropInteractionResult {
+  const gh = getGreenhouseStateSafe(world);
+  const thirsty = gh.plots.filter((p) => p.cropId && p.stage < 3 && !p.wateredToday);
+  if (thirsty.length === 0) {
+    const anyGrowing = gh.plots.some((p) => p.cropId);
+    return {
+      nextWorld: world,
+      title: 'Rain Barrel & Watering Can',
+      body: anyGrowing
+        ? 'Every growing pot is already watered for the day — the soil sits dark and content, and the copper can rests back on its hook.'
+        : 'The rain barrel glimmers with cool water. There are no sown pots to water just yet — Mina’s planting notes by the worktable explain how the shared corner works.',
+    };
+  }
+  const nextMin = Math.min(DAY_END_MINUTE, world.minuteOfDay + GREENHOUSE_WATER_MINUTES);
+  const nextWorld: WorldState = {
+    ...world,
+    minuteOfDay: nextMin,
+    greenhouseState: {
+      ...gh,
+      plots: gh.plots.map((p) =>
+        p.cropId && p.stage < 3 ? { ...p, wateredToday: true } : p,
+      ),
+    },
+  };
+  return {
+    nextWorld,
+    title: 'Rain Barrel & Watering Can',
+    body: `You tipped the copper watering can along the shelf until every thirsty pot drank its fill (+${GREENHOUSE_WATER_MINUTES}m). Tonight they will grow a little stronger.`,
+  };
+}
+
+export function plantSeedAtPlotAction(
+  world: WorldState,
+  seedItemId: 'chamomile_seeds' | 'lavender_seeds' | 'thyme_seeds',
+  plotIndex: number,
+): { ok: boolean; nextWorld: WorldState; toast: string; memoryUnlockedTitle?: string } {
+  if (world.playerLocation !== 'greenhouse_interior') {
+    return { ok: false, nextWorld: world, toast: 'The seed drawers live inside Sunbeam Greenhouse.' };
+  }
+  const gh = getGreenhouseStateSafe(world);
+  if (plotIndex < 0 || plotIndex >= gh.plots.length) {
+    return { ok: false, nextWorld: world, toast: 'That pot is not on the growing shelf.' };
+  }
+  const plot = gh.plots[plotIndex];
+  if (plot.cropId) {
+    return { ok: false, nextWorld: world, toast: 'That pot is already growing something.' };
+  }
+  const crop = getGreenhouseCropBySeed(seedItemId);
+  if (!crop) {
+    return { ok: false, nextWorld: world, toast: 'That pocket holds no sowable seeds.' };
+  }
+  if (getItemCount(world.inventory, seedItemId) < 1) {
+    return { ok: false, nextWorld: world, toast: 'No seeds of that kind left in your satchel.' };
+  }
+
+  const consumed = consumeItemFromInventory(world.inventory, seedItemId, 1);
+  if (!consumed.ok) {
+    return { ok: false, nextWorld: world, toast: 'No seeds of that kind left in your satchel.' };
+  }
+
+  const nextMin = Math.min(DAY_END_MINUTE, world.minuteOfDay + GREENHOUSE_PLANT_MINUTES);
+  const phase = getTimePhase(nextMin);
+  const memId = 'mem_greenhouse_first_sow';
+  const hasMem = world.memories.some((m) => m.id === memId);
+  const nextMemories = hasMem
+    ? world.memories
+    : [
+        {
+          id: memId,
+          day: world.day,
+          phase,
+          title: 'Seeds in the Glass Corner',
+          summary:
+            'Sowed my first seeds in a sunny terracotta pot on the Sunbeam Greenhouse growing shelf — Mina’s shared corner already feels like mine too.',
+        },
+        ...world.memories,
+      ];
+
+  const seedLabel = PERSONAL_ITEM_MAP[seedItemId].label;
+  return {
+    ok: true,
+    nextWorld: {
+      ...world,
+      minuteOfDay: nextMin,
+      inventory: consumed.inventory,
+      greenhouseState: {
+        ...gh,
+        totalPlanted: gh.totalPlanted + 1,
+        plots: gh.plots.map((p, idx) =>
+          idx === plotIndex
+            ? {
+                cropId: crop.id,
+                plantedDay: world.day,
+                nightsGrown: 0,
+                stage: 0 as const,
+                wateredToday: true,
+              }
+            : p,
+        ),
+      },
+      sideFlags: {
+        ...(world.sideFlags ?? {}),
+        greenhousePlanted: true,
+      },
+      memories: nextMemories,
+    },
+    toast: `Sowed ${seedLabel} in pot ${plotIndex + 1} (+${GREENHOUSE_PLANT_MINUTES}m). Water it at the rain barrel each day.`,
+    memoryUnlockedTitle: hasMem ? undefined : 'Seeds in the Glass Corner',
+  };
+}
+
+export function harvestPlotAction(
+  world: WorldState,
+  plotIndex: number,
+): {
+  ok: boolean;
+  nextWorld: WorldState;
+  toast: string;
+  memoryUnlockedTitle?: string;
+  gainedItems?: GainedItemChip[];
+} {
+  if (world.playerLocation !== 'greenhouse_interior') {
+    return { ok: false, nextWorld: world, toast: 'The growing shelf lives inside Sunbeam Greenhouse.' };
+  }
+  const gh = getGreenhouseStateSafe(world);
+  if (plotIndex < 0 || plotIndex >= gh.plots.length) {
+    return { ok: false, nextWorld: world, toast: 'That pot is not on the growing shelf.' };
+  }
+  const plot = gh.plots[plotIndex];
+  if (!plot.cropId || plot.stage < 3) {
+    return { ok: false, nextWorld: world, toast: 'That pot is still growing — it needs a few more good days.' };
+  }
+  const crop = getGreenhouseCropBySeedSafe(plot.cropId);
+  if (!crop) {
+    return { ok: false, nextWorld: world, toast: 'That pot holds an unfamiliar seedling.' };
+  }
+
+  let invRes = addItemToInventory(world.inventory, world.discoveredItemIds, crop.cropItemId, crop.harvestCount);
+  invRes = addItemToInventory(invRes.inventory, invRes.discoveredItemIds, crop.seedItemId, 1);
+
+  const nextMin = Math.min(DAY_END_MINUTE, world.minuteOfDay + GREENHOUSE_HARVEST_MINUTES);
+  const phase = getTimePhase(nextMin);
+  const memId = 'mem_greenhouse_first_harvest';
+  const hasMem = world.memories.some((m) => m.id === memId);
+  const nextMemories = hasMem
+    ? world.memories
+    : [
+        {
+          id: memId,
+          day: world.day,
+          phase,
+          title: 'First Glasshouse Harvest',
+          summary:
+            'Clipped the first greens from my own pot on Mina’s greenhouse shelf — grown from a paper fold of seeds, a kettle of water, and a few patient days.',
+        },
+        ...world.memories,
+      ];
+
+  const cropDef = PERSONAL_ITEM_MAP[crop.cropItemId];
+  return {
+    ok: true,
+    nextWorld: {
+      ...world,
+      minuteOfDay: nextMin,
+      inventory: invRes.inventory,
+      discoveredItemIds: invRes.discoveredItemIds,
+      greenhouseState: {
+        ...gh,
+        totalHarvests: gh.totalHarvests + 1,
+        plots: gh.plots.map((p, idx) =>
+          idx === plotIndex
+            ? { cropId: null, plantedDay: 0, nightsGrown: 0, stage: 0 as const, wateredToday: false }
+            : p,
+        ),
+      },
+      sideFlags: {
+        ...(world.sideFlags ?? {}),
+        greenhouseHarvested: true,
+      },
+      memories: nextMemories,
+    },
+    toast: `Harvested ${cropDef.label} ×${crop.harvestCount} and kept one seed fold for the next sowing (+${GREENHOUSE_HARVEST_MINUTES}m).`,
+    memoryUnlockedTitle: hasMem ? undefined : 'First Glasshouse Harvest',
+    gainedItems: [
+      { itemId: crop.cropItemId, count: crop.harvestCount },
+      { itemId: crop.seedItemId, count: 1 },
+    ],
+  };
+}
+
+function getGreenhouseCropBySeedSafe(cropId: string) {
+  return GREENHOUSE_CROPS.find((c) => c.id === cropId) ?? null;
+}
+
+export function readGreenhouseNotesAction(world: WorldState): PropInteractionResult {
+  const gh = getGreenhouseStateSafe(world);
+  if (gh.noteReadDay > 0) {
+    return {
+      nextWorld: world,
+      title: 'Mina’s Worktable & Field Notes',
+      body:
+        world.season === 'winter'
+          ? '“Pots rest through the frost — nothing dies of waiting. Wake them gently with spring water.” The same warm line, still true on every reread.'
+          : '“Water each pot once a day; what is watered grows, and what waits simply waits.” Mina’s note still smells faintly of lemon thyme.',
+    };
+  }
+
+  const firstSeedRes = addItemToInventory(world.inventory, world.discoveredItemIds, 'chamomile_seeds', 1);
+  const secondSeedRes = addItemToInventory(firstSeedRes.inventory, firstSeedRes.discoveredItemIds, 'thyme_seeds', 1);
+  const nextMin = Math.min(DAY_END_MINUTE, world.minuteOfDay + GREENHOUSE_NOTE_READ_MINUTES);
+  const { memories: nextMemories, unlocked } = addGreenhouseMemory(
+    { ...world, minuteOfDay: nextMin },
+    'mem_greenhouse_note',
+    'The Shared Glass Corner',
+    'Read Mina’s planting notes inside Sunbeam Greenhouse — she left a welcome packet of chamomile and thyme seeds beside them for whoever tends the shared pots.',
+  );
+
+  return {
+    nextWorld: {
+      ...world,
+      minuteOfDay: nextMin,
+      inventory: secondSeedRes.inventory,
+      discoveredItemIds: secondSeedRes.discoveredItemIds,
+      greenhouseState: {
+        ...gh,
+        noteReadDay: world.day,
+      },
+      memories: nextMemories,
+    },
+    title: 'Mina’s Worktable & Field Notes',
+    body:
+      '“This corner is yours too. Water each pot once a day — what is watered grows, and what waits simply waits. Nothing dies of patience here.” A paper packet of Chamomile and Lemon Thyme seeds is tucked beside the notebook (+8m).',
+    memoryUnlockedTitle: unlocked ? 'The Shared Glass Corner' : undefined,
+    gainedItems: [
+      { itemId: 'chamomile_seeds', count: 1 },
+      { itemId: 'thyme_seeds', count: 1 },
+    ],
   };
 }
 

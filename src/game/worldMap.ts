@@ -246,6 +246,7 @@ export const PROP_INTERACTABLES: PropInteractable[] = [
   { id: 'orchard_harvest', name: 'Orchard Harvest Crates', x: -4.2, z: -19.2, interactRadius: 2.4 },
   { id: 'orchard_skep', name: 'Orchard Bee Skep', x: 3.9, z: -16.3, interactRadius: 2.3 },
   { id: 'pond_driftwood', name: 'Mirror Pond Driftwood Nook', x: 6.5, z: 13.8, interactRadius: 2.4 },
+  { id: 'greenhouse_door', name: 'Sunbeam Greenhouse Door', x: 10.15, z: 3.2, interactRadius: 2.1 },
 ];
 
 export interface PropInteractionMetrics {
@@ -364,6 +365,8 @@ export function getPropInteractionMetrics(
       ? { x: 4.4, z: -3.2 }
       : propId === 'player_door'
       ? { x: -10.8, z: 10.0 }
+      : propId === 'greenhouse_door'
+      ? { x: 11.15, z: 3.2 }
       : propId === 'cottage_window_box'
       ? { x: -10.8, z: 12.1 }
       : propId === 'greenhouse_planters'

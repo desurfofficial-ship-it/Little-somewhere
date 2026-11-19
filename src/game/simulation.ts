@@ -810,7 +810,8 @@ export function stepSimulationInPlace(
         rt.animState = extra ? extra.animState : getDefaultPoseForSlot(id, phase);
       }
 
-      const isIndoors = world.playerLocation === 'cottage_interior';
+      const isIndoors =
+        world.playerLocation === 'cottage_interior' || world.playerLocation === 'greenhouse_interior';
       const outdoorPlayerPos = isIndoors ? world.exteriorPlayerPos : world.playerPos;
       const pDist = isIndoors ? Infinity : distance2D(world.playerPos, rt.position);
       const rel = world.playerRelations?.[id];
@@ -867,7 +868,10 @@ export function stepSimulationInPlace(
 
   // 3. Evaluate NPC-to-NPC social encounter pairing (bounded, supports 2-3 participants + mutual helping)
   const maxConcurrentEncounters = Math.max(2, Math.floor(RESIDENT_ORDER.length / 4));
-  const outdoorPlayerRef = world.playerLocation === 'cottage_interior' ? world.exteriorPlayerPos : world.playerPos;
+  const outdoorPlayerRef =
+    world.playerLocation === 'cottage_interior' || world.playerLocation === 'greenhouse_interior'
+      ? world.exteriorPlayerPos
+      : world.playerPos;
   if (!dialogueOpen && world.activeEncounters.length < maxConcurrentEncounters) {
     const socialSlot = Math.floor(world.minuteOfDay / 15);
     for (let i = 0; i < RESIDENT_ORDER.length; i++) {

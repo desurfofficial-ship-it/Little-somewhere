@@ -594,3 +594,61 @@ test('Pass 11: home summary counts quiet tea-table moments from mem_teatable_* m
   };
   assert.equal(buildPocketJournalView(unrelated).homeSummary.homeRitualCount, 0);
 });
+
+test('Milestone 3 Build 6: sunbeam_greenhouse discovery tracks the shared growing corner lifecycle', () => {
+  const base = createFreshWorldState();
+  const initialView = buildPocketJournalView(base);
+  const initialGh = initialView.landmarks.find((l) => l.id === 'sunbeam_greenhouse')!;
+  assert.ok(initialGh, 'Greenhouse discovery row exists');
+  assert.equal(initialGh.statusKind, 'quiet');
+  assert.equal(initialGh.statusLabel, 'Mina’s glass corner');
+
+  // After reading Mina's note the corner reads as open
+  const notedWorld: WorldState = {
+    ...base,
+    greenhouseState: { ...base.greenhouseState, noteReadDay: base.day },
+  };
+  const notedView = buildPocketJournalView(notedWorld);
+  const notedGh = notedView.landmarks.find((l) => l.id === 'sunbeam_greenhouse')!;
+  assert.equal(notedGh.statusKind, 'quiet');
+  assert.equal(notedGh.statusLabel, 'Shared corner open');
+
+  // Growing pots read as active; ready pots change the label
+  const growingWorld: WorldState = {
+    ...base,
+    greenhouseState: {
+      ...base.greenhouseState,
+      plots: base.greenhouseState.plots.map((p, i) =>
+        i === 0 ? { cropId: 'chamomile', plantedDay: 1, nightsGrown: 1, stage: 1, wateredToday: true } : p,
+      ),
+    },
+  };
+  const growingView = buildPocketJournalView(growingWorld);
+  const growingGh = growingView.landmarks.find((l) => l.id === 'sunbeam_greenhouse')!;
+  assert.equal(growingGh.statusKind, 'active');
+  assert.equal(growingGh.statusLabel, '1 pot growing');
+
+  const readyWorld: WorldState = {
+    ...base,
+    greenhouseState: {
+      ...base.greenhouseState,
+      plots: base.greenhouseState.plots.map((p, i) =>
+        i === 0 ? { cropId: 'lavender', plantedDay: 1, nightsGrown: 2, stage: 3, wateredToday: false } : p,
+      ),
+    },
+  };
+  const readyView = buildPocketJournalView(readyWorld);
+  const readyGh = readyView.landmarks.find((l) => l.id === 'sunbeam_greenhouse')!;
+  assert.equal(readyGh.statusLabel, '1 ready to harvest');
+  assert.ok(readyGh.summary.includes('ready for a gentle harvest'));
+
+  // After a harvest with empty pots: transformed resting state
+  const harvestedWorld: WorldState = {
+    ...base,
+    greenhouseState: { ...base.greenhouseState, totalHarvests: 3, noteReadDay: 1 },
+  };
+  const harvestedView = buildPocketJournalView(harvestedWorld);
+  const harvestedGh = harvestedView.landmarks.find((l) => l.id === 'sunbeam_greenhouse')!;
+  assert.equal(harvestedGh.statusKind, 'transformed');
+  assert.equal(harvestedGh.statusLabel, 'Resting between sowings');
+});

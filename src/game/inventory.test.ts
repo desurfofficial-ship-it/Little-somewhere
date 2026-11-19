@@ -24,7 +24,7 @@ import { RESIDENT_ORDER } from './residents';
 import { PersonalItemId } from './types';
 
 test('personal item catalog, starter inventory, and stack clamping enforce invariants', () => {
-  assert.equal(PERSONAL_ITEMS.length, 18);
+  assert.equal(PERSONAL_ITEMS.length, 21);
   const uniqueIds = new Set(PERSONAL_ITEMS.map((item) => item.id));
   assert.equal(uniqueIds.size, PERSONAL_ITEMS.length);
 

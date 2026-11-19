@@ -51,6 +51,13 @@ import {
   isInteriorPointWalkable,
   resolveAnySeatById,
 } from '../game/cottage';
+import {
+  GREENHOUSE_BOUNDS,
+  GREENHOUSE_INTERACTABLES,
+  computeGreenhouseWaypoints,
+  isGreenhouseInteriorWalkable,
+} from '../game/greenhouse';
+import type { GreenhouseInteractableId } from '../game/types';
 import { computeWaypointPath } from '../game/navigation';
 import { getResidentAvailableQuestCue } from '../game/narrative';
 import { composeEnvironmentState } from '../game/environment';
@@ -89,6 +96,10 @@ import { buildFernHollowOrchard } from './builders/orchard';
 import { buildOrchardAmbientExtras, buildOrchardMicroLife } from './builders/orchardMicroLife';
 import { buildAllReactiveRigs } from './builders/reactiveProps';
 import { buildWillowCottageInterior } from './builders/cottageInterior';
+import {
+  buildSunbeamGreenhouseDoorway,
+  buildSunbeamGreenhouseInterior,
+} from './builders/greenhouseInterior';
 import {
   buildCarryablePropMesh,
   buildStorybookBench,
@@ -192,7 +203,22 @@ function findNearestWalkablePoint(x: number, z: number, playerPos: Vec2): Vec2 |
   return isPointWalkable(midX, midZ, 0.48) ? { x: midX, z: midZ } : null;
 }
 
-function findNearestInteriorWalkablePoint(x: number, z: number): Vec2 | null {
+function findNearestInteriorWalkablePoint(x: number, z: number, location: PlayerLocation): Vec2 | null {
+  const loc = location ?? 'exterior';
+  if (loc === 'greenhouse_interior') {
+    const cx = THREE.MathUtils.clamp(x, GREENHOUSE_BOUNDS.minX + 0.45, GREENHOUSE_BOUNDS.maxX - 0.45);
+    const cz = THREE.MathUtils.clamp(z, GREENHOUSE_BOUNDS.minZ + 0.45, GREENHOUSE_BOUNDS.maxZ - 0.45);
+    if (isGreenhouseInteriorWalkable(cx, cz, 0.42)) return { x: cx, z: cz };
+    for (let r = 0.45; r <= 2.4; r += 0.45) {
+      for (let a = 0; a < 8; a++) {
+        const ang = (a / 8) * Math.PI * 2;
+        const nx = THREE.MathUtils.clamp(cx + Math.cos(ang) * r, GREENHOUSE_BOUNDS.minX + 0.45, GREENHOUSE_BOUNDS.maxX - 0.45);
+        const nz = THREE.MathUtils.clamp(cz + Math.sin(ang) * r, GREENHOUSE_BOUNDS.minZ + 0.45, GREENHOUSE_BOUNDS.maxZ - 0.45);
+        if (isGreenhouseInteriorWalkable(nx, nz, 0.42)) return { x: nx, z: nz };
+      }
+    }
+    return null;
+  }
   const cx = THREE.MathUtils.clamp(x, COTTAGE_BOUNDS.minX + 0.45, COTTAGE_BOUNDS.maxX - 0.45);
   const cz = THREE.MathUtils.clamp(z, COTTAGE_BOUNDS.minZ + 0.45, COTTAGE_BOUNDS.maxZ - 0.45);
   if (isInteriorPointWalkable(cx, cz, 0.42)) return { x: cx, z: cz };
@@ -681,6 +707,17 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
     const cottageInteriorRig = buildWillowCottageInterior(palette, shadowTex);
     interiorRoot.add(cottageInteriorRig.group);
 
+    // Sunbeam Greenhouse Interior Cutaway Diorama (M3 Build 6 — same cutaway contract)
+    const greenhouseInteriorRig = buildSunbeamGreenhouseInterior(palette, shadowTex, { isSoftwareGl });
+    greenhouseInteriorRig.group.visible = false;
+    interiorRoot.add(greenhouseInteriorRig.group);
+
+    // Exterior Sunbeam Greenhouse doorway on the west glass wall (M3 Build 6)
+    const greenhouseDoorway = buildSunbeamGreenhouseDoorway(palette, shadowTex);
+    greenhouseDoorway.position.set(11.14, 0, 3.2);
+    greenhouseDoorway.rotation.y = -Math.PI / 2; // face west toward the plaza
+    exteriorRoot.add(greenhouseDoorway);
+
     // Tap-to-walk destination indicator ring
     const destRing = new THREE.Mesh(
       new THREE.RingGeometry(0.28, 0.42, 20),
@@ -816,6 +853,12 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
         hit.userData = { targetKind: 'prop', targetId: prop.id };
         exteriorRoot.add(hit);
         interactableMeshes.push(hit);
+      } else if (prop.id === 'greenhouse_door') {
+        const hit = new THREE.Mesh(new THREE.CylinderGeometry(0.95, 0.95, 2.3, 8), proxyMat);
+        hit.position.set(10.98, 1.15, 3.2);
+        hit.userData = { targetKind: 'prop', targetId: prop.id };
+        exteriorRoot.add(hit);
+        interactableMeshes.push(hit);
       } else {
         const hit = new THREE.Mesh(new THREE.CylinderGeometry(0.95, 0.95, 2.2, 8), proxyMat);
         hit.position.set(prop.x, 1.1, prop.z);
@@ -923,8 +966,12 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
       _pointer.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
       _raycaster.setFromCamera(_pointer, camera);
 
-      const isIndoors = worldRef.current.playerLocation === 'cottage_interior';
-      const activeInteractables = isIndoors ? cottageInteriorRig.hitProxies : interactableMeshes;
+      const isIndoors = worldRef.current.playerLocation !== 'exterior';
+      const activeInteractables = !isIndoors
+        ? interactableMeshes
+        : worldRef.current.playerLocation === 'greenhouse_interior'
+        ? greenhouseInteriorRig.hitProxies
+        : cottageInteriorRig.hitProxies;
       const hits = _raycaster.intersectObjects(activeInteractables, false);
       if (hits.length > 0) {
         // Seat proxies tuck beneath the tabletop-sized table proxy — when a table click
@@ -942,7 +989,7 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
           if (seatHit) chosen = seatHit;
         }
         const ud = chosen.object.userData as {
-          targetKind: 'resident' | 'prop' | 'seat' | 'carryable' | 'cottage_prop';
+          targetKind: 'resident' | 'prop' | 'seat' | 'carryable' | 'cottage_prop' | 'greenhouse_prop';
           targetId: string;
         };
         const pPos = worldRef.current.playerPos;
@@ -957,6 +1004,20 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
         if (ud.targetKind === 'cottage_prop') {
           const cid = ud.targetId as CottageInteractableId;
           const prop = COTTAGE_INTERACTABLES.find((p) => p.id === cid);
+          if (!prop) return;
+          tPos = { x: prop.focusX, z: prop.focusZ };
+          walkDest = { x: prop.x, z: prop.z };
+          label = prop.name;
+          actionLabel = prop.actionLabel;
+          const effDist = Math.min(
+            distance2D(pPos, { x: prop.x, z: prop.z }),
+            distance2D(pPos, { x: prop.focusX, z: prop.focusZ }),
+          );
+          scoreDist = effDist;
+          isImmediate = effDist <= prop.interactRadius;
+        } else if (ud.targetKind === 'greenhouse_prop') {
+          const gid = ud.targetId as GreenhouseInteractableId;
+          const prop = GREENHOUSE_INTERACTABLES.find((p) => p.id === gid);
           if (!prop) return;
           tPos = { x: prop.focusX, z: prop.focusZ };
           walkDest = { x: prop.x, z: prop.z };
@@ -1032,6 +1093,8 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
           carryableId: ud.targetKind === 'carryable' ? (ud.targetId as CarryableItemId) : undefined,
           cottagePropId:
             ud.targetKind === 'cottage_prop' ? (ud.targetId as CottageInteractableId) : undefined,
+          greenhousePropId:
+            ud.targetKind === 'greenhouse_prop' ? (ud.targetId as GreenhouseInteractableId) : undefined,
         };
 
         if (isImmediate) {
@@ -1039,11 +1102,19 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
           onSelectTargetRef.current(targetObj);
         } else if (isIndoors) {
           const dest = walkDest ?? { ...tPos };
-          const walkableDest = isInteriorPointWalkable(dest.x, dest.z, 0.42)
-            ? dest
-            : findNearestInteriorWalkablePoint(dest.x, dest.z) ?? dest;
+          const walkableDest =
+            worldRef.current.playerLocation === 'greenhouse_interior'
+              ? isGreenhouseInteriorWalkable(dest.x, dest.z, 0.42)
+                ? dest
+                : findNearestInteriorWalkablePoint(dest.x, dest.z, worldRef.current.playerLocation) ?? dest
+              : isInteriorPointWalkable(dest.x, dest.z, 0.42)
+              ? dest
+              : findNearestInteriorWalkablePoint(dest.x, dest.z, worldRef.current.playerLocation) ?? dest;
           tapWalkDest = walkableDest;
-          tapWalkWaypoints = computeInteriorWaypoints(pPos, walkableDest, 0.42);
+          tapWalkWaypoints =
+            worldRef.current.playerLocation === 'greenhouse_interior'
+              ? computeGreenhouseWaypoints(pPos, walkableDest, 0.42)
+              : computeInteriorWaypoints(pPos, walkableDest, 0.42);
           tapStuckSeconds = 0;
           pendingTargetAfterWalk = targetObj;
         } else {
@@ -1062,10 +1133,17 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
       // Ground tap-to-walk
       if (_raycaster.ray.intersectPlane(_groundPlane, _vec3A)) {
         if (isIndoors) {
-          const walkableDest = findNearestInteriorWalkablePoint(_vec3A.x, _vec3A.z);
+          const walkableDest = findNearestInteriorWalkablePoint(
+            _vec3A.x,
+            _vec3A.z,
+            worldRef.current.playerLocation ?? 'exterior',
+          );
           if (walkableDest) {
             tapWalkDest = walkableDest;
-            tapWalkWaypoints = computeInteriorWaypoints(worldRef.current.playerPos, walkableDest, 0.42);
+            tapWalkWaypoints =
+              worldRef.current.playerLocation === 'greenhouse_interior'
+                ? computeGreenhouseWaypoints(worldRef.current.playerPos, walkableDest, 0.42)
+                : computeInteriorWaypoints(worldRef.current.playerPos, walkableDest, 0.42);
             tapStuckSeconds = 0;
             pendingTargetAfterWalk = null;
           }
@@ -1176,7 +1254,8 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
     ): void {
       // Five-layer environment composition & dirty-flagged GPU/scene visual controller
       const composed = composeEnvironmentState(world);
-      const isIndoors = world.playerLocation === 'cottage_interior';
+      const curLoc = world.playerLocation ?? 'exterior';
+      const isIndoors = curLoc === 'cottage_interior' || curLoc === 'greenhouse_interior';
       envController.update(
         composed,
         world,
@@ -1188,27 +1267,45 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
       if (isIndoors) {
         exteriorRoot.visible = false;
         interiorRoot.visible = true;
+        cottageInteriorRig.group.visible = curLoc === 'cottage_interior';
+        greenhouseInteriorRig.group.visible = curLoc === 'greenhouse_interior';
         (scene.background as THREE.Color).set('#2C221B');
         if (scene.fog instanceof THREE.Fog) {
           scene.fog.near = 200;
           scene.fog.far = 260;
         }
-        // Phase-responsive indoor ambience: daylight floods the room in the
-        // morning, then settles into warm lamp-and-ember twilight by dusk.
-        // (Dusk floor lifted in the 2C polish pass so plaster/wainscot never read mud;
-        // the hearth key light inside cottageInteriorRig now carries the dusk mood.)
         const indoorPhase = composed.timeOfDay.phase;
-        hemiLight.color.set('#FBE7CC');
-        hemiLight.groundColor.set('#6E523E');
-        hemiLight.intensity = indoorPhase === 'dusk' ? 0.68 : indoorPhase === 'golden' ? 0.74 : 0.85;
-        sunLight.color.set(indoorPhase === 'dusk' ? '#FFD9A6' : '#FFE9C2');
-        sunLight.intensity = indoorPhase === 'dusk' ? 0.55 : indoorPhase === 'golden' ? 0.85 : 1.25;
-        sunLight.position.set(10, 16, 11);
-        scene.environmentIntensity = indoorPhase === 'dusk' ? 0.52 : indoorPhase === 'golden' ? 0.54 : 0.65;
-        cottageInteriorRig.update(world, composed.timeOfDay.phase, elapsed);
+        if (curLoc === 'greenhouse_interior') {
+          // Glasshouse daylight: brighter, cooler ambience than the timber cottage;
+          // the rig's own lantern warms the room toward dusk (kept below the cottage
+          // wash threshold so the big glass surfaces never read overexposed).
+          hemiLight.color.set('#EAF2E4');
+          hemiLight.groundColor.set('#6E523E');
+          hemiLight.intensity =
+            indoorPhase === 'dusk' ? 0.7 : indoorPhase === 'golden' ? 0.74 : 0.9;
+          sunLight.color.set(indoorPhase === 'dusk' ? '#FFD9A6' : '#FFF2D2');
+          sunLight.intensity = indoorPhase === 'dusk' ? 0.58 : indoorPhase === 'golden' ? 0.78 : 1.2;
+          sunLight.position.set(10, 16, 11);
+          scene.environmentIntensity =
+            indoorPhase === 'dusk' ? 0.5 : indoorPhase === 'golden' ? 0.54 : 0.64;
+          greenhouseInteriorRig.update(world, indoorPhase, elapsed);
+        } else {
+          // Phase-responsive indoor ambience: daylight floods the room in the
+          // morning, then settles into warm lamp-and-ember twilight by dusk.
+          hemiLight.color.set('#FBE7CC');
+          hemiLight.groundColor.set('#6E523E');
+          hemiLight.intensity = indoorPhase === 'dusk' ? 0.68 : indoorPhase === 'golden' ? 0.74 : 0.85;
+          sunLight.color.set(indoorPhase === 'dusk' ? '#FFD9A6' : '#FFE9C2');
+          sunLight.intensity = indoorPhase === 'dusk' ? 0.55 : indoorPhase === 'golden' ? 0.85 : 1.25;
+          sunLight.position.set(10, 16, 11);
+          scene.environmentIntensity = indoorPhase === 'dusk' ? 0.52 : indoorPhase === 'golden' ? 0.54 : 0.65;
+          cottageInteriorRig.update(world, composed.timeOfDay.phase, elapsed);
+        }
       } else {
         exteriorRoot.visible = true;
         interiorRoot.visible = false;
+        cottageInteriorRig.group.visible = false;
+        greenhouseInteriorRig.group.visible = false;
         // Pass 10: the chimney advertises the hearth — smoke only while the fire is
         // lit, breathing harder while the kettle is warm (zero-GC strength value).
         updateWillowPrototypeMotion(
@@ -1220,9 +1317,10 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
       }
 
       // Pass 7: soft hearth crackle room-tone — started/stopped on state transitions only,
-      // never per frame. Honors mute via the engine and pauses with the game.
+      // never per frame. Cottage-only (the greenhouse keeps its glass daylight hush).
+      // Honors mute via the engine and pauses with the game.
       const hearthAmbienceDesired =
-        isIndoors &&
+        curLoc === 'cottage_interior' &&
         (world.cottageState?.hearthLit ?? true) &&
         screenStateRef.current === 'playing' &&
         !cozyAudio.isMuted();
@@ -1583,13 +1681,14 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
         tapStuckSeconds = 0;
         pendingTargetAfterWalk = null;
         playerMotion = createInitialPlayerMotion(world.playerPos);
-        if (curLocation === 'cottage_interior') {
+        if (curLocation !== 'exterior') {
           playerMotion.groundY = 0;
         }
         // Snap camera smoothly toward the entered room or porch so there's zero disorienting cross-map pan
-        const snapFocusX = curLocation === 'cottage_interior' ? world.playerPos.x * 0.45 : world.playerPos.x;
-        const snapFocusZ = curLocation === 'cottage_interior' ? world.playerPos.z * 0.45 : world.playerPos.z;
-        const snapZoom = curLocation === 'cottage_interior' ? 0.66 : zoomRef.current;
+        const snapIsInterior = curLocation !== 'exterior';
+        const snapFocusX = snapIsInterior ? world.playerPos.x * 0.45 : world.playerPos.x;
+        const snapFocusZ = snapIsInterior ? world.playerPos.z * 0.45 : world.playerPos.z;
+        const snapZoom = snapIsInterior ? 0.66 : zoomRef.current;
         camera.position.set(snapFocusX + 19.5 * snapZoom, 18.2 * snapZoom, snapFocusZ + 19.5 * snapZoom);
       }
 
@@ -1830,6 +1929,7 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
       renderer.domElement.removeEventListener('wheel', handleWheel);
       envController.dispose();
       cottageInteriorRig.dispose();
+      greenhouseInteriorRig.dispose();
       meadowDressing.dispose();
       orchardRig.dispose();
       orchardMicroLifeRig.dispose();

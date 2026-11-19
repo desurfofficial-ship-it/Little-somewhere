@@ -4,6 +4,10 @@ import {
   CharacterEmotion,
   CottageHomeState,
   DailyActivitiesState,
+  GreenhouseCropId,
+  GreenhouseGrowthStage,
+  GreenhousePlotState,
+  GreenhouseState,
   JournalMemory,
   NpcMemoryDetail,
   NpcMemoryEntry,
@@ -91,8 +95,16 @@ import {
   createInitialDailyActivities,
   isInteriorPointWalkable,
 } from './cottage';
+import {
+  GREENHOUSE_CROPS,
+  GREENHOUSE_PLOT_COUNT,
+  GREENHOUSE_DOOR_SPAWN,
+  createInitialGreenhousePlot,
+  createInitialGreenhouseState,
+  isGreenhouseInteriorWalkable,
+} from './greenhouse';
 
-export const CURRENT_SCHEMA_VERSION = 6;
+export const CURRENT_SCHEMA_VERSION = 7;
 export const DEFAULT_SIM_SEED = 18042;
 
 export interface MigrationResult {
@@ -235,6 +247,7 @@ export function createDefaultWorldState(): WorldState {
     cottageState: createInitialCottageState(),
     dailyActivities: createInitialDailyActivities(),
     neighborGiftsReceived: [],
+    greenhouseState: createInitialGreenhouseState(),
   };
 }
 
@@ -1027,7 +1040,10 @@ export function sanitizeWorldState(candidate: unknown, externalWarnings: string[
   const simSeed = (Math.floor(rawSeed) >>> 0) || DEFAULT_SIM_SEED;
 
   const playerLocation: PlayerLocation =
-    candidate.playerLocation === 'cottage_interior' ? 'cottage_interior' : 'exterior';
+    candidate.playerLocation === 'cottage_interior' || candidate.playerLocation === 'greenhouse_interior'
+      ? (candidate.playerLocation as PlayerLocation)
+      : 'exterior';
+  const isInteriorLocation = playerLocation !== 'exterior';
 
   const rawSeatId =
     playerLocation === 'exterior' &&
@@ -1041,8 +1057,18 @@ export function sanitizeWorldState(candidate: unknown, externalWarnings: string[
       : 'standing';
   const playerSeatId = playerPosture === 'sitting' ? rawSeatId : null;
 
-  let playerX = playerLocation === 'cottage_interior' ? COTTAGE_DOOR_SPAWN.x : PLAYER_SPAWN.x;
-  let playerZ = playerLocation === 'cottage_interior' ? COTTAGE_DOOR_SPAWN.z : PLAYER_SPAWN.z;
+  let playerX =
+    playerLocation === 'cottage_interior'
+      ? COTTAGE_DOOR_SPAWN.x
+      : playerLocation === 'greenhouse_interior'
+      ? GREENHOUSE_DOOR_SPAWN.x
+      : PLAYER_SPAWN.x;
+  let playerZ =
+    playerLocation === 'cottage_interior'
+      ? COTTAGE_DOOR_SPAWN.z
+      : playerLocation === 'greenhouse_interior'
+      ? GREENHOUSE_DOOR_SPAWN.z
+      : PLAYER_SPAWN.z;
   let playerFacing = asFiniteNumber(candidate.playerFacing, PLAYER_DEFAULT_FACING);
   if (playerPosture === 'sitting' && playerSeatId) {
     const seat = getSeatById(playerSeatId)!;
@@ -1055,6 +1081,8 @@ export function sanitizeWorldState(candidate: unknown, externalWarnings: string[
     const walkable =
       playerLocation === 'cottage_interior'
         ? isInteriorPointWalkable(cx, cz, 0.42)
+        : playerLocation === 'greenhouse_interior'
+        ? isGreenhouseInteriorWalkable(cx, cz, 0.42)
         : isPointWalkable(cx, cz, 0.48);
     if (walkable) {
       playerX = cx;
@@ -1064,9 +1092,9 @@ export function sanitizeWorldState(candidate: unknown, externalWarnings: string[
     }
   }
 
-  let extX = playerLocation === 'exterior' ? playerX : PLAYER_SPAWN.x;
-  let extZ = playerLocation === 'exterior' ? playerZ : PLAYER_SPAWN.z;
-  if (playerLocation === 'cottage_interior' && isRecord(candidate.exteriorPlayerPos)) {
+  let extX = !isInteriorLocation ? playerX : PLAYER_SPAWN.x;
+  let extZ = !isInteriorLocation ? playerZ : PLAYER_SPAWN.z;
+  if (isInteriorLocation && isRecord(candidate.exteriorPlayerPos)) {
     const cx = asFiniteNumber(candidate.exteriorPlayerPos.x, PLAYER_SPAWN.x);
     const cz = asFiniteNumber(candidate.exteriorPlayerPos.z, PLAYER_SPAWN.z);
     if (isPointWalkable(cx, cz, 0.48)) {
@@ -1223,6 +1251,8 @@ export function sanitizeWorldState(candidate: unknown, externalWarnings: string[
       )
     : [];
 
+  const greenhouseState = sanitizeGreenhouseState(candidate.greenhouseState, warnings);
+
   return {
     schemaVersion: CURRENT_SCHEMA_VERSION,
     simSeed,
@@ -1235,7 +1265,7 @@ export function sanitizeWorldState(candidate: unknown, externalWarnings: string[
     playerFacing,
     playerPosture,
     playerSeatId,
-    playerHeldItem: playerLocation === 'cottage_interior' ? null : playerHeldItem,
+    playerHeldItem: isInteriorLocation ? null : playerHeldItem,
     worldProps,
     residents,
     npcRuntime,
@@ -1262,6 +1292,55 @@ export function sanitizeWorldState(candidate: unknown, externalWarnings: string[
     cottageState,
     dailyActivities,
     neighborGiftsReceived,
+    greenhouseState,
+  };
+}
+
+/**
+ * Defensive sanitizer for the Sunbeam Greenhouse shared growing-corner state (WorldState v7).
+ * Plot invariants: empty pots carry no progress; crops never exceed stage 3; counters never go negative.
+ */
+function sanitizeGreenhouseState(raw: unknown, warnings: string[]): GreenhouseState {
+  const defaults = createInitialGreenhouseState();
+  if (!isRecord(raw)) {
+    return defaults;
+  }
+  const validCropIds = new Set(GREENHOUSE_CROPS.map((c) => c.id));
+  const rawPlots = Array.isArray(raw.plots) ? raw.plots : [];
+  const plots: GreenhousePlotState[] = [];
+  for (let i = 0; i < GREENHOUSE_PLOT_COUNT; i++) {
+    const entry = rawPlots[i];
+    if (!isRecord(entry)) {
+      plots.push(createInitialGreenhousePlot());
+      continue;
+    }
+    const cropId =
+      typeof entry.cropId === 'string' && validCropIds.has(entry.cropId as GreenhouseCropId)
+        ? (entry.cropId as GreenhouseCropId)
+        : null;
+    if (!cropId) {
+      plots.push(createInitialGreenhousePlot());
+      continue;
+    }
+    const stageRaw = Math.floor(asFiniteNumber(entry.stage, 0));
+    const stage = Math.max(0, Math.min(3, stageRaw)) as GreenhouseGrowthStage;
+    const nightsGrown = Math.max(0, Math.floor(asFiniteNumber(entry.nightsGrown, 0)));
+    plots.push({
+      cropId,
+      plantedDay: Math.max(1, Math.floor(asFiniteNumber(entry.plantedDay, 1))),
+      nightsGrown: Math.max(nightsGrown, stage === 3 ? 1 : 0),
+      stage,
+      wateredToday: asBoolean(entry.wateredToday, false),
+    });
+  }
+  if (rawPlots.length !== GREENHOUSE_PLOT_COUNT) {
+    warnings.push('greenhouseState plots repaired to the fixed four-pot shelf');
+  }
+  return {
+    plots,
+    noteReadDay: Math.max(0, Math.floor(asFiniteNumber(raw.noteReadDay, 0))),
+    totalHarvests: Math.max(0, Math.floor(asFiniteNumber(raw.totalHarvests, 0))),
+    totalPlanted: Math.max(0, Math.floor(asFiniteNumber(raw.totalPlanted, 0))),
   };
 }
 
@@ -1637,6 +1716,18 @@ export function migrateV5ToV6(v5Raw: Record<string, unknown>): Record<string, un
   };
 }
 
+/**
+ * Pure sequential v6 -> v7 save upgrader adding Milestone 3 Build 6 fields:
+ * the Sunbeam Greenhouse shared growing-corner state. Existing interior locations are preserved.
+ */
+export function migrateV6ToV7(v6Raw: Record<string, unknown>): Record<string, unknown> {
+  return {
+    ...v6Raw,
+    schemaVersion: 7,
+    greenhouseState: createInitialGreenhouseState(),
+  };
+}
+
 export function migrateWorldState(raw: unknown): MigrationResult {
   const warnings: string[] = [];
   const detected = detectSchemaVersion(raw);
@@ -1675,6 +1766,11 @@ export function migrateWorldState(raw: unknown): MigrationResult {
   if (version === 5) {
     working = migrateV5ToV6(working);
     version = 6;
+  }
+
+  if (version === 6) {
+    working = migrateV6ToV7(working);
+    version = 7;
   }
 
   if (version > CURRENT_SCHEMA_VERSION) {

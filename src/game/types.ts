@@ -26,9 +26,10 @@ export type PropInteractableId =
   | 'greenhouse_planters'
   | 'orchard_harvest'
   | 'orchard_skep'
-  | 'pond_driftwood';
+  | 'pond_driftwood'
+  | 'greenhouse_door';
 
-export type PlayerLocation = 'exterior' | 'cottage_interior';
+export type PlayerLocation = 'exterior' | 'cottage_interior' | 'greenhouse_interior';
 
 export type CottageInteractableId =
   | 'interior_door'
@@ -38,6 +39,38 @@ export type CottageInteractableId =
   | 'cottage_shelf'
   | 'cottage_desk'
   | 'cottage_planter';
+
+export type GreenhouseInteractableId =
+  | 'greenhouse_door'
+  | 'greenhouse_potting'
+  | 'greenhouse_shelf'
+  | 'greenhouse_water'
+  | 'greenhouse_table';
+
+export type GreenhouseCropId = 'chamomile' | 'lavender' | 'thyme';
+
+export type GreenhouseGrowthStage = 0 | 1 | 2 | 3;
+
+export interface GreenhousePlotState {
+  /** Crop currently growing in this pot, or null for an empty pot. */
+  cropId: GreenhouseCropId | null;
+  /** In-game day the seeds were sown (0 when empty). */
+  plantedDay: number;
+  /** Watered in-game nights accumulated toward the next growth stage. */
+  nightsGrown: number;
+  /** 0 freshly sown · 1 sprout · 2 leafy · 3 ready to harvest. */
+  stage: GreenhouseGrowthStage;
+  /** True when watered at the rain barrel today (growth only advances on watered nights). */
+  wateredToday: boolean;
+}
+
+export interface GreenhouseState {
+  plots: GreenhousePlotState[];
+  /** In-game day Mina's planting notes were first read (0 = unread). */
+  noteReadDay: number;
+  totalHarvests: number;
+  totalPlanted: number;
+}
 
 export type PersonalItemCategory =
   | 'flora_ingredient'
@@ -51,6 +84,9 @@ export type PersonalItemId =
   | 'chamomile_blossom'
   | 'lavender_sprig'
   | 'wild_honey'
+  | 'chamomile_seeds'
+  | 'lavender_seeds'
+  | 'thyme_seeds'
   | 'chamomile_pear_tea'
   | 'herb_loaf'
   | 'crabapple_tart'
@@ -534,6 +570,8 @@ export interface NpcRelationAdjustment {
 
 export interface WorldState {
   schemaVersion: number;
+  // Milestone 3 Build 6 — Sunbeam Greenhouse shared growing corner (WorldState v7)
+  greenhouseState: GreenhouseState;
   simSeed: number;
   regionId: string;
   day: number;
@@ -743,7 +781,7 @@ export interface DialogueSession {
 }
 
 export interface InteractiveTarget {
-  kind: 'resident' | 'prop' | 'seat' | 'carryable' | 'cottage_prop';
+  kind: 'resident' | 'prop' | 'seat' | 'carryable' | 'cottage_prop' | 'greenhouse_prop';
   id: string;
   label: string;
   actionLabel: string;
@@ -752,6 +790,7 @@ export interface InteractiveTarget {
   seatId?: string;
   carryableId?: CarryableItemId;
   cottagePropId?: CottageInteractableId;
+  greenhousePropId?: GreenhouseInteractableId;
   /** Set on seated cottage-seat targets when a sipable drink is in the satchel: primary action becomes the sip ritual. */
   sipItemId?: PersonalItemId;
 }

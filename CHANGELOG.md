@@ -18,6 +18,17 @@ All notable changes to **LITTLE SOMEWHERE** are documented in this file.
 ### Tests
 - 8 new suites (126 → **134 passing**): living clock hands, rain/mist/sunlit window states, shaft & mote suppression, curtain sway, winter frost, chimney strength mapping, kettle-steam topic branches + integration, wake lines, journal ritual count, audio room-tone idempotency.
 
+## [0.6.0] — 2026-11-20
+
+### Added — Milestone 3 (Build 6: Visitable Sunbeam Greenhouse & Mina's Growing Life)
+- **Sunbeam Greenhouse Enterable Interior (5 stations)** — the neighborhood's second walkable cutaway diorama: glasshouse shell with timber ribs and pitched glass roof, potting bench with brass-pull seed drawers, west growing shelf with four terracotta pots, rain barrel + hanging copper watering can, and Mina's oak worktable (planting notes, tea, specimen jars). Exterior cedar doorway with hanging lantern and planted sign on the west glass wall (`Step Inside [E]`).
+- **Shared Growing Corner (day-driven, zero-FOMO)** — sow chamomile/lavender/lemon-thyme seed folds into 4 shared pots; watered pots grow one stage per in-game night (soil mound → sprout → leafy → per-crop blooms, with darkened watered soil), unwatered pots simply wait, and winter freezes growth until spring. Harvests yield crop ×2 + one seed fold back (fully seed-sustainable). Growth feeds the existing cottage hearth recipes and giftable economy.
+- **Mina's Planting Notes & Starter Packet** — reading the worktable notes grants a one-time chamomile + thyme starter packet; Mina gains two dialogue topics (`side_mina_greenhouse_corner` offer + state-reactive daily check-in honoring her own building's observable state, incl. winter dormancy).
+- **WorldState v7** — pure `v6 -> v7` migration hydrating `greenhouseState`; interior-aware spawn validation for both interiors; greenhouse-aware day rollover (players who sleep in the greenhouse wake at their entry spot).
+- **Pocket Journal Discoveries** — new `Sunbeam Greenhouse` landmark row tracking the shared corner lifecycle (`Mina's glass corner` → `Shared corner open` → `N pot(s) growing` / `N ready to harvest` → `Resting between sowings`).
+- **UI** — new `GreenhousePanel` sowing/harvest boards with live plot-overview chips and night-progress rows; satchel seeds labeled "For sowing at Sunbeam Greenhouse"; HUD label `Sunbeam Greenhouse` indoors.
+- 26 new/extended test suites (greenhouse engine ×16, greenhouse 3D rig ×5, Mina dialogue gating, journal discovery lifecycle, inventory catalog); totals now **157/157 passing** (on the merged Round-3 baseline), `tsc` 0 errors, production build passing.
+
 ## [0.4.0] — 2026-11-19
 
 ### Added — Milestone 3 (Build 2: Completing Fern Hollow Orchard)

@@ -1,6 +1,6 @@
 import { NEXT_DAY_WAKE_MINUTE, getSeasonForDay } from './time';
 import { rollWeatherForDay } from './environment';
-import { PLAYER_DEFAULT_FACING, PLAYER_SPAWN } from './worldMap';
+import { PLAYER_DEFAULT_FACING, PLAYER_SPAWN, isPointWalkable } from './worldMap';
 import {
   CURRENT_SCHEMA_VERSION,
   MigrationResult,
@@ -19,6 +19,12 @@ import {
   createInitialCottageState,
   createInitialDailyActivities,
 } from './cottage';
+import {
+  GREENHOUSE_PORCH_EXIT_FACING,
+  GREENHOUSE_PORCH_EXIT_POS,
+  advanceGreenhouseNightlyGrowthInPlace,
+  createInitialGreenhouseState,
+} from './greenhouse';
 import { WorldState } from './types';
 
 export const STORAGE_KEY = 'little_somewhere_world_v1';
@@ -40,7 +46,7 @@ export function deserializeWorldState(rawJson: string): MigrationResult {
     return {
       state: createDefaultWorldState(),
       migratedFromVersion: null,
-      warnings: ['corrupt JSON payload; created fresh WorldState v6'],
+      warnings: ['corrupt JSON payload; created fresh WorldState v7'],
     };
   }
 }
@@ -347,6 +353,23 @@ export function computeWorldSaveRevision(state: WorldState): string {
   pushNum(ng.length);
   for (let i = 0; i < ng.length; i++) pushStr(ng[i]);
 
+  // Milestone 3 Build 6 — Sunbeam Greenhouse shared growing corner (WorldState v7)
+  const gh = state.greenhouseState;
+  if (gh) {
+    pushNum(gh.noteReadDay);
+    pushNum(gh.totalHarvests);
+    pushNum(gh.totalPlanted);
+    pushNum(gh.plots.length);
+    for (let i = 0; i < gh.plots.length; i++) {
+      const plot = gh.plots[i];
+      pushStr(plot.cropId ?? '');
+      pushNum(plot.plantedDay);
+      pushNum(plot.nightsGrown);
+      pushNum(plot.stage);
+      pushBool(plot.wateredToday);
+    }
+  }
+
   return `${h1.toString(36)}-${h2.toString(36)}`;
 }
 
@@ -404,20 +427,49 @@ export function advanceToNextDay(state: WorldState): WorldState {
   const nextDay = state.day + 1;
   const nextNpcMemories = cloneNpcMemories(state.npcMemories);
   pruneExpiredNpcMemoriesInPlace(nextNpcMemories, nextDay);
+  const nextSeason = getSeasonForDay(nextDay).season;
   const wokeInsideCottage = state.playerLocation === 'cottage_interior';
+  const wokeInsideGreenhouse = state.playerLocation === 'greenhouse_interior';
   const prevCottage = state.cottageState ?? createInitialCottageState();
+  const prevGreenhouse = state.greenhouseState ?? createInitialGreenhouseState();
+
+  // Sunbeam Greenhouse nightly growth (M3 Build 6): watered pots advance one stage-step;
+  // unwatered pots simply wait, and winter freezes all growth until spring. Nothing withers.
+  const nextGreenhouseState = advanceGreenhouseNightlyGrowthInPlace(
+    {
+      ...prevGreenhouse,
+      plots: prevGreenhouse.plots.map((p) => ({ ...p })),
+    },
+    nextSeason,
+  );
+
+  const greenhouseExitPos =
+    state.exteriorPlayerPos ?? GREENHOUSE_PORCH_EXIT_POS;
+  const safeGreenhouseExit = isPointWalkable(greenhouseExitPos.x, greenhouseExitPos.z, 0.48)
+    ? greenhouseExitPos
+    : { ...GREENHOUSE_PORCH_EXIT_POS };
 
   return {
     ...state,
     day: nextDay,
     minuteOfDay: NEXT_DAY_WAKE_MINUTE, // 8:00 AM
-    season: getSeasonForDay(nextDay).season,
+    season: nextSeason,
     weather: rollWeatherForDay(state.simSeed, nextDay),
     playerLocation: wokeInsideCottage ? 'cottage_interior' : 'exterior',
-    playerPos: wokeInsideCottage ? { ...COTTAGE_WAKE_SPAWN } : { ...PLAYER_SPAWN },
-    playerFacing: wokeInsideCottage ? COTTAGE_WAKE_FACING : PLAYER_DEFAULT_FACING,
-    exteriorPlayerPos: { ...PLAYER_SPAWN },
-    exteriorPlayerFacing: PLAYER_DEFAULT_FACING,
+    playerPos: wokeInsideCottage
+      ? { ...COTTAGE_WAKE_SPAWN }
+      : wokeInsideGreenhouse
+      ? safeGreenhouseExit
+      : { ...PLAYER_SPAWN },
+    playerFacing: wokeInsideCottage
+      ? COTTAGE_WAKE_FACING
+      : wokeInsideGreenhouse
+      ? GREENHOUSE_PORCH_EXIT_FACING
+      : PLAYER_DEFAULT_FACING,
+    exteriorPlayerPos: wokeInsideGreenhouse ? safeGreenhouseExit : { ...PLAYER_SPAWN },
+    exteriorPlayerFacing: wokeInsideGreenhouse
+      ? GREENHOUSE_PORCH_EXIT_FACING
+      : PLAYER_DEFAULT_FACING,
     playerPosture: 'standing',
     playerSeatId: null,
     worldProps: nextWorldProps,
@@ -434,5 +486,6 @@ export function advanceToNextDay(state: WorldState): WorldState {
       cottageRestCount: prevCottage.cottageRestCount + (wokeInsideCottage ? 1 : 0),
     },
     dailyActivities: createInitialDailyActivities(),
+    greenhouseState: nextGreenhouseState,
   };
 }

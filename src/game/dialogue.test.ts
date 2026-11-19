@@ -1220,3 +1220,78 @@ test('Pass 12: the morning wake line names the weather you wake into (plus winte
     assert.ok(line.length < 140, 'Wake lines stay toast-sized');
   }
 });
+
+test('Milestone 3 Build 6: Mina greenhouse topics gate on the shared-corner side flags and react to plot state', () => {
+  const base = createFreshWorldState();
+  const cornerTopic = DIALOGUE_TOPICS.find((t) => t.id === 'side_mina_greenhouse_corner')!;
+  const checkinTopic = DIALOGUE_TOPICS.find((t) => t.id === 'daily_mina_greenhouse_checkin')!;
+
+  // Intro topic offered once the resident is met and before anything is planted
+  const unmet = { ...base, residents: { ...base.residents, mina: { ...base.residents.mina, met: false } } };
+  assert.equal(
+    evaluateDialogueCondition(cornerTopic.condition, 'mina', unmet, 'morning', cornerTopic.id),
+    false,
+    'Corner topic requires the resident to be met',
+  );
+  const metBase: WorldState = {
+    ...base,
+    residents: { ...base.residents, mina: { ...base.residents.mina, met: true } },
+  };
+  assert.equal(
+    evaluateDialogueCondition(cornerTopic.condition, 'mina', metBase, 'morning', cornerTopic.id),
+    true,
+  );
+
+  // Intro disappears once the shared corner is adopted; check-in takes over
+  const plantedWorld: WorldState = {
+    ...metBase,
+    sideFlags: { ...metBase.sideFlags, greenhousePlanted: true },
+  };
+  assert.equal(
+    evaluateDialogueCondition(cornerTopic.condition, 'mina', plantedWorld, 'morning', cornerTopic.id),
+    false,
+  );
+  assert.equal(
+    evaluateDialogueCondition(checkinTopic.condition, 'mina', plantedWorld, 'morning', checkinTopic.id),
+    true,
+  );
+
+  // Knowledge boundary: without greenhousePlanted, Mina never runs the check-in topic
+  assert.equal(
+    evaluateDialogueCondition(checkinTopic.condition, 'mina', base, 'morning', checkinTopic.id),
+    false,
+  );
+
+  // Check-in build reacts to ready/thirsty/winter states without leaking cottage-only events
+  const readyWorld: WorldState = {
+    ...plantedWorld,
+    greenhouseState: {
+      ...plantedWorld.greenhouseState,
+      plots: plantedWorld.greenhouseState.plots.map((p, i) =>
+        i === 0 ? { cropId: 'thyme', plantedDay: 1, nightsGrown: 3, stage: 3, wateredToday: false } : p,
+      ),
+    },
+  };
+  const builtReady = checkinTopic.build('mina', readyWorld, 'morning');
+  assert.ok(builtReady.nodes.root.text.includes('ready'));
+
+  const thirstyWorld: WorldState = {
+    ...plantedWorld,
+    greenhouseState: {
+      ...plantedWorld.greenhouseState,
+      plots: plantedWorld.greenhouseState.plots.map((p, i) =>
+        i === 0 ? { cropId: 'chamomile', plantedDay: 1, nightsGrown: 1, stage: 1, wateredToday: false } : p,
+      ),
+    },
+  };
+  const builtThirsty = checkinTopic.build('mina', thirstyWorld, 'morning');
+  assert.ok(builtThirsty.nodes.root.text.includes('thirsty'));
+
+  const winterWorld: WorldState = { ...plantedWorld, season: 'winter' as const };
+  const builtWinter = checkinTopic.build('mina', winterWorld, 'morning');
+  assert.ok(builtWinter.nodes.root.text.includes('resting safe until spring'));
+
+  // The topic graphs link cleanly (covered by the global link test, but assert roots exist)
+  assert.ok(builtReady.nodes[builtReady.rootId]);
+  assert.ok(builtThirsty.nodes[builtThirsty.rootId]);
+});

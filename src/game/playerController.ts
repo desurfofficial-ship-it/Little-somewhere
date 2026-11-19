@@ -14,6 +14,11 @@ import {
   selectBestInteriorTarget,
 } from './cottage';
 import {
+  isGreenhouseInteriorWalkable,
+  resolveGreenhouseInteriorMovement,
+  selectBestGreenhouseTarget,
+} from './greenhouse';
+import {
   PROP_INTERACTABLES,
   SEAT_SPOTS,
   computeFacingAlignment,
@@ -188,7 +193,7 @@ export function stepPlayerMovement(input: StepPlayerMovementInput): StepPlayerMo
   }
 
   const activeLocomotionInput = hasMoveInput && !input.interactionActive;
-  const isInterior = input.location === 'cottage_interior';
+  const isInterior = input.location === 'cottage_interior' || input.location === 'greenhouse_interior';
   // Carrying items trims top sprint pace slightly for cozy physical believability;
   // the small cottage room also caps sprinting so approach points never get overshot.
   const rawDesiredSpeed = resolveDesiredSpeed(
@@ -227,9 +232,11 @@ export function stepPlayerMovement(input: StepPlayerMovementInput): StepPlayerMo
     x: pos.x + vx * dt,
     z: pos.z + vz * dt,
   };
-  const resolvedPos = isInterior
-    ? resolveInteriorMovement(pos, nextPosCandidate, 0.42)
-    : resolveMovement(pos, nextPosCandidate, 0.48);
+  const resolvedPos = !isInterior
+    ? resolveMovement(pos, nextPosCandidate, 0.48)
+    : input.location === 'greenhouse_interior'
+    ? resolveGreenhouseInteriorMovement(pos, nextPosCandidate, 0.42)
+    : resolveInteriorMovement(pos, nextPosCandidate, 0.42);
 
   // Measure actual traveled velocity after sliding collision (damps into wall cleanly without sticky rebound)
   const actualVx = (resolvedPos.x - pos.x) / dt;
@@ -346,6 +353,11 @@ export function selectBestInteractiveTarget(
     return selectBestInteriorTarget(world);
   }
 
+  if (world.playerLocation === 'greenhouse_interior') {
+    // M3 Build 6: Sunbeam Greenhouse stations (no indoor seats — residents never enter interiors).
+    return selectBestGreenhouseTarget(world);
+  }
+
   if (world.playerPosture === 'sitting') {
     const seat = resolveAnySeatById(world.playerSeatId);
     return {
@@ -426,6 +438,8 @@ export function selectBestInteractiveTarget(
           ? 'Ring Bell'
           : prop.id === 'player_door'
           ? 'Enter Cottage'
+          : prop.id === 'greenhouse_door'
+          ? 'Step Inside'
           : prop.id === 'cottage_window_box' ||
             prop.id === 'greenhouse_planters' ||
             prop.id === 'orchard_harvest' ||

@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { Gift, PackageOpen, Sparkles, X } from 'lucide-react';
+import { Gift, PackageOpen, Sparkles, Sprout, X } from 'lucide-react';
 import {
   PERSONAL_ITEMS,
   PERSONAL_ITEM_CATEGORY_LABELS,
@@ -185,6 +185,11 @@ export const InventoryDrawer: React.FC<InventoryDrawerProps> = ({
                             <span>
                               {isDisplayedOnShelf ? 'On your cottage shelf' : 'Cottage shelf keepsake'}
                             </span>
+                          </>
+                        ) : !def.giftable ? (
+                          <>
+                            <Sprout className="w-3.5 h-3.5 text-[#5E8062] shrink-0" />
+                            <span>For sowing at Sunbeam Greenhouse</span>
                           </>
                         ) : (
                           <>

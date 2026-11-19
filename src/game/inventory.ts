@@ -57,6 +57,29 @@ export const PERSONAL_ITEMS: readonly PersonalItemDef[] = [
     giftable: true,
   },
 
+  // Seeds for the Sunbeam Greenhouse shared pots (sown, never gifted)
+  {
+    id: 'chamomile_seeds',
+    label: 'Chamomile Seeds',
+    category: 'flora_ingredient',
+    description: 'A paper fold of chamomile seeds from Mina’s seed drawers — ready for a sunny pot.',
+    giftable: false,
+  },
+  {
+    id: 'lavender_seeds',
+    label: 'Lavender Seeds',
+    category: 'flora_ingredient',
+    description: 'Fine violet-tinged seeds tucked in linen, waiting for a warm glasshouse corner.',
+    giftable: false,
+  },
+  {
+    id: 'thyme_seeds',
+    label: 'Lemon Thyme Seeds',
+    category: 'flora_ingredient',
+    description: 'Tiny aromatic seeds for a patient pot of kitchen thyme.',
+    giftable: false,
+  },
+
   // Baked & Brewed at Cottage Hearth
   {
     id: 'chamomile_pear_tea',

@@ -17,6 +17,7 @@ import {
   DialogueChoice,
   DialogueSession,
   GameScreenState,
+  GreenhouseInteractableId,
   InteractiveTarget,
   PersonalItemId,
   PlayerLocation,
@@ -50,8 +51,12 @@ import {
   cookRecipeAction,
   enterCottageAction,
   exitCottageAction,
+  enterGreenhouseAction,
+  exitGreenhouseAction,
   giveInventoryItemAction,
+  harvestPlotAction,
   interactWithCottageProp,
+  interactWithGreenhouseProp,
   interactWithProp,
   markResidentMet,
   performFountainWishAction,
@@ -61,9 +66,11 @@ import {
   pickupWorldPropAction,
   placeFlowerInVaseAction,
   placeWorldPropAction,
+  plantSeedAtPlotAction,
   toggleDisplayedKeepsakeAction,
   togglePlayerSitAction,
   sipBeverageAtTableAction,
+  waterGreenhousePlotsAction,
 } from './game/actions';
 import { interruptSocialEncounter } from './game/simulation';
 import { getLandmarkAt, getPropInteractionMetrics } from './game/worldMap';
@@ -81,6 +88,7 @@ import { DialogueSheet } from './components/DialogueSheet';
 import { JournalDrawer } from './components/JournalDrawer';
 import { CottageStationMode, InventoryDrawer } from './components/InventoryDrawer';
 import { CottageStationModal } from './components/CottageStationModal';
+import { GreenhousePanel, GreenhousePanelMode } from './components/GreenhousePanel';
 import { PauseModal } from './components/PauseModal';
 
 const getSaveStamp = computeWorldSaveRevision;
@@ -119,6 +127,7 @@ export default function App() {
   const [journalOpen, setJournalOpen] = useState<boolean>(false);
   const [inventoryOpen, setInventoryOpen] = useState<boolean>(false);
   const [cottageStationMode, setCottageStationMode] = useState<CottageStationMode | null>(null);
+  const [greenhousePanelMode, setGreenhousePanelMode] = useState<GreenhousePanelMode | null>(null);
   const [muted, setMuted] = useState<boolean>(false);
   const [bellRingCounter, setBellRingCounter] = useState<number>(0);
   const [fountainWishCounter, setFountainWishCounter] = useState<number>(0);
@@ -238,6 +247,7 @@ export default function App() {
     setJournalOpen(false);
     setInventoryOpen(false);
     setCottageStationMode(null);
+    setGreenhousePanelMode(null);
     setIntroTipDismissed(false);
     if (document.activeElement instanceof HTMLElement) {
       document.activeElement.blur();
@@ -353,11 +363,55 @@ export default function App() {
         setDialogueSession(null);
         setActivePropId(null);
         setPropCard(res);
+      } else if (target.kind === 'greenhouse_prop') {
+        const gid = target.greenhousePropId ?? (target.id as GreenhouseInteractableId);
+        const res = interactWithGreenhouseProp(current, gid);
+        if (res.actionType === 'exit_greenhouse') {
+          playSceneVeil(() => {
+            commitWorld(res.nextWorld);
+            cozyAudio.playUiTap(0.98);
+            showToast('Stepped out beside Sunbeam Greenhouse.');
+          });
+          return;
+        }
+        if (res.actionType === 'greenhouse_planting_panel') {
+          cozyAudio.playUiTap(1.06);
+          setDialogueSession(null);
+          setPropCard(null);
+          setGreenhousePanelMode('planting');
+          return;
+        }
+        if (res.actionType === 'greenhouse_harvest_panel') {
+          cozyAudio.playUiTap(1.06);
+          setDialogueSession(null);
+          setPropCard(null);
+          setGreenhousePanelMode('harvest');
+          return;
+        }
+        if (res.nextWorld !== current) {
+          commitWorld(res.nextWorld);
+        }
+        triggerPlayerPulse('interact', target.worldPos);
+        cozyAudio.playUiTap(1.04);
+        setDialogueSession(null);
+        setActivePropId(null);
+        setPropCard(res);
       } else {
         const pid = target.id as PropInteractableId;
         if (pid === 'player_door') {
           playSceneVeil(() => {
             const enteredNow = enterCottageAction(worldRef.current);
+            commitWorld(enteredNow.nextWorld);
+            cozyAudio.playUiTap(1.06);
+            if (enteredNow.toast) {
+              showToast(enteredNow.toast);
+            }
+          });
+          return;
+        }
+        if (pid === 'greenhouse_door') {
+          playSceneVeil(() => {
+            const enteredNow = enterGreenhouseAction(worldRef.current);
             commitWorld(enteredNow.nextWorld);
             cozyAudio.playUiTap(1.06);
             if (enteredNow.toast) {
@@ -499,6 +553,61 @@ export default function App() {
     [commitWorld, showToast, triggerPlayerPulse, playSceneVeil],
   );
 
+  // M3 Build 6 — Sunbeam Greenhouse shared growing-corner handlers
+  const handlePlantSeed = useCallback(
+    (seedItemId: 'chamomile_seeds' | 'lavender_seeds' | 'thyme_seeds', plotIndex: number) => {
+      const res = plantSeedAtPlotAction(worldRef.current, seedItemId, plotIndex);
+      if (res.ok) {
+        commitWorld(res.nextWorld);
+        triggerPlayerPulse('interact');
+        if (res.memoryUnlockedTitle) {
+          cozyAudio.playMemoryChime();
+        } else {
+          cozyAudio.playArrangePop();
+        }
+      } else {
+        cozyAudio.playUiTap(0.9);
+      }
+      if (res.toast) {
+        showToast(res.toast);
+      }
+    },
+    [commitWorld, showToast, triggerPlayerPulse],
+  );
+
+  const handleHarvestPlot = useCallback(
+    (plotIndex: number) => {
+      const res = harvestPlotAction(worldRef.current, plotIndex);
+      if (res.ok) {
+        commitWorld(res.nextWorld);
+        triggerPlayerPulse('interact');
+        if (res.memoryUnlockedTitle) {
+          cozyAudio.playMemoryChime();
+        } else {
+          cozyAudio.playUiTap(1.14);
+        }
+      } else {
+        cozyAudio.playUiTap(0.9);
+      }
+      if (res.toast) {
+        showToast(res.toast);
+      }
+    },
+    [commitWorld, showToast, triggerPlayerPulse],
+  );
+
+  const handleWaterAll = useCallback(() => {
+    const res = waterGreenhousePlotsAction(worldRef.current);
+    if (res.nextWorld !== worldRef.current) {
+      commitWorld(res.nextWorld);
+      triggerPlayerPulse('interact');
+      cozyAudio.playWaterSplash();
+    } else {
+      cozyAudio.playUiTap(0.9);
+    }
+    showToast(res.body);
+  }, [commitWorld, showToast, triggerPlayerPulse]);
+
   const handlePropAction = useCallback(
     (actionType: NonNullable<PropInteractionResult['actionType']>) => {
       if (actionType === 'rest_next_day') {
@@ -547,6 +656,32 @@ export default function App() {
         setActivePropId(null);
         setPropCard(null);
         setCottageStationMode('shelf');
+      } else if (actionType === 'enter_greenhouse') {
+        playSceneVeil(() => {
+          const entered = enterGreenhouseAction(worldRef.current);
+          commitWorld(entered.nextWorld);
+          setActivePropId(null);
+          setPropCard(null);
+          cozyAudio.playUiTap(1.06);
+          showToast(entered.toast);
+        });
+      } else if (actionType === 'exit_greenhouse') {
+        playSceneVeil(() => {
+          const exited = exitGreenhouseAction(worldRef.current);
+          commitWorld(exited.nextWorld);
+          setActivePropId(null);
+          setPropCard(null);
+          cozyAudio.playUiTap(0.98);
+          showToast(exited.toast);
+        });
+      } else if (actionType === 'greenhouse_planting_panel') {
+        setActivePropId(null);
+        setPropCard(null);
+        setGreenhousePanelMode('planting');
+      } else if (actionType === 'greenhouse_harvest_panel') {
+        setActivePropId(null);
+        setPropCard(null);
+        setGreenhousePanelMode('harvest');
       } else if (actionType === 'ring_bell') {
         const res = performRingBellAction(worldRef.current);
         commitWorld(res.nextWorld);
@@ -631,6 +766,10 @@ export default function App() {
           setCottageStationMode(null);
           return;
         }
+        if (greenhousePanelMode) {
+          setGreenhousePanelMode(null);
+          return;
+        }
         if (inventoryOpen) {
           setInventoryOpen(false);
           return;
@@ -649,6 +788,7 @@ export default function App() {
         e.preventDefault();
         setInventoryOpen(false);
         setCottageStationMode(null);
+        setGreenhousePanelMode(null);
         setJournalOpen((o) => !o);
         return;
       }
@@ -657,6 +797,7 @@ export default function App() {
         e.preventDefault();
         setJournalOpen(false);
         setCottageStationMode(null);
+        setGreenhousePanelMode(null);
         setInventoryOpen((o) => !o);
         return;
       }
@@ -668,7 +809,8 @@ export default function App() {
         !propCard &&
         !journalOpen &&
         !inventoryOpen &&
-        !cottageStationMode
+        !cottageStationMode &&
+        !greenhousePanelMode
       ) {
         e.preventDefault();
         openTargetInteraction(nearestTarget);
@@ -682,7 +824,8 @@ export default function App() {
         !propCard &&
         !journalOpen &&
         !inventoryOpen &&
-        !cottageStationMode
+        !cottageStationMode &&
+        !greenhousePanelMode
       ) {
         e.preventDefault();
         handlePlaceHeldItem();
@@ -694,6 +837,7 @@ export default function App() {
   }, [
     cottageStationMode,
     dialogueSession,
+    greenhousePanelMode,
     handlePlaceHeldItem,
     handleStartGame,
     handleToggleMute,
@@ -787,10 +931,20 @@ export default function App() {
       ? 'Golden Hour'
       : 'Lantern Dusk';
   const landmark = getLandmarkAt(playerPos);
-  const isIndoors = playerLocation === 'cottage_interior';
-  const locationLabel = isIndoors ? 'Willow Step Cottage' : landmark.name;
+  const isIndoors = playerLocation !== 'exterior';
+  const locationLabel =
+    playerLocation === 'cottage_interior'
+      ? 'Willow Step Cottage'
+      : playerLocation === 'greenhouse_interior'
+      ? 'Sunbeam Greenhouse'
+      : landmark.name;
   const isSheetOpen = Boolean(dialogueSession || propCard);
-  const anyModalOpen = isSheetOpen || journalOpen || inventoryOpen || Boolean(cottageStationMode);
+  const anyModalOpen =
+    isSheetOpen ||
+    journalOpen ||
+    inventoryOpen ||
+    Boolean(cottageStationMode) ||
+    Boolean(greenhousePanelMode);
 
   return (
     <main className="relative w-full h-full overflow-hidden">
@@ -865,6 +1019,7 @@ export default function App() {
                   cozyAudio.playUiTap(1.05);
                   setJournalOpen(false);
                   setCottageStationMode(null);
+                  setGreenhousePanelMode(null);
                   setInventoryOpen(true);
                 }}
                 aria-label="Open Satchel"
@@ -881,6 +1036,7 @@ export default function App() {
                   cozyAudio.playUiTap(1.05);
                   setInventoryOpen(false);
                   setCottageStationMode(null);
+                  setGreenhousePanelMode(null);
                   setJournalOpen(true);
                 }}
                 aria-label="Open Pocket Journal"
@@ -1062,6 +1218,16 @@ export default function App() {
         onToggleKeepsake={handleToggleKeepsake}
       />
 
+      {/* Sunbeam Greenhouse Station Panels (M3 Build 6) */}
+      <GreenhousePanel
+        mode={greenhousePanelMode}
+        world={worldSnapshot}
+        onClose={() => setGreenhousePanelMode(null)}
+        onPlantSeed={handlePlantSeed}
+        onHarvestPlot={handleHarvestPlot}
+        onWaterAll={handleWaterAll}
+      />
+
       {/* Pocket Journal Drawer */}
       <JournalDrawer
         open={journalOpen}
@@ -1092,6 +1258,7 @@ export default function App() {
           setJournalOpen(false);
           setInventoryOpen(false);
           setCottageStationMode(null);
+          setGreenhousePanelMode(null);
           setScreenState('title');
         }}
       />
