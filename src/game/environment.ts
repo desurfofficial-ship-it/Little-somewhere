@@ -223,9 +223,9 @@ export function composeEnvironmentState(
       : 3;
 
   const revision =
-    (world.day & 1023) * 1048576 +
-    (seasonIdx << 18) +
-    (weatherIdx << 16) +
+    (world.day & 1023) * 2097152 +
+    (seasonIdx << 19) +
+    (weatherIdx << 17) +
     staticFlagsMask;
 
   return {

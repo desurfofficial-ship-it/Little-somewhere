@@ -88,3 +88,32 @@
    - Fix `JournalDrawer.tsx:92` tab bar responsiveness on `390px` (`flex-wrap` or compact mobile padding/labels so all 3 tabs remain visible and clickable).
    - Replace `{metCount}/9` with `{metCount}/{RESIDENT_ORDER.length}` in `PauseModal.tsx:43`.
 2. **Proceed Immediately After Wave 0 to Milestone 2B** as specified in `docs/audits/08-milestone-2b-readiness.md`.
+
+---
+
+## 5. Wave 0 Addendum — Resolution & Environmental Scope Classification (2026-11-18)
+
+### Wave 0 Verification Summary
+All Wave 0A defects (`M2A-1` through `M2A-4`) and Wave 0B save-reliability issues (`getSaveStamp` coverage and `saveWorldState()` normalization) have been resolved and verified:
+- **Verified**: `npm test` passes **32/32** tests (`src/game/*.test.ts` + `src/scene/*.test.ts`), `npm run lint` passes with `0` errors, `npm run build` builds cleanly.
+- **Verified in Headless Chromium (`1440×900` & `390×844`, `0` console errors / `0` console warnings)**:
+  - Frame 0 renders Day 14 Summer Golden Hour + restored fountain water and Day 24 Autumn Light Rain Dusk immediately upon mount.
+  - Fountain stone basin shows recessed dry bed (`y = 0.525`) before restoration and shimmering water (`y = 0.65`) inside the coping rim once restored.
+  - Mobile (`390×844`) `JournalDrawer` displays all 3 tabs cleanly (`grid-cols-3`, `dialogOverflowX: false`, zero clipping), and `+2h` in `World & Time` advances time & saves cleanly.
+  - `TitleOverlay` copy removes hardcoded `"nine"` limit; `PauseModal` displays `{metCount}/{RESIDENT_ORDER.length}`.
+  - `computeWorldSaveRevision` tracks full `WorldState` (`npcRuntime`, `flags`, `residents`, relations, mailbox, daily letters, capped `worldEvents`), `saveWorldState()` serializes via `sanitizeWorldState()`, and untouched initial Title state performs zero writes on `pagehide`.
+
+### Explicit Classification of Remaining Environmental Items
+To keep Milestone 2B and Milestone 3 scoping unambiguous, the 6 environmental items noted in Gap `M2A-5` are formally classified below:
+
+| Item | Classification | Current State & Next Owner |
+| :--- | :--- | :--- |
+| **`puddlesActive`** (`src/game/environment.ts:154`) | **Missing visual integration** | Computed cleanly in `composeEnvironmentState()`; no puddle decal/cobble-sheen mesh hookup in `environmentRenderer.ts` yet. Target: Future visual polish / Milestone 2B–3. |
+| **`claraPastryBasketVisible`** (`src/game/environment.ts:175`) | **Missing visual integration** | Computed cleanly in `composeEnvironmentState()`; Hearth & Crumb Bakery renders static window loaves rather than a toggleable outdoor basket mesh. Target: Future visual polish / Milestone 2B–3. |
+| **`minaGreenhouseStage`** (`src/game/environment.ts:178`) | **Missing visual integration** *(HUD text already wired)* | Surfaced numerically in `JournalDrawer.tsx` (`Stage 1..3/3`), not yet driving 3D greenhouse planter stages in `environmentRenderer.ts`. Target: Future visual polish / Milestone 2B–3. |
+| **`arthurEarlyPorchLamp`** (`src/game/environment.ts:188`) | **Missing visual integration** | Computed cleanly in `composeEnvironmentState()`; Copperwheel Cottage porch lamp currently shares townwide lantern/window emissive curves. Target: Future visual polish / Milestone 2B–3. |
+| **Hero courtyard tree seasonal tinting** (`src/scene/prototypes/willowLaneDiorama.ts`) | **Missing visual integration** | `EnvironmentVisualController` tints `groundMat` and `InstancedMesh` perimeter grove (`groveRig`), whereas courtyard hero tree materials use static `palette.standard(...)` spring greens. Target: Future visual polish / Milestone 2B–3. |
+| **Calm autumn/winter particle behavior** (`src/scene/environmentRenderer.ts:308-310`) | **Deferred feature** | Autumn amber leaf and winter snow tints exist (`petalMat`), intentionally gated to `'breezy'` weather so calm `'sunlit'` autumn/winter days stay clear (`showPetals`). Expanding calm-day drift density/cadence is deferred to Milestone 2B/3 polish. |
+
+**Updated Milestone 2A Status**: **Verified & Milestone 2B Ready**.
+

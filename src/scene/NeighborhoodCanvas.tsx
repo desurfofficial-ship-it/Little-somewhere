@@ -673,6 +673,121 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
 
     let prevBellCountLocal = bellRingCounter;
 
+    function syncVisualAndHud(
+      world: WorldState,
+      elapsed: number,
+      dt: number,
+    ): void {
+      // Five-layer environment composition & dirty-flagged GPU/scene visual controller
+      const composed = composeEnvironmentState(world);
+      envController.update(composed, world, world.playerPos, elapsed, dt);
+      updateWillowPrototypeMotion(willowCottage, willowCourtyard, elapsed);
+
+      // Update chime sparkle particles
+      for (const p of chimeParticles) {
+        if (p.life > 0) {
+          p.life -= dt * 0.9;
+          p.mesh.position.addScaledVector(p.vel, dt);
+          p.mesh.rotation.y += dt * 4;
+          p.mesh.scale.setScalar(Math.max(0.01, p.life));
+          if (p.life <= 0) p.mesh.visible = false;
+        }
+      }
+
+      // Project persistent NPC runtime state onto 3D resident rigs & find nearest target
+      let nearestTarget: InteractiveTarget | null = null;
+      let nearestDist = 2.95;
+
+      for (let i = 0; i < RESIDENT_ORDER.length; i++) {
+        const id = RESIDENT_ORDER[i];
+        const rig = residentRigs[id];
+        const rt = world.npcRuntime[id];
+        rig.root.position.set(rt.position.x, 0, rt.position.z);
+        rig.root.rotation.y = rt.facing;
+
+        animateCharacterRig(rig, rt.animState, rt.walkPhase, elapsed, dt, i * 0.7);
+
+        // Quest cue diamond
+        const cue = getResidentAvailableQuestCue(id, world);
+        rig.questPip.visible = cue !== 'none';
+        if (rig.questPip.visible) {
+          rig.questPip.rotation.y = elapsed * 2.0;
+          rig.questPip.position.y =
+            (2.05 + Math.sin(elapsed * 3.2) * 0.08) * RESIDENTS[id].appearance.heightScale;
+        }
+
+        const pDist = distance2D(world.playerPos, rt.position);
+        rig.ringMesh.visible = pDist < 2.95;
+        if (pDist < nearestDist) {
+          nearestDist = pDist;
+          nearestTarget = {
+            kind: 'resident',
+            id,
+            label: RESIDENTS[id].name,
+            actionLabel: `Talk to ${RESIDENTS[id].name}`,
+            distance: pDist,
+            worldPos: { x: rt.position.x, z: rt.position.z },
+          };
+        }
+      }
+
+      // Check proximity to interactive neighborhood props
+      for (const prop of PROP_INTERACTABLES) {
+        const dProp = distance2D(world.playerPos, { x: prop.x, z: prop.z });
+        if (dProp <= prop.interactRadius && dProp < nearestDist) {
+          nearestDist = dProp;
+          nearestTarget = {
+            kind: 'prop',
+            id: prop.id,
+            label: prop.name,
+            actionLabel:
+              prop.id === 'player_door'
+                ? 'Porch / Rest'
+                : prop.id === 'gazebo_bell' && composed.playerChanges.bellGleaming
+                ? 'Ring Gazebo Bell'
+                : `Inspect ${prop.name}`,
+            distance: dProp,
+            worldPos: { x: prop.x, z: prop.z },
+          };
+        }
+      }
+
+      // Edge-gated throttled HUD sync
+      hudSyncAccum += dt;
+      const minuteInt = Math.floor(world.minuteOfDay);
+      const nearestKey = nearestTarget ? `${nearestTarget.kind}:${nearestTarget.id}` : null;
+      const movedDist = Number.isNaN(lastSyncedX)
+        ? 999
+        : Math.hypot(world.playerPos.x - lastSyncedX, world.playerPos.z - lastSyncedZ);
+      const edgeTriggered =
+        !hasSyncedInitialHud ||
+        nearestKey !== lastNearestId ||
+        composed.weather.effective !== lastSyncedWeather ||
+        composed.season.season !== lastSyncedSeason;
+
+      if (
+        edgeTriggered ||
+        (hudSyncAccum >= 0.18 && (minuteInt !== lastSyncedMinuteInt || movedDist > 0.15))
+      ) {
+        hasSyncedInitialHud = true;
+        hudSyncAccum = 0;
+        lastNearestId = nearestKey;
+        lastSyncedMinuteInt = minuteInt;
+        lastSyncedX = world.playerPos.x;
+        lastSyncedZ = world.playerPos.z;
+        lastSyncedWeather = composed.weather.effective;
+        lastSyncedSeason = composed.season.season;
+        onHudSyncRef.current({
+          minuteOfDay: world.minuteOfDay,
+          playerPos: { ...world.playerPos },
+          playerFacing: world.playerFacing,
+          nearestTarget,
+          weather: composed.weather.effective,
+          season: composed.season.season,
+        });
+      }
+    }
+
     function tick() {
       if (disposed) return;
       timer.update();
@@ -696,22 +811,6 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
       const phase = getTimePhase(world.minuteOfDay);
       if (phase !== prevPhase) {
         prevPhase = phase;
-      }
-
-      // Five-layer environment composition & dirty-flagged GPU/scene visual controller
-      const composed = composeEnvironmentState(world);
-      envController.update(composed, world, world.playerPos, elapsed, dt);
-      updateWillowPrototypeMotion(willowCottage, willowCourtyard, elapsed);
-
-      // Update chime sparkle particles
-      for (const p of chimeParticles) {
-        if (p.life > 0) {
-          p.life -= dt * 0.9;
-          p.mesh.position.addScaledVector(p.vel, dt);
-          p.mesh.rotation.y += dt * 4;
-          p.mesh.scale.setScalar(Math.max(0.01, p.life));
-          if (p.life <= 0) p.mesh.visible = false;
-        }
       }
 
       // Player Movement (when playing and not in dialogue)
@@ -785,7 +884,12 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
           cozyAudio.playFootstep();
         }
       } else {
-        playerWalkPhase = THREE.MathUtils.damp(playerWalkPhase, Math.round(playerWalkPhase / Math.PI) * Math.PI, 8, dt);
+        playerWalkPhase = THREE.MathUtils.damp(
+          playerWalkPhase,
+          Math.round(playerWalkPhase / Math.PI) * Math.PI,
+          8,
+          dt,
+        );
       }
 
       // Update tap destination ring
@@ -810,62 +914,8 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
         0,
       );
 
-      // Project persistent NPC runtime state onto 3D resident rigs
-      let nearestTarget: InteractiveTarget | null = null;
-      let nearestDist = 2.95;
-
-      for (let i = 0; i < RESIDENT_ORDER.length; i++) {
-        const id = RESIDENT_ORDER[i];
-        const rig = residentRigs[id];
-        const rt = world.npcRuntime[id];
-        rig.root.position.set(rt.position.x, 0, rt.position.z);
-        rig.root.rotation.y = rt.facing;
-
-        animateCharacterRig(rig, rt.animState, rt.walkPhase, elapsed, dt, i * 0.7);
-
-        // Quest cue diamond
-        const cue = getResidentAvailableQuestCue(id, world);
-        rig.questPip.visible = cue !== 'none';
-        if (rig.questPip.visible) {
-          rig.questPip.rotation.y = elapsed * 2.0;
-          rig.questPip.position.y = (2.05 + Math.sin(elapsed * 3.2) * 0.08) * RESIDENTS[id].appearance.heightScale;
-        }
-
-        const pDist = distance2D(world.playerPos, rt.position);
-        rig.ringMesh.visible = pDist < 2.95;
-        if (pDist < nearestDist) {
-          nearestDist = pDist;
-          nearestTarget = {
-            kind: 'resident',
-            id,
-            label: RESIDENTS[id].name,
-            actionLabel: `Talk to ${RESIDENTS[id].name}`,
-            distance: pDist,
-            worldPos: { x: rt.position.x, z: rt.position.z },
-          };
-        }
-      }
-
-      // Check proximity to interactive neighborhood props
-      for (const prop of PROP_INTERACTABLES) {
-        const dProp = distance2D(world.playerPos, { x: prop.x, z: prop.z });
-        if (dProp <= prop.interactRadius && dProp < nearestDist) {
-          nearestDist = dProp;
-          nearestTarget = {
-            kind: 'prop',
-            id: prop.id,
-            label: prop.name,
-            actionLabel:
-              prop.id === 'player_door'
-                ? 'Porch / Rest'
-                : prop.id === 'gazebo_bell' && composed.playerChanges.bellGleaming
-                ? 'Ring Gazebo Bell'
-                : `Inspect ${prop.name}`,
-            distance: dProp,
-            worldPos: { x: prop.x, z: prop.z },
-          };
-        }
-      }
+      // Update environment lighting, seasonal tints, reactive props, resident rigs & HUD
+      syncVisualAndHud(world, elapsed, dt);
 
       // Camera Choreography: Title Screen orbits Plaza/Gazebo; Playing follows player smoothly
       if (state === 'title') {
@@ -889,47 +939,15 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
 
       renderer.render(scene, camera);
 
-      // Edge-gated throttled HUD sync
-      hudSyncAccum += dt;
-      const minuteInt = Math.floor(world.minuteOfDay);
-      const nearestKey = nearestTarget ? `${nearestTarget.kind}:${nearestTarget.id}` : null;
-      const movedDist = Number.isNaN(lastSyncedX)
-        ? 999
-        : Math.hypot(world.playerPos.x - lastSyncedX, world.playerPos.z - lastSyncedZ);
-      const edgeTriggered =
-        !hasSyncedInitialHud ||
-        nearestKey !== lastNearestId ||
-        composed.weather.effective !== lastSyncedWeather ||
-        composed.season.season !== lastSyncedSeason;
-
-      if (
-        edgeTriggered ||
-        (hudSyncAccum >= 0.18 && (minuteInt !== lastSyncedMinuteInt || movedDist > 0.15))
-      ) {
-        hasSyncedInitialHud = true;
-        hudSyncAccum = 0;
-        lastNearestId = nearestKey;
-        lastSyncedMinuteInt = minuteInt;
-        lastSyncedX = world.playerPos.x;
-        lastSyncedZ = world.playerPos.z;
-        lastSyncedWeather = composed.weather.effective;
-        lastSyncedSeason = composed.season.season;
-        onHudSyncRef.current({
-          minuteOfDay: world.minuteOfDay,
-          playerPos: { ...world.playerPos },
-          playerFacing: world.playerFacing,
-          nearestTarget,
-          weather: composed.weather.effective,
-          season: composed.season.season,
-        });
-      }
-
       if (isSoftwareGl) {
         afterDraw(tick);
       } else {
         frameId = requestAnimationFrame(tick);
       }
     }
+
+    // Apply Frame-0 environment, weather, season, story flags, and character cues before first render
+    syncVisualAndHud(worldRef.current, 0, 0);
 
     if (isSoftwareGl) {
       // Draw initial frame synchronously, then schedule via afterDraw

@@ -186,3 +186,38 @@ Chronological log of design decisions, implementation milestones, verification r
   3. **Mobile `JournalDrawer` Tab Clipping (`src/components/JournalDrawer.tsx:92-129`)**: On `390×844`, `whitespace-nowrap shrink-0` tabs clip `"Story & Memories (5/5)"` and push `"World & Time"` off-screen with no scroll indicator.
   4. **Prototype Count Hardcode (`src/components/PauseModal.tsx:43`)**: Still displays `{metCount}/9` instead of `{metCount}/${RESIDENT_ORDER.length}`.
   5. **Documented Scope Gaps**: `puddlesActive`, `claraPastryBasketVisible`, `minaGreenhouseStage`, and `arthurEarlyPorchLamp` have no 3D mesh hookups in `environmentRenderer.ts`; `willowLaneDiorama.ts` hero trees lack seasonal tinting; calm `sunlit` autumn/winter days do not emit leaves/snow (`showPetals`); `src/game/dialogueEngine.ts` remains scheduled for Milestone 2B; `getSaveStamp()` excludes `npcRuntime`/`flags`/`residents`.
+
+---
+
+## Entry 011 — Wave 0: Milestone 2A Stabilization & Persistence Reliability
+- **Date**: 2026-11-18
+- **Status**: Completed & Verified (Milestone 2B Ready)
+- **Key Deliverables**:
+  - **Wave 0A — Confirmed Defect Resolutions**:
+    - **Fix 1 — Frame-0 Environment Sync (`src/scene/NeighborhoodCanvas.tsx`, `src/game/environment.ts`, `src/scene/environmentRenderer.test.ts`)**: Extracted `syncVisualAndHud()` inside `NeighborhoodCanvas.tsx` and invoked it at `elapsed = 0, dt = 0` immediately before the initial Frame-0 `renderer.render(scene, camera)` and loop start—synchronizing seasonal tints, weather atmosphere/fog, StoryFlags props, `questPip` cues, and initial HUD snapshot on Frame 0 without duplicating render loops or advancing simulation time early. Fixed `lanternScheduleActive` / `weatherIdx` bitmask overlap in `composeEnvironmentState()` (`src/game/environment.ts`). Added Frame-0 unit verification in `src/scene/environmentRenderer.test.ts`.
+    - **Fix 2 — Fountain Basin Water Geometry (`src/scene/builders/landmarks.ts`, `src/scene/models.ts`)**: Replaced the solid `CylinderGeometry` `outerWall` (`top = 0.70`) with a hollow carved-stone `THREE.LatheGeometry` basin profile featuring a recessed floor (`y = 0.50`) and beveled coping (`y = 0.72`). Positioned `dryFloor` (`y = 0.525`) and shimmering `waterMesh` (`y = 0.65`, `r = 1.92`) cleanly inside the open stone rim so both dry stone bed and restored flowing water read unmistakably from isometric view. Added basin geometry regression test in `src/scene/environmentRenderer.test.ts`.
+    - **Fix 3 — Mobile `JournalDrawer` Tab Responsiveness (`src/components/JournalDrawer.tsx`)**: Replaced horizontal clipping tabs (`whitespace-nowrap shrink-0`) with a responsive `grid-cols-3` mobile bar (`sm:flex` on desktop) so `Neighbors`, `Story & Memories`, and `World & Time` all remain visible, `>= 48px` tall, and non-overflowing at `390×844` while preserving the desktop layout.
+    - **Fix 4 — Dynamic Resident Count (`src/components/PauseModal.tsx`, `src/components/TitleOverlay.tsx`, `src/game/engine.test.ts`, `src/game/simulation.test.ts`)**: Replaced `{metCount}/9` with `{metCount}/{RESIDENT_ORDER.length}` in `PauseModal.tsx`, generalized `TitleOverlay.tsx` subtitle copy (*"Meet your neighbors, discover their stories, build friendships, and help a little world bloom."*), and generalized `engine.test.ts` & `simulation.test.ts` resident-count assumptions.
+  - **Wave 0B — Save System & Persistence Reliability (`src/game/storage.ts`, `src/App.tsx`, `src/game/storage.test.ts`)**:
+    - Implemented pure allocation-free `computeWorldSaveRevision(state)` in `src/game/storage.ts` covering `npcRuntime`, `flags`, `residents`, `playerRelations`, `npcRelations`, `activeEncounters`, `worldEvents` (even at cap), `npcActivityHistory`, `mailboxUnread`, `dailyLettersRead`, `memories`, and quantized `playerPos` while excluding ephemeral `walkPhase`/`stuckSeconds` jitter.
+    - Updated `src/App.tsx` (`getSaveStamp = computeWorldSaveRevision`), expanded `hasSavedProgress`, ensured `visibilitychange`/`pagehide` flushes dirty saves across both `'playing'` and `'paused'` states while strictly avoiding writes on untouched initial/title worlds, and routed `saveWorldState()` through `serializeWorldState(state)` (`sanitizeWorldState` normalization).
+    - Added comprehensive persistence regression tests in `src/game/storage.test.ts` and registered `src/scene/*.test.ts` in `package.json` `"test"`.
+  - **Environmental Scope Classification (`docs/audits/07` & `08`)**: Classified `puddlesActive`, `claraPastryBasketVisible`, `minaGreenhouseStage`, `arthurEarlyPorchLamp`, hero courtyard tree tinting, and calm autumn/winter particle behavior clearly across missing visual integrations vs deferred features without premature Milestone 2B/3 implementation.
+- **Verification**:
+  - `npm test`: **32/32 passing** (`0` failures across `src/game/*.test.ts` and `src/scene/*.test.ts`).
+  - `npm run lint` (`tsc --noEmit`): **0 errors**.
+  - `npm run build` (`vite build`) + `compile_applet`: **Clean**.
+  - Live Chromium (`1440×900` & `390×844`): **0 console errors, 0 console warnings**; verified Title copy & untouched-Title `pagehide` no-write, immediate Frame-0 Day 14 Summer Golden Hour + visible fountain water & Day 24 Autumn Light Rain Dusk, `390×844` mobile HUD & `JournalDrawer` tabs (`scrollW === innerW === 390`, `dialogOverflowX: false`, zero clipping), PauseModal `/9` readout, `v1 -> v2` backup migration, and reload persistence.
+
+---
+
+## Entry 012 — JournalDrawer Tab Accessibility & Fountain Dry/Repaired Visual Accuracy Polish
+- **Date**: 2026-11-18
+- **Status**: Completed & Verified
+- **Key Deliverables**:
+  - **`src/components/JournalDrawer.tsx`**: Added full WAI-ARIA tab semantics (`role="tablist"`, `role="tab"`, `aria-selected`, `aria-controls`, `role="tabpanel"`, `ArrowLeft`/`ArrowRight`/`Home`/`End` keyboard navigation), `min-w-0 w-full sm:w-auto` grid overflow safeguards across all 3 mobile tabs (`Neighbors`, `Story & Memories`, `World & Time`), responsive mobile spacing/wrapping on resident cards, and full-width mobile centering on the `Advance 2 Hours` button.
+  - **`src/scene/builders/landmarks.ts` & `src/scene/models.ts`**: Fixed `dryFloor` material in `buildStorybookFountain` from blue-slate (`#4E6E74`, which visually resembled water even while dry) to weathered warm stone (`#8E8475`), added matching `dryFloor` separation to `buildStoneFountain`, and attached surface ripple rings plus an upper catch-bowl water disc as children of `waterMesh` so the repaired state is unmistakably watery while preserving the hollow `LatheGeometry` stone wall and coping rim.
+  - **`src/scene/environmentRenderer.test.ts`**: Expanded fountain geometry regression assertions across both `buildStorybookFountain` and `buildStoneFountain` to enforce recessed stone walls, warm dry-bed color distinction, elevated `waterMesh`, and ripple/pool sub-details.
+- **Verification**:
+  - `npm test`, `npm run lint` (`tsc --noEmit`), `compile_applet`, `lint_applet`, and `npm run build` all pass with 0 errors.
+  - Live Chromium (`390×844` & `1440×900`): Verified zero horizontal overflow across all 3 `JournalDrawer` tabs (`docScrollW === 390`, `dlgScrollW === 368`, `panelHasOverflowX === false`) and clear visual separation between the dry stone fountain basin (`v2-fountain-dry.png`) and repaired flowing fountain (`v2-fountain-repaired.png`) with 0 console errors.

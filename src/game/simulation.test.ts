@@ -131,7 +131,7 @@ test('residents exhibit individual trait differences, weather sheltering, and so
 
   // Activity history records entries across residents
   const totalHistory = RESIDENT_ORDER.reduce((sum, id) => sum + world.npcActivityHistory[id].length, 0);
-  assert.ok(totalHistory >= 9);
+  assert.ok(totalHistory >= RESIDENT_ORDER.length);
 
   // Rainy day triggers sheltered activities more strongly than sunlit day for shelter-preferring residents
   let rainWorld: import('./types').WorldState = {

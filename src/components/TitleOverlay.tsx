@@ -47,7 +47,7 @@ export const TitleOverlay: React.FC<TitleOverlayProps> = ({
           LITTLE SOMEWHERE
         </h1>
         <p className="mt-3 text-sm sm:text-base text-[#3E3128] leading-relaxed">
-          A little world filled with thousands of little stories. Meet nine neighbors, follow their sunlit routines, and help the quiet town square bloom again.
+          A little world filled with thousands of little stories. Meet your neighbors, discover their stories, build friendships, and help a little world bloom.
         </p>
 
         <div className="mt-6 flex flex-wrap items-center gap-3">

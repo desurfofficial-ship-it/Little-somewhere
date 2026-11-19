@@ -61,20 +61,41 @@ export const JournalDrawer: React.FC<JournalDrawerProps> = ({
 
   const completedThreads = storyThreads.filter((t) => t.done).length;
 
+  const tabIds: Array<'residents' | 'story' | 'guide'> = ['residents', 'story', 'guide'];
+
+  const handleTabKeyDown = (
+    e: React.KeyboardEvent<HTMLButtonElement>,
+    currentIdx: number,
+  ) => {
+    let nextIdx: number | null = null;
+    if (e.key === 'ArrowRight') nextIdx = (currentIdx + 1) % tabIds.length;
+    else if (e.key === 'ArrowLeft') nextIdx = (currentIdx - 1 + tabIds.length) % tabIds.length;
+    else if (e.key === 'Home') nextIdx = 0;
+    else if (e.key === 'End') nextIdx = tabIds.length - 1;
+
+    if (nextIdx !== null) {
+      e.preventDefault();
+      const nextTab = tabIds[nextIdx];
+      setTab(nextTab);
+      const targetBtn = document.getElementById(`journal-tab-${nextTab}`);
+      targetBtn?.focus();
+    }
+  };
+
   return (
-    <div className="fixed inset-0 z-40 flex items-center justify-center p-3 sm:p-6 bg-[#2D241E]/45 pointer-events-auto">
+    <div className="fixed inset-0 z-40 flex items-center justify-center p-2.5 sm:p-6 bg-[#2D241E]/45 pointer-events-auto">
       <div
         role="dialog"
         aria-label="Pocket Journal"
         className="w-full max-w-3xl max-h-[86vh] bg-[#FAF5EC] border border-[#D4C4AE] rounded-2xl shadow-[0_20px_56px_rgba(45,36,30,0.28)] flex flex-col overflow-hidden"
       >
         {/* Header */}
-        <div className="flex items-center justify-between gap-4 px-5 py-4 border-b border-[#E5D9C7]">
-          <div>
-            <h2 className="font-display text-2xl font-bold text-[#2D241E]">
+        <div className="flex items-center justify-between gap-3 px-4 sm:px-5 py-3.5 sm:py-4 border-b border-[#E5D9C7]">
+          <div className="min-w-0">
+            <h2 className="font-display text-xl sm:text-2xl font-bold text-[#2D241E]">
               Pocket Journal
             </h2>
-            <p className="text-xs text-[#6A5B50] mt-0.5">
+            <p className="text-xs text-[#6A5B50] mt-0.5 leading-snug">
               Day {world.day} ({composed.season.seasonLabel}) · {phase.charAt(0).toUpperCase() + phase.slice(1)} · {getWeatherLabel(composed.weather.effective)} · {world.memories.length} {world.memories.length === 1 ? 'Memory' : 'Memories'} Saved
             </p>
           </div>
@@ -82,54 +103,81 @@ export const JournalDrawer: React.FC<JournalDrawerProps> = ({
             type="button"
             onClick={onClose}
             aria-label="Close journal"
-            className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-xl text-[#6A5B50] hover:bg-[#EFE5D5] transition-colors cursor-pointer"
+            className="min-h-[44px] min-w-[44px] shrink-0 flex items-center justify-center rounded-xl text-[#6A5B50] hover:bg-[#EFE5D5] transition-colors cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
         {/* Segmented Tab Controls */}
-        <div className="px-5 pt-3 pb-2 border-b border-[#EFE5D6] flex items-center gap-2 overflow-x-auto">
+        <div
+          role="tablist"
+          aria-label="Journal sections"
+          className="px-3 sm:px-5 pt-2.5 sm:pt-3 pb-2 border-b border-[#EFE5D6] grid grid-cols-3 gap-1.5 sm:flex sm:items-center sm:gap-2"
+        >
           <button
+            id="journal-tab-residents"
             type="button"
+            role="tab"
+            aria-selected={tab === 'residents'}
+            aria-controls="journal-tabpanel"
+            tabIndex={tab === 'residents' ? 0 : -1}
             onClick={() => setTab('residents')}
-            className={`min-h-[44px] px-4 py-2 rounded-xl text-sm font-semibold flex items-center gap-2 transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
+            onKeyDown={(e) => handleTabKeyDown(e, 0)}
+            className={`min-w-0 w-full sm:w-auto min-h-[48px] sm:min-h-[44px] px-1.5 sm:px-4 py-1.5 sm:py-2 rounded-xl text-[11px] sm:text-sm leading-tight font-semibold flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-2 text-center transition-colors cursor-pointer sm:whitespace-nowrap sm:shrink-0 ${
               tab === 'residents'
                 ? 'bg-[#C86446] text-[#FAF5EC]'
                 : 'bg-[#F1E8D9] text-[#4E4036] hover:bg-[#E7DAC5]'
             }`}
           >
-            <Users className="w-4 h-4" />
-            <span>Neighbors ({RESIDENT_ORDER.length})</span>
+            <Users className="w-4 h-4 shrink-0" />
+            <span className="max-w-full">Neighbors ({RESIDENT_ORDER.length})</span>
           </button>
           <button
+            id="journal-tab-story"
             type="button"
+            role="tab"
+            aria-selected={tab === 'story'}
+            aria-controls="journal-tabpanel"
+            tabIndex={tab === 'story' ? 0 : -1}
             onClick={() => setTab('story')}
-            className={`min-h-[44px] px-4 py-2 rounded-xl text-sm font-semibold flex items-center gap-2 transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
+            onKeyDown={(e) => handleTabKeyDown(e, 1)}
+            className={`min-w-0 w-full sm:w-auto min-h-[48px] sm:min-h-[44px] px-1.5 sm:px-4 py-1.5 sm:py-2 rounded-xl text-[11px] sm:text-sm leading-tight font-semibold flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-2 text-center transition-colors cursor-pointer sm:whitespace-nowrap sm:shrink-0 ${
               tab === 'story'
                 ? 'bg-[#C86446] text-[#FAF5EC]'
                 : 'bg-[#F1E8D9] text-[#4E4036] hover:bg-[#E7DAC5]'
             }`}
           >
-            <BookOpen className="w-4 h-4" />
-            <span>Story & Memories ({completedThreads}/5)</span>
+            <BookOpen className="w-4 h-4 shrink-0" />
+            <span className="max-w-full">Story &amp; Memories ({completedThreads}/5)</span>
           </button>
           <button
+            id="journal-tab-guide"
             type="button"
+            role="tab"
+            aria-selected={tab === 'guide'}
+            aria-controls="journal-tabpanel"
+            tabIndex={tab === 'guide' ? 0 : -1}
             onClick={() => setTab('guide')}
-            className={`min-h-[44px] px-4 py-2 rounded-xl text-sm font-semibold flex items-center gap-2 transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
+            onKeyDown={(e) => handleTabKeyDown(e, 2)}
+            className={`min-w-0 w-full sm:w-auto min-h-[48px] sm:min-h-[44px] px-1.5 sm:px-4 py-1.5 sm:py-2 rounded-xl text-[11px] sm:text-sm leading-tight font-semibold flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-2 text-center transition-colors cursor-pointer sm:whitespace-nowrap sm:shrink-0 ${
               tab === 'guide'
                 ? 'bg-[#C86446] text-[#FAF5EC]'
                 : 'bg-[#F1E8D9] text-[#4E4036] hover:bg-[#E7DAC5]'
             }`}
           >
-            <MapPin className="w-4 h-4" />
-            <span>World & Time</span>
+            <MapPin className="w-4 h-4 shrink-0" />
+            <span className="max-w-full">World &amp; Time</span>
           </button>
         </div>
 
         {/* Body */}
-        <div className="flex-1 overflow-y-auto storybook-scroll p-5 space-y-4">
+        <div
+          id="journal-tabpanel"
+          role="tabpanel"
+          aria-labelledby={`journal-tab-${tab}`}
+          className="flex-1 overflow-y-auto storybook-scroll p-4 sm:p-5 space-y-4"
+        >
           {tab === 'residents' && (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
               {RESIDENT_ORDER.map((id) => {
@@ -152,7 +200,7 @@ export const JournalDrawer: React.FC<JournalDrawerProps> = ({
                           {def.name.charAt(0)}
                         </div>
                         <div className="min-w-0">
-                          <div className="flex items-center gap-2">
+                          <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
                             <h3 className="font-display text-lg font-semibold text-[#2D241E]">
                               {def.name}
                             </h3>
@@ -299,7 +347,7 @@ export const JournalDrawer: React.FC<JournalDrawerProps> = ({
                     onAdvanceTime();
                     onClose();
                   }}
-                  className="min-h-[44px] px-4 py-2 rounded-xl bg-[#5E8062] hover:bg-[#4F6E53] text-sm font-semibold text-[#FAF5EC] flex items-center gap-2 transition-colors cursor-pointer whitespace-nowrap shrink-0"
+                  className="w-full sm:w-auto min-h-[44px] px-4 py-2 rounded-xl bg-[#5E8062] hover:bg-[#4F6E53] text-sm font-semibold text-[#FAF5EC] flex items-center justify-center gap-2 transition-colors cursor-pointer whitespace-nowrap shrink-0"
                 >
                   <Clock className="w-4 h-4" />
                   <span>Advance 2 Hours</span>

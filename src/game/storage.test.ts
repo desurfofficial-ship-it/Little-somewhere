@@ -7,13 +7,46 @@ import {
   sanitizeWorldState,
 } from './migrations';
 import {
+  STORAGE_BACKUP_KEY,
+  STORAGE_KEY,
   advanceToNextDay,
+  computeWorldSaveRevision,
   createFreshWorldState,
   deserializeWorldState,
+  loadWorldState,
+  saveWorldState,
   serializeWorldState,
 } from './storage';
+import { MAX_WORLD_EVENTS } from './relationships';
+import { stepSimulation } from './simulation';
 import { DAY_END_MINUTE, DAY_START_MINUTE, NEXT_DAY_WAKE_MINUTE } from './time';
 import { PLAYER_SPAWN, isPointWalkable } from './worldMap';
+
+function withMockLocalStorage(fn: (store: Map<string, string>) => void): void {
+  const prevWindow = (globalThis as { window?: unknown }).window;
+  const store = new Map<string, string>();
+  const mockWindow = {
+    localStorage: {
+      getItem: (key: string) => store.get(key) ?? null,
+      setItem: (key: string, val: string) => {
+        store.set(key, String(val));
+      },
+      removeItem: (key: string) => {
+        store.delete(key);
+      },
+    },
+  };
+  (globalThis as { window?: unknown }).window = mockWindow;
+  try {
+    fn(store);
+  } finally {
+    if (prevWindow === undefined) {
+      delete (globalThis as { window?: unknown }).window;
+    } else {
+      (globalThis as { window?: unknown }).window = prevWindow;
+    }
+  }
+}
 
 test('legacy v1 save migrates sequentially to v2 preserving progress, memories, flags, and trust', () => {
   const legacyV1Save = {
@@ -166,4 +199,148 @@ test('regionId defaults cleanly and sparse non-baseline npcRelations survive san
   assert.equal(sanitized.npcRelations['barnaby:sora']?.affinity, 44);
   assert.deepEqual(sanitized.npcRelations['barnaby:sora']?.sharedTags, ['bench_repair']);
 });
+
+test('computeWorldSaveRevision detects every meaningful persisted mutation while ignoring walkPhase jitter', () => {
+  const base = createFreshWorldState();
+  const rev0 = computeWorldSaveRevision(base);
+
+  // Ephemeral walkPhase / stuckSeconds must NOT change save revision
+  const jitter = structuredClone(base);
+  jitter.npcRuntime.pip.walkPhase = 4.123;
+  jitter.npcRuntime.pip.stuckSeconds = 0.04;
+  assert.equal(computeWorldSaveRevision(jitter), rev0);
+
+  // 1. NPC runtime position & activity change (even within same integer minute)
+  const npcMoved = structuredClone(base);
+  npcMoved.npcRuntime.pip.position.x += 0.35;
+  assert.notEqual(computeWorldSaveRevision(npcMoved), rev0);
+
+  const npcActivity = structuredClone(base);
+  npcActivity.npcRuntime.pip.currentActivityId = 'morning:custom_chore';
+  assert.notEqual(computeWorldSaveRevision(npcActivity), rev0);
+
+  // 2. Story flags change
+  const flagChanged = structuredClone(base);
+  flagChanged.flags.heardBellMystery = true;
+  assert.notEqual(computeWorldSaveRevision(flagChanged), rev0);
+
+  // 3. Resident met / trust / mood / talkedToday change
+  const residentChanged = structuredClone(base);
+  residentChanged.residents.clara.met = true;
+  assert.notEqual(computeWorldSaveRevision(residentChanged), rev0);
+
+  // 4. Player & NPC relationship metrics change
+  const relChanged = structuredClone(base);
+  relChanged.playerRelations.jun.affinity += 10;
+  assert.notEqual(computeWorldSaveRevision(relChanged), rev0);
+
+  const npcRelChanged = structuredClone(base);
+  npcRelChanged.npcRelations['clara:mina'].affinity += 3;
+  assert.notEqual(computeWorldSaveRevision(npcRelChanged), rev0);
+
+  // 5. Mailbox & daily letters read change
+  const mailboxChanged = structuredClone(base);
+  mailboxChanged.mailboxUnread = false;
+  mailboxChanged.dailyLettersRead = [1];
+  assert.notEqual(computeWorldSaveRevision(mailboxChanged), rev0);
+
+  // 6. Capped worldEvents replacement still bumps revision
+  const cappedA = structuredClone(base);
+  cappedA.worldEvents = Array.from({ length: MAX_WORLD_EVENTS }, (_, idx) => ({
+    id: `ev_${idx}`,
+    day: 1,
+    phase: 'morning',
+    minuteOfDay: 480,
+    kind: 'npc_social',
+    actors: ['pip', 'jun'],
+    summary: 'Chat',
+    summaryTag: 'chat',
+  }));
+  const cappedB = structuredClone(cappedA);
+  cappedB.worldEvents.pop();
+  cappedB.worldEvents.unshift({
+    id: 'ev_brand_new',
+    day: 1,
+    phase: 'morning',
+    minuteOfDay: 495,
+    kind: 'npc_social',
+    actors: ['clara', 'mina'],
+    summary: 'New chat',
+    summaryTag: 'new_chat',
+  });
+  assert.notEqual(computeWorldSaveRevision(cappedA), computeWorldSaveRevision(cappedB));
+});
+
+test('saveWorldState normalizes through serializeWorldState and loadWorldState preserves full simulation & v1 backup migration', () => {
+  withMockLocalStorage((store) => {
+    // 1. Mid-simulation state with active movement, relations, mailbox, and story flags round-trips faithfully
+    let sim = createFreshWorldState();
+    sim = {
+      ...sim,
+      day: 3,
+      season: 'spring',
+      weather: 'breezy',
+      minuteOfDay: 700,
+      mailboxUnread: false,
+      dailyLettersRead: [1, 3],
+      bellRungCount: 2,
+      flags: { ...sim.flags, heardBellMystery: true, repairedFountain: true },
+      residents: {
+        ...sim.residents,
+        pip: { ...sim.residents.pip, met: true, trust: 2, talkedToday: true, mood: 'joyful' },
+      },
+      playerRelations: {
+        ...sim.playerRelations,
+        pip: { ...sim.playerRelations.pip, affinity: 40, familiarity: 14, talkedCount: 3, lastTalkDay: 3 },
+      },
+    };
+    for (let i = 0; i < 40; i++) {
+      sim = stepSimulation(sim, 0.25);
+    }
+
+    const res = saveWorldState(sim);
+    assert.equal(res.ok, true);
+    const loaded = loadWorldState();
+    assert.deepEqual(loaded, sim);
+
+    // 2. saveWorldState sanitizes out-of-range fields cleanly on write
+    const dirty = structuredClone(sim);
+    dirty.residents.clara.trust = 99;
+    dirty.playerPos = { x: 2.0, z: 14.0 }; // Pond water
+    saveWorldState(dirty);
+    const cleanedLoaded = loadWorldState();
+    assert.equal(cleanedLoaded.residents.clara.trust, 5);
+    assert.deepEqual(cleanedLoaded.playerPos, PLAYER_SPAWN);
+
+    // 3. Legacy v1 payload creates backup and upgrades STORAGE_KEY to schemaVersion 2
+    const legacyV1 = {
+      day: 2,
+      minuteOfDay: 540,
+      playerPos: { x: -8.5, z: 9.5 },
+      residents: {
+        pip: { trust: 2, met: true, talkedToday: true, mood: 'warm', lastDialogueId: 'pip_hint' },
+      },
+      flags: { heardBellMystery: true },
+      memories: [
+        {
+          id: 'mem_arrival',
+          day: 1,
+          phase: 'morning',
+          title: 'Arrival',
+          summary: 'Arrived in Willow Lane.',
+        },
+      ],
+    };
+    store.set(STORAGE_KEY, JSON.stringify(legacyV1));
+    const upgraded = loadWorldState();
+    assert.equal(upgraded.schemaVersion, 2);
+    assert.equal(upgraded.day, 2);
+    assert.equal(upgraded.flags.heardBellMystery, true);
+    assert.equal(upgraded.residents.pip.trust, 2);
+    assert.equal(store.get(STORAGE_BACKUP_KEY), JSON.stringify(legacyV1));
+    const storedUpgraded = JSON.parse(store.get(STORAGE_KEY) ?? '{}');
+    assert.equal(storedUpgraded.schemaVersion, 2);
+  });
+});
+
 

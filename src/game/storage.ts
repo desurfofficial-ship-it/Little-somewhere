@@ -56,12 +56,166 @@ export function loadWorldState(): WorldState {
   }
 }
 
+function mixHash(h: number, str: string): number {
+  let out = h >>> 0;
+  for (let i = 0; i < str.length; i++) {
+    out ^= str.charCodeAt(i);
+    out = Math.imul(out, 16777619) >>> 0;
+  }
+  out ^= 0xff;
+  return Math.imul(out, 16777619) >>> 0;
+}
+
+function mixNum(h: number, n: number): number {
+  let out = h >>> 0;
+  const val = Number.isFinite(n) ? Math.trunc(n) : 0;
+  out ^= val & 0xff;
+  out = Math.imul(out, 16777619) >>> 0;
+  out ^= (val >>> 8) & 0xff;
+  out = Math.imul(out, 16777619) >>> 0;
+  out ^= (val >>> 16) & 0xff;
+  out = Math.imul(out, 16777619) >>> 0;
+  out ^= (val >>> 24) & 0xff;
+  return Math.imul(out, 16777619) >>> 0;
+}
+
+/**
+ * Fast, allocation-free persistence revision fingerprint covering all meaningful persisted WorldState fields
+ * while ignoring ephemeral animation jitter (walkPhase, stuckSeconds).
+ */
+export function computeWorldSaveRevision(state: WorldState): string {
+  let h1 = 0x811c9dc5;
+  let h2 = 0x9e3779b9;
+  const pushStr = (s: string) => {
+    h1 = mixHash(h1, s);
+    h2 = mixHash(h2 ^ 0xa5, s);
+  };
+  const pushNum = (n: number) => {
+    h1 = mixNum(h1, n);
+    h2 = mixNum(h2 ^ 0x5a, n);
+  };
+  const pushBool = (b: boolean) => pushNum(b ? 1 : 0);
+
+  pushNum(state.schemaVersion);
+  pushNum(state.simSeed);
+  pushStr(state.regionId);
+  pushNum(state.day);
+  pushNum(Math.floor(state.minuteOfDay));
+  pushStr(state.season);
+  pushStr(state.weather);
+  pushNum(Math.round(state.playerPos.x * 20));
+  pushNum(Math.round(state.playerPos.z * 20));
+  pushNum(Math.round(state.playerFacing * 20));
+  pushBool(state.mailboxUnread);
+  pushNum(state.bellRungCount);
+
+  const letters = state.dailyLettersRead ?? [];
+  pushNum(letters.length);
+  for (let i = 0; i < letters.length; i++) pushNum(letters[i]);
+
+  const f = state.flags;
+  pushBool(f.heardBellMystery);
+  pushBool(f.foundPostcard);
+  pushBool(f.deliveredPostcard);
+  pushBool(f.brewedChamomileTea);
+  pushBool(f.borrowedBarnabyLadder);
+  pushBool(f.clearedGazeboIvy);
+  pushBool(f.foundBrassClapper);
+  pushBool(f.repairedFountain);
+  pushBool(f.plantedMoonPetals);
+  pushStr(f.mediationStyle);
+  pushBool(f.bellRestored);
+  pushBool(f.claraArthurReconciled);
+  pushBool(f.lanternsLit);
+
+  pushNum(state.memories.length);
+  for (let i = 0; i < state.memories.length; i++) {
+    pushStr(state.memories[i].id);
+  }
+
+  const residentKeys = Object.keys(state.residents).sort();
+  pushNum(residentKeys.length);
+  for (let i = 0; i < residentKeys.length; i++) {
+    const id = residentKeys[i] as keyof WorldState['residents'];
+    const prog = state.residents[id];
+    pushStr(id);
+    if (prog) {
+      pushNum(prog.trust);
+      pushBool(prog.met);
+      pushBool(prog.talkedToday);
+      pushStr(prog.mood);
+      pushStr(prog.lastDialogueId ?? '');
+    }
+    const rel = state.playerRelations?.[id];
+    if (rel) {
+      pushNum(rel.affinity);
+      pushNum(rel.familiarity);
+      pushNum(rel.dailyAffinityGained);
+      pushNum(rel.talkedCount);
+      pushNum(rel.lastTalkDay ?? -1);
+      pushStr(rel.lastTalkPhase ?? '');
+      pushStr(rel.mood);
+      pushNum(Math.round(rel.moodUntilMinute));
+    }
+    const rt = state.npcRuntime?.[id];
+    if (rt) {
+      pushNum(Math.round(rt.position.x * 20));
+      pushNum(Math.round(rt.position.z * 20));
+      pushNum(Math.round(rt.targetPos.x * 20));
+      pushNum(Math.round(rt.targetPos.z * 20));
+      pushStr(rt.animState);
+      pushStr(rt.currentActivityId);
+      pushStr(rt.socialPartnerId ?? '');
+      pushNum(rt.waypoints.length);
+      pushNum(Math.round(rt.activityUntilMinute));
+      pushNum(Math.round(rt.socialCooldownUntilMinute));
+    }
+    const hist = state.npcActivityHistory?.[id];
+    if (hist) {
+      pushNum(hist.length);
+      if (hist.length > 0) {
+        pushNum(hist[0].day);
+        pushNum(hist[0].minuteOfDay);
+        pushStr(hist[0].activityId);
+      }
+    }
+  }
+
+  const npcRelKeys = Object.keys(state.npcRelations ?? {}).sort();
+  pushNum(npcRelKeys.length);
+  for (let i = 0; i < npcRelKeys.length; i++) {
+    const k = npcRelKeys[i];
+    const r = state.npcRelations[k];
+    pushStr(k);
+    pushNum(r.affinity);
+    pushNum(r.tension);
+    pushNum(r.lastInteractionDay ?? -1);
+    pushNum(r.sharedTags.length);
+    for (let t = 0; t < r.sharedTags.length; t++) pushStr(r.sharedTags[t]);
+  }
+
+  const encs = state.activeEncounters ?? [];
+  pushNum(encs.length);
+  for (let i = 0; i < encs.length; i++) {
+    pushStr(encs[i].id);
+    pushNum(Math.round(encs[i].endsMinute));
+  }
+
+  const events = state.worldEvents ?? [];
+  pushNum(events.length);
+  for (let i = 0; i < events.length; i++) {
+    pushStr(events[i].id);
+  }
+
+  return `${h1.toString(36)}-${h2.toString(36)}`;
+}
+
 export function saveWorldState(state: WorldState): { ok: boolean; error?: string } {
   try {
     if (typeof window === 'undefined' || !window.localStorage) {
       return { ok: false, error: 'localStorage unavailable' };
     }
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    window.localStorage.setItem(STORAGE_KEY, serializeWorldState(state));
     return { ok: true };
   } catch (err) {
     return {

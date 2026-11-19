@@ -1,4 +1,5 @@
 import React from 'react';
+import { RESIDENT_ORDER } from '../game/residents';
 import { WorldState } from '../game/types';
 
 interface PauseModalProps {
@@ -40,7 +41,9 @@ export const PauseModal: React.FC<PauseModalProps> = ({
             <div className="text-xs text-[#6A5B50]">Day</div>
           </div>
           <div className="p-3 rounded-xl bg-[#F2E9DA] border border-[#E2D4C0]">
-            <div className="font-mono-nums text-xl font-bold text-[#2D241E]">{metCount}/9</div>
+            <div className="font-mono-nums text-xl font-bold text-[#2D241E]">
+              {metCount}/{RESIDENT_ORDER.length}
+            </div>
             <div className="text-xs text-[#6A5B50]">Neighbors</div>
           </div>
           <div className="p-3 rounded-xl bg-[#F2E9DA] border border-[#E2D4C0]">

@@ -271,7 +271,7 @@ export function buildStorybookFountain(
   const darkStoneMat = palette.standard(STORYBOOK_PALETTE.fieldstoneDark, 0.91, 0.02);
   const mossMat = palette.standard(STORYBOOK_PALETTE.moss, 0.88, 0.0);
   const bronzeMat = palette.standard('#8C724A', 0.34, 0.78);
-  const basinBedMat = palette.standard('#4E6E74', 0.88, 0.0);
+  const basinBedMat = palette.standard('#8E8475', 0.93, 0.0);
 
   // Octagonal ground apron
   const apron = new THREE.Mesh(new THREE.CylinderGeometry(2.42, 2.52, 0.14, 8), darkStoneMat);
@@ -279,9 +279,17 @@ export function buildStorybookFountain(
   apron.receiveShadow = true;
   group.add(apron);
 
-  // Outer carved stone basin wall + beveled top coping torus
-  const outerWall = new THREE.Mesh(new THREE.CylinderGeometry(2.18, 2.28, 0.56, 16), stoneMat);
-  outerWall.position.y = 0.42;
+  // Hollow carved stone basin wall (recessed floor at y=0.50, inner rim at r=1.90, outer battered wall to r=2.28)
+  const basinProfile = [
+    new THREE.Vector2(0.0, 0.14),
+    new THREE.Vector2(2.28, 0.14),
+    new THREE.Vector2(2.18, 0.70),
+    new THREE.Vector2(1.90, 0.70),
+    new THREE.Vector2(1.88, 0.50),
+    new THREE.Vector2(0.0, 0.50),
+  ];
+  const outerWall = new THREE.Mesh(new THREE.LatheGeometry(basinProfile, 16), stoneMat);
+  outerWall.position.y = 0;
   outerWall.castShadow = true;
   outerWall.receiveShadow = true;
   group.add(outerWall);
@@ -293,10 +301,10 @@ export function buildStorybookFountain(
   coping.receiveShadow = true;
   group.add(coping);
 
-  // Interior wet basin floor (always visible when dry before Mina's fix)
-  const dryFloor = new THREE.Mesh(new THREE.CircleGeometry(1.94, 18), basinBedMat);
+  // Interior dry basin floor (weathered stone clearly distinct from flowing water before repair)
+  const dryFloor = new THREE.Mesh(new THREE.CircleGeometry(1.90, 20), basinBedMat);
   dryFloor.rotation.x = -Math.PI / 2;
-  dryFloor.position.y = 0.52;
+  dryFloor.position.y = 0.525;
   dryFloor.receiveShadow = true;
   group.add(dryFloor);
 
@@ -351,19 +359,32 @@ export function buildStorybookFountain(
     group.add(spout);
   }
 
-  // Water disc + animated droplets (visible once Mina restores the stone pump)
-  const waterMesh = new THREE.Mesh(
-    new THREE.CircleGeometry(1.96, 18),
-    new THREE.MeshStandardMaterial({
-      color: '#6BB8C8',
-      roughness: 0.12,
-      metalness: 0.18,
-      transparent: true,
-      opacity: 0.84,
-    }),
-  );
+  // Water disc + ripple rings + upper catch-bowl pool (visible cleanly inside stone rim once repaired)
+  const waterMat = new THREE.MeshStandardMaterial({
+    color: '#6BB8C8',
+    roughness: 0.12,
+    metalness: 0.18,
+    transparent: true,
+    opacity: 0.86,
+  });
+  const waterMesh = new THREE.Mesh(new THREE.CircleGeometry(1.92, 20), waterMat);
   waterMesh.rotation.x = -Math.PI / 2;
-  waterMesh.position.y = 0.62;
+  waterMesh.position.y = 0.65;
+
+  const rippleMat = new THREE.MeshBasicMaterial({
+    color: '#D2F3F8',
+    transparent: true,
+    opacity: 0.56,
+    depthWrite: false,
+  });
+  const innerRipple = new THREE.Mesh(new THREE.RingGeometry(0.66, 0.72, 24), rippleMat);
+  innerRipple.position.z = 0.012;
+  const outerRipple = new THREE.Mesh(new THREE.RingGeometry(1.24, 1.30, 28), rippleMat);
+  outerRipple.position.z = 0.012;
+  const upperBowlWater = new THREE.Mesh(new THREE.CircleGeometry(0.68, 16), waterMat);
+  upperBowlWater.position.z = 1.37; // World y = 0.65 + 1.37 = 2.02 inside upper catch-bowl
+  waterMesh.add(innerRipple, outerRipple, upperBowlWater);
+
   waterMesh.visible = false;
   group.add(waterMesh);
 

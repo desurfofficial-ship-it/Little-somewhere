@@ -24,6 +24,7 @@ import {
   WorldState,
 } from './game/types';
 import {
+  computeWorldSaveRevision,
   createFreshWorldState,
   loadWorldState,
   resetWorldState,
@@ -54,10 +55,7 @@ import { DialogueSheet } from './components/DialogueSheet';
 import { JournalDrawer } from './components/JournalDrawer';
 import { PauseModal } from './components/PauseModal';
 
-const getSaveStamp = (w: WorldState): string =>
-  `${w.day}:${Math.floor(w.minuteOfDay)}:${Math.round(w.playerPos.x * 10)},${Math.round(
-    w.playerPos.z * 10,
-  )}:${w.memories.length}:${w.bellRungCount}:${w.worldEvents?.length ?? 0}:${w.weather}:${w.season}`;
+const getSaveStamp = computeWorldSaveRevision;
 
 export default function App() {
   const initialAutostart =
@@ -90,7 +88,12 @@ export default function App() {
   const hasSavedProgress =
     worldSnapshot.day > 1 ||
     worldSnapshot.memories.length > 1 ||
-    Object.values(worldSnapshot.residents).some((r) => r.met);
+    worldSnapshot.dailyLettersRead.length > 0 ||
+    worldSnapshot.bellRungCount > 0 ||
+    Object.values(worldSnapshot.residents).some((r) => r.met) ||
+    Object.entries(worldSnapshot.flags).some(([k, v]) =>
+      k === 'mediationStyle' ? v !== 'none' : v === true,
+    );
 
   const showToast = useCallback((msg: string) => {
     setToastText(msg);
@@ -319,13 +322,13 @@ export default function App() {
     }, 5000);
 
     const handleVisibilityChange = () => {
-      if (document.visibilityState === 'hidden' && screenState === 'playing') {
+      if (document.visibilityState === 'hidden' && screenState !== 'title') {
         flushIfDirty();
       }
     };
 
     const handlePageHide = () => {
-      if (screenState === 'playing') {
+      if (screenState !== 'title') {
         flushIfDirty();
       }
     };

@@ -424,10 +424,18 @@ export interface FountainRig {
 export function buildStoneFountain(): FountainRig {
   const group = new THREE.Group();
   const stoneMat = makeMat('#ADA394', 0.88, 0.02);
+  const dryBedMat = makeMat('#8E8475', 0.93, 0.0);
   const bronzeMat = makeMat('#7B6648', 0.45, 0.65);
 
-  const basin = new THREE.Mesh(new THREE.CylinderGeometry(2.2, 2.35, 0.65, 16), stoneMat);
-  basin.position.y = 0.325;
+  const basinProfile = [
+    new THREE.Vector2(0.0, 0.0),
+    new THREE.Vector2(2.35, 0.0),
+    new THREE.Vector2(2.2, 0.65),
+    new THREE.Vector2(1.9, 0.65),
+    new THREE.Vector2(1.88, 0.44),
+    new THREE.Vector2(0.0, 0.44),
+  ];
+  const basin = new THREE.Mesh(new THREE.LatheGeometry(basinProfile, 16), stoneMat);
   basin.castShadow = true;
   basin.receiveShadow = true;
   group.add(basin);
@@ -436,6 +444,12 @@ export function buildStoneFountain(): FountainRig {
   innerRim.rotation.x = Math.PI / 2;
   innerRim.position.y = 0.66;
   group.add(innerRim);
+
+  const dryFloor = new THREE.Mesh(new THREE.CircleGeometry(1.89, 18), dryBedMat);
+  dryFloor.rotation.x = -Math.PI / 2;
+  dryFloor.position.y = 0.46;
+  dryFloor.receiveShadow = true;
+  group.add(dryFloor);
 
   const pillar = new THREE.Mesh(new THREE.CylinderGeometry(0.34, 0.48, 1.35, 10), stoneMat);
   pillar.position.y = 1.05;
@@ -451,17 +465,30 @@ export function buildStoneFountain(): FountainRig {
   group.add(spout);
 
   const waterMesh = new THREE.Mesh(
-    new THREE.CircleGeometry(1.96, 18),
+    new THREE.CircleGeometry(1.92, 18),
     new THREE.MeshStandardMaterial({
       color: '#6AB7C4',
       roughness: 0.14,
       metalness: 0.15,
       transparent: true,
-      opacity: 0.85,
+      opacity: 0.86,
     }),
   );
   waterMesh.rotation.x = -Math.PI / 2;
-  waterMesh.position.y = 0.56;
+  waterMesh.position.y = 0.58;
+
+  const ripple = new THREE.Mesh(
+    new THREE.RingGeometry(0.7, 0.76, 22),
+    new THREE.MeshBasicMaterial({
+      color: '#D2F3F8',
+      transparent: true,
+      opacity: 0.55,
+      depthWrite: false,
+    }),
+  );
+  ripple.position.z = 0.012;
+  waterMesh.add(ripple);
+
   waterMesh.visible = false;
   group.add(waterMesh);
 

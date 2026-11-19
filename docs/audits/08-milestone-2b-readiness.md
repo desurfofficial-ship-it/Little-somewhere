@@ -16,16 +16,17 @@ Milestone 2B completes the narrative, relational, and memory layers built atop M
 
 ---
 
-## 2. Wave 0 — Mandatory Milestone 2A Defect Fixes (Execute First)
+## 2. Wave 0 — Milestone 2A Stabilization & Persistence Reliability (Completed & Verified)
 
-Before adding Milestone 2B systems, resolve the 4 confirmed defects from `07-milestone-2a-final-validation.md`:
+All 4 confirmed defects from `07-milestone-2a-final-validation.md` plus Wave 0B save reliability fixes are now **completed and verified** (`32/32` unit & scene tests, `tsc --noEmit` 0 errors, clean Vite build, desktop & mobile Chromium checks with 0 errors):
 
-1. **Frame-0 Environment Sync (`src/scene/NeighborhoodCanvas.tsx`)**: Run `envController.update(composeEnvironmentState(worldRef.current), ...)` and position `residentRigs` + `oakGlint` + `fountainRig` + `gazeboRig` *before* the synchronous Frame 0 `renderer.render(scene, camera)` on software WebGL mount, eliminating the ~2s wrong-season/unrestored-plaza flash.
-2. **Fountain Basin Water Geometry (`src/scene/builders/landmarks.ts`)**: Replace the solid `CylinderGeometry` `outerWall` (`top = 0.70`) with a hollow lathe profile (or recessed basin floor `y = 0.56` + `waterMesh` at `y = 0.68` inside an open ring wall rising to `0.78`) so restored fountain water clearly shimmers in-world.
-3. **Mobile `JournalDrawer` Tab Ergonomics (`src/components/JournalDrawer.tsx`)**: Make tab labels wrap cleanly or use compact mobile sizing (`grid-cols-3` or `flex-wrap`) at `390px` so `"Neighbors"`, `"Story & Memories"`, and `"World & Time"` are all visible without horizontal clipping.
-4. **Dynamic Resident Count (`src/components/PauseModal.tsx`)**: Replace hardcoded `/9` with `/{RESIDENT_ORDER.length}` (and generalize `engine.test.ts:44` assertion to `>= 9` or structural validation).
+1. **Frame-0 Environment Sync (`src/scene/NeighborhoodCanvas.tsx`, `src/game/environment.ts`)**: **Done** — Extracted `syncVisualAndHud()` and executed it at `elapsed = 0, dt = 0` prior to Frame-0 `renderer.render(scene, camera)` (plus fixed `lanternScheduleActive` / `weatherIdx` bitmask overlap and added `environmentRenderer.test.ts`).
+2. **Fountain Basin Water Geometry (`src/scene/builders/landmarks.ts`, `src/scene/models.ts`)**: **Done** — Replaced solid `outerWall` cylinder with hollow carved `LatheGeometry` stone basin (`dryFloor` at `0.525`, `waterMesh` at `0.65` cleanly visible inside coping rim).
+3. **Mobile `JournalDrawer` Tab Ergonomics (`src/components/JournalDrawer.tsx`)**: **Done** — Responsive `grid-cols-3` tab bar on `< 640px` screens displays `"Neighbors"`, `"Story & Memories"`, and `"World & Time"` cleanly at `390×844` without clipping.
+4. **Dynamic Resident Count (`src/components/PauseModal.tsx`, `TitleOverlay.tsx`, `engine.test.ts`, `simulation.test.ts`)**: **Done** — Replaced hardcoded `/9` with `/{RESIDENT_ORDER.length}` and updated Title copy & test assertions.
+5. **Save System Reliability (`src/game/storage.ts`, `src/App.tsx`, `src/game/storage.test.ts`)**: **Done** — Replaced shallow `getSaveStamp` with full-state `computeWorldSaveRevision()`, routed `saveWorldState()` through `serializeWorldState()`, preserved untouched-title no-write guarantees, and flushed dirty saves on `pagehide`/`visibilitychange` for both `playing` and `paused`.
 
-*(Optional polish during Wave 0/2B: wire `puddlesActive` cobble roughness/sheen, `claraPastryBasketVisible`, `minaGreenhouseStage`, `arthurEarlyPorchLamp`, and seasonal leaf tinting on `willowLaneDiorama.ts` hero trees.)*
+*(Remaining 6 environmental items — `puddlesActive`, `claraPastryBasketVisible`, `minaGreenhouseStage` 3D hookup, `arthurEarlyPorchLamp`, hero courtyard tree tinting, and calm autumn/winter particle gating — are formally classified in `07-milestone-2a-final-validation.md` Section 5 as `Missing visual integration` or `Deferred feature` rather than Milestone 2A defects.)*
 
 ---
 

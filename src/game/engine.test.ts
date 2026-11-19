@@ -40,8 +40,9 @@ test('collision prevents walking into buildings or fountain while allowing axis 
   assert.equal(slid.z, 9.0);
 });
 
-test('all 9 residents have valid walkable schedule slots across all 4 time phases', () => {
-  assert.equal(RESIDENT_ORDER.length, 9);
+test('all registered residents have valid walkable schedule slots across all 4 time phases', () => {
+  assert.ok(RESIDENT_ORDER.length >= 1, 'RESIDENT_ORDER must register at least one resident');
+  assert.equal(new Set(RESIDENT_ORDER).size, RESIDENT_ORDER.length, 'RESIDENT_ORDER IDs must be unique');
   const phases = ['morning', 'afternoon', 'golden', 'dusk'] as const;
   for (const id of RESIDENT_ORDER) {
     for (const phase of phases) {
