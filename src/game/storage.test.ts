@@ -153,10 +153,10 @@ test('per-field sanitization clamps bad day/clock/trust and resets non-walkable 
   assert.equal(early.minuteOfDay, DAY_START_MINUTE);
 });
 
-test('corrupt JSON falls back cleanly and v2 round-trip preserves state', () => {
+test('corrupt JSON falls back cleanly and v3 round-trip preserves state', () => {
   const corrupt = deserializeWorldState('{not valid json!!!');
   assert.equal(corrupt.migratedFromVersion, null);
-  assert.equal(corrupt.state.schemaVersion, 2);
+  assert.equal(corrupt.state.schemaVersion, 3);
   assert.equal(corrupt.state.day, 1);
 
   const nonObject = migrateWorldState('hello');
@@ -164,8 +164,35 @@ test('corrupt JSON falls back cleanly and v2 round-trip preserves state', () => 
 
   const fresh = createFreshWorldState();
   const roundTrip = deserializeWorldState(serializeWorldState(fresh));
-  assert.equal(roundTrip.migratedFromVersion, 2);
+  assert.equal(roundTrip.migratedFromVersion, 3);
   assert.deepEqual(roundTrip.state, fresh);
+});
+
+test('legacy v2 save migrates sequentially to v3 with props, posture, needs, and sideFlags', () => {
+  const v2Save = {
+    schemaVersion: 2,
+    simSeed: DEFAULT_SIM_SEED,
+    regionId: 'willow_square',
+    day: 3,
+    minuteOfDay: 720,
+    season: 'spring',
+    weather: 'breezy',
+    playerPos: { x: 0, z: 4.5 },
+    playerFacing: 0.2,
+    residents: {
+      pip: { trust: 3, met: true, talkedToday: false, mood: 'joyful', lastDialogueId: null },
+    },
+    flags: { heardBellMystery: true },
+  };
+  const res = deserializeWorldState(JSON.stringify(v2Save));
+  assert.equal(res.migratedFromVersion, 2);
+  assert.equal(res.state.schemaVersion, CURRENT_SCHEMA_VERSION);
+  assert.equal(res.state.playerPosture, 'standing');
+  assert.equal(res.state.playerHeldItem, null);
+  assert.ok(res.state.worldProps.water_pail);
+  assert.equal(res.state.residents.pip.trust, 3);
+  assert.equal(typeof res.state.npcRuntime.pip.needs.energy, 'number');
+  assert.equal(typeof res.state.playerRelations.pip.reliability, 'number');
 });
 
 test('advanceToNextDay advances season at day 11 and resets npcRuntime to 8:00 AM', () => {
@@ -312,7 +339,7 @@ test('saveWorldState normalizes through serializeWorldState and loadWorldState p
     assert.equal(cleanedLoaded.residents.clara.trust, 5);
     assert.deepEqual(cleanedLoaded.playerPos, PLAYER_SPAWN);
 
-    // 3. Legacy v1 payload creates backup and upgrades STORAGE_KEY to schemaVersion 2
+    // 3. Legacy v1 payload creates backup and upgrades STORAGE_KEY to schemaVersion 3
     const legacyV1 = {
       day: 2,
       minuteOfDay: 540,
@@ -333,13 +360,13 @@ test('saveWorldState normalizes through serializeWorldState and loadWorldState p
     };
     store.set(STORAGE_KEY, JSON.stringify(legacyV1));
     const upgraded = loadWorldState();
-    assert.equal(upgraded.schemaVersion, 2);
+    assert.equal(upgraded.schemaVersion, 3);
     assert.equal(upgraded.day, 2);
     assert.equal(upgraded.flags.heardBellMystery, true);
     assert.equal(upgraded.residents.pip.trust, 2);
     assert.equal(store.get(STORAGE_BACKUP_KEY), JSON.stringify(legacyV1));
     const storedUpgraded = JSON.parse(store.get(STORAGE_KEY) ?? '{}');
-    assert.equal(storedUpgraded.schemaVersion, 2);
+    assert.equal(storedUpgraded.schemaVersion, 3);
   });
 });
 

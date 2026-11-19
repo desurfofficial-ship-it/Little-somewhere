@@ -11,10 +11,12 @@ import {
   ZoomOut,
 } from 'lucide-react';
 import {
+  CarryableItemId,
   DialogueChoice,
   DialogueSession,
   GameScreenState,
   InteractiveTarget,
+  PlayerPosture,
   PropInteractableId,
   ResidentId,
   ScreenVec2,
@@ -44,11 +46,14 @@ import {
   interactWithProp,
   markResidentMet,
   performNextDayRest,
+  pickupWorldPropAction,
+  placeWorldPropAction,
+  togglePlayerSitAction,
 } from './game/actions';
 import { interruptSocialEncounter } from './game/simulation';
 import { getLandmarkAt } from './game/worldMap';
 import { cozyAudio } from './game/audio';
-import { NeighborhoodCanvas } from './scene/NeighborhoodCanvas';
+import { HudBubbleSnapshot, NeighborhoodCanvas } from './scene/NeighborhoodCanvas';
 import { TitleOverlay } from './components/TitleOverlay';
 import { VirtualJoystick } from './components/VirtualJoystick';
 import { DialogueSheet } from './components/DialogueSheet';
@@ -77,7 +82,14 @@ export default function App() {
   const [hudWeather, setHudWeather] = useState<WeatherType>(initialComposed.weather.effective);
   const [hudSeason, setHudSeason] = useState<SeasonType>(initialComposed.season.season);
   const [playerPos, setPlayerPos] = useState<Vec2>(initialLoaded.playerPos);
+  const [playerPosture, setPlayerPosture] = useState<PlayerPosture>(
+    initialLoaded.playerPosture ?? 'standing',
+  );
+  const [playerHeldItem, setPlayerHeldItem] = useState<CarryableItemId | null>(
+    initialLoaded.playerHeldItem ?? null,
+  );
   const [nearestTarget, setNearestTarget] = useState<InteractiveTarget | null>(null);
+  const [nearbyBubble, setNearbyBubble] = useState<HudBubbleSnapshot | null>(null);
   const [dialogueSession, setDialogueSession] = useState<DialogueSession | null>(null);
   const [propCard, setPropCard] = useState<PropInteractionResult | null>(null);
   const [journalOpen, setJournalOpen] = useState<boolean>(false);
@@ -118,6 +130,8 @@ export default function App() {
     setHudWeather(composed.weather.effective);
     setHudSeason(composed.season.season);
     setPlayerPos(next.playerPos);
+    setPlayerPosture(next.playerPosture ?? 'standing');
+    setPlayerHeldItem(next.playerHeldItem ?? null);
     lastSavedStampRef.current = getSaveStamp(next);
     saveWorldState(next);
   }, []);
@@ -141,6 +155,9 @@ export default function App() {
     setHudWeather(composed.weather.effective);
     setHudSeason(composed.season.season);
     setPlayerPos(fresh.playerPos);
+    setPlayerPosture(fresh.playerPosture ?? 'standing');
+    setPlayerHeldItem(fresh.playerHeldItem ?? null);
+    setNearbyBubble(null);
     lastSavedStampRef.current = getSaveStamp(fresh);
     setDialogueSession(null);
     setPropCard(null);
@@ -168,6 +185,25 @@ export default function App() {
         cozyAudio.playDialogueVoice(rid.charCodeAt(0));
         setPropCard(null);
         setDialogueSession(session);
+      } else if (target.kind === 'seat') {
+        const res = togglePlayerSitAction(current, target.seatId ?? target.id);
+        if (res.nextWorld !== current) {
+          commitWorld(res.nextWorld);
+        }
+        cozyAudio.playUiTap(res.sat ? 1.02 : 0.96);
+        if (res.toast) {
+          showToast(res.toast);
+        }
+      } else if (target.kind === 'carryable') {
+        const cid = target.carryableId ?? (target.id as CarryableItemId);
+        const res = pickupWorldPropAction(current, cid);
+        if (res.nextWorld !== current) {
+          commitWorld(res.nextWorld);
+        }
+        cozyAudio.playUiTap(1.12);
+        if (res.toast) {
+          showToast(res.toast);
+        }
       } else {
         const pid = target.id as PropInteractableId;
         const res = interactWithProp(current, pid);
@@ -184,6 +220,17 @@ export default function App() {
     },
     [commitWorld, showToast],
   );
+
+  const handlePlaceHeldItem = useCallback(() => {
+    const res = placeWorldPropAction(worldRef.current);
+    if (res.nextWorld !== worldRef.current) {
+      commitWorld(res.nextWorld);
+      cozyAudio.playUiTap(0.95);
+    }
+    if (res.toast) {
+      showToast(res.toast);
+    }
+  }, [commitWorld, showToast]);
 
   const handleSelectChoice = useCallback(
     (choice: DialogueChoice) => {
@@ -288,6 +335,12 @@ export default function App() {
       if (e.code === 'KeyE' && nearestTarget && !dialogueSession && !propCard && !journalOpen) {
         e.preventDefault();
         openTargetInteraction(nearestTarget);
+        return;
+      }
+
+      if (e.code === 'KeyG' && worldRef.current.playerHeldItem && !dialogueSession && !propCard && !journalOpen) {
+        e.preventDefault();
+        handlePlaceHeldItem();
       }
     };
 
@@ -295,6 +348,7 @@ export default function App() {
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [
     dialogueSession,
+    handlePlaceHeldItem,
     handleStartGame,
     handleToggleMute,
     journalOpen,
@@ -347,13 +401,19 @@ export default function App() {
       minuteOfDay: number;
       playerPos: Vec2;
       playerFacing: number;
+      playerPosture: PlayerPosture;
+      playerHeldItem: CarryableItemId | null;
       nearestTarget: InteractiveTarget | null;
+      nearbyBubble: HudBubbleSnapshot | null;
       weather: WeatherType;
       season: SeasonType;
     }) => {
       setHudClock(snap.minuteOfDay);
       setPlayerPos(snap.playerPos);
+      setPlayerPosture(snap.playerPosture);
+      setPlayerHeldItem(snap.playerHeldItem);
       setNearestTarget(snap.nearestTarget);
+      setNearbyBubble(snap.nearbyBubble);
       setHudWeather(snap.weather);
       setHudSeason(snap.season);
     },
@@ -486,35 +546,67 @@ export default function App() {
             </div>
           </div>
 
-          {/* Gentle Memory / Story Toast */}
-          {toastText && (
+          {/* Gentle Memory / Story Toast or Nearby Neighbor Greeting Whisper */}
+          {toastText ? (
             <div className="self-center mt-2 bg-[#FAF5EC] border border-[#C86446]/40 rounded-xl px-4 py-2 shadow-[0_8px_24px_rgba(45,36,30,0.18)] flex items-center gap-2 text-xs sm:text-sm font-medium text-[#2D241E]">
               <Sparkles className="w-4 h-4 text-[#C86446] shrink-0" />
               <span>{toastText}</span>
             </div>
+          ) : (
+            nearbyBubble &&
+            !isSheetOpen &&
+            !journalOpen &&
+            screenState === 'playing' && (
+              <div className="self-center mt-2 max-w-md bg-[#FAF5EC]/95 border border-[#D4C4AE] rounded-2xl px-4 py-2 shadow-[0_6px_20px_rgba(45,36,30,0.14)] text-xs sm:text-sm text-[#2D241E] text-center">
+                <span className="font-display font-semibold text-[#C86446]">
+                  {nearbyBubble.name}:
+                </span>{' '}
+                <span>“{nearbyBubble.text}”</span>
+              </div>
+            )
           )}
 
-          {/* Bottom Controls: Left Thumbstick + Center/Right Contextual Interact CTA */}
+          {/* Bottom Controls: Left Thumbstick + Center/Right Contextual Interact & Held Item CTA */}
           {!isSheetOpen && !journalOpen && screenState === 'playing' && (
             <div className="flex items-end justify-between gap-4 pb-1">
               <VirtualJoystick vectorRef={joystickVectorRef} />
 
               <div className="flex flex-col items-end gap-2 pointer-events-auto">
+                {playerHeldItem && worldSnapshot.worldProps?.[playerHeldItem] && (
+                  <button
+                    type="button"
+                    onClick={handlePlaceHeldItem}
+                    className="min-h-[44px] px-3.5 py-2 rounded-xl bg-[#FAF5EC]/95 hover:bg-[#F1E8D9] border border-[#D4C4AE] text-[#2D241E] text-xs sm:text-sm font-semibold flex items-center gap-2 shadow-sm transition-colors cursor-pointer whitespace-nowrap"
+                  >
+                    <span className="hidden sm:inline">
+                      Carrying {worldSnapshot.worldProps[playerHeldItem].label} ·
+                    </span>
+                    <span className="text-[#C86446]">Set Down</span>
+                    <span className="hidden sm:inline text-xs text-[#6A5B50] font-mono-nums">[G]</span>
+                  </button>
+                )}
+
                 {nearestTarget ? (
                   <button
                     type="button"
                     onClick={() => openTargetInteraction(nearestTarget)}
                     className="min-h-[48px] px-5 py-3 rounded-2xl bg-[#C86446] hover:bg-[#B45539] active:scale-[0.98] text-[#FAF5EC] font-semibold text-sm sm:text-base shadow-[0_8px_24px_rgba(45,36,30,0.25)] flex items-center gap-2.5 transition-all cursor-pointer whitespace-nowrap"
                   >
-                    <MessageCircle className="w-4 h-4 shrink-0" />
+                    {nearestTarget.kind === 'resident' ? (
+                      <MessageCircle className="w-4 h-4 shrink-0" />
+                    ) : (
+                      <Sparkles className="w-4 h-4 shrink-0" />
+                    )}
                     <span>{nearestTarget.actionLabel}</span>
                     <span className="hidden sm:inline text-xs opacity-80 font-mono-nums">[E]</span>
                   </button>
                 ) : (
                   <div className="bg-[#FAF5EC]/90 border border-[#D4C4AE] rounded-xl px-3.5 py-2 text-xs text-[#5E5046] shadow-sm">
-                    {hudClock >= 1260
+                    {playerPosture === 'sitting'
+                      ? 'Resting on bench — move or tap Stand Up'
+                      : hudClock >= 1260
                       ? 'Lanterns are glowing low — rest on your porch anytime'
-                      : 'Walk up to a neighbor or cottage to interact'}
+                      : 'Walk up to a neighbor, bench, or keepsake (Hold Shift to sprint)'}
                   </div>
                 )}
               </div>
@@ -530,7 +622,17 @@ export default function App() {
         residentProgress={
           dialogueSession ? worldSnapshot.residents[dialogueSession.residentId] : null
         }
+        playerRelation={
+          dialogueSession ? worldSnapshot.playerRelations?.[dialogueSession.residentId] ?? null : null
+        }
+        emotion={
+          dialogueSession
+            ? worldSnapshot.npcRuntime?.[dialogueSession.residentId]?.emotion ??
+              dialogueSession.emotion
+            : undefined
+        }
         flags={worldSnapshot.flags}
+        sideFlags={worldSnapshot.sideFlags}
         onSelectChoice={handleSelectChoice}
         onClose={() => {
           setDialogueSession(null);

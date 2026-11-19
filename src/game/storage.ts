@@ -2,6 +2,7 @@ import { NEXT_DAY_WAKE_MINUTE, getSeasonForDay } from './time';
 import { rollWeatherForDay } from './environment';
 import { PLAYER_DEFAULT_FACING, PLAYER_SPAWN } from './worldMap';
 import {
+  CURRENT_SCHEMA_VERSION,
   MigrationResult,
   createDefaultWorldState,
   migrateWorldState,
@@ -29,7 +30,7 @@ export function deserializeWorldState(rawJson: string): MigrationResult {
     return {
       state: createDefaultWorldState(),
       migratedFromVersion: null,
-      warnings: ['corrupt JSON payload; created fresh WorldState v2'],
+      warnings: ['corrupt JSON payload; created fresh WorldState v3'],
     };
   }
 }
@@ -42,7 +43,7 @@ export function loadWorldState(): WorldState {
     const raw = window.localStorage.getItem(STORAGE_KEY);
     if (!raw) return createDefaultWorldState();
     const res = deserializeWorldState(raw);
-    if (res.migratedFromVersion === 1) {
+    if (res.migratedFromVersion !== null && res.migratedFromVersion < CURRENT_SCHEMA_VERSION) {
       try {
         window.localStorage.setItem(STORAGE_BACKUP_KEY, raw);
         window.localStorage.setItem(STORAGE_KEY, serializeWorldState(res.state));
@@ -81,7 +82,7 @@ function mixNum(h: number, n: number): number {
 
 /**
  * Fast, allocation-free persistence revision fingerprint covering all meaningful persisted WorldState fields
- * while ignoring ephemeral animation jitter (walkPhase, stuckSeconds).
+ * while ignoring ephemeral animation jitter (walkPhase, stuckSeconds, currentSpeed).
  */
 export function computeWorldSaveRevision(state: WorldState): string {
   let h1 = 0x811c9dc5;
@@ -106,6 +107,9 @@ export function computeWorldSaveRevision(state: WorldState): string {
   pushNum(Math.round(state.playerPos.x * 20));
   pushNum(Math.round(state.playerPos.z * 20));
   pushNum(Math.round(state.playerFacing * 20));
+  pushStr(state.playerPosture ?? 'standing');
+  pushStr(state.playerSeatId ?? '');
+  pushStr(state.playerHeldItem ?? '');
   pushBool(state.mailboxUnread);
   pushNum(state.bellRungCount);
 
@@ -127,6 +131,36 @@ export function computeWorldSaveRevision(state: WorldState): string {
   pushBool(f.bellRestored);
   pushBool(f.claraArthurReconciled);
   pushBool(f.lanternsLit);
+
+  const sideKeys = Object.keys(state.sideFlags ?? {}).sort();
+  pushNum(sideKeys.length);
+  for (let i = 0; i < sideKeys.length; i++) {
+    const sk = sideKeys[i];
+    pushStr(sk);
+    pushStr(String(state.sideFlags[sk]));
+  }
+
+  const propKeys = Object.keys(state.worldProps ?? {}).sort();
+  pushNum(propKeys.length);
+  for (let i = 0; i < propKeys.length; i++) {
+    const p = state.worldProps[propKeys[i] as keyof WorldState['worldProps']];
+    if (p) {
+      pushStr(p.id);
+      pushStr(p.holder);
+      pushNum(Math.round(p.pos.x * 20));
+      pushNum(Math.round(p.pos.z * 20));
+    }
+  }
+
+  const topicKeys = Object.keys(state.topicHistory ?? {}).sort();
+  pushNum(topicKeys.length);
+  for (let i = 0; i < topicKeys.length; i++) {
+    const tk = topicKeys[i];
+    const th = state.topicHistory[tk];
+    pushStr(tk);
+    pushNum(th.seenCount);
+    pushNum(th.lastSeenDay);
+  }
 
   pushNum(state.memories.length);
   for (let i = 0; i < state.memories.length; i++) {
@@ -156,6 +190,11 @@ export function computeWorldSaveRevision(state: WorldState): string {
       pushStr(rel.lastTalkPhase ?? '');
       pushStr(rel.mood);
       pushNum(Math.round(rel.moodUntilMinute));
+      pushNum(rel.reliability ?? 25);
+      pushNum(rel.negativeCount ?? 0);
+      pushNum(rel.favorsCompleted ?? 0);
+      pushNum(rel.giftsGiven ?? 0);
+      pushStr(rel.lastEmotion ?? '');
     }
     const rt = state.npcRuntime?.[id];
     if (rt) {
@@ -166,6 +205,9 @@ export function computeWorldSaveRevision(state: WorldState): string {
       pushStr(rt.animState);
       pushStr(rt.currentActivityId);
       pushStr(rt.socialPartnerId ?? '');
+      pushStr(rt.emotion ?? '');
+      pushStr(rt.posture ?? 'standing');
+      pushStr(rt.reservedSeatId ?? '');
       pushNum(rt.waypoints.length);
       pushNum(Math.round(rt.activityUntilMinute));
       pushNum(Math.round(rt.socialCooldownUntilMinute));
@@ -258,6 +300,8 @@ export function advanceToNextDay(state: WorldState): WorldState {
     weather: rollWeatherForDay(state.simSeed, nextDay),
     playerPos: { ...PLAYER_SPAWN },
     playerFacing: PLAYER_DEFAULT_FACING,
+    playerPosture: 'standing',
+    playerSeatId: null,
     residents: nextResidents,
     playerRelations: nextPlayerRelations,
     npcRuntime: createInitialNpcRuntime(NEXT_DAY_WAKE_MINUTE, state.flags.claraArthurReconciled),

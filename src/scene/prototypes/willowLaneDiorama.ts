@@ -1131,37 +1131,46 @@ export function buildStorybookJun(
   const rightLeg = makeLeg(0.13);
   bodyGroup.add(leftLeg, rightLeg);
 
+  // Waist / Upper-Body Pivot (y = 0.45 inside bodyGroup)
+  const torsoPivot = new THREE.Group();
+  torsoPivot.position.set(0, 0.45, 0);
+  bodyGroup.add(torsoPivot);
+
   // Flared Courier Coat + Shirt Placket + Brass Buttons
   const coatSkirt = new THREE.Mesh(new THREE.CylinderGeometry(0.24, 0.35, 0.34, 12), coatMat);
-  coatSkirt.position.y = 0.55;
+  coatSkirt.position.y = 0.1;
   coatSkirt.castShadow = true;
   const coatChest = new THREE.Mesh(new THREE.CylinderGeometry(0.23, 0.26, 0.38, 12), coatMat);
-  coatChest.position.y = 0.87;
+  coatChest.position.y = 0.42;
   coatChest.castShadow = true;
   const lapel = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.34, 0.06), shirtMat);
-  lapel.position.set(0, 0.88, 0.22);
-  bodyGroup.add(coatSkirt, coatChest, lapel);
+  lapel.position.set(0, 0.43, 0.22);
+  torsoPivot.add(coatSkirt, coatChest, lapel);
 
   for (let b = 0; b < 3; b++) {
     const btn = new THREE.Mesh(new THREE.SphereGeometry(0.024, 6, 6), brassMat);
-    btn.position.set(0, 0.72 + b * 0.11, 0.26);
-    bodyGroup.add(btn);
+    btn.position.set(0, 0.27 + b * 0.11, 0.26);
+    torsoPivot.add(btn);
   }
 
   // Knit Amber Scarf Wrap + Tail
   const scarfCollar = new THREE.Mesh(new THREE.TorusGeometry(0.21, 0.065, 8, 14), scarfMat);
   scarfCollar.rotation.x = Math.PI / 2;
-  scarfCollar.position.y = 1.05;
+  scarfCollar.position.y = 0.6;
   const scarfTail = new THREE.Mesh(new THREE.BoxGeometry(0.11, 0.26, 0.05), scarfMat);
-  scarfTail.position.set(0.12, 0.9, 0.24);
+  scarfTail.position.set(0.12, 0.45, 0.24);
   scarfTail.rotation.z = -0.16;
   scarfTail.rotation.x = -0.12;
-  bodyGroup.add(scarfCollar, scarfTail);
+  torsoPivot.add(scarfCollar, scarfTail);
 
-  // Pivoted Sleeved Arms with Cream Cuffs & Clay Hands (shoulder pivot at y = 0.98)
+  const carrySocket = new THREE.Group();
+  carrySocket.position.set(0, 0.31, 0.37);
+  torsoPivot.add(carrySocket);
+
+  // Pivoted Sleeved Arms with Cream Cuffs & Clay Hands (shoulder pivot at y = 0.53 inside torsoPivot)
   const makeArm = (side: -1 | 1) => {
     const armPivot = new THREE.Group();
-    armPivot.position.set(side * 0.3, 0.98, 0);
+    armPivot.position.set(side * 0.3, 0.53, 0);
     const sleeve = new THREE.Mesh(new THREE.CylinderGeometry(0.075, 0.095, 0.34, 8), coatMat);
     sleeve.position.set(side * 0.04, -0.16, 0);
     sleeve.rotation.z = side * 0.18;
@@ -1176,17 +1185,17 @@ export function buildStorybookJun(
   };
   const leftArm = makeArm(-1);
   const rightArm = makeArm(1);
-  bodyGroup.add(leftArm, rightArm);
+  torsoPivot.add(leftArm, rightArm);
 
   // Cross-Body Leather Courier Satchel + Brass Buckle + Peeking Postcard
   const satchelStrap = new THREE.Mesh(new THREE.TorusGeometry(0.29, 0.028, 6, 16), leatherMat);
-  satchelStrap.position.set(-0.02, 0.78, 0);
+  satchelStrap.position.set(-0.02, 0.33, 0);
   satchelStrap.rotation.y = Math.PI / 2;
   satchelStrap.rotation.x = 0.65;
-  bodyGroup.add(satchelStrap);
+  torsoPivot.add(satchelStrap);
 
   const bagGroup = new THREE.Group();
-  bagGroup.position.set(-0.32, 0.58, 0.04);
+  bagGroup.position.set(-0.32, 0.13, 0.04);
   bagGroup.rotation.z = -0.08;
   const bagBody = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.24, 0.3), leatherMat);
   bagBody.castShadow = true;
@@ -1200,11 +1209,11 @@ export function buildStorybookJun(
   const letterStamp = new THREE.Mesh(new THREE.BoxGeometry(0.035, 0.045, 0.045), stampMat);
   letterStamp.position.set(0.02, 0.16, 0.03);
   bagGroup.add(bagBody, bagFlap, bagBuckle, letterPeek, letterStamp);
-  bodyGroup.add(bagGroup);
+  torsoPivot.add(bagGroup);
 
   // Expressive Storybook Head + Hair Tufts + Courier Cap + Brass Post-Horn Badge
   const headGroup = new THREE.Group();
-  headGroup.position.set(0, 1.35, 0);
+  headGroup.position.set(0, 0.9, 0);
 
   const head = new THREE.Mesh(new THREE.SphereGeometry(0.285, 14, 12), skinMat);
   head.castShadow = true;
@@ -1215,7 +1224,14 @@ export function buildStorybookJun(
   nose.position.set(0, -0.02, 0.275);
   headGroup.add(nose);
 
-  for (const sx of [-1, 1]) {
+  const lidGeo = new THREE.BoxGeometry(0.082, 0.056, 0.036);
+  const browGeo = new THREE.BoxGeometry(0.074, 0.02, 0.024);
+  let leftEyelid!: THREE.Mesh;
+  let rightEyelid!: THREE.Mesh;
+  let leftBrow!: THREE.Mesh;
+  let rightBrow!: THREE.Mesh;
+
+  for (const sx of [-1, 1] as const) {
     const blush = new THREE.Mesh(new THREE.SphereGeometry(0.052, 8, 8), blushMat);
     blush.scale.set(1.2, 0.72, 0.45);
     blush.position.set(sx * 0.155, -0.06, 0.22);
@@ -1227,6 +1243,23 @@ export function buildStorybookJun(
     const catchlight = new THREE.Mesh(new THREE.SphereGeometry(0.013, 6, 6), highlightMat);
     catchlight.position.set(sx * 0.105 + 0.012, 0.04, 0.284);
     headGroup.add(eye, catchlight);
+
+    const eyelid = new THREE.Mesh(lidGeo, skinMat);
+    eyelid.position.set(sx * 0.105, 0.056, 0.268);
+    eyelid.scale.y = 0.2;
+    headGroup.add(eyelid);
+
+    const brow = new THREE.Mesh(browGeo, hairMat);
+    brow.position.set(sx * 0.105, 0.078, 0.274);
+    headGroup.add(brow);
+
+    if (sx === -1) {
+      leftEyelid = eyelid;
+      leftBrow = brow;
+    } else {
+      rightEyelid = eyelid;
+      rightBrow = brow;
+    }
   }
 
   // Sculpted back hair + bangs tufts under cap
@@ -1263,7 +1296,7 @@ export function buildStorybookJun(
   capBadge.position.set(0, 0.22, 0.28);
   headGroup.add(capCrown, capBand, capVisor, capBadge);
 
-  bodyGroup.add(headGroup);
+  torsoPivot.add(headGroup);
 
   const questPip = new THREE.Mesh(
     new THREE.OctahedronGeometry(0.14, 0),
@@ -1281,11 +1314,17 @@ export function buildStorybookJun(
   return {
     root,
     bodyGroup,
-    leftLeg: leftLeg as unknown as THREE.Mesh,
-    rightLeg: rightLeg as unknown as THREE.Mesh,
-    leftArm: leftArm as unknown as THREE.Mesh,
-    rightArm: rightArm as unknown as THREE.Mesh,
+    torsoPivot,
+    leftLeg,
+    rightLeg,
+    leftArm,
+    rightArm,
     headGroup,
+    leftEyelid,
+    rightEyelid,
+    leftBrow,
+    rightBrow,
+    carrySocket,
     ringMesh,
     questPip,
   };

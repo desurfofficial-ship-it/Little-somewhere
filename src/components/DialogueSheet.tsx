@@ -1,12 +1,19 @@
 import React from 'react';
 import { Heart, Sparkles, X } from 'lucide-react';
 import {
+  CharacterEmotion,
   DialogueChoice,
   DialogueSession,
+  PlayerNpcRelation,
   ResidentProgress,
   StoryFlags,
 } from '../game/types';
 import { isChoiceAvailable } from '../game/narrative';
+import {
+  getEmotionLabel,
+  getRelationshipTier,
+  getRelationshipTierLabel,
+} from '../game/relationships';
 import { RESIDENTS } from '../game/residents';
 import { PropInteractionResult } from '../game/actions';
 
@@ -14,7 +21,10 @@ interface DialogueSheetProps {
   session: DialogueSession | null;
   propCard: PropInteractionResult | null;
   residentProgress: ResidentProgress | null;
+  playerRelation?: PlayerNpcRelation | null;
+  emotion?: CharacterEmotion;
   flags: StoryFlags;
+  sideFlags?: Record<string, boolean | number | string>;
   onSelectChoice: (choice: DialogueChoice) => void;
   onClose: () => void;
   onPropAction: (actionType: 'rest_next_day' | 'ring_bell') => void;
@@ -24,7 +34,10 @@ export const DialogueSheet: React.FC<DialogueSheetProps> = ({
   session,
   propCard,
   residentProgress,
+  playerRelation,
+  emotion,
   flags,
+  sideFlags = {},
   onSelectChoice,
   onClose,
   onPropAction,
@@ -90,8 +103,16 @@ export const DialogueSheet: React.FC<DialogueSheetProps> = ({
   if (!node) return null;
   const resDef = RESIDENTS[session.residentId];
   const trust = residentProgress?.trust ?? 0;
+  const tierLabel = playerRelation
+    ? getRelationshipTierLabel(getRelationshipTier(playerRelation.affinity))
+    : session.tier
+    ? getRelationshipTierLabel(session.tier)
+    : null;
+  const emotionLabel = emotion ? getEmotionLabel(emotion) : node.moodLabel;
 
-  const availableChoices = node.choices.filter((c) => isChoiceAvailable(c, flags, trust));
+  const availableChoices = node.choices.filter((c) =>
+    isChoiceAvailable(c, flags, trust, sideFlags),
+  );
 
   return (
     <div className="fixed inset-x-0 bottom-0 z-30 p-3 sm:p-5 pointer-events-none flex justify-center">
@@ -128,10 +149,16 @@ export const DialogueSheet: React.FC<DialogueSheetProps> = ({
                   ))}
                 </div>
               </div>
-              <div className="text-xs text-[#6A5B50] flex items-center gap-1.5">
+              <div className="text-xs text-[#6A5B50] flex items-center gap-1.5 flex-wrap">
                 <span>{node.speakerRole}</span>
                 <span aria-hidden="true">·</span>
-                <span>{node.moodLabel}</span>
+                <span>{emotionLabel}</span>
+                {tierLabel && (
+                  <>
+                    <span aria-hidden="true">·</span>
+                    <span className="font-medium text-[#5E8062]">{tierLabel}</span>
+                  </>
+                )}
               </div>
             </div>
           </div>
@@ -168,7 +195,21 @@ export const DialogueSheet: React.FC<DialogueSheetProps> = ({
               className="w-full min-h-[46px] px-4 py-2.5 text-left rounded-xl bg-[#F2E9DA] hover:bg-[#E7DAC6] active:scale-[0.995] border border-[#D8C9B3] text-sm sm:text-base font-medium text-[#2D241E] transition-all cursor-pointer flex items-center justify-between gap-3"
             >
               <span>{choice.label}</span>
-              <span className="text-xs font-semibold text-[#C86446] shrink-0">Reply</span>
+              <span
+                className={`text-xs font-semibold shrink-0 ${
+                  choice.deliverHeldItem
+                    ? 'text-[#5E8062]'
+                    : choice.tone === 'blunt' || choice.isNegative
+                    ? 'text-[#8A5A44]'
+                    : 'text-[#C86446]'
+                }`}
+              >
+                {choice.deliverHeldItem
+                  ? 'Gift'
+                  : choice.tone === 'blunt' || choice.isNegative
+                  ? 'Blunt'
+                  : 'Reply'}
+              </span>
             </button>
           ))}
 

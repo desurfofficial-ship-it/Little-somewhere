@@ -1,5 +1,7 @@
 import {
   ActiveSocialEncounter,
+  CarryableItemId,
+  CharacterEmotion,
   JournalMemory,
   NpcNpcRelation,
   NpcRuntimeState,
@@ -9,8 +11,11 @@ import {
   ResidentProgress,
   SeasonType,
   StoryFlags,
+  TimePhase,
+  TopicHistoryEntry,
   WeatherType,
   WorldEventRecord,
+  WorldPropPlacement,
   WorldState,
 } from './types';
 import {
@@ -39,11 +44,13 @@ import {
   PLAYER_DEFAULT_FACING,
   PLAYER_SPAWN,
   REGIONS,
+  createInitialWorldProps,
+  getSeatById,
   isPointWalkable,
 } from './worldMap';
 import { createInitialNpcRuntime } from './simulation';
 
-export const CURRENT_SCHEMA_VERSION = 2;
+export const CURRENT_SCHEMA_VERSION = 3;
 export const DEFAULT_SIM_SEED = 18042;
 
 export interface MigrationResult {
@@ -58,6 +65,18 @@ const VALID_MOODS = new Set<ResidentProgress['mood']>([
   'busy',
   'warm',
   'joyful',
+]);
+const VALID_EMOTIONS = new Set<CharacterEmotion>([
+  'happy',
+  'sad',
+  'excited',
+  'tired',
+  'frustrated',
+  'angry',
+  'relaxed',
+  'embarrassed',
+  'curious',
+  'surprised',
 ]);
 const VALID_MEDIATION = new Set<StoryFlags['mediationStyle']>([
   'none',
@@ -75,11 +94,28 @@ const VALID_SEASONS = new Set<SeasonType>(SEASON_ORDER);
 const VALID_ANIM_STATES = new Set<NpcRuntimeState['animState']>([
   'idle',
   'walk',
+  'run',
+  'sprint',
+  'turn',
+  'sit',
+  'interact',
+  'carry',
+  'talk',
+  'listen',
+  'wave',
+  'rest',
   'work',
   'sketch_read',
   'music',
   'converse',
   'admire',
+]);
+const VALID_CARRYABLE_IDS = new Set<CarryableItemId>([
+  'water_pail',
+  'rosemary_basket',
+  'chalk_bundle',
+  'tea_tray',
+  'lost_parcel',
 ]);
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -92,6 +128,10 @@ function asFiniteNumber(value: unknown, fallback: number): number {
 
 function asBoolean(value: unknown, fallback: boolean): boolean {
   return typeof value === 'boolean' ? value : fallback;
+}
+
+function clampNeed(value: unknown, fallback: number): number {
+  return Math.max(0, Math.min(100, asFiniteNumber(value, fallback)));
 }
 
 export function createStarterMemories(): JournalMemory[] {
@@ -122,6 +162,10 @@ export function createDefaultWorldState(): WorldState {
     weather: 'sunlit',
     playerPos: { ...PLAYER_SPAWN },
     playerFacing: PLAYER_DEFAULT_FACING,
+    playerPosture: 'standing',
+    playerSeatId: null,
+    playerHeldItem: null,
+    worldProps: createInitialWorldProps(),
     residents,
     npcRuntime: createInitialNpcRuntime(minuteOfDay, flags.claraArthurReconciled),
     playerRelations: createInitialPlayerRelations(residents),
@@ -129,6 +173,9 @@ export function createDefaultWorldState(): WorldState {
     activeEncounters: [],
     worldEvents: [],
     npcActivityHistory: createInitialNpcActivityHistory(),
+    topicHistory: {},
+    lastTopicByResident: {},
+    sideFlags: {},
     flags,
     memories: createStarterMemories(),
     mailboxUnread: true,
@@ -259,9 +306,23 @@ function sanitizeNpcRuntime(
       out[id] = def;
       continue;
     }
+
+    const reservedSeatId =
+      typeof entry.reservedSeatId === 'string' && getSeatById(entry.reservedSeatId)
+        ? entry.reservedSeatId
+        : null;
+    const posture =
+      entry.posture === 'sitting' && reservedSeatId ? 'sitting' : 'standing';
+
     let posX = def.position.x;
     let posZ = def.position.z;
-    if (isRecord(entry.position)) {
+    if (posture === 'sitting' && reservedSeatId) {
+      const seat = getSeatById(reservedSeatId);
+      if (seat) {
+        posX = seat.seatPos.x;
+        posZ = seat.seatPos.z;
+      }
+    } else if (isRecord(entry.position)) {
       const cx = asFiniteNumber(entry.position.x, def.position.x);
       const cz = asFiniteNumber(entry.position.z, def.position.z);
       if (isPointWalkable(cx, cz, 0.35)) {
@@ -305,6 +366,13 @@ function sanitizeNpcRuntime(
         ? (entry.socialPartnerId as ResidentId)
         : null;
 
+    const emotion =
+      typeof entry.emotion === 'string' && VALID_EMOTIONS.has(entry.emotion as CharacterEmotion)
+        ? (entry.emotion as CharacterEmotion)
+        : def.emotion;
+
+    const rawNeeds = isRecord(entry.needs) ? entry.needs : {};
+
     out[id] = {
       position: { x: posX, z: posZ },
       facing: asFiniteNumber(entry.facing, def.facing),
@@ -330,6 +398,34 @@ function sanitizeNpcRuntime(
         0,
         asFiniteNumber(entry.socialCooldownUntilMinute, def.socialCooldownUntilMinute),
       ),
+      emotion,
+      emotionIntensity: Math.max(0, Math.min(1, asFiniteNumber(entry.emotionIntensity, def.emotionIntensity))),
+      emotionUntilMinute: Math.max(0, asFiniteNumber(entry.emotionUntilMinute, def.emotionUntilMinute)),
+      needs: {
+        energy: clampNeed(rawNeeds.energy, def.needs.energy),
+        social: clampNeed(rawNeeds.social, def.needs.social),
+        hunger: clampNeed(rawNeeds.hunger, def.needs.hunger),
+        fulfillment: clampNeed(rawNeeds.fulfillment, def.needs.fulfillment),
+      },
+      posture,
+      reservedSeatId,
+      goalUtility: Math.max(0, asFiniteNumber(entry.goalUtility, def.goalUtility)),
+      goalCommittedUntilMinute: Math.max(
+        0,
+        asFiniteNumber(entry.goalCommittedUntilMinute, def.goalCommittedUntilMinute),
+      ),
+      lastGreetedPlayerMinute: asFiniteNumber(entry.lastGreetedPlayerMinute, def.lastGreetedPlayerMinute),
+      activeBubbleText: typeof entry.activeBubbleText === 'string' ? entry.activeBubbleText : null,
+      activeBubbleUntilMinute: Math.max(0, asFiniteNumber(entry.activeBubbleUntilMinute, 0)),
+      targetLookPos:
+        isRecord(entry.targetLookPos) &&
+        typeof entry.targetLookPos.x === 'number' &&
+        typeof entry.targetLookPos.z === 'number' &&
+        Number.isFinite(entry.targetLookPos.x) &&
+        Number.isFinite(entry.targetLookPos.z)
+          ? { x: entry.targetLookPos.x, z: entry.targetLookPos.z }
+          : null,
+      currentSpeed: Math.max(0, asFiniteNumber(entry.currentSpeed, 0)),
     };
   }
   return out;
@@ -358,6 +454,11 @@ function sanitizePlayerRelations(
       typeof entry.mood === 'string' && VALID_MOODS.has(entry.mood as ResidentProgress['mood'])
         ? (entry.mood as ResidentProgress['mood'])
         : residents[id].mood;
+    const lastEmotion =
+      typeof entry.lastEmotion === 'string' && VALID_EMOTIONS.has(entry.lastEmotion as CharacterEmotion)
+        ? (entry.lastEmotion as CharacterEmotion)
+        : def.lastEmotion;
+
     out[id] = {
       residentId: id,
       affinity,
@@ -380,6 +481,11 @@ function sanitizePlayerRelations(
           : null,
       mood,
       moodUntilMinute: Math.max(0, asFiniteNumber(entry.moodUntilMinute, 0)),
+      reliability: Math.max(0, Math.min(100, Math.round(asFiniteNumber(entry.reliability, def.reliability)))),
+      negativeCount: Math.max(0, Math.floor(asFiniteNumber(entry.negativeCount, 0))),
+      favorsCompleted: Math.max(0, Math.floor(asFiniteNumber(entry.favorsCompleted, 0))),
+      giftsGiven: Math.max(0, Math.floor(asFiniteNumber(entry.giftsGiven, 0))),
+      lastEmotion,
     };
     residents[id].trust = Math.min(5, Math.max(residents[id].trust, getHeartLevel(affinity)));
   }
@@ -469,35 +575,48 @@ function sanitizeActiveEncounters(raw: unknown): ActiveSocialEncounter[] {
     if (
       typeof item.id !== 'string' ||
       !Array.isArray(item.participants) ||
-      item.participants.length !== 2 ||
+      item.participants.length < 2 ||
+      item.participants.length > 3 ||
       !Array.isArray(item.spots) ||
-      item.spots.length !== 2
+      item.spots.length < item.participants.length
     ) {
       continue;
     }
-    const [pA, pB] = item.participants;
-    if (
-      typeof pA !== 'string' ||
-      typeof pB !== 'string' ||
-      !(RESIDENT_ORDER as readonly string[]).includes(pA) ||
-      !(RESIDENT_ORDER as readonly string[]).includes(pB)
-    ) {
-      continue;
+    const participants: ResidentId[] = [];
+    let validActors = true;
+    for (const p of item.participants) {
+      if (typeof p !== 'string' || !(RESIDENT_ORDER as readonly string[]).includes(p)) {
+        validActors = false;
+        break;
+      }
+      participants.push(p as ResidentId);
     }
-    const s0 = item.spots[0];
-    const s1 = item.spots[1];
-    if (!isRecord(s0) || !isRecord(s1)) continue;
-    const x0 = asFiniteNumber(s0.x, 0);
-    const z0 = asFiniteNumber(s0.z, 0);
-    const x1 = asFiniteNumber(s1.x, 0);
-    const z1 = asFiniteNumber(s1.z, 0);
-    if (!isPointWalkable(x0, z0, 0.35) || !isPointWalkable(x1, z1, 0.35)) continue;
+    if (!validActors) continue;
+
+    const spots: Array<{ x: number; z: number }> = [];
+    let validSpots = true;
+    for (let i = 0; i < participants.length; i++) {
+      const s = item.spots[i];
+      if (!isRecord(s)) {
+        validSpots = false;
+        break;
+      }
+      const x = asFiniteNumber(s.x, 0);
+      const z = asFiniteNumber(s.z, 0);
+      if (!isPointWalkable(x, z, 0.35)) {
+        validSpots = false;
+        break;
+      }
+      spots.push({ x, z });
+    }
+    if (!validSpots) continue;
+
     out.push({
       id: item.id,
-      participants: [pA as ResidentId, pB as ResidentId],
+      participants,
       topicTag: typeof item.topicTag === 'string' ? item.topicTag : 'neighbor_chat',
       summary: typeof item.summary === 'string' ? item.summary : 'Sharing a quiet chat in the lane',
-      spots: [{ x: x0, z: z0 }, { x: x1, z: z1 }],
+      spots,
       startedMinute: clampMinuteOfDay(asFiniteNumber(item.startedMinute, DEFAULT_START_MINUTE)),
       endsMinute: clampMinuteOfDay(asFiniteNumber(item.endsMinute, DEFAULT_START_MINUTE + 15)),
     });
@@ -525,6 +644,98 @@ function sanitizeNpcActivityHistory(raw: unknown): Record<ResidentId, ResidentAc
   return out;
 }
 
+function sanitizeWorldProps(
+  rawProps: unknown,
+  rawHeldItem: unknown,
+): {
+  worldProps: Record<CarryableItemId, WorldPropPlacement>;
+  playerHeldItem: CarryableItemId | null;
+} {
+  const defaults = createInitialWorldProps();
+  const heldItem =
+    typeof rawHeldItem === 'string' && VALID_CARRYABLE_IDS.has(rawHeldItem as CarryableItemId)
+      ? (rawHeldItem as CarryableItemId)
+      : null;
+
+  if (!isRecord(rawProps)) {
+    return { worldProps: defaults, playerHeldItem: heldItem };
+  }
+
+  const out = { ...defaults };
+  for (const id of VALID_CARRYABLE_IDS) {
+    const def = defaults[id];
+    const entry = rawProps[id];
+    if (!isRecord(entry)) continue;
+    let pos = { ...def.pos };
+    if (isRecord(entry.pos)) {
+      const px = asFiniteNumber(entry.pos.x, def.pos.x);
+      const pz = asFiniteNumber(entry.pos.z, def.pos.z);
+      if (isPointWalkable(px, pz, 0.3)) {
+        pos = { x: px, z: pz };
+      }
+    }
+    const holder =
+      entry.holder === 'player' ||
+      entry.holder === 'world' ||
+      (typeof entry.holder === 'string' && (RESIDENT_ORDER as readonly string[]).includes(entry.holder))
+        ? (entry.holder as WorldPropPlacement['holder'])
+        : 'world';
+    out[id] = {
+      ...def,
+      pos,
+      holder: heldItem === id ? 'player' : holder === 'player' && heldItem !== id ? 'world' : holder,
+    };
+  }
+  return { worldProps: out, playerHeldItem: heldItem };
+}
+
+function sanitizeTopicHistory(raw: unknown): Record<string, TopicHistoryEntry> {
+  const out: Record<string, TopicHistoryEntry> = {};
+  if (!isRecord(raw)) return out;
+  for (const [k, v] of Object.entries(raw)) {
+    if (!isRecord(v)) continue;
+    const phase: TimePhase =
+      v.lastSeenPhase === 'morning' ||
+      v.lastSeenPhase === 'afternoon' ||
+      v.lastSeenPhase === 'golden' ||
+      v.lastSeenPhase === 'dusk'
+        ? v.lastSeenPhase
+        : 'morning';
+    const chosenChoiceIds = Array.isArray(v.chosenChoiceIds)
+      ? v.chosenChoiceIds.filter((c): c is string => typeof c === 'string').slice(-8)
+      : [];
+    out[k] = {
+      seenCount: Math.max(0, Math.floor(asFiniteNumber(v.seenCount, 0))),
+      lastSeenDay: Math.max(1, Math.floor(asFiniteNumber(v.lastSeenDay, 1))),
+      lastSeenPhase: phase,
+      chosenChoiceIds,
+    };
+  }
+  return out;
+}
+
+function sanitizeLastTopicByResident(raw: unknown): Partial<Record<ResidentId, string>> {
+  const out: Partial<Record<ResidentId, string>> = {};
+  if (!isRecord(raw)) return out;
+  for (const id of RESIDENT_ORDER) {
+    if (typeof raw[id] === 'string') {
+      out[id] = raw[id] as string;
+    }
+  }
+  return out;
+}
+
+function sanitizeSideFlags(raw: unknown): Record<string, boolean | number | string> {
+  const out: Record<string, boolean | number | string> = {};
+  if (!isRecord(raw)) return out;
+  for (const [k, v] of Object.entries(raw)) {
+    if (typeof v === 'boolean' || (typeof v === 'number' && Number.isFinite(v)) || typeof v === 'string') {
+      out[k] = v;
+    }
+  }
+  return out;
+}
+
 export function sanitizeWorldState(candidate: unknown, externalWarnings: string[] = []): WorldState {
   if (!isRecord(candidate)) {
     return createDefaultWorldState();
@@ -543,9 +754,23 @@ export function sanitizeWorldState(candidate: unknown, externalWarnings: string[
   const rawSeed = asFiniteNumber(candidate.simSeed, DEFAULT_SIM_SEED);
   const simSeed = (Math.floor(rawSeed) >>> 0) || DEFAULT_SIM_SEED;
 
+  const rawSeatId =
+    typeof candidate.playerSeatId === 'string' && getSeatById(candidate.playerSeatId)
+      ? candidate.playerSeatId
+      : null;
+  const playerPosture =
+    candidate.playerPosture === 'sitting' && rawSeatId ? 'sitting' : 'standing';
+  const playerSeatId = playerPosture === 'sitting' ? rawSeatId : null;
+
   let playerX = PLAYER_SPAWN.x;
   let playerZ = PLAYER_SPAWN.z;
-  if (isRecord(candidate.playerPos)) {
+  let playerFacing = asFiniteNumber(candidate.playerFacing, PLAYER_DEFAULT_FACING);
+  if (playerPosture === 'sitting' && playerSeatId) {
+    const seat = getSeatById(playerSeatId)!;
+    playerX = seat.seatPos.x;
+    playerZ = seat.seatPos.z;
+    playerFacing = seat.facingAngle;
+  } else if (isRecord(candidate.playerPos)) {
     const cx = asFiniteNumber(candidate.playerPos.x, PLAYER_SPAWN.x);
     const cz = asFiniteNumber(candidate.playerPos.z, PLAYER_SPAWN.z);
     if (isPointWalkable(cx, cz, 0.48)) {
@@ -569,6 +794,13 @@ export function sanitizeWorldState(candidate: unknown, externalWarnings: string[
   const activeEncounters = sanitizeActiveEncounters(candidate.activeEncounters);
   const worldEvents = sanitizeWorldEvents(candidate.worldEvents);
   const npcActivityHistory = sanitizeNpcActivityHistory(candidate.npcActivityHistory);
+  const { worldProps, playerHeldItem } = sanitizeWorldProps(
+    candidate.worldProps,
+    candidate.playerHeldItem,
+  );
+  const topicHistory = sanitizeTopicHistory(candidate.topicHistory);
+  const lastTopicByResident = sanitizeLastTopicByResident(candidate.lastTopicByResident);
+  const sideFlags = sanitizeSideFlags(candidate.sideFlags);
 
   const derivedSeason = getSeasonForDay(day).season;
   const season =
@@ -605,7 +837,11 @@ export function sanitizeWorldState(candidate: unknown, externalWarnings: string[
     season,
     weather,
     playerPos: { x: playerX, z: playerZ },
-    playerFacing: asFiniteNumber(candidate.playerFacing, PLAYER_DEFAULT_FACING),
+    playerFacing,
+    playerPosture,
+    playerSeatId,
+    playerHeldItem,
+    worldProps,
     residents,
     npcRuntime,
     playerRelations,
@@ -613,6 +849,9 @@ export function sanitizeWorldState(candidate: unknown, externalWarnings: string[
     activeEncounters,
     worldEvents,
     npcActivityHistory,
+    topicHistory,
+    lastTopicByResident,
+    sideFlags,
     flags,
     memories: sanitizeMemories(candidate.memories),
     mailboxUnread: asBoolean(candidate.mailboxUnread, true),
@@ -635,7 +874,6 @@ export function migrateV1ToV2(v1Raw: Record<string, unknown>): Record<string, un
   const playerRelations = createInitialPlayerRelations(residents);
   const npcRelations = createInitialNpcRelations(flags.claraArthurReconciled);
 
-  // Align phase field on any starter memory if needed
   const memories = sanitizeMemories(v1Raw.memories).map((m) => ({
     ...m,
     phase: m.phase || getTimePhase(minuteOfDay),
@@ -662,11 +900,29 @@ export function migrateV1ToV2(v1Raw: Record<string, unknown>): Record<string, un
   };
 }
 
+/**
+ * Pure sequential v2 -> v3 save upgrader adding Character Excellence fields
+ * (posture, seats, carryable props, dialogue topic history, side stories, needs & 10 emotions).
+ */
+export function migrateV2ToV3(v2Raw: Record<string, unknown>): Record<string, unknown> {
+  return {
+    ...v2Raw,
+    schemaVersion: 3,
+    playerPosture: 'standing',
+    playerSeatId: null,
+    playerHeldItem: null,
+    worldProps: createInitialWorldProps(),
+    topicHistory: {},
+    lastTopicByResident: {},
+    sideFlags: {},
+  };
+}
+
 export function migrateWorldState(raw: unknown): MigrationResult {
   const warnings: string[] = [];
   const detected = detectSchemaVersion(raw);
   if (detected === null) {
-    warnings.push('unrecognized or corrupt save payload; created fresh WorldState v2');
+    warnings.push('unrecognized or corrupt save payload; created fresh WorldState v3');
     return {
       state: createDefaultWorldState(),
       migratedFromVersion: null,
@@ -680,6 +936,11 @@ export function migrateWorldState(raw: unknown): MigrationResult {
   if (version === 1) {
     working = migrateV1ToV2(working);
     version = 2;
+  }
+
+  if (version === 2) {
+    working = migrateV2ToV3(working);
+    version = 3;
   }
 
   if (version > CURRENT_SCHEMA_VERSION) {

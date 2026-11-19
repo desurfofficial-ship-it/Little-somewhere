@@ -21,6 +21,36 @@ export type PropInteractableId =
   | 'hollow_oak'
   | 'plaza_noticeboard';
 
+export type CarryableItemId =
+  | 'water_pail'
+  | 'rosemary_basket'
+  | 'chalk_bundle'
+  | 'tea_tray'
+  | 'lost_parcel';
+
+export type CharacterEmotion =
+  | 'happy'
+  | 'sad'
+  | 'excited'
+  | 'tired'
+  | 'frustrated'
+  | 'angry'
+  | 'relaxed'
+  | 'embarrassed'
+  | 'curious'
+  | 'surprised';
+
+export type CharacterTemperament =
+  | 'gentle'
+  | 'spirited'
+  | 'contemplative'
+  | 'industrious'
+  | 'whimsical';
+
+export type PlayerMovementMode = 'idle' | 'walk' | 'run' | 'sprint';
+
+export type PlayerPosture = 'standing' | 'sitting';
+
 export interface Vec2 {
   x: number;
   z: number;
@@ -57,6 +87,8 @@ export interface ResidentTraits {
   curiosity: number; // 0.0 .. 1.0
   preferredZones: string[];
   rainBehavior: 'shelter_home' | 'visit_cafe' | 'umbrella_stroll';
+  temperament?: CharacterTemperament;
+  greetingDistance?: number;
 }
 
 export interface ResidentDefinition {
@@ -64,18 +96,22 @@ export interface ResidentDefinition {
   name: string;
   role: string;
   homeName: string;
+  homePos?: Vec2;
   personality: string;
   favoriteThing: string;
+  likedItems?: CarryableItemId[];
   traits: ResidentTraits;
   appearance: ResidentAppearance;
   schedule: Record<TimePhase, ScheduleSlot>;
 }
 
+export type ResidentMood = 'peaceful' | 'wistful' | 'busy' | 'warm' | 'joyful';
+
 export interface ResidentProgress {
   trust: number; // 0 to 5
   met: boolean;
   talkedToday: boolean;
-  mood: 'peaceful' | 'wistful' | 'busy' | 'warm' | 'joyful';
+  mood: ResidentMood;
   lastDialogueId: string | null;
 }
 
@@ -122,11 +158,28 @@ export type WeatherType = 'sunlit' | 'breezy' | 'misty_morning' | 'light_rain';
 export type NpcAnimationState =
   | 'idle'
   | 'walk'
+  | 'run'
+  | 'sprint'
+  | 'turn'
+  | 'sit'
+  | 'interact'
+  | 'carry'
+  | 'talk'
+  | 'listen'
+  | 'wave'
+  | 'rest'
   | 'work'
   | 'sketch_read'
   | 'music'
   | 'converse'
   | 'admire';
+
+export interface NpcNeeds {
+  energy: number; // 0..100
+  social: number; // 0..100
+  hunger: number; // 0..100 (100 = well-fed)
+  fulfillment: number; // 0..100
+}
 
 export interface NpcRuntimeState {
   position: Vec2;
@@ -143,6 +196,20 @@ export interface NpcRuntimeState {
   stuckSeconds: number;
   socialPartnerId: ResidentId | null;
   socialCooldownUntilMinute: number;
+  // Character Excellence & Living Autonomy additions
+  emotion: CharacterEmotion;
+  emotionIntensity: number; // 0..1
+  emotionUntilMinute: number;
+  needs: NpcNeeds;
+  posture: PlayerPosture;
+  reservedSeatId: string | null;
+  goalUtility: number;
+  goalCommittedUntilMinute: number;
+  lastGreetedPlayerMinute: number;
+  activeBubbleText: string | null;
+  activeBubbleUntilMinute: number;
+  targetLookPos: Vec2 | null;
+  currentSpeed: number;
 }
 
 export type RelationshipTier =
@@ -160,8 +227,13 @@ export interface PlayerNpcRelation {
   talkedCount: number;
   lastTalkDay: number | null;
   lastTalkPhase: TimePhase | null;
-  mood: ResidentProgress['mood'];
+  mood: ResidentMood;
   moodUntilMinute: number;
+  reliability: number; // 0..100
+  negativeCount: number;
+  favorsCompleted: number;
+  giftsGiven: number;
+  lastEmotion: CharacterEmotion;
 }
 
 export type NpcPairKey = `${ResidentId}:${ResidentId}`;
@@ -195,12 +267,39 @@ export interface ResidentActivityEntry {
 
 export interface ActiveSocialEncounter {
   id: string;
-  participants: [ResidentId, ResidentId];
+  participants: ResidentId[];
   topicTag: string;
   summary: string;
-  spots: [Vec2, Vec2];
+  spots: Vec2[];
   startedMinute: number;
   endsMinute: number;
+}
+
+export interface TopicHistoryEntry {
+  seenCount: number;
+  lastSeenDay: number;
+  lastSeenPhase: TimePhase;
+  chosenChoiceIds: string[];
+}
+
+export interface WorldPropPlacement {
+  id: CarryableItemId;
+  label: string;
+  description: string;
+  pos: Vec2;
+  homePos: Vec2;
+  holder: 'world' | 'player' | ResidentId;
+  likedBy: ResidentId[];
+}
+
+export interface SeatSpot {
+  id: string;
+  label: string;
+  seatPos: Vec2;
+  approachPos: Vec2;
+  facingAngle: number;
+  seatHeight: number;
+  zoneId: string;
 }
 
 export interface WorldState {
@@ -213,6 +312,10 @@ export interface WorldState {
   weather: WeatherType;
   playerPos: Vec2;
   playerFacing: number;
+  playerPosture: PlayerPosture;
+  playerSeatId: string | null;
+  playerHeldItem: CarryableItemId | null;
+  worldProps: Record<CarryableItemId, WorldPropPlacement>;
   residents: Record<ResidentId, ResidentProgress>;
   npcRuntime: Record<ResidentId, NpcRuntimeState>;
   playerRelations: Record<ResidentId, PlayerNpcRelation>;
@@ -220,6 +323,9 @@ export interface WorldState {
   activeEncounters: ActiveSocialEncounter[];
   worldEvents: WorldEventRecord[];
   npcActivityHistory: Record<ResidentId, ResidentActivityEntry[]>;
+  topicHistory: Record<string, TopicHistoryEntry>;
+  lastTopicByResident: Partial<Record<ResidentId, string>>;
+  sideFlags: Record<string, boolean | number | string>;
   flags: StoryFlags;
   memories: JournalMemory[];
   mailboxUnread: boolean;
@@ -227,17 +333,75 @@ export interface WorldState {
   bellRungCount: number;
 }
 
+export type DialogueCategory =
+  | 'quest_milestone'
+  | 'personal_story'
+  | 'conflict_reconciliation'
+  | 'event_reaction'
+  | 'npc_gossip'
+  | 'relationship_tier'
+  | 'emotion_reaction'
+  | 'weather_season'
+  | 'daily_slice';
+
+export interface DialogueCondition {
+  flagsTrue?: Array<keyof StoryFlags>;
+  flagsFalse?: Array<keyof StoryFlags>;
+  sideFlagsTrue?: string[];
+  sideFlagsFalse?: string[];
+  minTrust?: number;
+  maxTrust?: number;
+  minAffinity?: number;
+  minReliability?: number;
+  minNpcAffinity?: { a: ResidentId; b: ResidentId; min: number };
+  maxNpcAffinity?: { a: ResidentId; b: ResidentId; max: number };
+  minNpcTension?: { a: ResidentId; b: ResidentId; min: number };
+  emotions?: CharacterEmotion[];
+  excludeEmotions?: CharacterEmotion[];
+  phases?: TimePhase[];
+  weathers?: WeatherType[];
+  seasons?: SeasonType[];
+  requiresTraits?: {
+    minSociability?: number;
+    minOutdoorsiness?: number;
+    minMorningLark?: number;
+    minCuriosity?: number;
+    rainBehavior?: ResidentTraits['rainBehavior'];
+  };
+  requiresRecentEventKind?: { kind: WorldEventRecord['kind']; maxDaysAgo: number };
+  requiresRecentEventTag?: { tagPrefix: string; maxDaysAgo: number };
+  notSeenToday?: boolean;
+  minDaysSinceSeen?: number;
+  maxSeenCount?: number;
+  requiresMet?: boolean;
+  talkedCountMin?: number;
+}
+
 export interface DialogueChoice {
   id: string;
   label: string;
-  tone?: 'warm' | 'curious' | 'gentle' | 'practical';
+  tone?: 'warm' | 'curious' | 'gentle' | 'practical' | 'blunt';
   nextNodeId: string;
   trustDelta?: number;
+  reliabilityDelta?: number;
   isStoryMilestone?: boolean;
+  isNegative?: boolean;
+  setEmotion?: CharacterEmotion;
   setFlags?: Partial<StoryFlags>;
+  setSideFlags?: Record<string, boolean | number | string>;
+  adjustNpcTension?: {
+    a: ResidentId;
+    b: ResidentId;
+    deltaAffinity: number;
+    deltaTension: number;
+    tag?: string;
+  };
+  deliverHeldItem?: CarryableItemId;
   unlockMemory?: Omit<JournalMemory, 'day' | 'phase'>;
   requiresFlag?: keyof StoryFlags;
   requiresFalseFlag?: keyof StoryFlags;
+  requiresSideFlag?: string;
+  requiresFalseSideFlag?: string;
   minTrust?: number;
 }
 
@@ -253,16 +417,22 @@ export interface DialogueNode {
 
 export interface DialogueSession {
   residentId: ResidentId;
+  topicId?: string;
+  category?: DialogueCategory;
+  emotion?: CharacterEmotion;
+  tier?: RelationshipTier;
   currentNodeId: string;
   nodes: Record<string, DialogueNode>;
   recentToast?: string;
 }
 
 export interface InteractiveTarget {
-  kind: 'resident' | 'prop';
+  kind: 'resident' | 'prop' | 'seat' | 'carryable';
   id: string;
   label: string;
   actionLabel: string;
   distance: number;
   worldPos: Vec2;
+  seatId?: string;
+  carryableId?: CarryableItemId;
 }

@@ -30,8 +30,10 @@ export const RESIDENTS: Record<ResidentId, ResidentDefinition> = {
     name: 'Clara',
     role: 'Sourdough Baker',
     homeName: 'Hearth & Crumb Bakery',
+    homePos: { x: -9.0, z: -6.4 },
     personality: 'Warm-hearted, proud, secretly misses the old morning bell.',
     favoriteThing: 'Crusty rosemary loaves and busy café tables',
+    likedItems: ['rosemary_basket', 'tea_tray'],
     traits: {
       sociability: 0.72,
       outdoorsiness: 0.55,
@@ -39,6 +41,8 @@ export const RESIDENTS: Record<ResidentId, ResidentDefinition> = {
       curiosity: 0.5,
       preferredZones: ['bakery', 'square', 'gazebo'],
       rainBehavior: 'shelter_home',
+      temperament: 'industrious',
+      greetingDistance: 3.6,
     },
     appearance: {
       coatColor: '#D67B5A',
@@ -86,8 +90,10 @@ export const RESIDENTS: Record<ResidentId, ResidentDefinition> = {
     name: 'Arthur',
     role: 'Clockmaker & Tinker',
     homeName: 'Copperwheel Cottage',
+    homePos: { x: 8.8, z: -7.6 },
     personality: 'Gentle perfectionist who locked away his tools after an old rift.',
     favoriteThing: 'Brass escapements and chamomile tea',
+    likedItems: ['tea_tray', 'water_pail', 'lost_parcel'],
     traits: {
       sociability: 0.2,
       outdoorsiness: 0.35,
@@ -95,6 +101,8 @@ export const RESIDENTS: Record<ResidentId, ResidentDefinition> = {
       curiosity: 0.4,
       preferredZones: ['workshop_arthur', 'gazebo'],
       rainBehavior: 'shelter_home',
+      temperament: 'contemplative',
+      greetingDistance: 2.7,
     },
     appearance: {
       coatColor: '#546E7A',
@@ -116,10 +124,10 @@ export const RESIDENTS: Record<ResidentId, ResidentDefinition> = {
       },
       afternoon: {
         phase: 'afternoon',
-        target: { x: 6.2, z: 4.5 },
+        target: { x: 4.15, z: 3.0 },
         placeName: 'East Bench',
         activity: 'Listening to wind rustle the cedar leaves',
-        facingAngle: -2.2,
+        facingAngle: -1.6,
       },
       golden: {
         phase: 'golden',
@@ -142,8 +150,10 @@ export const RESIDENTS: Record<ResidentId, ResidentDefinition> = {
     name: 'Mina',
     role: 'Botanist & Florist',
     homeName: 'Sunbeam Greenhouse',
+    homePos: { x: 9.6, z: 2.4 },
     personality: 'Optimistic, patient, reads moods through blooming petals.',
     favoriteThing: 'Moon-petal seedlings and rain-soaked terracotta',
+    likedItems: ['water_pail', 'rosemary_basket', 'tea_tray'],
     traits: {
       sociability: 0.68,
       outdoorsiness: 0.85,
@@ -151,6 +161,8 @@ export const RESIDENTS: Record<ResidentId, ResidentDefinition> = {
       curiosity: 0.7,
       preferredZones: ['greenhouse', 'square', 'bakery'],
       rainBehavior: 'umbrella_stroll',
+      temperament: 'gentle',
+      greetingDistance: 3.5,
     },
     appearance: {
       coatColor: '#6E9168',
@@ -198,8 +210,10 @@ export const RESIDENTS: Record<ResidentId, ResidentDefinition> = {
     name: 'Jun',
     role: 'Letter Carrier',
     homeName: 'Post Lane',
+    homePos: { x: 1.4, z: 5.0 },
     personality: 'Cheerful, observant keeper of postcards and small kindnesses.',
     favoriteThing: 'Handwritten envelopes and clean morning routes',
+    likedItems: ['lost_parcel', 'rosemary_basket'],
     traits: {
       sociability: 0.9,
       outdoorsiness: 0.9,
@@ -207,6 +221,8 @@ export const RESIDENTS: Record<ResidentId, ResidentDefinition> = {
       curiosity: 0.78,
       preferredZones: ['home', 'square', 'book_nook', 'bakery'],
       rainBehavior: 'visit_cafe',
+      temperament: 'spirited',
+      greetingDistance: 4.1,
     },
     appearance: {
       coatColor: '#4E79A7',
@@ -254,8 +270,10 @@ export const RESIDENTS: Record<ResidentId, ResidentDefinition> = {
     name: 'Barnaby',
     role: 'Retired Carpenter',
     homeName: 'Pinecone Woodshop',
+    homePos: { x: 7.5, z: 11.8 },
     personality: 'Gruff-warm craftsman who still checks every beam he built.',
     favoriteThing: 'Cedar shavings, beeswax polish, and sturdy ladders',
+    likedItems: ['rosemary_basket', 'lost_parcel', 'water_pail'],
     traits: {
       sociability: 0.45,
       outdoorsiness: 0.72,
@@ -263,6 +281,8 @@ export const RESIDENTS: Record<ResidentId, ResidentDefinition> = {
       curiosity: 0.48,
       preferredZones: ['barnaby', 'gazebo', 'pond'],
       rainBehavior: 'shelter_home',
+      temperament: 'industrious',
+      greetingDistance: 3.1,
     },
     appearance: {
       coatColor: '#9E6240',
@@ -310,8 +330,10 @@ export const RESIDENTS: Record<ResidentId, ResidentDefinition> = {
     name: 'Sora',
     role: 'Violinist & Tea Brewer',
     homeName: 'South Lantern Caravan',
+    homePos: { x: -5.4, z: -1.6 },
     personality: 'Dreamy listener who hears the missing note in the square.',
     favoriteThing: 'Chamomile-pear tea and soft dusk arpeggios',
+    likedItems: ['tea_tray', 'rosemary_basket'],
     traits: {
       sociability: 0.62,
       outdoorsiness: 0.7,
@@ -319,6 +341,8 @@ export const RESIDENTS: Record<ResidentId, ResidentDefinition> = {
       curiosity: 0.65,
       preferredZones: ['square', 'gazebo', 'pond'],
       rainBehavior: 'visit_cafe',
+      temperament: 'whimsical',
+      greetingDistance: 3.4,
     },
     appearance: {
       coatColor: '#8C6BB1',
@@ -366,8 +390,10 @@ export const RESIDENTS: Record<ResidentId, ResidentDefinition> = {
     name: 'Toby',
     role: 'Sketchbook Artist',
     homeName: 'Linden Loft',
+    homePos: { x: -4.4, z: 13.8 },
     personality: 'Quiet observer who notices shiny objects and stray cats.',
     favoriteThing: 'Charcoal sketches and mossy oak roots',
+    likedItems: ['chalk_bundle', 'water_pail'],
     traits: {
       sociability: 0.25,
       outdoorsiness: 0.92,
@@ -375,6 +401,8 @@ export const RESIDENTS: Record<ResidentId, ResidentDefinition> = {
       curiosity: 0.88,
       preferredZones: ['pond', 'greenhouse', 'square'],
       rainBehavior: 'umbrella_stroll',
+      temperament: 'contemplative',
+      greetingDistance: 2.8,
     },
     appearance: {
       coatColor: '#C9973E',
@@ -422,8 +450,10 @@ export const RESIDENTS: Record<ResidentId, ResidentDefinition> = {
     name: 'Nora',
     role: 'Bookshop Keeper',
     homeName: 'Linden Book Nook',
+    homePos: { x: -10.8, z: -0.6 },
     personality: 'Wry, wise chronicler who remembers every festival of the past.',
     favoriteThing: 'Annotated almanacs and quiet afternoons',
+    likedItems: ['tea_tray', 'chalk_bundle'],
     traits: {
       sociability: 0.52,
       outdoorsiness: 0.3,
@@ -431,6 +461,8 @@ export const RESIDENTS: Record<ResidentId, ResidentDefinition> = {
       curiosity: 0.82,
       preferredZones: ['book_nook', 'square'],
       rainBehavior: 'shelter_home',
+      temperament: 'contemplative',
+      greetingDistance: 3.3,
     },
     appearance: {
       coatColor: '#7A5463',
@@ -452,10 +484,10 @@ export const RESIDENTS: Record<ResidentId, ResidentDefinition> = {
       },
       afternoon: {
         phase: 'afternoon',
-        target: { x: -7.2, z: 4.0 },
+        target: { x: -4.15, z: 3.0 },
         placeName: 'West Bench',
         activity: 'Reading neighborhood chronicles in the shade',
-        facingAngle: 0.6,
+        facingAngle: 1.57,
       },
       golden: {
         phase: 'golden',
@@ -478,8 +510,10 @@ export const RESIDENTS: Record<ResidentId, ResidentDefinition> = {
     name: 'Pip',
     role: 'Chalk-Note Messenger',
     homeName: 'Bakery Upstairs',
+    homePos: { x: -7.2, z: -6.8 },
     personality: 'Bright-eyed kid who has never heard the town bell ring.',
     favoriteThing: 'Skipping stones, chalk doodles, and warm crusts',
+    likedItems: ['chalk_bundle', 'rosemary_basket'],
     traits: {
       sociability: 0.92,
       outdoorsiness: 0.95,
@@ -487,6 +521,8 @@ export const RESIDENTS: Record<ResidentId, ResidentDefinition> = {
       curiosity: 0.96,
       preferredZones: ['square', 'pond', 'bakery', 'gazebo'],
       rainBehavior: 'visit_cafe',
+      temperament: 'spirited',
+      greetingDistance: 4.3,
     },
     appearance: {
       coatColor: '#D96B6B',
@@ -508,7 +544,7 @@ export const RESIDENTS: Record<ResidentId, ResidentDefinition> = {
       },
       afternoon: {
         phase: 'afternoon',
-        target: { x: -3.2, z: 12.4 },
+        target: { x: -2.9, z: 14.0 },
         placeName: 'Mirror Pond Bridge',
         activity: 'Counting tiny carp under the wooden planks',
         facingAngle: 0.4,
@@ -531,14 +567,12 @@ export const RESIDENTS: Record<ResidentId, ResidentDefinition> = {
   },
 };
 
-
 export function getResidentScheduleSlot(
   id: ResidentId,
   phase: TimePhase,
   reconciled: boolean,
 ): { target: Vec2; placeName: string; activity: string; facingAngle: number } {
-  // Special heartwarming environmental reactivity:
-  // Once Clara and Arthur reconcile, they meet together at the Gazebo during Golden Hour!
+  // Once Clara and Arthur reconcile, they meet together at the Gazebo during Golden Hour.
   if (reconciled && phase === 'golden') {
     if (id === 'clara') {
       return {
@@ -560,6 +594,8 @@ export function getResidentScheduleSlot(
   return RESIDENTS[id].schedule[phase];
 }
 
+export type ActivityGoalKind = 'work' | 'eat' | 'rest' | 'social' | 'leisure';
+
 export interface ActivityCandidate {
   id: string;
   phases: readonly TimePhase[];
@@ -569,6 +605,8 @@ export interface ActivityCandidate {
   facingAngle: number;
   animState: NpcAnimationState;
   baseWeight: number;
+  goalKind?: ActivityGoalKind;
+  seatId?: string;
   requiresFlag?: keyof StoryFlags;
   onlyWeathers?: readonly WeatherType[];
   preferredWeathers?: readonly WeatherType[];
@@ -585,7 +623,19 @@ export const RESIDENT_EXTRA_ACTIVITIES: Record<ResidentId, readonly ActivityCand
       activity: 'Picking fresh rosemary sprigs with Mina',
       facingAngle: 1.4,
       animState: 'admire',
-      baseWeight: 0.75,
+      goalKind: 'work',
+      baseWeight: 0.78,
+    },
+    {
+      id: 'clara_tea_break',
+      phases: ['afternoon', 'golden'],
+      target: { x: -4.2, z: -2.0 },
+      placeName: 'Sora’s Tea Cart',
+      activity: 'Sipping warm chamomile-pear tea between bakes',
+      facingAngle: -1.2,
+      animState: 'interact',
+      goalKind: 'eat',
+      baseWeight: 0.72,
     },
     {
       id: 'clara_cafe_tables',
@@ -595,6 +645,7 @@ export const RESIDENT_EXTRA_ACTIVITIES: Record<ResidentId, readonly ActivityCand
       activity: 'Setting warm loaves and butter on the sunny café tables',
       facingAngle: 0.6,
       animState: 'work',
+      goalKind: 'work',
       baseWeight: 1.3,
       requiresFlag: 'claraArthurReconciled',
     },
@@ -606,6 +657,7 @@ export const RESIDENT_EXTRA_ACTIVITIES: Record<ResidentId, readonly ActivityCand
       activity: 'Tending warm sourdough loaves beneath the bakery awning',
       facingAngle: 0.3,
       animState: 'work',
+      goalKind: 'work',
       baseWeight: 1.6,
       onlyWeathers: ['light_rain'],
       sheltered: true,
@@ -620,7 +672,20 @@ export const RESIDENT_EXTRA_ACTIVITIES: Record<ResidentId, readonly ActivityCand
       activity: 'Quietly adjusting the crooked town noticeboard pin',
       facingAngle: -1.6,
       animState: 'work',
+      goalKind: 'work',
       baseWeight: 0.65,
+    },
+    {
+      id: 'arthur_sit_east_bench',
+      phases: ['afternoon', 'golden'],
+      target: { x: 4.15, z: 3.0 },
+      placeName: 'East Plaza Bench',
+      activity: 'Resting on the cedar bench watching sunlight on cobbles',
+      facingAngle: -1.57,
+      animState: 'sit',
+      seatId: 'seat_east_plaza',
+      goalKind: 'rest',
+      baseWeight: 0.95,
     },
     {
       id: 'arthur_fountain_brass',
@@ -630,6 +695,7 @@ export const RESIDENT_EXTRA_ACTIVITIES: Record<ResidentId, readonly ActivityCand
       activity: 'Listening to clear spring water chime off the stone tier',
       facingAngle: -1.8,
       animState: 'admire',
+      goalKind: 'leisure',
       baseWeight: 1.05,
       requiresFlag: 'repairedFountain',
     },
@@ -641,6 +707,7 @@ export const RESIDENT_EXTRA_ACTIVITIES: Record<ResidentId, readonly ActivityCand
       activity: 'Oiling brass escapements dry beneath his workshop eaves',
       facingAngle: -1.2,
       animState: 'work',
+      goalKind: 'work',
       baseWeight: 1.8,
       onlyWeathers: ['light_rain'],
       sheltered: true,
@@ -655,8 +722,21 @@ export const RESIDENT_EXTRA_ACTIVITIES: Record<ResidentId, readonly ActivityCand
       activity: 'Checking moon-petal buds blooming along your windowsill',
       facingAngle: -2.2,
       animState: 'admire',
+      goalKind: 'work',
       baseWeight: 1.15,
       requiresFlag: 'plantedMoonPetals',
+    },
+    {
+      id: 'mina_pond_bench_rest',
+      phases: ['golden', 'dusk'],
+      target: { x: 1.8, z: 18.2 },
+      placeName: 'Mirror Pond Bench',
+      activity: 'Resting beside Mirror Pond listening to evening frogs',
+      facingAngle: 3.14,
+      animState: 'sit',
+      seatId: 'seat_pond_south',
+      goalKind: 'rest',
+      baseWeight: 0.85,
     },
     {
       id: 'mina_fountain_ferns',
@@ -666,6 +746,7 @@ export const RESIDENT_EXTRA_ACTIVITIES: Record<ResidentId, readonly ActivityCand
       activity: 'Tracing cool mist around the overflowing fountain lip',
       facingAngle: 3.1,
       animState: 'admire',
+      goalKind: 'leisure',
       baseWeight: 1.1,
       requiresFlag: 'repairedFountain',
     },
@@ -678,10 +759,23 @@ export const RESIDENT_EXTRA_ACTIVITIES: Record<ResidentId, readonly ActivityCand
       placeName: 'Hearth & Crumb',
       activity: 'Grabbing a rosemary roll before his afternoon rounds',
       facingAngle: -0.6,
-      animState: 'idle',
-      baseWeight: 0.9,
+      animState: 'interact',
+      goalKind: 'eat',
+      baseWeight: 0.92,
       preferredWeathers: ['sunlit', 'breezy', 'light_rain'],
       sheltered: true,
+    },
+    {
+      id: 'jun_gazebo_bench_rest',
+      phases: ['golden'],
+      target: { x: 4.15, z: -9.8 },
+      placeName: 'Gazebo Cedar Bench',
+      activity: 'Sorting undelivered envelopes on the shaded cedar bench',
+      facingAngle: -1.57,
+      animState: 'sit',
+      seatId: 'seat_gazebo_east',
+      goalKind: 'rest',
+      baseWeight: 0.82,
     },
     {
       id: 'jun_gazebo_lanterns',
@@ -691,6 +785,7 @@ export const RESIDENT_EXTRA_ACTIVITIES: Record<ResidentId, readonly ActivityCand
       activity: 'Checking festoon lantern cords along the north cobbles',
       facingAngle: 0.4,
       animState: 'work',
+      goalKind: 'work',
       baseWeight: 1.1,
       requiresFlag: 'lanternsLit',
     },
@@ -704,8 +799,21 @@ export const RESIDENT_EXTRA_ACTIVITIES: Record<ResidentId, readonly ActivityCand
       activity: 'Admiring the steady brass valve pressure on the stone basin',
       facingAngle: -2.1,
       animState: 'admire',
+      goalKind: 'work',
       baseWeight: 1.05,
       requiresFlag: 'repairedFountain',
+    },
+    {
+      id: 'barnaby_gazebo_bench',
+      phases: ['afternoon', 'golden'],
+      target: { x: 4.15, z: -9.8 },
+      placeName: 'Gazebo Cedar Bench',
+      activity: 'Catching his breath and admiring his cedar joinery',
+      facingAngle: -1.57,
+      animState: 'sit',
+      seatId: 'seat_gazebo_east',
+      goalKind: 'rest',
+      baseWeight: 0.86,
     },
     {
       id: 'barnaby_rain_shed',
@@ -715,6 +823,7 @@ export const RESIDENT_EXTRA_ACTIVITIES: Record<ResidentId, readonly ActivityCand
       activity: 'Sharpening chisels dry inside his cedar doorway',
       facingAngle: -1.4,
       animState: 'work',
+      goalKind: 'work',
       baseWeight: 1.6,
       onlyWeathers: ['light_rain'],
       sheltered: true,
@@ -729,7 +838,20 @@ export const RESIDENT_EXTRA_ACTIVITIES: Record<ResidentId, readonly ActivityCand
       activity: 'Practicing soft violin arpeggios where water echoes',
       facingAngle: 0.3,
       animState: 'music',
-      baseWeight: 0.9,
+      goalKind: 'leisure',
+      baseWeight: 0.95,
+    },
+    {
+      id: 'sora_pond_bench',
+      phases: ['golden', 'dusk'],
+      target: { x: 1.8, z: 18.2 },
+      placeName: 'Mirror Pond Bench',
+      activity: 'Humming twilight melodies seated beside the reeds',
+      facingAngle: 3.14,
+      animState: 'sit',
+      seatId: 'seat_pond_south',
+      goalKind: 'rest',
+      baseWeight: 0.88,
     },
     {
       id: 'sora_cafe_tea',
@@ -738,7 +860,8 @@ export const RESIDENT_EXTRA_ACTIVITIES: Record<ResidentId, readonly ActivityCand
       placeName: 'Bakery Awning',
       activity: 'Sharing a warm flask beneath Hearth & Crumb’s striped awning',
       facingAngle: 0.2,
-      animState: 'idle',
+      animState: 'interact',
+      goalKind: 'eat',
       baseWeight: 1.5,
       onlyWeathers: ['light_rain'],
       sheltered: true,
@@ -753,7 +876,20 @@ export const RESIDENT_EXTRA_ACTIVITIES: Record<ResidentId, readonly ActivityCand
       activity: 'Doodling neighborhood sparrows in charcoal margins',
       facingAngle: 1.2,
       animState: 'sketch_read',
+      goalKind: 'leisure',
       baseWeight: 0.85,
+    },
+    {
+      id: 'toby_pond_bench_sketch',
+      phases: ['morning', 'afternoon'],
+      target: { x: 1.8, z: 18.2 },
+      placeName: 'Mirror Pond Bench',
+      activity: 'Sketching water lilies from the South Pond bench',
+      facingAngle: 3.14,
+      animState: 'sit',
+      seatId: 'seat_pond_south',
+      goalKind: 'rest',
+      baseWeight: 0.88,
     },
     {
       id: 'toby_bell_sketch',
@@ -763,11 +899,24 @@ export const RESIDENT_EXTRA_ACTIVITIES: Record<ResidentId, readonly ActivityCand
       activity: 'Sketching the gleaming brass bell against dusk clouds',
       facingAngle: 0.6,
       animState: 'sketch_read',
+      goalKind: 'leisure',
       baseWeight: 1.3,
       requiresFlag: 'bellRestored',
     },
   ],
   nora: [
+    {
+      id: 'nora_west_bench_read',
+      phases: ['afternoon', 'golden'],
+      target: { x: -4.15, z: 3.0 },
+      placeName: 'West Plaza Bench',
+      activity: 'Reading neighborhood almanacs on the West cedar bench',
+      facingAngle: 1.57,
+      animState: 'sit',
+      seatId: 'seat_west_plaza',
+      goalKind: 'rest',
+      baseWeight: 1.02,
+    },
     {
       id: 'nora_gazebo_ribbon',
       phases: ['afternoon', 'golden'],
@@ -776,6 +925,7 @@ export const RESIDENT_EXTRA_ACTIVITIES: Record<ResidentId, readonly ActivityCand
       activity: 'Admiring the marigold festival ribbon on the cedar rail',
       facingAngle: 0.7,
       animState: 'admire',
+      goalKind: 'leisure',
       baseWeight: 1.15,
       requiresFlag: 'claraArthurReconciled',
     },
@@ -787,6 +937,7 @@ export const RESIDENT_EXTRA_ACTIVITIES: Record<ResidentId, readonly ActivityCand
       activity: 'Cataloging damp-weather almanacs beneath her awning',
       facingAngle: 1.5,
       animState: 'sketch_read',
+      goalKind: 'work',
       baseWeight: 1.7,
       onlyWeathers: ['light_rain'],
       sheltered: true,
@@ -801,7 +952,20 @@ export const RESIDENT_EXTRA_ACTIVITIES: Record<ResidentId, readonly ActivityCand
       activity: 'Standing on tiptoe to read every pinned town note',
       facingAngle: 3.1,
       animState: 'admire',
+      goalKind: 'leisure',
       baseWeight: 0.95,
+    },
+    {
+      id: 'pip_east_bench_swing',
+      phases: ['afternoon', 'golden'],
+      target: { x: 4.15, z: 3.0 },
+      placeName: 'East Plaza Bench',
+      activity: 'Swinging his boots while munching a warm cinnamon bun',
+      facingAngle: -1.57,
+      animState: 'sit',
+      seatId: 'seat_east_plaza',
+      goalKind: 'eat',
+      baseWeight: 0.85,
     },
     {
       id: 'pip_bakery_awning',
@@ -811,6 +975,7 @@ export const RESIDENT_EXTRA_ACTIVITIES: Record<ResidentId, readonly ActivityCand
       activity: 'Counting cinnamon rolls while dodging puddles under the awning',
       facingAngle: -0.4,
       animState: 'idle',
+      goalKind: 'eat',
       baseWeight: 1.6,
       onlyWeathers: ['light_rain'],
       sheltered: true,

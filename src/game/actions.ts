@@ -7,13 +7,18 @@ import {
   getWeatherLabel,
 } from './environment';
 import {
+  adjustNpcRelationPair,
+  emotionToMood,
   pushWorldEventInPlace,
   reconcileClaraAndArthurRelation,
   recordPlayerTalkAffinity,
 } from './relationships';
 import { RESIDENTS, getTimePhase } from './residents';
 import { advanceToNextDay } from './storage';
+import { isSeatOccupiedByNpc } from './playerController';
+import { getSeatById, isPointWalkable, resolveMovement } from './worldMap';
 import {
+  CarryableItemId,
   DialogueChoice,
   DialogueSession,
   EnvironmentalState,
@@ -37,7 +42,8 @@ export function applyDialogueChoice(
 ): { nextWorld: WorldState; nextSession: DialogueSession; memoryUnlockedTitle?: string } {
   const residentId: ResidentId = session.residentId;
   const currentRes = world.residents[residentId];
-  if (!isChoiceAvailable(choice, world.flags, currentRes.trust)) {
+  const sf = world.sideFlags ?? {};
+  if (!isChoiceAvailable(choice, world.flags, currentRes.trust, sf)) {
     return { nextWorld: world, nextSession: session };
   }
 
@@ -45,15 +51,22 @@ export function applyDialogueChoice(
     ? { ...world.flags, ...choice.setFlags }
     : world.flags;
 
+  const nextSideFlags = choice.setSideFlags
+    ? { ...sf, ...choice.setSideFlags }
+    : sf;
+
   const trustGain = choice.trustDelta ?? 0;
+  const isGift = Boolean(choice.deliverHeldItem);
   const isStoryMilestone = Boolean(
-    choice.isStoryMilestone || choice.setFlags || choice.unlockMemory || trustGain >= 2,
+    choice.isStoryMilestone || choice.setFlags || choice.setSideFlags || choice.unlockMemory || trustGain >= 2,
   );
   const phase = getTimePhase(world.minuteOfDay);
 
   const forcedMood =
     nextFlags.claraArthurReconciled && (residentId === 'clara' || residentId === 'arthur')
       ? ('joyful' as const)
+      : choice.setEmotion
+      ? emotionToMood(choice.setEmotion)
       : undefined;
 
   const existingPlayerRel = world.playerRelations?.[residentId] ?? {
@@ -66,6 +79,11 @@ export function applyDialogueChoice(
     lastTalkPhase: null,
     mood: currentRes.mood,
     moodUntilMinute: 0,
+    reliability: 25,
+    negativeCount: 0,
+    favorsCompleted: 0,
+    giftsGiven: 0,
+    lastEmotion: 'relaxed' as const,
   };
 
   const { relation: nextPlayerRel, progress: nextResidentProg } = recordPlayerTalkAffinity(
@@ -76,9 +94,13 @@ export function applyDialogueChoice(
       phase,
       minuteOfDay: world.minuteOfDay,
       requestedTrustDelta: trustGain,
+      requestedReliabilityDelta: choice.reliabilityDelta,
       isStoryMilestone,
+      isNegative: choice.isNegative,
+      isGift,
       nextNodeId: choice.nextNodeId,
       forcedMood,
+      forcedEmotion: choice.setEmotion,
     },
   );
 
@@ -91,9 +113,73 @@ export function applyDialogueChoice(
     [residentId]: nextPlayerRel,
   };
 
+  // Sync live NPC runtime emotion cleanly so expressions react immediately on screen
+  let nextNpcRuntime = world.npcRuntime;
+  if (world.npcRuntime?.[residentId]) {
+    const rt = world.npcRuntime[residentId];
+    const nextEmotion = choice.setEmotion ?? nextPlayerRel.lastEmotion;
+    nextNpcRuntime = {
+      ...world.npcRuntime,
+      [residentId]: {
+        ...rt,
+        emotion: nextEmotion,
+        emotionIntensity: choice.isNegative ? 0.78 : 0.85,
+        emotionUntilMinute: world.minuteOfDay + 90,
+      },
+    };
+  }
+
   let nextNpcRelations = world.npcRelations ?? {};
   if (nextFlags.claraArthurReconciled && !world.flags.claraArthurReconciled) {
     nextNpcRelations = reconcileClaraAndArthurRelation(nextNpcRelations, world.day);
+  }
+  if (choice.adjustNpcTension) {
+    const adj = choice.adjustNpcTension;
+    nextNpcRelations = adjustNpcRelationPair(
+      nextNpcRelations,
+      adj.a,
+      adj.b,
+      world.day,
+      adj.deltaAffinity,
+      adj.deltaTension,
+      adj.tag,
+    );
+  }
+
+  // Handle held carryable delivery cleanly
+  let nextHeldItem = world.playerHeldItem ?? null;
+  let nextWorldProps = world.worldProps;
+  if (choice.deliverHeldItem && world.worldProps?.[choice.deliverHeldItem]) {
+    const deliveredId = choice.deliverHeldItem;
+    const rtPos = nextNpcRuntime?.[residentId]?.position ?? world.playerPos;
+    nextWorldProps = {
+      ...world.worldProps,
+      [deliveredId]: {
+        ...world.worldProps[deliveredId],
+        holder: residentId,
+        pos: { ...rtPos },
+      },
+    };
+    if (nextHeldItem === deliveredId) {
+      nextHeldItem = null;
+    }
+  }
+
+  // Record topic history & lastTopicByResident to prevent monotonous small-talk loops
+  const nextTopicHistory = { ...(world.topicHistory ?? {}) };
+  const nextLastTopic = { ...(world.lastTopicByResident ?? {}) };
+  if (session.topicId) {
+    const prevHist = nextTopicHistory[session.topicId];
+    const chosenIds = prevHist?.chosenChoiceIds.includes(choice.id)
+      ? prevHist.chosenChoiceIds
+      : [...(prevHist?.chosenChoiceIds ?? []), choice.id].slice(-8);
+    nextTopicHistory[session.topicId] = {
+      seenCount: (prevHist?.seenCount ?? 0) + 1,
+      lastSeenDay: world.day,
+      lastSeenPhase: phase,
+      chosenChoiceIds: chosenIds,
+    };
+    nextLastTopic[residentId] = session.topicId;
   }
 
   let nextMemories = world.memories;
@@ -115,16 +201,18 @@ export function applyDialogueChoice(
   }
 
   const nextEvents = [...(world.worldEvents ?? [])];
-  if (choice.setFlags) {
+  if (choice.setFlags || choice.setSideFlags || isGift) {
     const flagSummary = memoryUnlockedTitle
       ? `${RESIDENTS[residentId].name}: ${memoryUnlockedTitle}`
+      : isGift
+      ? `Shared ${world.worldProps?.[choice.deliverHeldItem!]?.label ?? 'a keepsake'} with ${RESIDENTS[residentId].name}.`
       : `Shared a meaningful step with ${RESIDENTS[residentId].name}.`;
     pushWorldEventInPlace(nextEvents, {
       id: `story_${world.day}_${choice.id}`,
       day: world.day,
       phase,
       minuteOfDay: Math.round(world.minuteOfDay),
-      kind: 'story_flag',
+      kind: isGift ? 'player_help' : 'story_flag',
       actors: [residentId],
       summary: flagSummary,
       summaryTag: choice.id,
@@ -133,21 +221,193 @@ export function applyDialogueChoice(
 
   const nextWorld: WorldState = {
     ...world,
+    playerHeldItem: nextHeldItem,
+    worldProps: nextWorldProps,
     residents: nextResidents,
+    npcRuntime: nextNpcRuntime,
     playerRelations: nextPlayerRelations,
     npcRelations: nextNpcRelations,
     worldEvents: nextEvents,
+    topicHistory: nextTopicHistory,
+    lastTopicByResident: nextLastTopic,
+    sideFlags: nextSideFlags,
     flags: nextFlags,
     memories: nextMemories,
   };
 
+  const giftToast = isGift
+    ? `Shared ${world.worldProps?.[choice.deliverHeldItem!]?.label ?? 'item'} with ${RESIDENTS[residentId].name}!`
+    : undefined;
+
   const nextSession: DialogueSession = {
     ...session,
     currentNodeId: choice.nextNodeId,
-    recentToast: memoryUnlockedTitle ? `Memory saved: ${memoryUnlockedTitle}` : undefined,
+    emotion: nextNpcRuntime?.[residentId]?.emotion ?? session.emotion,
+    recentToast: memoryUnlockedTitle ? `Memory saved: ${memoryUnlockedTitle}` : giftToast,
   };
 
   return { nextWorld, nextSession, memoryUnlockedTitle };
+}
+
+export function togglePlayerSitAction(
+  world: WorldState,
+  seatId?: string,
+): { nextWorld: WorldState; sat: boolean; toast?: string } {
+  if (world.playerPosture === 'sitting') {
+    const seat = getSeatById(world.playerSeatId);
+    const standPos =
+      seat && isPointWalkable(seat.approachPos.x, seat.approachPos.z, 0.48)
+        ? { ...seat.approachPos }
+        : { ...world.playerPos };
+    return {
+      nextWorld: {
+        ...world,
+        playerPosture: 'standing',
+        playerSeatId: null,
+        playerPos: standPos,
+      },
+      sat: false,
+      toast: seat ? `Stood up from ${seat.label}.` : 'Stood up.',
+    };
+  }
+
+  const seat = getSeatById(seatId);
+  if (!seat) return { nextWorld: world, sat: false };
+  const occupier = isSeatOccupiedByNpc(world, seat.id);
+  if (occupier) {
+    return {
+      nextWorld: world,
+      sat: false,
+      toast: `${RESIDENTS[occupier].name} is resting on ${seat.label} right now.`,
+    };
+  }
+
+  return {
+    nextWorld: {
+      ...world,
+      playerPosture: 'sitting',
+      playerSeatId: seat.id,
+      playerPos: { ...seat.seatPos },
+      playerFacing: seat.facingAngle,
+    },
+    sat: true,
+    toast: `Resting on ${seat.label}.`,
+  };
+}
+
+export function pickupWorldPropAction(
+  world: WorldState,
+  propId: CarryableItemId,
+): { nextWorld: WorldState; toast: string } {
+  const prop = world.worldProps?.[propId];
+  if (!prop || prop.holder !== 'world') {
+    return { nextWorld: world, toast: '' };
+  }
+
+  // If standing on a bench or holding something else, drop cleanly first
+  let workingWorld = world;
+  if (world.playerHeldItem && world.worldProps?.[world.playerHeldItem]) {
+    workingWorld = placeWorldPropAction(world).nextWorld;
+  }
+
+  return {
+    nextWorld: {
+      ...workingWorld,
+      playerHeldItem: propId,
+      worldProps: {
+        ...workingWorld.worldProps,
+        [propId]: {
+          ...workingWorld.worldProps[propId],
+          holder: 'player',
+        },
+      },
+    },
+    toast: `Picked up ${prop.label}.`,
+  };
+}
+
+export function placeWorldPropAction(world: WorldState): { nextWorld: WorldState; toast: string } {
+  const heldId = world.playerHeldItem;
+  if (!heldId || !world.worldProps?.[heldId]) {
+    return { nextWorld: world, toast: '' };
+  }
+  const prop = world.worldProps[heldId];
+  const dropTarget = {
+    x: world.playerPos.x + Math.sin(world.playerFacing) * 0.72,
+    z: world.playerPos.z + Math.cos(world.playerFacing) * 0.72,
+  };
+  const safePos = isPointWalkable(dropTarget.x, dropTarget.z, 0.35)
+    ? dropTarget
+    : resolveMovement(world.playerPos, dropTarget, 0.35);
+
+  return {
+    nextWorld: {
+      ...world,
+      playerHeldItem: null,
+      worldProps: {
+        ...world.worldProps,
+        [heldId]: {
+          ...prop,
+          holder: 'world',
+          pos: { x: safePos.x, z: safePos.z },
+        },
+      },
+    },
+    toast: `Set down ${prop.label}.`,
+  };
+}
+
+export function deliverHeldItemAction(
+  world: WorldState,
+  residentId: ResidentId,
+): { nextWorld: WorldState; toast: string; likesIt: boolean } {
+  const heldId = world.playerHeldItem;
+  if (!heldId || !world.worldProps?.[heldId]) {
+    return { nextWorld: world, toast: '', likesIt: false };
+  }
+  const prop = world.worldProps[heldId];
+  const likesIt = prop.likedBy.includes(residentId);
+  const phase = getTimePhase(world.minuteOfDay);
+
+  const syntheticSession: DialogueSession = {
+    residentId,
+    currentNodeId: 'root',
+    nodes: {},
+  };
+  const syntheticChoice: DialogueChoice = {
+    id: `gift_${heldId}_${residentId}`,
+    label: `Share ${prop.label}`,
+    nextNodeId: 'gift_end',
+    trustDelta: likesIt ? 1 : 0,
+    reliabilityDelta: likesIt ? 10 : 5,
+    setEmotion: likesIt ? 'excited' : 'happy',
+    deliverHeldItem: heldId,
+  };
+
+  const res = applyDialogueChoice(world, syntheticSession, syntheticChoice);
+  // Keep direct delivery compatible with non-quest progress expectations
+  const nextWorld = {
+    ...res.nextWorld,
+    lastTopicByResident: world.lastTopicByResident,
+  };
+  pushWorldEventInPlace(nextWorld.worldEvents, {
+    id: `help_${world.day}_${heldId}_${residentId}`,
+    day: world.day,
+    phase,
+    minuteOfDay: Math.round(world.minuteOfDay),
+    kind: 'player_help',
+    actors: [residentId],
+    summary: `Brought ${prop.label} to ${RESIDENTS[residentId].name}.`,
+    summaryTag: `deliver_${heldId}`,
+  });
+
+  return {
+    nextWorld,
+    likesIt,
+    toast: likesIt
+      ? `${RESIDENTS[residentId].name} loved the ${prop.label}!`
+      : `Shared ${prop.label} with ${RESIDENTS[residentId].name}.`,
+  };
 }
 
 export function markResidentMet(world: WorldState, id: ResidentId): WorldState {
@@ -183,7 +443,7 @@ export function getDailyMailboxLetter(world: WorldState): { subject: string; bod
   return {
     sender: 'Little Somewhere Welcome Committee',
     subject: 'Welcome to Willow Step Cottage!',
-    body: 'Take your time wandering the cobblestones. Meet your neighbors across morning, afternoon, golden hour, and dusk—and check in at your porch door whenever you are ready for tomorrow.',
+    body: 'Take your time wandering the cobblestones. Hold Shift to sprint, rest on any cedar bench, share helpful lane items with neighbors, and check your porch door whenever you are ready for tomorrow.',
   };
 }
 
@@ -221,8 +481,20 @@ export function interactWithProp(
 
   if (propId === 'gazebo_bell') {
     if (env.bellGleaming) {
+      const nextEvents = [...(world.worldEvents ?? [])];
+      const phase = getTimePhase(world.minuteOfDay);
+      pushWorldEventInPlace(nextEvents, {
+        id: `bell_${world.day}_${world.bellRungCount + 1}`,
+        day: world.day,
+        phase,
+        minuteOfDay: Math.round(world.minuteOfDay),
+        kind: 'bell_ring',
+        actors: ['clara', 'arthur', 'pip'],
+        summary: 'The restored brass Gazebo Bell rang softly across Little Somewhere.',
+        summaryTag: 'gazebo_bell_chime',
+      });
       return {
-        nextWorld: { ...world, bellRungCount: world.bellRungCount + 1 },
+        nextWorld: { ...world, bellRungCount: world.bellRungCount + 1, worldEvents: nextEvents },
         title: 'The Restored Gazebo Bell',
         body: 'The polished brass bell gleams under the cedar rafters, its clapper ready. Pull the braided linen rope to chime across Little Somewhere?',
         actionLabel: 'Ring the Brass Bell',

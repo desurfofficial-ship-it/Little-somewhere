@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { CarryableItemId } from '../../game/types';
 import { MaterialPalette, STORYBOOK_PALETTE } from '../materials';
 import { FountainRig, GazeboRig } from '../models';
 import { addContactShadow } from './vegetation';
@@ -582,3 +583,200 @@ export function buildStorybookNoticeboard(
 
   return { group, flyers };
 }
+
+/**
+ * Handcrafted Plaza & Pond Cedar Bench pivoted at y = 0, facing +Z.
+ * Seat surface rests cleanly at y = 0.36 to match SEAT_SPOTS[].seatHeight.
+ */
+export function buildStorybookBench(
+  palette: MaterialPalette,
+  shadowTex: THREE.Texture,
+): THREE.Group {
+  const group = new THREE.Group();
+  addContactShadow(group, shadowTex, 1.55, 0.92, 0.44, 0.018);
+
+  const ironMat = palette.standard(STORYBOOK_PALETTE.wroughtIron, 0.38, 0.75);
+  const cedarMat = palette.standard(STORYBOOK_PALETTE.cedarWarm, 0.78, 0.03);
+  const cedarDarkMat = palette.standard(STORYBOOK_PALETTE.cedarDark, 0.82, 0.03);
+  const brassMat = palette.standard(STORYBOOK_PALETTE.agedBrass, 0.24, 0.85);
+
+  // Two scrolled iron leg frames (front/rear legs + armrests + cross stretcher)
+  for (const sx of [-0.52, 0.52]) {
+    const legFront = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.36, 0.06), ironMat);
+    legFront.position.set(sx, 0.18, 0.2);
+    legFront.castShadow = true;
+
+    const legBack = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.76, 0.06), ironMat);
+    legBack.position.set(sx, 0.38, -0.2);
+    legBack.rotation.x = -0.14;
+    legBack.castShadow = true;
+
+    const rail = new THREE.Mesh(new THREE.BoxGeometry(0.065, 0.055, 0.44), ironMat);
+    rail.position.set(sx, 0.31, 0);
+
+    const arm = new THREE.Mesh(new THREE.BoxGeometry(0.055, 0.045, 0.36), cedarDarkMat);
+    arm.position.set(sx, 0.5, 0.02);
+    arm.castShadow = true;
+
+    const armPost = new THREE.Mesh(new THREE.CylinderGeometry(0.022, 0.026, 0.18, 6), ironMat);
+    armPost.position.set(sx, 0.41, 0.17);
+
+    group.add(legFront, legBack, rail, arm, armPost);
+  }
+
+  const stretcher = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 1.04, 6), ironMat);
+  stretcher.rotation.z = Math.PI / 2;
+  stretcher.position.set(0, 0.16, -0.06);
+  group.add(stretcher);
+
+  // Three cedar seat slats sitting cleanly at y = 0.36
+  for (const sz of [-0.13, 0, 0.13]) {
+    const slat = new THREE.Mesh(new THREE.BoxGeometry(1.16, 0.045, 0.1), cedarMat);
+    slat.position.set(0, 0.345, sz);
+    slat.castShadow = true;
+    slat.receiveShadow = true;
+    group.add(slat);
+  }
+
+  // Two angled backrest slats with brass carriage bolts
+  for (const by of [0.54, 0.69]) {
+    const backSlat = new THREE.Mesh(new THREE.BoxGeometry(1.14, 0.1, 0.045), cedarMat);
+    backSlat.position.set(0, by, -0.21 - (by - 0.54) * 0.14);
+    backSlat.rotation.x = -0.14;
+    backSlat.castShadow = true;
+    group.add(backSlat);
+
+    for (const bx of [-0.52, 0.52]) {
+      const bolt = new THREE.Mesh(new THREE.SphereGeometry(0.018, 6, 6), brassMat);
+      bolt.position.set(bx, by, -0.185 - (by - 0.54) * 0.14);
+      group.add(bolt);
+    }
+  }
+
+  return group;
+}
+
+/**
+ * Handcrafted multi-part carryable neighborhood props pivoted at y = 0.
+ * Stores optional ground contact shadow on `group.userData.shadowMesh` so holding hides shadow cleanly.
+ */
+export function buildCarryablePropMesh(
+  id: CarryableItemId,
+  palette: MaterialPalette,
+  shadowTex: THREE.Texture,
+): THREE.Group {
+  const group = new THREE.Group();
+  addContactShadow(group, shadowTex, 0.62, 0.62, 0.4, 0.018);
+  group.userData.shadowMesh = group.children[0];
+
+  const brassMat = palette.standard(STORYBOOK_PALETTE.agedBrass, 0.24, 0.85);
+  const ironMat = palette.standard(STORYBOOK_PALETTE.wroughtIron, 0.42, 0.72);
+  const cedarMat = palette.standard(STORYBOOK_PALETTE.cedarWarm, 0.78, 0.03);
+  const creamMat = palette.standard(STORYBOOK_PALETTE.creamLinen, 0.86, 0.01);
+
+  if (id === 'water_pail') {
+    const copperMat = palette.standard('#C9794E', 0.34, 0.72);
+    const waterMat = palette.standard('#6CB9C9', 0.14, 0.12);
+    const body = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.125, 0.25, 12), copperMat);
+    body.position.y = 0.125;
+    body.castShadow = true;
+    const hoop = new THREE.Mesh(new THREE.TorusGeometry(0.15, 0.014, 6, 14), brassMat);
+    hoop.rotation.x = Math.PI / 2;
+    hoop.position.y = 0.19;
+    const waterDisc = new THREE.Mesh(new THREE.CircleGeometry(0.138, 12), waterMat);
+    waterDisc.rotation.x = -Math.PI / 2;
+    waterDisc.position.y = 0.23;
+    const bail = new THREE.Mesh(new THREE.TorusGeometry(0.155, 0.012, 6, 14, Math.PI), ironMat);
+    bail.position.y = 0.24;
+    group.add(body, hoop, waterDisc, bail);
+  } else if (id === 'rosemary_basket') {
+    const wickerMat = palette.standard('#B88952', 0.86, 0.01);
+    const crustMat = palette.standard('#D79045', 0.82, 0.0);
+    const herbMat = palette.standard(STORYBOOK_PALETTE.leafOlive, 0.78, 0.01);
+    const basket = new THREE.Mesh(new THREE.CylinderGeometry(0.19, 0.14, 0.15, 10), wickerMat);
+    basket.position.y = 0.075;
+    basket.castShadow = true;
+    const cloth = new THREE.Mesh(new THREE.CylinderGeometry(0.195, 0.185, 0.04, 10), creamMat);
+    cloth.position.y = 0.14;
+    const loaf = new THREE.Mesh(new THREE.CapsuleGeometry(0.082, 0.15, 4, 8), crustMat);
+    loaf.rotation.z = Math.PI / 2;
+    loaf.position.set(0, 0.175, 0);
+    loaf.castShadow = true;
+    const handle = new THREE.Mesh(new THREE.TorusGeometry(0.17, 0.016, 6, 12, Math.PI), wickerMat);
+    handle.position.y = 0.15;
+    group.add(basket, cloth, loaf, handle);
+    for (let i = -1; i <= 1; i++) {
+      const sprig = new THREE.Mesh(new THREE.ConeGeometry(0.032, 0.13, 5), herbMat);
+      sprig.position.set(i * 0.055, 0.21, 0.08);
+      sprig.rotation.x = 0.45;
+      sprig.rotation.z = -i * 0.22;
+      group.add(sprig);
+    }
+  } else if (id === 'chalk_bundle') {
+    const twineMat = palette.standard('#8C6A47', 0.88, 0.0);
+    const slateMat = palette.standard(STORYBOOK_PALETTE.slateRoof, 0.82, 0.04);
+    const baseCard = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.03, 0.2), slateMat);
+    baseCard.position.y = 0.015;
+    baseCard.castShadow = true;
+    group.add(baseCard);
+
+    const pastelHexes = ['#EFC663', '#84B7D6', '#E58A94', '#FAF2E1'];
+    for (let i = 0; i < pastelHexes.length; i++) {
+      const stick = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.025, 0.025, 0.19, 8),
+        palette.standard(pastelHexes[i], 0.9, 0.0),
+      );
+      stick.rotation.z = Math.PI / 2;
+      stick.rotation.y = (i - 1.5) * 0.08;
+      stick.position.set(0, 0.06 + (i % 2) * 0.036, (i - 1.5) * 0.038);
+      stick.castShadow = true;
+      group.add(stick);
+    }
+    const twine = new THREE.Mesh(new THREE.TorusGeometry(0.068, 0.011, 6, 12), twineMat);
+    twine.rotation.y = Math.PI / 2;
+    twine.position.set(0, 0.07, 0);
+    group.add(twine);
+  } else if (id === 'tea_tray') {
+    const glazeMat = palette.standard('#8BB6B5', 0.28, 0.08);
+    const tray = new THREE.Mesh(new THREE.BoxGeometry(0.36, 0.03, 0.26), cedarMat);
+    tray.position.y = 0.015;
+    tray.castShadow = true;
+    const pot = new THREE.Mesh(new THREE.SphereGeometry(0.085, 10, 10), glazeMat);
+    pot.scale.set(1, 0.88, 1);
+    pot.position.set(-0.06, 0.095, 0);
+    pot.castShadow = true;
+    const lid = new THREE.Mesh(new THREE.SphereGeometry(0.022, 6, 6), brassMat);
+    lid.position.set(-0.06, 0.175, 0);
+    const spout = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.02, 0.07, 6), glazeMat);
+    spout.position.set(0.02, 0.11, 0);
+    spout.rotation.z = -0.7;
+    group.add(tray, pot, lid, spout);
+
+    for (const cz of [-0.055, 0.055]) {
+      const cup = new THREE.Mesh(new THREE.CylinderGeometry(0.034, 0.026, 0.048, 8), creamMat);
+      cup.position.set(0.085, 0.054, cz);
+      group.add(cup);
+    }
+  } else {
+    // lost_parcel
+    const kraftMat = palette.standard('#C9A574', 0.86, 0.0);
+    const sealMat = palette.standard(STORYBOOK_PALETTE.terracotta, 0.52, 0.04);
+    const twineMat = palette.standard('#6E513A', 0.88, 0.0);
+    const box = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.15, 0.22), kraftMat);
+    box.position.y = 0.075;
+    box.castShadow = true;
+    const wrapA = new THREE.Mesh(new THREE.BoxGeometry(0.29, 0.158, 0.022), twineMat);
+    wrapA.position.y = 0.075;
+    const wrapB = new THREE.Mesh(new THREE.BoxGeometry(0.022, 0.158, 0.23), twineMat);
+    wrapB.position.y = 0.075;
+    const seal = new THREE.Mesh(new THREE.CylinderGeometry(0.032, 0.034, 0.016, 10), sealMat);
+    seal.position.set(0, 0.156, 0);
+    const tag = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.012, 0.05), creamMat);
+    tag.position.set(0.06, 0.155, 0.04);
+    tag.rotation.y = 0.35;
+    group.add(box, wrapA, wrapB, seal, tag);
+  }
+
+  return group;
+}
+

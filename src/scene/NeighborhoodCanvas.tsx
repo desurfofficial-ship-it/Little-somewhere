@@ -2,8 +2,10 @@ import React, { useEffect, useRef } from 'react';
 import * as THREE from 'three';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import {
+  CarryableItemId,
   GameScreenState,
   InteractiveTarget,
+  PlayerPosture,
   PropInteractableId,
   ResidentId,
   ScreenVec2,
@@ -23,11 +25,20 @@ import {
   stepSimulationInPlace,
 } from '../game/simulation';
 import {
+  CARRYABLE_PROP_DEFS,
   PROP_INTERACTABLES,
+  SEAT_SPOTS,
   distance2D,
+  getGroundHeightAt,
+  getSeatById,
   isPointWalkable,
-  resolveMovement,
 } from '../game/worldMap';
+import {
+  createInitialPlayerMotion,
+  selectBestInteractiveTarget,
+  stepPlayerMovement,
+  wrapAngleDelta,
+} from '../game/playerController';
 import { getResidentAvailableQuestCue } from '../game/narrative';
 import { composeEnvironmentState } from '../game/environment';
 import { cozyAudio } from '../game/audio';
@@ -59,6 +70,8 @@ import {
   buildPerimeterBorder,
 } from './builders/vegetation';
 import {
+  buildCarryablePropMesh,
+  buildStorybookBench,
   buildStorybookFountain,
   buildStorybookGazebo,
   buildStorybookNoticeboard,
@@ -73,9 +86,16 @@ import {
   buildStorybookGreenhouse,
 } from './builders/buildings';
 import {
+  CharacterAnimationOptions,
   animateCharacterRig,
   buildStorybookCharacter,
 } from './builders/characters';
+
+export interface HudBubbleSnapshot {
+  residentId: ResidentId;
+  name: string;
+  text: string;
+}
 
 export interface NeighborhoodCanvasProps {
   screenState: GameScreenState;
@@ -88,7 +108,10 @@ export interface NeighborhoodCanvasProps {
     minuteOfDay: number;
     playerPos: Vec2;
     playerFacing: number;
+    playerPosture: PlayerPosture;
+    playerHeldItem: CarryableItemId | null;
     nearestTarget: InteractiveTarget | null;
+    nearbyBubble: HudBubbleSnapshot | null;
     weather: WeatherType;
     season: SeasonType;
   }) => void;
@@ -100,6 +123,20 @@ const _vec3B = new THREE.Vector3();
 const _raycaster = new THREE.Raycaster();
 const _pointer = new THREE.Vector2();
 const _groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+const _playerAnimOpts: CharacterAnimationOptions = {
+  emotion: 'relaxed',
+  bankAngle: 0,
+  carrying: false,
+  isMoving: false,
+};
+const _npcAnimOpts: CharacterAnimationOptions = {
+  emotion: 'relaxed',
+  lookYaw: 0,
+  lookPitch: 0,
+  bankAngle: 0,
+  carrying: false,
+  isMoving: false,
+};
 
 export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
   screenState,
@@ -463,7 +500,11 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
       shadowTex,
       'player',
     );
-    playerRig.root.position.set(worldRef.current.playerPos.x, 0, worldRef.current.playerPos.z);
+    playerRig.root.position.set(
+      worldRef.current.playerPos.x,
+      getGroundHeightAt(worldRef.current.playerPos.x, worldRef.current.playerPos.z),
+      worldRef.current.playerPos.z,
+    );
     playerRig.root.rotation.y = worldRef.current.playerFacing;
     scene.add(playerRig.root);
 
@@ -483,7 +524,7 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
           ? buildStorybookJun(def.appearance, palette, shadowTex)
           : buildStorybookCharacter(def.appearance, palette, shadowTex, id);
       const rt = worldRef.current.npcRuntime[id];
-      rig.root.position.set(rt.position.x, 0, rt.position.z);
+      rig.root.position.set(rt.position.x, getGroundHeightAt(rt.position.x, rt.position.z), rt.position.z);
       rig.root.rotation.y = rt.facing;
       rig.root.userData = { targetKind: 'resident', targetId: id };
 
@@ -501,7 +542,7 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
       scene.add(rig.root);
     }
 
-    // Add invisible raycast proxies for interactive props
+    // Add invisible raycast proxies for interactive landmark props
     for (const prop of PROP_INTERACTABLES) {
       const hit = new THREE.Mesh(
         new THREE.CylinderGeometry(0.95, 0.95, 2.2, 8),
@@ -513,12 +554,52 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
       interactableMeshes.push(hit);
     }
 
-    // Input Tracking (WASD + Arrows + Tap-to-Walk + Interaction)
+    // 12. Handcrafted Cedar Benches at SEAT_SPOTS + raycast proxies
+    for (const seat of SEAT_SPOTS) {
+      const bench = buildStorybookBench(palette, shadowTex);
+      bench.position.set(seat.seatPos.x, 0, seat.seatPos.z);
+      bench.rotation.y = seat.facingAngle;
+      scene.add(bench);
+
+      const seatHit = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.68, 0.68, 1.0, 8),
+        new THREE.MeshBasicMaterial({ visible: false }),
+      );
+      seatHit.position.set(seat.seatPos.x, 0.5, seat.seatPos.z);
+      seatHit.userData = { targetKind: 'seat', targetId: seat.id };
+      scene.add(seatHit);
+      interactableMeshes.push(seatHit);
+    }
+
+    // 13. 5 Handcrafted Carryable World Props
+    const carryableRigs = {} as Record<
+      CarryableItemId,
+      { group: THREE.Group; shadow: THREE.Object3D | null; hitProxy: THREE.Mesh }
+    >;
+    for (const def of CARRYABLE_PROP_DEFS) {
+      const group = buildCarryablePropMesh(def.id, palette, shadowTex);
+      const shadow = (group.userData.shadowMesh as THREE.Object3D | undefined) ?? null;
+      const py = getGroundHeightAt(def.pos.x, def.pos.z);
+      group.position.set(def.pos.x, py, def.pos.z);
+      scene.add(group);
+
+      const hitProxy = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.55, 0.55, 0.9, 8),
+        new THREE.MeshBasicMaterial({ visible: false }),
+      );
+      hitProxy.position.set(def.pos.x, py + 0.4, def.pos.z);
+      hitProxy.userData = { targetKind: 'carryable', targetId: def.id };
+      scene.add(hitProxy);
+      interactableMeshes.push(hitProxy);
+
+      carryableRigs[def.id] = { group, shadow, hitProxy };
+    }
+
+    // Input Tracking (WASD + Arrows + Shift Sprint + Tap-to-Walk + Interaction)
     const keysDown = new Set<string>();
     let tapWalkDest: Vec2 | null = null;
     let pendingTargetAfterWalk: InteractiveTarget | null = null;
-    let playerWalkPhase = 0;
-    let stepSoundAccum = 0;
+    let playerMotion = createInitialPlayerMotion(worldRef.current.playerPos);
     let hudSyncAccum = 0;
     let hasSyncedInitialHud = false;
     let lastNearestId: string | null = null;
@@ -527,6 +608,9 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
     let lastSyncedZ = NaN;
     let lastSyncedWeather: WeatherType | null = null;
     let lastSyncedSeason: SeasonType | null = null;
+    let lastSyncedPosture: PlayerPosture | null = null;
+    let lastSyncedHeldItem: CarryableItemId | null | undefined = undefined;
+    let lastSyncedBubbleKey: string | null = null;
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.code === 'Space' || e.code === 'Enter') {
@@ -555,17 +639,39 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
 
       const hits = _raycaster.intersectObjects(interactableMeshes, false);
       if (hits.length > 0) {
-        const ud = hits[0].object.userData as { targetKind: 'resident' | 'prop'; targetId: string };
+        const ud = hits[0].object.userData as {
+          targetKind: 'resident' | 'prop' | 'seat' | 'carryable';
+          targetId: string;
+        };
         const pPos = worldRef.current.playerPos;
         let tPos: Vec2 = { x: 0, z: 0 };
+        let walkDest: Vec2 | null = null;
         let label = '';
         let actionLabel = 'Talk';
+        let immediateRange = 2.9;
 
         if (ud.targetKind === 'resident') {
           const rid = ud.targetId as ResidentId;
           tPos = worldRef.current.npcRuntime[rid].position;
           label = RESIDENTS[rid].name;
           actionLabel = `Talk to ${label}`;
+        } else if (ud.targetKind === 'seat') {
+          const seat = getSeatById(ud.targetId);
+          if (!seat) return;
+          tPos = { ...seat.seatPos };
+          walkDest = { ...seat.approachPos };
+          label = seat.label;
+          actionLabel =
+            worldRef.current.playerPosture === 'sitting' ? 'Stand Up' : `Sit on ${seat.label}`;
+          immediateRange = 2.35;
+        } else if (ud.targetKind === 'carryable') {
+          const cid = ud.targetId as CarryableItemId;
+          const cProp = worldRef.current.worldProps?.[cid];
+          if (!cProp || cProp.holder !== 'world') return;
+          tPos = { ...cProp.pos };
+          label = cProp.label;
+          actionLabel = `Pick Up ${cProp.label}`;
+          immediateRange = 2.25;
         } else {
           const prop = PROP_INTERACTABLES.find((p) => p.id === (ud.targetId as PropInteractableId));
           if (prop) {
@@ -583,13 +689,15 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
           actionLabel,
           distance: dist,
           worldPos: { ...tPos },
+          seatId: ud.targetKind === 'seat' ? ud.targetId : undefined,
+          carryableId: ud.targetKind === 'carryable' ? (ud.targetId as CarryableItemId) : undefined,
         };
 
-        if (dist <= 2.9) {
+        if (dist <= immediateRange) {
           cozyAudio.playUiTap(1.05);
           onSelectTargetRef.current(targetObj);
         } else {
-          tapWalkDest = { ...tPos };
+          tapWalkDest = walkDest ?? { ...tPos };
           pendingTargetAfterWalk = targetObj;
         }
         return;
@@ -694,18 +802,65 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
         }
       }
 
-      // Project persistent NPC runtime state onto 3D resident rigs & find nearest target
-      let nearestTarget: InteractiveTarget | null = null;
-      let nearestDist = 2.95;
+      // Sync carryable world props (ground placement vs held in player carrySocket vs delivered)
+      const playerSocket = playerRig.carrySocket ?? playerRig.bodyGroup;
+      for (let i = 0; i < CARRYABLE_PROP_DEFS.length; i++) {
+        const def = CARRYABLE_PROP_DEFS[i];
+        const rig = carryableRigs[def.id];
+        const placement = world.worldProps?.[def.id];
+        const holder = placement?.holder ?? 'world';
+        if (holder === 'world') {
+          const px = placement?.pos.x ?? def.pos.x;
+          const pz = placement?.pos.z ?? def.pos.z;
+          const py = getGroundHeightAt(px, pz);
+          if (rig.group.parent !== scene) scene.add(rig.group);
+          rig.group.position.set(px, py, pz);
+          rig.group.rotation.set(0, Math.sin(elapsed * 0.7 + i) * 0.04, 0);
+          rig.group.visible = true;
+          if (rig.shadow) rig.shadow.visible = true;
+          rig.hitProxy.position.set(px, py + 0.4, pz);
+          rig.hitProxy.visible = true;
+        } else if (holder === 'player') {
+          if (rig.group.parent !== playerSocket) playerSocket.add(rig.group);
+          rig.group.position.set(0, -0.05, 0);
+          rig.group.rotation.set(0, 0, 0);
+          rig.group.visible = true;
+          if (rig.shadow) rig.shadow.visible = false;
+          rig.hitProxy.visible = false;
+        } else {
+          rig.group.visible = false;
+          rig.hitProxy.visible = false;
+        }
+      }
+
+      // Project persistent NPC runtime state onto 3D resident rigs & locate active whisper bubble
+      let nearbyBubble: HudBubbleSnapshot | null = null;
+      let nearestBubbleDist = 4.6;
 
       for (let i = 0; i < RESIDENT_ORDER.length; i++) {
         const id = RESIDENT_ORDER[i];
         const rig = residentRigs[id];
         const rt = world.npcRuntime[id];
-        rig.root.position.set(rt.position.x, 0, rt.position.z);
+        const npcGroundY = rt.posture === 'sitting' ? 0 : getGroundHeightAt(rt.position.x, rt.position.z);
+        rig.root.position.set(rt.position.x, npcGroundY, rt.position.z);
         rig.root.rotation.y = rt.facing;
 
-        animateCharacterRig(rig, rt.animState, rt.walkPhase, elapsed, dt, i * 0.7);
+        let lookYaw = 0;
+        if (rt.targetLookPos) {
+          const ldx = rt.targetLookPos.x - rt.position.x;
+          const ldz = rt.targetLookPos.z - rt.position.z;
+          if (ldx * ldx + ldz * ldz > 0.04) {
+            lookYaw = wrapAngleDelta(rt.facing, Math.atan2(ldx, ldz));
+          }
+        }
+
+        _npcAnimOpts.emotion = rt.emotion;
+        _npcAnimOpts.lookYaw = lookYaw;
+        _npcAnimOpts.lookPitch = 0;
+        _npcAnimOpts.bankAngle = 0;
+        _npcAnimOpts.carrying = false;
+        _npcAnimOpts.isMoving = rt.currentSpeed > 0.25;
+        animateCharacterRig(rig, rt.animState, rt.walkPhase, elapsed, dt, i * 0.7, _npcAnimOpts);
 
         // Quest cue diamond
         const cue = getResidentAvailableQuestCue(id, world);
@@ -717,51 +872,40 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
         }
 
         const pDist = distance2D(world.playerPos, rt.position);
-        rig.ringMesh.visible = pDist < 2.95;
-        if (pDist < nearestDist) {
-          nearestDist = pDist;
-          nearestTarget = {
-            kind: 'resident',
-            id,
-            label: RESIDENTS[id].name,
-            actionLabel: `Talk to ${RESIDENTS[id].name}`,
-            distance: pDist,
-            worldPos: { x: rt.position.x, z: rt.position.z },
+        rig.ringMesh.visible = pDist < 2.9;
+
+        if (
+          rt.activeBubbleText &&
+          world.minuteOfDay <= rt.activeBubbleUntilMinute &&
+          pDist < nearestBubbleDist
+        ) {
+          nearestBubbleDist = pDist;
+          nearbyBubble = {
+            residentId: id,
+            name: RESIDENTS[id].name,
+            text: rt.activeBubbleText,
           };
         }
       }
 
-      // Check proximity to interactive neighborhood props
-      for (const prop of PROP_INTERACTABLES) {
-        const dProp = distance2D(world.playerPos, { x: prop.x, z: prop.z });
-        if (dProp <= prop.interactRadius && dProp < nearestDist) {
-          nearestDist = dProp;
-          nearestTarget = {
-            kind: 'prop',
-            id: prop.id,
-            label: prop.name,
-            actionLabel:
-              prop.id === 'player_door'
-                ? 'Porch / Rest'
-                : prop.id === 'gazebo_bell' && composed.playerChanges.bellGleaming
-                ? 'Ring Gazebo Bell'
-                : `Inspect ${prop.name}`,
-            distance: dProp,
-            worldPos: { x: prop.x, z: prop.z },
-          };
-        }
-      }
+      const nearestTarget = selectBestInteractiveTarget(world, RESIDENTS);
 
       // Edge-gated throttled HUD sync
       hudSyncAccum += dt;
       const minuteInt = Math.floor(world.minuteOfDay);
       const nearestKey = nearestTarget ? `${nearestTarget.kind}:${nearestTarget.id}` : null;
+      const bubbleKey = nearbyBubble ? `${nearbyBubble.residentId}:${nearbyBubble.text}` : null;
+      const heldItem = world.playerHeldItem ?? null;
+      const posture = world.playerPosture ?? 'standing';
       const movedDist = Number.isNaN(lastSyncedX)
         ? 999
         : Math.hypot(world.playerPos.x - lastSyncedX, world.playerPos.z - lastSyncedZ);
       const edgeTriggered =
         !hasSyncedInitialHud ||
         nearestKey !== lastNearestId ||
+        bubbleKey !== lastSyncedBubbleKey ||
+        posture !== lastSyncedPosture ||
+        heldItem !== lastSyncedHeldItem ||
         composed.weather.effective !== lastSyncedWeather ||
         composed.season.season !== lastSyncedSeason;
 
@@ -772,6 +916,9 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
         hasSyncedInitialHud = true;
         hudSyncAccum = 0;
         lastNearestId = nearestKey;
+        lastSyncedBubbleKey = bubbleKey;
+        lastSyncedPosture = posture;
+        lastSyncedHeldItem = heldItem;
         lastSyncedMinuteInt = minuteInt;
         lastSyncedX = world.playerPos.x;
         lastSyncedZ = world.playerPos.z;
@@ -781,7 +928,10 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
           minuteOfDay: world.minuteOfDay,
           playerPos: { ...world.playerPos },
           playerFacing: world.playerFacing,
+          playerPosture: posture,
+          playerHeldItem: heldItem,
           nearestTarget,
+          nearbyBubble,
           weather: composed.weather.effective,
           season: composed.season.season,
         });
@@ -814,104 +964,124 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
       }
 
       // Player Movement (when playing and not in dialogue)
-      let moveX = 0;
-      let moveZ = 0;
+      let moveDirX = 0;
+      let moveDirZ = 0;
+      let inputMagnitude = 0;
+      const sprintHeld = keysDown.has('ShiftLeft') || keysDown.has('ShiftRight');
+      const walkHeld = keysDown.has('AltLeft') || keysDown.has('AltRight');
 
       if (state === 'playing' && !dialogueOpenRef.current) {
-        // Isometric screen-aligned keyboard input
+        // Isometric screen-aligned keyboard + analog thumbstick input
         const up = keysDown.has('KeyW') || keysDown.has('ArrowUp');
         const down = keysDown.has('KeyS') || keysDown.has('ArrowDown');
         const left = keysDown.has('KeyA') || keysDown.has('ArrowLeft');
         const right = keysDown.has('KeyD') || keysDown.has('ArrowRight');
 
-        const screenHoriz = (right ? 1 : 0) - (left ? 1 : 0) + joystickVectorRef.current.x;
-        const screenVert = (down ? 1 : 0) - (up ? 1 : 0) + joystickVectorRef.current.y;
+        const keyHoriz = (right ? 1 : 0) - (left ? 1 : 0);
+        const keyVert = (down ? 1 : 0) - (up ? 1 : 0);
+        const joyX = joystickVectorRef.current.x;
+        const joyY = joystickVectorRef.current.y;
+        const joyMag = Math.hypot(joyX, joyY);
+
+        const screenHoriz = keyHoriz + joyX;
+        const screenVert = keyVert + joyY;
 
         if (Math.abs(screenHoriz) > 0.08 || Math.abs(screenVert) > 0.08) {
           tapWalkDest = null;
           pendingTargetAfterWalk = null;
           // Screen-right = (+0.707, -0.707), Screen-down = (+0.707, +0.707)
-          moveX = screenHoriz * 0.7071 + screenVert * 0.7071;
-          moveZ = -screenHoriz * 0.7071 + screenVert * 0.7071;
+          moveDirX = screenHoriz * 0.7071 + screenVert * 0.7071;
+          moveDirZ = -screenHoriz * 0.7071 + screenVert * 0.7071;
+          inputMagnitude = Math.abs(keyHoriz) > 0 || Math.abs(keyVert) > 0 ? 1.0 : Math.min(1, joyMag);
         } else if (tapWalkDest) {
           const dx = tapWalkDest.x - world.playerPos.x;
           const dz = tapWalkDest.z - world.playerPos.z;
           const dist = Math.hypot(dx, dz);
-          if (dist > 0.35) {
-            moveX = dx / dist;
-            moveZ = dz / dist;
-            if (pendingTargetAfterWalk && dist <= 2.4) {
-              const target = pendingTargetAfterWalk;
-              tapWalkDest = null;
-              pendingTargetAfterWalk = null;
-              cozyAudio.playUiTap(1.05);
-              onSelectTargetRef.current(target);
-            }
+          const arriveDist =
+            pendingTargetAfterWalk?.kind === 'seat'
+              ? 0.55
+              : pendingTargetAfterWalk?.kind === 'carryable'
+              ? 1.45
+              : pendingTargetAfterWalk
+              ? 2.35
+              : 0.35;
+
+          if (dist > arriveDist) {
+            moveDirX = dx / dist;
+            moveDirZ = dz / dist;
+            inputMagnitude = dist < 1.1 ? 0.48 : 0.92;
           } else {
             tapWalkDest = null;
             if (pendingTargetAfterWalk) {
               const target = pendingTargetAfterWalk;
               pendingTargetAfterWalk = null;
+              cozyAudio.playUiTap(1.05);
               onSelectTargetRef.current(target);
             }
           }
         }
       }
 
-      const moveLen = Math.hypot(moveX, moveZ);
-      if (moveLen > 0.01) {
-        const nx = moveX / moveLen;
-        const nz = moveZ / moveLen;
-        const speed = 5.4;
-        const desired = {
-          x: world.playerPos.x + nx * speed * dt,
-          z: world.playerPos.z + nz * speed * dt,
-        };
-        const resolved = resolveMovement(world.playerPos, desired, 0.48);
-        const actualDist = distance2D(world.playerPos, resolved);
-        world.playerPos = resolved;
+      const moveResult = stepPlayerMovement({
+        pos: world.playerPos,
+        facing: world.playerFacing,
+        motion: playerMotion,
+        moveDirX,
+        moveDirZ,
+        inputMagnitude,
+        sprintHeld,
+        walkHeld,
+        carryingItem: Boolean(world.playerHeldItem),
+        posture: world.playerPosture ?? 'standing',
+        seatId: world.playerSeatId ?? null,
+        dt,
+      });
 
-        const targetAngle = Math.atan2(nx, nz);
-        let diff = targetAngle - world.playerFacing;
-        while (diff > Math.PI) diff -= Math.PI * 2;
-        while (diff < -Math.PI) diff += Math.PI * 2;
-        world.playerFacing += diff * Math.min(1, dt * 12);
+      world.playerPos = moveResult.pos;
+      world.playerFacing = moveResult.facing;
+      world.playerPosture = moveResult.posture;
+      world.playerSeatId = moveResult.seatId;
+      playerMotion = moveResult.motion;
 
-        playerWalkPhase += actualDist * 5.5;
-        stepSoundAccum += actualDist;
-        if (stepSoundAccum >= 1.45) {
-          stepSoundAccum = 0;
-          cozyAudio.playFootstep();
-        }
-      } else {
-        playerWalkPhase = THREE.MathUtils.damp(
-          playerWalkPhase,
-          Math.round(playerWalkPhase / Math.PI) * Math.PI,
-          8,
-          dt,
-        );
+      if (playerMotion.footstepPending) {
+        cozyAudio.playFootstep();
       }
 
       // Update tap destination ring
       if (tapWalkDest) {
         destRing.visible = true;
-        destRing.position.set(tapWalkDest.x, 0.05, tapWalkDest.z);
+        destRing.position.set(
+          tapWalkDest.x,
+          getGroundHeightAt(tapWalkDest.x, tapWalkDest.z) + 0.05,
+          tapWalkDest.z,
+        );
         const pulse = 1 + Math.sin(elapsed * 6) * 0.12;
         destRing.scale.setScalar(pulse);
       } else {
         destRing.visible = false;
       }
 
-      // Animate player character rig cleanly with joint pivots
-      playerRig.root.position.set(world.playerPos.x, 0, world.playerPos.z);
+      // Animate player character rig cleanly with joint pivots, ground height & turn banking
+      playerRig.root.position.set(world.playerPos.x, playerMotion.groundY, world.playerPos.z);
       playerRig.root.rotation.y = world.playerFacing;
+      _playerAnimOpts.emotion = world.playerHeldItem
+        ? 'happy'
+        : world.playerPosture === 'sitting'
+        ? 'relaxed'
+        : 'relaxed';
+      _playerAnimOpts.lookYaw = 0;
+      _playerAnimOpts.lookPitch = 0;
+      _playerAnimOpts.bankAngle = playerMotion.bankAngle;
+      _playerAnimOpts.carrying = Boolean(world.playerHeldItem);
+      _playerAnimOpts.isMoving = playerMotion.speed > 0.25;
       animateCharacterRig(
         playerRig,
-        moveLen > 0.01 ? 'walk' : 'idle',
-        playerWalkPhase,
+        playerMotion.animState,
+        playerMotion.walkPhase,
         elapsed,
         dt,
         0,
+        _playerAnimOpts,
       );
 
       // Update environment lighting, seasonal tints, reactive props, resident rigs & HUD
@@ -926,14 +1096,16 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
         camera.lookAt(0, 1.4, -2.5);
       } else {
         const zoom = zoomRef.current;
+        const occlusionLift =
+          world.playerPos.z > 8.5 && Math.abs(world.playerPos.x) > 8.5 ? 1.5 : 0;
         const desiredCamX = world.playerPos.x + 19.5 * zoom;
-        const desiredCamY = 18.2 * zoom;
+        const desiredCamY = 18.2 * zoom + occlusionLift;
         const desiredCamZ = world.playerPos.z + 19.5 * zoom;
         camera.position.x = THREE.MathUtils.damp(camera.position.x, desiredCamX, 6.5, dt);
         camera.position.y = THREE.MathUtils.damp(camera.position.y, desiredCamY, 6.5, dt);
         camera.position.z = THREE.MathUtils.damp(camera.position.z, desiredCamZ, 6.5, dt);
 
-        _vec3A.set(world.playerPos.x, 1.0, world.playerPos.z);
+        _vec3A.set(world.playerPos.x, 1.0 + playerMotion.groundY * 0.6, world.playerPos.z);
         camera.lookAt(_vec3A);
       }
 

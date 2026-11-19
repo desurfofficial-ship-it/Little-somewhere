@@ -1,4 +1,10 @@
-import { PropInteractableId, Vec2 } from './types';
+import {
+  CarryableItemId,
+  PropInteractableId,
+  SeatSpot,
+  Vec2,
+  WorldPropPlacement,
+} from './types';
 
 export interface BoxObstacle {
   id: string;
@@ -81,12 +87,113 @@ export const CIRCLE_OBSTACLES: CircleObstacle[] = [
   { id: 'hollow_oak', x: -6.2, z: 15.6, radius: 1.35 },
   { id: 'tea_cart', x: -5.4, z: -3.2, radius: 1.05 },
   { id: 'plaza_board', x: 4.4, z: -3.2, radius: 0.75 },
+  // Plaza & Pond handcrafted cedar benches
+  { id: 'east_bench', x: 5.15, z: 3.0, radius: 0.42 },
+  { id: 'west_bench', x: -5.15, z: 3.0, radius: 0.42 },
+  { id: 'gazebo_bench', x: 5.2, z: -9.8, radius: 0.42 },
+  { id: 'pond_bench', x: 1.8, z: 19.3, radius: 0.42 },
   // Willow Lane prototype courtyard trees & signpost
   { id: 'willow_tree_sw', x: -19.2, z: 13.6, radius: 0.68 },
   { id: 'willow_tree_south', x: -15.5, z: 15.0, radius: 0.65 },
   { id: 'willow_tree_nw', x: -16.8, z: 5.2, radius: 0.62 },
   { id: 'willow_signpost', x: -12.5, z: 5.7, radius: 0.42 },
 ];
+
+export const SEAT_SPOTS: readonly SeatSpot[] = [
+  {
+    id: 'seat_east_plaza',
+    label: 'East Plaza Bench',
+    seatPos: { x: 5.15, z: 3.0 },
+    approachPos: { x: 4.15, z: 3.0 },
+    facingAngle: -Math.PI / 2,
+    seatHeight: 0.36,
+    zoneId: 'square',
+  },
+  {
+    id: 'seat_west_plaza',
+    label: 'West Plaza Bench',
+    seatPos: { x: -5.15, z: 3.0 },
+    approachPos: { x: -4.15, z: 3.0 },
+    facingAngle: Math.PI / 2,
+    seatHeight: 0.36,
+    zoneId: 'square',
+  },
+  {
+    id: 'seat_gazebo_east',
+    label: 'Gazebo Cedar Bench',
+    seatPos: { x: 5.2, z: -9.8 },
+    approachPos: { x: 4.15, z: -9.8 },
+    facingAngle: -Math.PI / 2,
+    seatHeight: 0.36,
+    zoneId: 'gazebo',
+  },
+  {
+    id: 'seat_pond_south',
+    label: 'Mirror Pond Bench',
+    seatPos: { x: 1.8, z: 19.3 },
+    approachPos: { x: 1.8, z: 18.2 },
+    facingAngle: Math.PI,
+    seatHeight: 0.36,
+    zoneId: 'pond',
+  },
+];
+
+export const CARRYABLE_PROP_DEFS: ReadonlyArray<Omit<WorldPropPlacement, 'holder'>> = [
+  {
+    id: 'water_pail',
+    label: 'Copper Water Pail',
+    description: 'A little brass-hooped pail ready for greenhouse blooms or dry window boxes.',
+    pos: { x: 2.65, z: 3.65 },
+    homePos: { x: 2.65, z: 3.65 },
+    likedBy: ['mina', 'toby', 'arthur'],
+  },
+  {
+    id: 'rosemary_basket',
+    label: 'Warm Loaf & Herb Basket',
+    description: 'Freshly braided sourdough tucked beside sprigs of garden rosemary.',
+    pos: { x: -10.5, z: -6.4 },
+    homePos: { x: -10.5, z: -6.4 },
+    likedBy: ['clara', 'sora', 'barnaby', 'jun'],
+  },
+  {
+    id: 'chalk_bundle',
+    label: 'Pastel Street Chalks',
+    description: 'Pastel chalks tied with twine for hopscotch grids and lane sketches.',
+    pos: { x: -11.4, z: -1.6 },
+    homePos: { x: -11.4, z: -1.6 },
+    likedBy: ['pip', 'nora', 'toby'],
+  },
+  {
+    id: 'tea_tray',
+    label: 'Chamomile Tea Tray',
+    description: 'Two steaming porcelain cups set upon a painted cedar tray.',
+    pos: { x: -4.1, z: -2.6 },
+    homePos: { x: -4.1, z: -2.6 },
+    likedBy: ['sora', 'nora', 'clara', 'mina'],
+  },
+  {
+    id: 'lost_parcel',
+    label: 'Twine-Tied Lane Parcel',
+    description: 'An unhurried parcel wrapped in kraft paper waiting for a friendly hand.',
+    pos: { x: -11.2, z: 6.2 },
+    homePos: { x: -11.2, z: 6.2 },
+    likedBy: ['jun', 'arthur', 'barnaby'],
+  },
+];
+
+export function createInitialWorldProps(): Record<CarryableItemId, WorldPropPlacement> {
+  const out = {} as Record<CarryableItemId, WorldPropPlacement>;
+  for (const def of CARRYABLE_PROP_DEFS) {
+    out[def.id] = {
+      ...def,
+      pos: { ...def.pos },
+      homePos: { ...def.homePos },
+      holder: 'world',
+      likedBy: [...def.likedBy],
+    };
+  }
+  return out;
+}
 
 export const LANDMARK_ZONES: LandmarkZone[] = [
   { id: 'home', name: 'Willow Step Cottage', subtitle: 'Your quiet porch & mailbox', x: -10, z: 10, radius: 6.5 },
@@ -113,6 +220,23 @@ export function distance2D(a: Vec2, b: Vec2): number {
   const dx = a.x - b.x;
   const dz = a.z - b.z;
   return Math.hypot(dx, dz);
+}
+
+/**
+ * Returns the physical surface Y elevation at world-space (x, z) so walkers climb smoothly
+ * across Mirror Pond's cambered cedar footbridge instead of clipping through its planks.
+ */
+export function getGroundHeightAt(x: number, z: number): number {
+  // Mirror Pond Cedar Footbridge at x = -2.9, width ~2.14, z = 11.45..16.55
+  if (x >= -4.02 && x <= -1.78 && z >= 11.4 && z <= 16.6) {
+    const t = (z - 14.0) / 4.6; // -0.56..+0.56
+    const normalized = Math.max(-0.5, Math.min(0.5, t));
+    const arch = 0.24 + (1 - 4 * normalized * normalized) * 0.18;
+    // Feather gently onto approach stone abutments at the very tips
+    const edgeFeather = Math.max(0, Math.min(1, (2.6 - Math.abs(z - 14.0)) / 0.35));
+    return arch * edgeFeather;
+  }
+  return 0;
 }
 
 export function isPointWalkable(x: number, z: number, actorRadius = 0.48): boolean {
@@ -160,6 +284,24 @@ export function resolveMovement(current: Vec2, desired: Vec2, actorRadius = 0.48
     return { x: current.x, z: desired.z };
   }
   return current;
+}
+
+/**
+ * Returns how strongly `actorPos` facing `facingAngle` looks toward `targetPos` (1.0 = directly ahead, -1.0 = behind).
+ */
+export function computeFacingAlignment(actorPos: Vec2, facingAngle: number, targetPos: Vec2): number {
+  const dx = targetPos.x - actorPos.x;
+  const dz = targetPos.z - actorPos.z;
+  const dist = Math.hypot(dx, dz);
+  if (dist < 0.01) return 1;
+  const fx = Math.sin(facingAngle);
+  const fz = Math.cos(facingAngle);
+  return (dx / dist) * fx + (dz / dist) * fz;
+}
+
+export function getSeatById(seatId: string | null | undefined): SeatSpot | undefined {
+  if (!seatId) return undefined;
+  return SEAT_SPOTS.find((s) => s.id === seatId);
 }
 
 export function getLandmarkAt(pos: Vec2): LandmarkZone {

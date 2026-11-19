@@ -12,7 +12,7 @@ import { createFreshWorldState } from './storage';
 import { interruptSocialEncounter, stepSimulation } from './simulation';
 import { getNpcRelation } from './relationships';
 import { RESIDENTS, RESIDENT_ORDER } from './residents';
-import { distance2D, isPointWalkable } from './worldMap';
+import { distance2D, getSeatById, isPointWalkable } from './worldMap';
 
 test('deterministic PRNG produces identical sequences for identical seeds and diverges cleanly otherwise', () => {
   const s1 = hashSeed(18042, 'day', 3, 'clara');
@@ -74,19 +74,25 @@ test('headless simulation is strictly deterministic and navigates NPCs smoothly 
   assert.deepEqual(simA, simB);
   assert.equal(getTimePhase(simA.minuteOfDay), 'afternoon');
 
-  // Verify every resident stayed walkable and navigated cleanly toward their active targetPos
+  // Verify every resident stayed walkable (or properly seated on a real bench) and arrived near their targetPos
   for (const id of RESIDENT_ORDER) {
     const rt = simA.npcRuntime[id];
-    assert.equal(
-      isPointWalkable(rt.position.x, rt.position.z, 0.35),
-      true,
-      `${id} remained walkable at (${rt.position.x.toFixed(2)}, ${rt.position.z.toFixed(2)})`,
-    );
-    assert.equal(
-      distance2D(rt.position, rt.targetPos) < 0.75,
-      true,
-      `${id} arrived near afternoon target (${rt.currentActivityId})`,
-    );
+    const seat = rt.posture === 'sitting' ? getSeatById(rt.reservedSeatId) : undefined;
+    if (seat) {
+      assert.equal(distance2D(rt.position, seat.seatPos) < 0.1, true, `${id} seated cleanly on ${seat.id}`);
+      assert.equal(isPointWalkable(rt.targetPos.x, rt.targetPos.z, 0.35), true, `${id} bench approachPos walkable`);
+    } else {
+      assert.equal(
+        isPointWalkable(rt.position.x, rt.position.z, 0.35),
+        true,
+        `${id} remained walkable at (${rt.position.x.toFixed(2)}, ${rt.position.z.toFixed(2)})`,
+      );
+      assert.equal(
+        distance2D(rt.position, rt.targetPos) < 0.75,
+        true,
+        `${id} arrived near afternoon target (${rt.currentActivityId})`,
+      );
+    }
   }
 });
 

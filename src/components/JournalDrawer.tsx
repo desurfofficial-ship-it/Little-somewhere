@@ -3,6 +3,12 @@ import { BookOpen, Check, Clock, Heart, MapPin, Users, X } from 'lucide-react';
 import { RESIDENTS, RESIDENT_ORDER, getResidentScheduleSlot, getTimePhase } from '../game/residents';
 import { getResidentAvailableQuestCue } from '../game/narrative';
 import { composeEnvironmentState, getWeatherLabel } from '../game/environment';
+import {
+  getEmotionLabel,
+  getRelationshipTier,
+  getRelationshipTierLabel,
+  moodToEmotion,
+} from '../game/relationships';
 import { WorldState } from '../game/types';
 
 interface JournalDrawerProps {
@@ -60,6 +66,45 @@ export const JournalDrawer: React.FC<JournalDrawerProps> = ({
   ];
 
   const completedThreads = storyThreads.filter((t) => t.done).length;
+  const sf = world.sideFlags ?? {};
+  const personalThreads = [
+    {
+      id: 'side_zine',
+      title: 'Pip & Nora’s Willow Lane Zine',
+      done: Boolean(sf.pipZinePrinted),
+      started: Boolean(sf.pipZineStarted),
+      hint: sf.pipZineStarted
+        ? 'Check in with Nora at Linden Book Nook to stitch Issue #1.'
+        : 'Build a warm chat with Pip (1+ heart) to hear his zine idea.',
+    },
+    {
+      id: 'side_herbloaf',
+      title: 'Mina & Clara’s Lemon-Thyme Loaf',
+      done: Boolean(sf.herbLoafShared),
+      started: Boolean(sf.herbLoafStarted),
+      hint: sf.herbLoafStarted
+        ? 'Visit Clara at Hearth & Crumb to share the herb sourdough.'
+        : 'Chat with Mina (1+ heart) about her grafted lemon-thyme.',
+    },
+    {
+      id: 'side_stand',
+      title: 'Sora & Barnaby’s Pond Music Stand',
+      done: Boolean(sf.pondStandBuilt),
+      started: Boolean(sf.pondStandStarted),
+      hint: sf.pondStandStarted
+        ? 'Ask Barnaby at Pinecone Woodshop to plane the cedar stand.'
+        : 'Visit Sora (1+ heart) to hear why her sheet music drifts.',
+    },
+    {
+      id: 'side_watch',
+      title: 'Jun & Arthur’s Pocket Watch',
+      done: Boolean(sf.watchTuneFinished),
+      started: Boolean(sf.watchTuneStarted),
+      hint: sf.watchTuneStarted
+        ? 'Ask Arthur at Copperwheel Cottage to oil Jun’s brass escapement.'
+        : 'Chat with Jun after helping deliver Nora’s coastal postcard.',
+    },
+  ];
 
   const tabIds: Array<'residents' | 'story' | 'guide'> = ['residents', 'story', 'guide'];
 
@@ -185,6 +230,12 @@ export const JournalDrawer: React.FC<JournalDrawerProps> = ({
                 const prog = world.residents[id];
                 const slot = getResidentScheduleSlot(id, phase, env.reconciledTogether);
                 const runtime = world.npcRuntime?.[id];
+                const rel = world.playerRelations?.[id];
+                const affinity = rel?.affinity ?? prog.trust * 20;
+                const tierLabel = getRelationshipTierLabel(getRelationshipTier(affinity));
+                const emotion = runtime?.emotion ?? rel?.lastEmotion ?? moodToEmotion(prog.mood);
+                const emotionLabel = getEmotionLabel(emotion);
+                const reliability = rel?.reliability ?? 25;
                 const cue = getResidentAvailableQuestCue(id, world);
                 return (
                   <div
@@ -234,7 +285,13 @@ export const JournalDrawer: React.FC<JournalDrawerProps> = ({
                       {def.personality}
                     </p>
 
-                    <div className="pt-2 border-t border-[#E5D9C7] text-xs text-[#5E5046] flex items-center justify-between gap-2">
+                    <div className="pt-2 border-t border-[#E5D9C7] text-xs text-[#5E5046] flex flex-col gap-1">
+                      <div className="flex items-center justify-between gap-2 text-[#6A5B50]">
+                        <span>
+                          {tierLabel} · {emotionLabel}
+                        </span>
+                        <span className="font-mono-nums">Reliability {reliability}%</span>
+                      </div>
                       <span className="font-medium truncate">
                         Now: {runtime?.currentPlaceName ?? slot.placeName} — {runtime?.currentActivityLabel ?? slot.activity}
                       </span>
@@ -272,6 +329,40 @@ export const JournalDrawer: React.FC<JournalDrawerProps> = ({
                         </p>
                         <p className="text-xs text-[#6A5B50] mt-0.5">
                           {step.done ? 'Completed in the neighborhood' : step.hint}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <h3 className="font-display text-lg font-semibold text-[#2D241E] mb-3">
+                  Personal Stories &amp; Kindnesses
+                </h3>
+                <div className="space-y-2.5">
+                  {personalThreads.map((step) => (
+                    <div
+                      key={step.id}
+                      className="p-3.5 rounded-xl bg-[#F4ECE0] border border-[#E2D4C0] flex items-start gap-3"
+                    >
+                      <div
+                        className={`w-6 h-6 rounded-full shrink-0 mt-0.5 flex items-center justify-center border ${
+                          step.done
+                            ? 'bg-[#5E8062] border-[#5E8062] text-[#FAF5EC]'
+                            : step.started
+                            ? 'bg-[#E5A93C]/25 border-[#C86446] text-[#C86446]'
+                            : 'bg-[#FAF5EC] border-[#C9B8A3] text-transparent'
+                        }`}
+                      >
+                        <Check className="w-3.5 h-3.5" />
+                      </div>
+                      <div>
+                        <p className={`text-sm font-semibold ${step.done ? 'text-[#2D241E]' : 'text-[#4E4036]'}`}>
+                          {step.title}
+                        </p>
+                        <p className="text-xs text-[#6A5B50] mt-0.5">
+                          {step.done ? 'Shared along the lane' : step.hint}
                         </p>
                       </div>
                     </div>
