@@ -78,4 +78,25 @@ test('five-layer composition increments revision when flags or NPC touches evolv
     minuteOfDay: 1265,
   });
   assert.equal(lateNight.timeOfDay.cozyLateNightHint, true);
+
+  const tartOrchard = composeEnvironmentState({
+    ...withMystery,
+    sideFlags: {
+      ...withMystery.sideFlags,
+      orchardGatheringComplete: true,
+      orchardGatheringOutcome: 'spiced_tart_table',
+    },
+  });
+  const picnicOrchard = composeEnvironmentState({
+    ...withMystery,
+    sideFlags: {
+      ...withMystery.sideFlags,
+      orchardGatheringComplete: true,
+      orchardGatheringOutcome: 'blossom_honey_picnic',
+    },
+  });
+  assert.equal(tartOrchard.playerChanges.orchardGatheringOutcome, 'spiced_tart_table');
+  assert.equal(picnicOrchard.playerChanges.orchardGatheringOutcome, 'blossom_honey_picnic');
+  assert.notEqual(tartOrchard.revision, c2.revision);
+  assert.notEqual(picnicOrchard.revision, tartOrchard.revision);
 });

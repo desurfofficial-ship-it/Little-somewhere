@@ -3,10 +3,13 @@ import { ComposedEnvironmentState } from '../game/environment';
 import { SeasonType, Vec2, WorldState } from '../game/types';
 import { GazeboRig, FountainRig, MirrorPondRig } from './models';
 import { NoticeboardRig } from './builders/landmarks';
+import { OrchardRig } from './builders/orchard';
+import {
+  OrchardAmbientExtrasRig,
+  OrchardMicroLifeRig,
+} from './builders/orchardMicroLife';
 import { GroveTreesRig } from './builders/vegetation';
 import { ReactiveVisualRigs } from './builders/reactiveProps';
-import { OrchardRig } from './builders/orchard';
-import { OrchardMicroLifeRig } from './builders/orchardMicroLife';
 import { getWaterShaderUniforms } from './waterShaders';
 
 // Pre-allocated scratch helpers (zero per-frame heap allocations)
@@ -55,12 +58,14 @@ export interface EnvironmentRendererDeps {
   isSoftwareGl: boolean;
   /** Optional reactive micro-props & pooled ambient life (see builders/reactiveProps.ts). */
   reactiveRigs?: ReactiveVisualRigs;
-  /** Optional Fern Hollow Orchard rig — drives the crown/fruit wind sway hook. */
-  orchardRig?: OrchardRig;
-  /** Optional orchard micro-life rig (blossom butterflies + skep bees). */
-  orchardMicroLife?: OrchardMicroLifeRig;
   /** Optional parent group for exterior-only meshes (rain/petals) when toggling interior rooms. */
   exteriorRoot?: THREE.Group;
+  /** Optional Fern Hollow Orchard rig for wind-driven crown & fruit sway. */
+  orchardRig?: OrchardRig;
+  /** Optional Fern Hollow Orchard micro-life rig (blossom butterflies & skep bees). */
+  orchardMicroLife?: OrchardMicroLifeRig;
+  /** Optional Fern Hollow Orchard extras rig (songbirds & seasonal blossom/leaf drift). */
+  orchardAmbientExtras?: OrchardAmbientExtrasRig;
 }
 
 export class EnvironmentVisualController {
@@ -249,6 +254,13 @@ export class EnvironmentVisualController {
         rigs.porchLamp.glassMat.emissiveIntensity = lampActive ? 1.55 : 0.15;
         rigs.porchLamp.haloMesh.visible = lampActive;
       }
+
+      if (this.deps.orchardRig) {
+        this.deps.orchardRig.setGatheringVisual(
+          env.orchardGatheringOutcome ?? 'none',
+          composed.timeOfDay.lanternScheduleActive || phase === 'golden',
+        );
+      }
     }
 
     // 2.5. Minute-sensitive weather dressing (puddles dry out mid-morning without a revision bump)
@@ -319,9 +331,6 @@ export class EnvironmentVisualController {
     const isWinter = composed.season.season === 'winter' ? 1 : 0;
     const isRain = effWeather === 'light_rain' ? 1 : 0;
     const windStrength = effWeather === 'breezy' ? 1 : effWeather === 'light_rain' ? 0.65 : 0.25;
-
-    // Orchard crown/fruit sway shares the same wind curve as the pond reeds
-    this.deps.orchardRig?.updateWind(elapsed, windStrength);
 
     if (oakGlint.visible) {
       oakGlint.position.y = 0.36 + Math.sin(elapsed * 3.0) * 0.05;
@@ -551,22 +560,36 @@ export class EnvironmentVisualController {
       rigs.chimneyWisps.mesh.visible = true;
     }
 
-    // 6. Fern Hollow Orchard micro-life (blossom butterflies + skep bees)
-    const orchardLife = this.deps.orchardMicroLife;
-    if (orchardLife) {
-      const showOrchardButterflies =
+    // 6. Fern Hollow Orchard wind sway & micro-life (butterflies & skep bees)
+    if (this.deps.orchardRig) {
+      this.deps.orchardRig.updateWind(elapsed, windStrength);
+    }
+    if (this.deps.orchardMicroLife) {
+      const orchardButterfliesActive =
         (effWeather === 'sunlit' || effWeather === 'breezy') &&
         composed.timeOfDay.phase !== 'dusk' &&
         composed.season.season !== 'winter';
-      const showOrchardBees =
+      const orchardBeesActive =
+        effWeather !== 'light_rain' &&
+        composed.timeOfDay.phase !== 'dusk' &&
+        composed.season.season !== 'winter';
+      this.deps.orchardMicroLife.update(elapsed, {
+        butterfliesActive: orchardButterfliesActive,
+        beesActive: orchardBeesActive,
+        windStrength,
+      });
+    }
+    if (this.deps.orchardAmbientExtras) {
+      const songbirdsActive =
+        effWeather !== 'light_rain' && composed.timeOfDay.phase !== 'dusk';
+      const driftActive =
         effWeather !== 'light_rain' &&
         composed.season.season !== 'winter' &&
-        (composed.timeOfDay.phase === 'morning' ||
-          composed.timeOfDay.phase === 'afternoon' ||
-          composed.timeOfDay.phase === 'golden');
-      orchardLife.update(elapsed, {
-        butterfliesActive: showOrchardButterflies,
-        beesActive: showOrchardBees,
+        composed.timeOfDay.phase !== 'dusk';
+      this.deps.orchardAmbientExtras.update(elapsed, {
+        songbirdsActive,
+        driftActive,
+        season: composed.season.season,
         windStrength,
       });
     }

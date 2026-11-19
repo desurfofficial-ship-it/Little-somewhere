@@ -2,16 +2,12 @@
 
 All notable changes to **LITTLE SOMEWHERE** are documented in this file.
 
-## [0.4.0] — 2026-11-20
+## [0.4.0] — 2026-11-19
 
-### Added — Milestone 3 (Build 5)
-- **Walkable Willow Step Cottage interior** — `builders/cottageInterior.ts` renders the player's home as a cutaway diorama: full-height north/west walls with sage-shuttered windows, wainscot cutaway stubs, plank floor, woven rug, ceiling beams, and an inward-swinging ajar front door. Furniture mirrors `COTTAGE_INTERIOR_OBSTACLES` exactly: stone hearth with chimney breast, recessed firebox (ember bed, crossed logs, animated flame, pooled kettle steam), timber bed with 20-patch storybook quilt, pedestal oak table with the stoneware pitcher vase (three swappable flower bundles), keepsake sideboard + wall shelf (five displayable keepsakes), window almanac desk with open almanac, quill pot, banker's lamp, and the sunlit sill planter. 7 invisible hit proxies feed the existing pointer pipeline.
-- **Reactive home decor** — `rig.update(world, phase, elapsed)` (zero per-frame allocation) drives vase bundles by `placedFlowerId`, all five keepsakes by `displayedKeepsakeIds`, kettle steam while the kettle is warm, hearth ember/flame/point-light breathing, phase-driven banker's-lamp emissive (dusk 2.2), and window-glass daylight tint. Indoor ambience (hemi/sun/environment) is now phase-responsive, settling into warm ember twilight at dusk.
-- Deterministic QA harnesses: `scripts/make_cottage_save.ts` (dusk decorated interior save), `scripts/qa_cottage.py` (3-case screenshot sweep), `scripts/qa_cottage_ui.py` (vase modal + satchel interaction), `scripts/debug_cottage_rig.ts` (headless rig state dump).
-
-### Fixed
-- **Restored Build 4 orchard wiring** silently dropped by the previous commit: `orchardRig` / `orchardMicroLife` deps, the crown/fruit `updateWind` call, and the section-6 butterfly/bee gating in `environmentRenderer.ts` (keeping its `exteriorRoot` rain/petal parenting fix).
-- **Test/type repairs** on the inherited half-shipped tree: added `RESIDENT_GIFT_PREFS.rowan`, imported the cottage actions used by `journal.test.ts`, and migrated `cottage.test.ts` to the current `stepPlayerMovement` input-object API. Suite total 108/108 passing, `tsc --noEmit` 0 errors (was 13).
+### Added — Milestone 3 (Build 2: Completing Fern Hollow Orchard)
+- **Orchard Social Routines & Shared Tasting Table Activities** — added Fern Hollow Orchard utility activities (`clara`, `mina`, `barnaby`, `pip`, `rowan`), shared post-completion Tasting Table gatherings, north-orchard social banter, Noticeboard bulletin updates, and Rowan's orchard mailbox letter.
+- **Interactive Orchard Bee Skep (`orchard_skep`) & 3-Stage Orchard Storyline (`side_orchard_gathering`)** — added season-, weather-, and gathering-reactive skep inspection (`Woven Bee Skep & Honey Crock`), the 3-stage *The Fern Hollow Orchard Gathering* arc with dual permanent outcomes (`spiced_tart_table` vs `blossom_honey_picnic`), item rewards, cross-resident relation boosts, non-omniscient epilogue dialogue, and Pocket Journal `Stories` + `Discoveries` updates.
+- **Permanent 3D Tasting Table & Orchard Micro-Life Completion** — enhanced `orchard_skep` with glazed honey crock + dipper + clover tufts, built the permanent cedar **Orchard Tasting Table** (`ORCHARD_TASTING_TABLE` synced with `worldMap.ts`) + outcome-switched tea/tart platters + lit marigold lantern garland via `OrchardRig.setGatheringVisual()`, and added 3 perched **Orchard Songbirds** + instanced seasonal **Orchard Blossom / Leaf Drift** (`buildOrchardAmbientExtras`).
 
 ## [0.3.0] — 2026-11-19
 

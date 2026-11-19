@@ -93,11 +93,10 @@ The neighborhood is centered on a single cozy district (`willow_square`) bordere
 - **Mirror Pond, Cedar Footbridge, West Brook, Pier & Hollow Oak** *(S)*: Flowing water basin spanned by a cambered cedar footbridge, inhabited by koi carp, water lilies, reeds, and skimming dragonflies, with a docked cedar pier sailboat and the mossy **Hollow Oak** hiding a brass secret.
 
 ### 4.2 Expansion Spaces & Interiors
-- **Fern Hollow Orchard** *(N, beyond the gazebo promenade)* — **`IN PROGRESS`**:
-  - *Built Today (`IMPLEMENTED`)*: Stone-and-cedar entrance archway with a carved wooden sign, 6 crabapple trees (season-tinted alongside the town grove), harvest ladder, wooden crates, woven bee skep, 5 connected navigation nodes, the `orchard` landmark zone, and the neighborhood’s 5th walkable cedar bench (`Fern Hollow Orchard Bench`).
-  - *Pending (`PLANNED`)*: Resident schedules (prioritizing **Clara** and **Mina**), harvestable crabapple/botanical interactions, bee-skep & honey/gardening play, and orchard stories—kept intentionally free of premature resident spawns until gameplay arrives.
-- **Enterable & Customizable Cottage Interiors** — **`PLANNED`**:
-  - Stepping inside *Willow Step Cottage* (currently a porch rest prompt) as well as neighbors’ shops and cottages (`Hearth & Crumb`, `Copperwheel`, `Linden Book Nook`, `Sunbeam Greenhouse`), turning homes into cozy visit destinations, cooking/decorating spaces, and relationship-earned sanctuaries.
+- **Fern Hollow Orchard** *(N, beyond the gazebo promenade)* — **`IMPLEMENTED`**:
+  - Stone-and-cedar entrance archway with a carved wooden sign, 6 wind-swaying season-tinted crabapple trees, harvest ladder, wooden crates (`orchard_harvest`), glazed-crock **`orchard_skep`** with bees and clover tufts, 5 connected navigation nodes, `orchard` landmark zone, the 5th walkable cedar bench (`Fern Hollow Orchard Bench`), **Rowan’s** daily orchard schedule + orchard visits by **Clara**, **Mina**, **Barnaby**, and **Pip**, the 3-stage **`side_orchard_gathering`** storyline (*Spiced Tart Table* or *Blossom Honey Picnic* transforming the orchard with a cedar **Tasting Table** and marigold lantern garland), 3 perched **Orchard Songbirds**, and seasonal **Blossom / Leaf Drift**.
+- **Enterable & Customizable Cottage Interiors** — **`IMPLEMENTED` (Player Cottage)** / **`PLANNED` (Neighbor Shops)**:
+  - Stepping inside *Willow Step Cottage* (7 interactive stations: hearth baking/tea brewing, dining table centerpiece vase, 5-slot keepsake display shelf, seasonal almanac desk, chamomile sill planter, bed rest, doorway), while neighbors’ shops and cottages (`Hearth & Crumb`, `Copperwheel`, `Linden Book Nook`, `Sunbeam Greenhouse`) remain planned interior visits.
 - **Additional Neighboring Districts (`REGIONS`)** — **`LONG-TERM VISION`**:
   - The world map registry (`REGIONS`) is structured to connect future districts beyond `willow_square` (lanes, brookside clearings, coastal/hillside paths) as long-term narrative horizons expand.
 
@@ -106,7 +105,7 @@ The neighborhood is centered on a single cozy district (`willow_square`) bordere
 ## 05. Characters & Daily Lives
 
 ### 5.1 The Founding Neighborhood Cast (`IMPLEMENTED` — Built to Scale)
-The current neighborhood is home to **9 founding residents** (`RESIDENT_ORDER`). Rather than acting as a fixed ceiling, the cast is an expandable registry designed to accommodate additional neighbors in future milestones alongside orchard and district growth (`PLANNED` / `LONG-TERM VISION`).
+The neighborhood is currently home to **10 residents** (`RESIDENT_ORDER` — the 9 founding Willow Square neighbors plus **Rowan** in Fern Hollow Orchard). Rather than acting as a fixed ceiling, the cast is an expandable registry designed to accommodate additional neighbors in future milestones alongside district growth (`PLANNED` / `LONG-TERM VISION`).
 
 | Resident | Role | Home / Anchor | Personality & Liked Shared Props |
 | :--- | :--- | :--- | :--- |
@@ -119,6 +118,7 @@ The current neighborhood is home to **9 founding residents** (`RESIDENT_ORDER`).
 | **Toby** | Sketchbook Artist | Mirror Pond / Linden Loft | Quiet outdoor observer noticing glints & reflections (`chalk_bundle`, `water_pail`) |
 | **Nora** | Bookshop Keeper | Linden Book Nook | Wry, wise chronicler of town almanacs (`tea_tray`, `chalk_bundle`) |
 | **Pip** | Chalk-Note Messenger | Bakery Upstairs | Bright-eyed youngster who has never heard the town bell (`chalk_bundle`, `rosemary_basket`) |
+| **Rowan** | Orchard Keeper | Fern Hollow Orchard | Thoughtful, quiet-humored orchard tender & skep keeper (`wild_honey`, `crabapple_tart`, `pressed_fern`) |
 
 ### 5.2 Inner Simulation & Autonomous Daily Life (`IMPLEMENTED`)
 - **4-Phase Anchor Routines + Utility Decisions**: Every resident holds morning, afternoon, golden-hour, and dusk anchor spots (including **Clara & Arthur’s shared Golden Hour rendezvous** at the Gazebo Steps once reconciled), blended dynamically with `RESIDENT_EXTRA_ACTIVITIES` scored deterministically by time, weather, traits, and unlocked world flags.
@@ -303,7 +303,7 @@ Rather than pressuring completion percentages or trophy checklists, the Pocket J
 - **Important Personal Memories** *(extending today’s timestamped storybook cards)*
 
 ### 11.5 Persistence & Optional Cloud Saves (`IMPLEMENTED` Local → `LONG-TERM VISION` Cloud)
-- **Current Persistence (`IMPLEMENTED`)**: Browser `localStorage` (`little_somewhere_world_v1` + rolling upgrade backup) running `WorldState` schema `v3` (`v1 -> v2 -> v3` migrations, coordinate sanitization, `computeWorldSaveRevision()` autosave every 5s + `visibilitychange` / `pagehide`), deterministic `simSeed`. Planned `WorldState v4` adds `npcMemories` and `storylines`.
+- **Current Persistence (`IMPLEMENTED`)**: Browser `localStorage` (`little_somewhere_world_v1` + rolling upgrade backup) running `WorldState` schema `v6` (`v1 -> v2 -> v3 -> v4 -> v5 -> v6` migrations, coordinate sanitization, `computeWorldSaveRevision()` autosave every 5s + `visibilitychange` / `pagehide`), deterministic `simSeed`, `npcMemories`, multi-stage `storylines`, and `cottageHome`/`inventory`.
 - **Optional Cloud Saves (`LONG-TERM VISION`)**: Future optional cross-device backup/sync so players may carry their neighborhood between mobile and desktop browsers. Cloud saves must **always remain 100% optional**, never gating offline or single-browser local play.
 
 ### 11.6 Open Progression & Reward Rules (`UNDECIDED / REQUIRES DESIGN DECISION`)
@@ -323,25 +323,19 @@ While the currency-free philosophy, inventory split, and qualitative unlocks are
 | Feature / System | Lifecycle Status | Scope & Design Notes |
 | :--- | :---: | :--- |
 | **Core World (`willow_square`), A* Nav (`33` nodes), `5` Shared Benches, Bridge & Water Play** | **`IMPLEMENTED`** | Cobblestone square, Fountain wishes, Mirror Pond stone-skipping, West Brook & Pier |
-| **9 Founding Residents, Traits, Soft Needs, 10 Emotions, 17 Poses & Utility Routines** | **`IMPLEMENTED`** | Dynamic `RESIDENT_ORDER` built to expand cleanly beyond 9 |
+| **9 Founding Residents + Rowan (10th Resident), Traits, Soft Needs, 10 Emotions, 17 Poses & Utility Routines** | **`IMPLEMENTED`** | Dynamic `RESIDENT_ORDER` with orchard routines, shared benches & weather behavior |
 | **Player–NPC Matrix (`5` Tiers, Hearts, `Reliability`, `Make Amends`, Daily Cap) & NPC–NPC Matrix** | **`IMPLEMENTED`** | Includes tier icons, greeting scaling, milestone pulse & tension-suppressed `2–3` NPC circles |
-| **Declarative Dialogue (`9` Categories), Third-Party Player Gossip, *Silent Gazebo Bell*, `4` Prototype Side Arcs** | **`IMPLEMENTED`** | Plus `2` conflict topics, `5` daily-reset shared props, `3` mailbox letters, `cozyAudio` |
-| **5-Layer Atmosphere (`4` Phases `6:00 AM–9:30 PM`, `4` Weathers, `10`-Day `4` Seasons, Reactive NPC Props)** | **`IMPLEMENTED`** | `WorldState v3` (`v1 -> v2 -> v3`), Noticeboard forecast, puddles, blooms, smoke wisps |
-| **Milestone 2B Social & Story Depth** *(Phases 1–2 done; Phases 3–5 pending)* | **`IN PROGRESS`** | Phase 3 (`npcMemories`, rumor spread/distortion, `v4`), Phase 4 (`storylines.ts`), Phase 5 (dynamic Journal replacing `Reliability %`) |
-| **Fern Hollow Orchard** *(Scenery, Nav & Bench built; Gameplay & Stories pending)* | **`IN PROGRESS`** | Prioritize Clara & Mina orchard routines, harvesting, gardening & bee-skep play (`PLANNED`) |
-| **Asymmetric Memory Fix** (`jun_advice` & direct `hollow_oak` clapper pickup) | **`PLANNED`** | Unify alternate routes to unlock `mem_postcard_sent` & `mem_brass_clapper` consistently |
-| **Enterable & Customizable Cottage Interiors** | **`PLANNED`** | Player home sanctuary + visitable neighbor shops/workshops tied to comfort & trust |
-| **Personal Inventory & Pocket Journal Collectibles** | **`PLANNED`** | Separate from 5 daily plaza props; Recipes, Flora/Seeds, Pond Catches, Photos, Keepsakes, Memories |
-| **Priority Everyday Hobbies: Gardening & Cooking / Sharing Meals** | **`PLANNED`** | Currency-free, anti-grind cozy tending and kitchen hospitality feeding gifts & town care |
-| **Relationship Tier Gameplay Unlocks & Post-Bell Community Projects** | **`PLANNED`** | Deeper stories, reciprocal gifts, cottage invitations, hobby teaching, collaborative builds |
-| **Additional Residents Beyond Founding 9** | **`PLANNED`** | Future neighbors expanding social circles and Orchard/town life |
-| **Broader Everyday Hobbies: Fishing, Decorating & Photography** | **`PLANNED` / `LONG-TERM VISION`** | Calm Mirror Pond catches, personal home/porch arrangement, framing storybook memories |
+| **Declarative Dialogue (`9` Categories), Non-Omniscient Gossip, *Silent Gazebo Bell*, `6` Multi-Stage Storylines** | **`IMPLEMENTED`** | Includes `npcMemories`, rumor distortion, 4-tab qualitative Pocket Journal & `side_orchard_gathering` |
+| **5-Layer Atmosphere (`4` Phases `6:00 AM–9:30 PM`, `4` Weathers, `10`-Day `4` Seasons, Reactive NPC Props)** | **`IMPLEMENTED`** | `WorldState v6` (`v1 -> v6` migrations), Noticeboard forecast, puddles, blooms, smoke wisps |
+| **Willow Step Cottage Interior (`7` Stations), Personal Satchel (`18` Items) & Everyday Gifting/Hearth** | **`IMPLEMENTED`** | Cutaway interior, cooking/tea recipes, vase blooms, 5-slot keepsake shelf & daily gathering |
+| **Fern Hollow Orchard (Scenery, Nav, Bench, Rowan, `orchard_skep`, Gathering Story, Songbirds & Petal Drift)** | **`IMPLEMENTED`** | Complete district with dual Tasting Table transformation & seasonal micro-life |
+| **Additional Neighbor Interiors, Tier Gameplay Unlocks & Post-Bell Community Projects** | **`PLANNED`** | Visitable neighbor shops/cottages, hobby teaching, collaborative square improvements |
+| **Broader Everyday Hobbies: Fishing, Decorating & Photography** | **`PLANNED` / `LONG-TERM VISION`** | Calm Mirror Pond catches, expanded arrangement, framing storybook memories |
 | **The Sunday Market & Seasonal Festivals** | **`LONG-TERM VISION`** | Separate 7-day cadence preserving 10-day seasons; 100% optional, zero-FOMO, currency-free |
 | **Neighborhood Expansion (`REGIONS`), Pets & Optional Cloud Saves** | **`LONG-TERM VISION`** | Connected districts, future animal companions, strictly optional cross-device JSON/account backup |
-| **Exact tier unlock tables, inventory sizing, Sunday Market swap rules & project cadence** | **`UNDECIDED / REQUIRES DESIGN DECISION`** | Deferred intentionally until dedicated design scoping |
+| **Exact tier unlock tables, Sunday Market swap rules & project cadence** | **`UNDECIDED / REQUIRES DESIGN DECISION`** | Deferred intentionally until dedicated design scoping |
 
 ### 12.2 Staged Development Horizon
-1. **Current Playable Baseline (`IMPLEMENTED`)**: A richly simulated, self-contained sunlit diorama with 9 autonomous residents, the complete *Silent Gazebo Bell* multi-route storyline, 4 prototype side arcs, dynamic weather & 10-day seasons, bench sitting, 5 daily shared props, water micro-play, and `WorldState v3` local persistence.
-2. **Near-Term Narrative & Social Completion (`PLANNED` — Milestone 2B Phases 3–5)**: Per-resident memory & hearsay distortion (`npcMemories`, `WorldState v4`), formal multi-stage `storylines.ts`, memory-consistency fixes (`jun_advice` / `hollow_oak`), and the qualitative, prose-driven Pocket Journal upgrade removing `Reliability %` telemetry.
-3. **Foundation, Home & Priority Cozy Hobbies (`PLANNED` — Milestone 3+)**: Enterable & customizable cottage interiors, completing **Fern Hollow Orchard** gameplay around Clara & Mina (harvesting, botanicals, bee skeps), introducing the personal **Inventory** (distinct from daily plaza props), launching **Gardening** and **Cooking & Sharing Meals**, expanding relationship-tier invitations/teaching/gifts, and launching post-Bell **Community Projects** and new residents.
-4. **Broadening Cozy Life & Long-Term Vision (`LONG-TERM VISION`)**: Adding **Fishing**, **Decorating**, **Photography**, full Pocket Journal **Collectible Albums**, the separate-week **Sunday Market** and **Seasonal Festivals**, new connected districts (`REGIONS`), **Pets**, and strictly optional **Cloud Saves**—steadily realizing **LITTLE SOMEWHERE**’s promise of *“a little world filled with thousands of little stories.”*
+1. **Current Playable Baseline (`IMPLEMENTED` — Milestones 1, 2A, 2B, 2C + Milestone 3 Builds 1, 2 & 4)**: A richly simulated, self-contained sunlit diorama with 10 autonomous residents, bounded NPC memories & gossip, 6 multi-stage storylines (including *The Silent Gazebo Bell*, Plaza Lanterns conflict, and *The Fern Hollow Orchard Gathering*), the qualitative 4-tab Pocket Journal, enterable *Willow Step Cottage* interior cutaway with 7 stations, 18-item Personal Satchel & gifting, complete **Fern Hollow Orchard** gameplay & songbird/blossom micro-life, and `WorldState v6` local persistence.
+2. **Next Milestone Builds (`PLANNED`)**: Visitable neighbor interiors (`Hearth & Crumb`, `Copperwheel`, `Linden Book Nook`, `Sunbeam Greenhouse`), relationship-tier invitations/teaching, and post-Bell **Community Projects** across the square.
+3. **Broadening Cozy Life & Long-Term Vision (`LONG-TERM VISION`)**: Adding **Fishing**, **Decorating**, **Photography**, full Pocket Journal **Collectible Albums**, the separate-week **Sunday Market** and **Seasonal Festivals**, new connected districts (`REGIONS`), **Pets**, and strictly optional **Cloud Saves**—steadily realizing **LITTLE SOMEWHERE**’s promise of *“a little world filled with thousands of little stories.”*

@@ -269,6 +269,7 @@ function selectActivityForResident(
     const cand = extras[i];
     if (!cand.phases.includes(phase)) continue;
     if (cand.requiresFlag && !flags[cand.requiresFlag]) continue;
+    if (cand.requiresSideFlag && !world.sideFlags?.[cand.requiresSideFlag]) continue;
     if (cand.onlyWeathers && !cand.onlyWeathers.includes(weather)) continue;
     if (cand.seatId && isSeatClaimed(world, cand.seatId, id)) continue;
 
@@ -464,8 +465,34 @@ export function cloneNpcRuntime(
   return out;
 }
 
-function buildSocialTopic(a: ResidentId, b: ResidentId, flags: StoryFlags): { tag: string; label: string } {
+function buildSocialTopic(
+  a: ResidentId,
+  b: ResidentId,
+  flags: StoryFlags,
+  sideFlags?: Record<string, boolean | number | string>,
+  inOrchard = false,
+): { tag: string; label: string } {
   const pair = getNpcPairKey(a, b);
+  if (inOrchard || (sideFlags?.orchardGatheringComplete && (a === 'rowan' || b === 'rowan'))) {
+    if (sideFlags?.orchardGatheringOutcome === 'blossom_honey_picnic') {
+      return {
+        tag: 'orchard_tea_talk',
+        label: 'Trading honeyed chamomile notes beneath Fern Hollow’s lantern garlands',
+      };
+    }
+    if (sideFlags?.orchardGatheringComplete) {
+      return {
+        tag: 'orchard_tart_talk',
+        label: 'Savoring spiced crabapple recipes beside the orchard tasting table',
+      };
+    }
+    if (pair === 'clara:rowan' || pair === 'mina:rowan' || pair === 'barnaby:rowan') {
+      return {
+        tag: 'orchard_blossoms',
+        label: 'Checking crabapple blossoms and bee skep clover beneath the boughs',
+      };
+    }
+  }
   if (pair === 'arthur:clara') {
     return { tag: 'reconciled_chat', label: 'Sharing gentle memories together in the sunlit square' };
   }
@@ -905,7 +932,8 @@ export function stepSimulationInPlace(
         if (spots.length < 3) thirdId = null;
 
         const participants: ResidentId[] = thirdId ? [a, b, thirdId] : [a, b];
-        const topic = buildSocialTopic(a, b, world.flags);
+        const inOrchard = rtA.position.z < -13.5 && rtB.position.z < -13.5;
+        const topic = buildSocialTopic(a, b, world.flags, world.sideFlags, inOrchard);
         const endsMinute = Math.min(DAY_END_MINUTE, world.minuteOfDay + SOCIAL_ENCOUNTER_DURATION_MINUTES);
         const cooldownUntil = endsMinute + SOCIAL_COOLDOWN_MINUTES;
 

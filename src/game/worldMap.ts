@@ -112,6 +112,7 @@ export const CIRCLE_OBSTACLES: CircleObstacle[] = [
   { id: 'orchard_crates', x: -3.7, z: -20.3, radius: 0.55 },
   { id: 'orchard_skep', x: 4.9, z: -16.3, radius: 0.4 },
   { id: 'orchard_bench', x: -11.0, z: -20.6, radius: 0.42 },
+  { id: 'orchard_tasting_table', x: 1.8, z: -19.4, radius: 0.68 },
 ];
 
 export const SEAT_SPOTS: readonly SeatSpot[] = [
@@ -243,6 +244,7 @@ export const PROP_INTERACTABLES: PropInteractable[] = [
   { id: 'cottage_window_box', name: 'Porch Herb & Chamomile Box', x: -10.1, z: 12.1, interactRadius: 2.3 },
   { id: 'greenhouse_planters', name: 'Sunbeam Herb Planters', x: 10.0, z: 1.7, interactRadius: 2.4 },
   { id: 'orchard_harvest', name: 'Orchard Harvest Crates', x: -4.2, z: -19.2, interactRadius: 2.4 },
+  { id: 'orchard_skep', name: 'Orchard Bee Skep', x: 3.9, z: -16.3, interactRadius: 2.3 },
   { id: 'pond_driftwood', name: 'Mirror Pond Driftwood Nook', x: 6.5, z: 13.8, interactRadius: 2.4 },
 ];
 
@@ -368,6 +370,8 @@ export function getPropInteractionMetrics(
       ? { x: 11.1, z: 1.7 }
       : propId === 'orchard_harvest'
       ? { x: -3.7, z: -20.3 }
+      : propId === 'orchard_skep'
+      ? { x: 4.9, z: -16.3 }
       : propId === 'pond_driftwood'
       ? { x: 5.85, z: 13.8 }
       : { x: def.x, z: def.z };

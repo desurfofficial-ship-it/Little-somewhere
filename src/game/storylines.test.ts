@@ -24,7 +24,7 @@ function pickChoice(world: WorldState, residentId: ResidentId, choiceId: string,
 }
 
 test('STORYLINES registry defines unique IDs, valid multi-stage definitions, and outcome labels', () => {
-  assert.equal(STORYLINES.length, 5);
+  assert.equal(STORYLINES.length, 6);
   const ids = new Set<string>();
   for (const def of STORYLINES) {
     assert.equal(ids.has(def.id), false, `Duplicate storyline id: ${def.id}`);
@@ -399,4 +399,89 @@ test('Phase 4 storylines execute deterministically across identical replays', ()
     ),
     true,
   );
+});
+
+test('Arc 6 Fern Hollow Orchard Gathering executes both 3-stage branches, grants items, updates relations, and enforces non-omniscience', () => {
+  const base = createFreshWorldState();
+  const baseReady: WorldState = {
+    ...base,
+    flags: {
+      ...base.flags,
+      heardBellMystery: true,
+      foundPostcard: true,
+      deliveredPostcard: true,
+      claraArthurReconciled: true,
+    },
+    residents: {
+      ...base.residents,
+      rowan: { ...base.residents.rowan, met: true, trust: 2 },
+      clara: { ...base.residents.clara, met: true, trust: 2 },
+      mina: { ...base.residents.mina, met: true, trust: 2 },
+    },
+  };
+
+  // Branch A: Spiced Crabapple Tart Table (exploratory bee question -> Clara -> Rowan)
+  const rowanSession = buildResidentDialogue('rowan', baseReady, 'afternoon');
+  assert.equal(rowanSession.topicId, 'side_rowan_orchard_1');
+  const skepChoice = rowanSession.nodes.root.choices.find((c) => c.id === 'rowan_orchard_skep_ask')!;
+  assert.ok(skepChoice);
+  const startChoice = rowanSession.nodes.rowan_orchard_skep_info.choices.find(
+    (c) => c.id === 'rowan_orchard_start_after_bees',
+  )!;
+  let worldTart = applyDialogueChoice(baseReady, rowanSession, startChoice).nextWorld;
+  assert.equal(worldTart.storylines.side_orchard_gathering.stage, 1);
+  assert.equal(worldTart.storylines.side_orchard_gathering.status, 'active');
+  assert.equal(worldTart.sideFlags.orchardGatheringStarted, true);
+
+  const relBefore = getNpcRelation(worldTart.npcRelations, 'rowan', 'clara').affinity;
+  const tartPick = pickChoice(worldTart, 'clara', 'clara_orchard_tart_choice', 'afternoon');
+  worldTart = tartPick.nextWorld;
+  assert.equal(worldTart.storylines.side_orchard_gathering.stage, 2);
+  assert.equal(worldTart.storylines.side_orchard_gathering.outcome, 'spiced_tart_table');
+  assert.ok(getNpcRelation(worldTart.npcRelations, 'rowan', 'clara').affinity > relBefore);
+
+  const hostTart = pickChoice(worldTart, 'rowan', 'rowan_orchard_host_finish', 'golden');
+  worldTart = hostTart.nextWorld;
+  assert.equal(worldTart.storylines.side_orchard_gathering.stage, 3);
+  assert.equal(worldTart.storylines.side_orchard_gathering.status, 'completed');
+  assert.equal(worldTart.storylines.side_orchard_gathering.outcome, 'spiced_tart_table');
+  assert.equal(worldTart.sideFlags.orchardGatheringComplete, true);
+  assert.equal(worldTart.sideFlags.orchardGatheringOutcome, 'spiced_tart_table');
+  assert.equal(worldTart.inventory.crabapple_tart, (baseReady.inventory.crabapple_tart ?? 0) + 1);
+  assert.ok(worldTart.memories.some((m) => m.id === 'mem_side_orchard_gathering'));
+  assert.ok(worldTart.npcMemories.rowan.some((m) => m.tag === 'orchard_gathering_hosted'));
+  assert.ok(worldTart.npcMemories.clara.some((m) => m.tag === 'orchard_gathering_hosted'));
+  assert.ok(worldTart.npcMemories.mina.some((m) => m.tag === 'orchard_gathering_hosted'));
+  assert.equal(worldTart.npcMemories.toby.some((m) => m.tag === 'orchard_gathering_hosted'), false);
+
+  // Uninformed Toby must NOT see orchard epilogue before gossip reaches him
+  assert.notEqual(
+    buildResidentDialogue('toby', worldTart, 'afternoon').topicId,
+    'storyline_epilogue_orchard',
+  );
+
+  // Propagate gossip from Rowan -> Toby deterministically
+  let gossipWorld = structuredClone(worldTart);
+  let learned = false;
+  for (let s = 0; s < 16 && !learned; s++) {
+    const out = propagateEncounterGossipInPlace(gossipWorld, ['rowan', 'toby'], `enc_orch_${s}`);
+    if (out && out.listenerId === 'toby' && out.eventId === 'ev_orchard_gathering_hosted') {
+      learned = true;
+      break;
+    }
+    if (out || s % 3 === 2) gossipWorld = advanceToNextDay(gossipWorld);
+  }
+  assert.equal(learned, true, 'Rowan should share Fern Hollow Gathering gossip with Toby');
+  const tobyEpi = buildResidentDialogue('toby', gossipWorld, 'afternoon');
+  assert.equal(tobyEpi.topicId, 'storyline_epilogue_orchard');
+  assert.ok(tobyEpi.nodes.root.text.includes('Rowan'));
+
+  // Branch B: Chamomile-Honey Picnic (Rowan -> Mina -> Rowan)
+  let worldPicnic = pickChoice(baseReady, 'rowan', 'rowan_orchard_start', 'morning').nextWorld;
+  worldPicnic = pickChoice(worldPicnic, 'mina', 'mina_orchard_picnic_choice', 'afternoon').nextWorld;
+  assert.equal(worldPicnic.storylines.side_orchard_gathering.outcome, 'blossom_honey_picnic');
+  worldPicnic = pickChoice(worldPicnic, 'rowan', 'rowan_orchard_host_finish', 'golden').nextWorld;
+  assert.equal(worldPicnic.storylines.side_orchard_gathering.status, 'completed');
+  assert.equal(worldPicnic.sideFlags.orchardGatheringOutcome, 'blossom_honey_picnic');
+  assert.equal(worldPicnic.inventory.chamomile_pear_tea, (baseReady.inventory.chamomile_pear_tea ?? 0) + 1);
 });

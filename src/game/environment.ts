@@ -126,7 +126,8 @@ export function composeEnvironmentState(
   world: Pick<
     WorldState,
     'day' | 'minuteOfDay' | 'simSeed' | 'season' | 'weather' | 'flags' | 'worldEvents'
-  >,
+  > &
+    Partial<Pick<WorldState, 'sideFlags'>>,
 ): ComposedEnvironmentState {
   const phase = getTimePhase(world.minuteOfDay);
   const clampedMin = Math.max(DAY_START_MINUTE, Math.min(DAY_END_MINUTE, world.minuteOfDay));
@@ -169,7 +170,7 @@ export function composeEnvironmentState(
   const seasonPalette = SEASON_VISUAL_PALETTES[derivedSeason];
 
   // Layer 4: Player-Driven StoryFlags & Diorama Changes
-  const playerChanges = computeEnvironmentState(world.flags);
+  const playerChanges = computeEnvironmentState(world.flags, world.sideFlags);
 
   // Layer 5: NPC-Driven Daily Environmental Touches
   const claraPastryBasketVisible =
@@ -222,8 +223,16 @@ export function composeEnvironmentState(
       ? 2
       : 3;
 
+  const orchardOutcomeCode =
+    playerChanges.orchardGatheringOutcome === 'spiced_tart_table'
+      ? 1
+      : playerChanges.orchardGatheringOutcome === 'blossom_honey_picnic'
+      ? 2
+      : 0;
+
   const revision =
-    (world.day & 1023) * 2097152 +
+    (world.day & 1023) * 8388608 +
+    orchardOutcomeCode * 2097152 +
     (seasonIdx << 19) +
     (weatherIdx << 17) +
     staticFlagsMask;

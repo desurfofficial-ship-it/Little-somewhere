@@ -670,6 +670,7 @@ export interface ActivityCandidate {
   goalKind?: ActivityGoalKind;
   seatId?: string;
   requiresFlag?: keyof StoryFlags;
+  requiresSideFlag?: string;
   onlyWeathers?: readonly WeatherType[];
   preferredWeathers?: readonly WeatherType[];
   sheltered?: boolean;
@@ -723,6 +724,29 @@ export const RESIDENT_EXTRA_ACTIVITIES: Record<ResidentId, readonly ActivityCand
       baseWeight: 1.6,
       onlyWeathers: ['light_rain'],
       sheltered: true,
+    },
+    {
+      id: 'clara_orchard_apples',
+      phases: ['morning', 'afternoon'],
+      target: { x: -2.4, z: -19.3 },
+      placeName: 'Fern Hollow Orchard',
+      activity: 'Testing crisp crabapples with Rowan for orchard pastry dough',
+      facingAngle: -1.1,
+      animState: 'admire',
+      goalKind: 'work',
+      baseWeight: 0.74,
+    },
+    {
+      id: 'clara_orchard_gathering',
+      phases: ['afternoon', 'golden'],
+      target: { x: 3.05, z: -19.5 },
+      placeName: 'Orchard Tasting Table',
+      activity: 'Sharing spiced slices and tea at the Fern Hollow tasting table',
+      facingAngle: -1.57,
+      animState: 'interact',
+      goalKind: 'eat',
+      baseWeight: 1.38,
+      requiresSideFlag: 'orchardGatheringComplete',
     },
   ],
   arthur: [
@@ -812,6 +836,29 @@ export const RESIDENT_EXTRA_ACTIVITIES: Record<ResidentId, readonly ActivityCand
       baseWeight: 1.1,
       requiresFlag: 'repairedFountain',
     },
+    {
+      id: 'mina_orchard_blossoms',
+      phases: ['morning', 'afternoon'],
+      target: { x: 3.7, z: -17.9 },
+      placeName: 'Fern Hollow Orchard',
+      activity: 'Noting clover pollination and crabapple buds near the bee skep',
+      facingAngle: 0.65,
+      animState: 'admire',
+      goalKind: 'work',
+      baseWeight: 0.76,
+    },
+    {
+      id: 'mina_orchard_gathering',
+      phases: ['afternoon', 'golden'],
+      target: { x: 1.8, z: -18.1 },
+      placeName: 'Orchard Tasting Table',
+      activity: 'Tucking chamomile sprigs beside the Fern Hollow tasting table',
+      facingAngle: 3.14,
+      animState: 'admire',
+      goalKind: 'social',
+      baseWeight: 1.32,
+      requiresSideFlag: 'orchardGatheringComplete',
+    },
   ],
   jun: [
     {
@@ -889,6 +936,17 @@ export const RESIDENT_EXTRA_ACTIVITIES: Record<ResidentId, readonly ActivityCand
       baseWeight: 1.6,
       onlyWeathers: ['light_rain'],
       sheltered: true,
+    },
+    {
+      id: 'barnaby_orchard_crates',
+      phases: ['morning', 'afternoon'],
+      target: { x: -4.9, z: -19.4 },
+      placeName: 'Fern Hollow Orchard',
+      activity: 'Checking his cedar orchard crates and ladder rungs',
+      facingAngle: 2.4,
+      animState: 'work',
+      goalKind: 'work',
+      baseWeight: 0.68,
     },
   ],
   sora: [
@@ -1042,6 +1100,18 @@ export const RESIDENT_EXTRA_ACTIVITIES: Record<ResidentId, readonly ActivityCand
       onlyWeathers: ['light_rain'],
       sheltered: true,
     },
+    {
+      id: 'pip_orchard_gathering',
+      phases: ['afternoon', 'golden'],
+      target: { x: 1.8, z: -20.75 },
+      placeName: 'Orchard Tasting Table',
+      activity: 'Hopping around the tasting table waiting for honeyed treats',
+      facingAngle: 0,
+      animState: 'interact',
+      goalKind: 'eat',
+      baseWeight: 1.24,
+      requiresSideFlag: 'orchardGatheringComplete',
+    },
   ],
   rowan: [
     {
@@ -1090,6 +1160,18 @@ export const RESIDENT_EXTRA_ACTIVITIES: Record<ResidentId, readonly ActivityCand
       baseWeight: 1.55,
       onlyWeathers: ['light_rain'],
       sheltered: true,
+    },
+    {
+      id: 'rowan_orchard_gathering',
+      phases: ['afternoon', 'golden'],
+      target: { x: 0.55, z: -19.1 },
+      placeName: 'Orchard Tasting Table',
+      activity: 'Welcoming neighbors to the Fern Hollow tasting table under bright lanterns',
+      facingAngle: 1.4,
+      animState: 'interact',
+      goalKind: 'social',
+      baseWeight: 1.42,
+      requiresSideFlag: 'orchardGatheringComplete',
     },
   ],
 };

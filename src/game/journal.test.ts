@@ -506,3 +506,53 @@ test('Milestone 2C: Pocket Journal projects cottage homeSummary and personalItem
   assert.ok(giftNote, 'Arthur journal card should mention Warm Chamomile Tea gift naturally');
 });
 
+test('Milestone 3 Build 2: fern_hollow_orchard discovery transitions to transformed status and formats orchard memories cleanly', () => {
+  const base = createFreshWorldState();
+  const initialView = buildPocketJournalView(base);
+  const initialOrchard = initialView.landmarks.find((l) => l.id === 'fern_hollow_orchard')!;
+  assert.equal(initialOrchard.statusKind, 'active');
+  assert.equal(initialOrchard.statusLabel, 'North lane open');
+
+  const picnicWorld: WorldState = {
+    ...base,
+    sideFlags: {
+      ...base.sideFlags,
+      orchardGatheringStarted: true,
+      orchardGatheringComplete: true,
+      orchardGatheringOutcome: 'blossom_honey_picnic',
+    },
+    storylines: {
+      ...base.storylines,
+      side_orchard_gathering: {
+        id: 'side_orchard_gathering',
+        stage: 3,
+        status: 'completed',
+        outcome: 'blossom_honey_picnic',
+        startedDay: 1,
+        updatedDay: 1,
+      },
+    },
+  };
+  const picnicView = buildPocketJournalView(picnicWorld);
+  const picnicOrchard = picnicView.landmarks.find((l) => l.id === 'fern_hollow_orchard')!;
+  assert.equal(picnicOrchard.statusKind, 'transformed');
+  assert.equal(picnicOrchard.statusLabel, 'Honey Picnic Open');
+
+  const hostedMem = createNpcMemoryEntry({
+    id: 'ev_orchard_mem_test',
+    eventId: 'ev_orchard_mem_test',
+    tag: 'orchard_gathering_hosted',
+    category: 'town_lore',
+    subjectPlayer: true,
+    subjectResidents: ['rowan', 'clara', 'mina'],
+    provenance: 'firsthand',
+    sourceKind: 'participant',
+    mentionedToPlayer: true,
+    createdDay: 1,
+    createdMinute: 720,
+    retention: 'durable',
+  });
+  const formatted = formatNpcMemoryForPlayer('rowan', hostedMem, new Set());
+  assert.ok(formatted.text.includes('Fern Hollow tasting table'));
+});
+

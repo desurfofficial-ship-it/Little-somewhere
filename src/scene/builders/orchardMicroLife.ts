@@ -271,3 +271,238 @@ export function buildOrchardMicroLife(ctx: OrchardMicroLifeContext): OrchardMicr
   rig.update(0, { butterfliesActive: false, beesActive: false, windStrength: 0 });
   return rig;
 }
+
+export interface OrchardSongbirdAnchor {
+  id: string;
+  x: number;
+  y: number;
+  z: number;
+  yaw: number;
+  plumageColor: string;
+  breastColor: string;
+}
+
+export const ORCHARD_SONGBIRD_ANCHORS: readonly OrchardSongbirdAnchor[] = [
+  {
+    id: 'gate_wren',
+    x: -2.05,
+    y: 2.23,
+    z: -14.9,
+    yaw: -0.45,
+    plumageColor: '#7A5642',
+    breastColor: '#EBD9BE',
+  },
+  {
+    id: 'bench_robin',
+    x: -11.32,
+    y: 0.76,
+    z: -20.15,
+    yaw: 1.35,
+    plumageColor: '#566C7E',
+    breastColor: '#D67B5A',
+  },
+  {
+    id: 'east_finch',
+    x: -0.9,
+    y: 1.785,
+    z: -14.9,
+    yaw: -0.95,
+    plumageColor: '#C59A3D',
+    breastColor: '#F5E7B8',
+  },
+] as const;
+
+export interface OrchardAmbientExtrasUpdateOptions {
+  songbirdsActive: boolean;
+  driftActive: boolean;
+  season: 'spring' | 'summer' | 'autumn' | 'winter';
+  windStrength: number;
+}
+
+export interface OrchardAmbientExtrasRig {
+  group: THREE.Group;
+  readonly birdCount: number;
+  readonly driftCount: number;
+  update(elapsed: number, opts: OrchardAmbientExtrasUpdateOptions): void;
+  dispose(): void;
+}
+
+/**
+ * Orchard Ambient Extras (Milestone 3 Build 2):
+ * - Composite multi-part Orchard Songbirds perched on gate lintel, bench back, and east limb.
+ * - Instanced Orchard Blossom / Leaf Drift beneath the six crabapple crowns.
+ * Zero per-frame heap allocations inside `update()`.
+ */
+export function buildOrchardAmbientExtras(ctx: OrchardMicroLifeContext): OrchardAmbientExtrasRig {
+  const { isSoftwareGl } = ctx;
+  const group = new THREE.Group();
+  const birdsGroup = new THREE.Group();
+  const ownedGeos: THREE.BufferGeometry[] = [];
+  const ownedMats: THREE.Material[] = [];
+
+  const ownGeo = <T extends THREE.BufferGeometry>(g: T): T => {
+    ownedGeos.push(g);
+    return g;
+  };
+  const ownMat = <T extends THREE.Material>(m: T): T => {
+    ownedMats.push(m);
+    return m;
+  };
+
+  // Shared bird geometries (composite 5-part silhouette per bird)
+  const birdBodyGeo = ownGeo(new THREE.SphereGeometry(0.068, 8, 7));
+  birdBodyGeo.scale(0.85, 0.92, 1.32);
+  const birdBreastGeo = ownGeo(new THREE.SphereGeometry(0.052, 7, 6));
+  birdBreastGeo.scale(0.84, 0.88, 1.0);
+  const birdHeadGeo = ownGeo(new THREE.SphereGeometry(0.046, 7, 6));
+  const birdBeakGeo = ownGeo(new THREE.ConeGeometry(0.014, 0.044, 5));
+  birdBeakGeo.rotateX(Math.PI / 2);
+  const birdTailGeo = ownGeo(new THREE.ConeGeometry(0.028, 0.11, 5));
+  birdTailGeo.rotateX(-Math.PI * 0.62);
+  const beakMat = ownMat(new THREE.MeshBasicMaterial({ color: '#E2A23B' }));
+
+  interface BirdEntry {
+    root: THREE.Group;
+    headPivot: THREE.Group;
+    tail: THREE.Mesh;
+    anchorY: number;
+    baseYaw: number;
+  }
+  const birds: BirdEntry[] = [];
+
+  for (let i = 0; i < ORCHARD_SONGBIRD_ANCHORS.length; i++) {
+    const a = ORCHARD_SONGBIRD_ANCHORS[i];
+    const root = new THREE.Group();
+    root.position.set(a.x, a.y, a.z);
+    root.rotation.y = a.yaw;
+
+    const plumMat = ownMat(new THREE.MeshBasicMaterial({ color: a.plumageColor }));
+    const breastMat = ownMat(new THREE.MeshBasicMaterial({ color: a.breastColor }));
+
+    const body = new THREE.Mesh(birdBodyGeo, plumMat);
+    body.position.set(0, 0.062, 0);
+    const breast = new THREE.Mesh(birdBreastGeo, breastMat);
+    breast.position.set(0, 0.052, 0.036);
+
+    const headPivot = new THREE.Group();
+    headPivot.position.set(0, 0.115, 0.052);
+    const head = new THREE.Mesh(birdHeadGeo, plumMat);
+    const beak = new THREE.Mesh(birdBeakGeo, beakMat);
+    beak.position.set(0, -0.004, 0.054);
+    headPivot.add(head, beak);
+
+    const tail = new THREE.Mesh(birdTailGeo, plumMat);
+    tail.position.set(0, 0.088, -0.092);
+
+    root.add(body, breast, headPivot, tail);
+    birdsGroup.add(root);
+    birds.push({ root, headPivot, tail, anchorY: a.y, baseYaw: a.yaw });
+  }
+  group.add(birdsGroup);
+
+  // Orchard Blossom / Leaf Drift (confined inside -10.5..6.0 x -21.5..-14.5)
+  const driftCount = isSoftwareGl ? 10 : 20;
+  const driftGeo = ownGeo(new THREE.DodecahedronGeometry(0.052, 0));
+  driftGeo.scale(1.45, 0.3, 0.9);
+  const driftMat = ownMat(
+    new THREE.MeshBasicMaterial({
+      color: '#F8DCE2',
+      transparent: true,
+      opacity: 0.84,
+      depthWrite: false,
+    }),
+  );
+  const driftMesh = new THREE.InstancedMesh(driftGeo, driftMat, driftCount);
+  driftMesh.frustumCulled = false;
+  driftMesh.visible = false;
+  group.add(driftMesh);
+
+  const rand = makeSeededRandom(7331);
+  const driftSeeds = new Float32Array(driftCount * 4);
+  for (let i = 0; i < driftCount; i++) {
+    driftSeeds[i * 4 + 0] = -9.8 + rand() * 15.2; // x inside orchard width
+    driftSeeds[i * 4 + 1] = -21.0 + rand() * 6.0; // z inside orchard depth
+    driftSeeds[i * 4 + 2] = rand(); // vertical phase 0..1
+    driftSeeds[i * 4 + 3] = 0.7 + rand() * 0.6; // sway speed
+  }
+
+  const _driftPos = new THREE.Vector3();
+  const _driftEuler = new THREE.Euler();
+  const _driftQuat = new THREE.Quaternion();
+  const _driftScale = new THREE.Vector3(1, 1, 1);
+  const _driftMat4 = new THREE.Matrix4();
+  let lastDriftSeason: OrchardAmbientExtrasUpdateOptions['season'] | null = null;
+
+  const extrasRig: OrchardAmbientExtrasRig = {
+    group,
+    birdCount: birds.length,
+    driftCount,
+    update(elapsed: number, opts: OrchardAmbientExtrasUpdateOptions) {
+      const wind = Math.min(1, Math.max(0, opts.windStrength));
+
+      birdsGroup.visible = opts.songbirdsActive;
+      if (opts.songbirdsActive) {
+        for (let i = 0; i < birds.length; i++) {
+          const b = birds[i];
+          const t = elapsed * 1.45 + i * 2.1;
+          // Occasional tiny hop + alert head-turn + gentle tail flick
+          const hop = Math.pow(Math.max(0, Math.sin(t * 0.9)), 8) * 0.055;
+          b.root.position.y = b.anchorY + hop;
+          b.root.rotation.y = b.baseYaw + Math.sin(t * 0.45) * 0.14;
+          b.headPivot.rotation.y = Math.sin(t * 1.65) * 0.45;
+          b.headPivot.rotation.x = Math.sin(t * 2.3) * 0.14;
+          b.tail.rotation.x = Math.sin(t * 3.1) * 0.18;
+        }
+      }
+
+      if (opts.driftActive && opts.season !== 'winter') {
+        if (lastDriftSeason !== opts.season) {
+          lastDriftSeason = opts.season;
+          if (opts.season === 'autumn') {
+            driftMat.color.set('#DF8A41');
+          } else if (opts.season === 'summer') {
+            driftMat.color.set('#F2EBD5');
+          } else {
+            driftMat.color.set('#F8DCE2');
+          }
+        }
+        driftMesh.visible = true;
+        const fallSpeed = 0.14 + wind * 0.24;
+        for (let i = 0; i < driftCount; i++) {
+          const bx = driftSeeds[i * 4 + 0];
+          const bz = driftSeeds[i * 4 + 1];
+          const ph = driftSeeds[i * 4 + 2];
+          const sp = driftSeeds[i * 4 + 3];
+          const cycle = (elapsed * fallSpeed + ph) % 1;
+          const x = bx + Math.sin(elapsed * sp + i) * (0.45 + wind * 0.55);
+          const y = 3.15 - cycle * 2.95;
+          const z = bz + Math.cos(elapsed * sp * 0.85 + i) * 0.38;
+          _driftPos.set(x, y, z);
+          _driftEuler.set(elapsed * 1.4 + i, elapsed * 1.8, i * 0.7);
+          _driftQuat.setFromEuler(_driftEuler);
+          _driftScale.setScalar(0.85 + Math.sin(i * 1.7 + elapsed) * 0.15);
+          _driftMat4.compose(_driftPos, _driftQuat, _driftScale);
+          driftMesh.setMatrixAt(i, _driftMat4);
+        }
+        driftMesh.instanceMatrix.needsUpdate = true;
+      } else {
+        driftMesh.visible = false;
+      }
+
+      group.visible = birdsGroup.visible || driftMesh.visible;
+    },
+    dispose() {
+      for (const geo of ownedGeos) geo.dispose();
+      for (const mat of ownedMats) mat.dispose();
+      group.clear();
+    },
+  };
+
+  extrasRig.update(0, {
+    songbirdsActive: false,
+    driftActive: false,
+    season: 'spring',
+    windStrength: 0,
+  });
+  return extrasRig;
+}

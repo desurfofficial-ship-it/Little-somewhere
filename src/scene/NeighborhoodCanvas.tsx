@@ -84,7 +84,7 @@ import {
 } from './builders/vegetation';
 import { buildMeadowDressing } from './builders/botanicalDressing';
 import { buildFernHollowOrchard } from './builders/orchard';
-import { buildOrchardMicroLife } from './builders/orchardMicroLife';
+import { buildOrchardAmbientExtras, buildOrchardMicroLife } from './builders/orchardMicroLife';
 import { buildAllReactiveRigs } from './builders/reactiveProps';
 import { buildWillowCottageInterior } from './builders/cottageInterior';
 import {
@@ -432,6 +432,10 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
     const orchardMicroLifeRig = buildOrchardMicroLife({ isSoftwareGl });
     exteriorRoot.add(orchardMicroLifeRig.group);
 
+    // Fern Hollow ambient extras: 3 composite orchard songbirds + seasonal blossom/leaf drift
+    const orchardAmbientExtrasRig = buildOrchardAmbientExtras({ isSoftwareGl });
+    exteriorRoot.add(orchardAmbientExtrasRig.group);
+
     const willowProtoCtx = {
       palette,
       shadowTex,
@@ -668,6 +672,7 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
       reactiveRigs: buildAndMountReactiveRigs(),
       orchardRig,
       orchardMicroLife: orchardMicroLifeRig,
+      orchardAmbientExtras: orchardAmbientExtrasRig,
     });
 
     // Willow Step Cottage Interior Cutaway Diorama (toggles cleanly via interiorRoot)
@@ -803,6 +808,12 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
         pierHit.userData = { targetKind: 'prop', targetId: prop.id };
         exteriorRoot.add(basinHit, ledgeHit, pierHit);
         interactableMeshes.push(basinHit, ledgeHit, pierHit);
+      } else if (prop.id === 'orchard_skep') {
+        const hit = new THREE.Mesh(new THREE.CylinderGeometry(0.9, 0.9, 2.0, 8), proxyMat);
+        hit.position.set(4.9, 1.0, -16.3);
+        hit.userData = { targetKind: 'prop', targetId: prop.id };
+        exteriorRoot.add(hit);
+        interactableMeshes.push(hit);
       } else {
         const hit = new THREE.Mesh(new THREE.CylinderGeometry(0.95, 0.95, 2.2, 8), proxyMat);
         hit.position.set(prop.x, 1.1, prop.z);
@@ -983,6 +994,7 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
                 : pid === 'cottage_window_box' ||
                   pid === 'greenhouse_planters' ||
                   pid === 'orchard_harvest' ||
+                  pid === 'orchard_skep' ||
                   pid === 'pond_driftwood'
                 ? prop.name
                 : `Inspect ${prop.name}`;
@@ -1772,6 +1784,7 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
       meadowDressing.dispose();
       orchardRig.dispose();
       orchardMicroLifeRig.dispose();
+      orchardAmbientExtrasRig.dispose();
       groundMat.dispose();
       groundGeo.dispose();
       cobbleMat.dispose();

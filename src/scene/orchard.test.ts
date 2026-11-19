@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import * as THREE from 'three';
 import {
   ORCHARD_GATE,
+  ORCHARD_TASTING_TABLE,
   ORCHARD_TREES,
   buildFernHollowOrchard,
   type OrchardRig,
@@ -254,4 +255,70 @@ test('sway stays grounded: crowns pivot near the trunk top, trunks never move', 
   }
 
   rig.dispose();
+});
+
+test('Milestone 3 Build 2: ORCHARD_TASTING_TABLE mirrors worldMap obstacle, skep & gathering slots are walkable, and setGatheringVisual toggles outcome props & lanterns', () => {
+  const tableObstacle = CIRCLE_OBSTACLES.find((c) => c.id === 'orchard_tasting_table');
+  assert.ok(tableObstacle, 'orchard_tasting_table circle obstacle must exist');
+  assert.equal(tableObstacle.x, ORCHARD_TASTING_TABLE.x);
+  assert.equal(tableObstacle.z, ORCHARD_TASTING_TABLE.z);
+  assert.equal(tableObstacle.radius, ORCHARD_TASTING_TABLE.radius);
+
+  // Verify shared Tasting Table and orchard activity coordinates are all walkable
+  const gatheringStandingSpots = [
+    { name: 'clara_orchard_gathering', x: 3.05, z: -19.5 },
+    { name: 'mina_orchard_gathering', x: 1.8, z: -18.1 },
+    { name: 'pip_orchard_gathering', x: 1.8, z: -20.75 },
+    { name: 'rowan_orchard_gathering', x: 0.55, z: -19.1 },
+    { name: 'clara_orchard_apples', x: -2.4, z: -19.3 },
+    { name: 'mina_orchard_blossoms', x: 3.7, z: -17.9 },
+    { name: 'barnaby_orchard_crates', x: -4.9, z: -19.4 },
+    { name: 'orchard_skep_approach', x: 3.9, z: -16.3 },
+  ];
+  for (const spot of gatheringStandingSpots) {
+    assert.equal(
+      isPointWalkable(spot.x, spot.z, 0.42),
+      true,
+      `${spot.name} at (${spot.x}, ${spot.z}) must be walkable`,
+    );
+  }
+
+  const palette = new MaterialPalette();
+  const rig: OrchardRig = buildFernHollowOrchard({
+    palette,
+    shadowTex: new THREE.Texture(),
+    signTex: new THREE.Texture(),
+    isSoftwareGl: true,
+  });
+
+  // Hidden by default
+  const gatheringGroup = rig.group.children.find(
+    (c) => c.position.x === ORCHARD_TASTING_TABLE.x && c.position.z === ORCHARD_TASTING_TABLE.z,
+  ) as THREE.Group;
+  assert.ok(gatheringGroup, 'gatheringGroup should be positioned at ORCHARD_TASTING_TABLE');
+  assert.equal(gatheringGroup.visible, false);
+
+  // Switch to spiced_tart_table (lanterns off -> glow emissive 0.48)
+  rig.setGatheringVisual('spiced_tart_table', false);
+  assert.equal(gatheringGroup.visible, true);
+
+  // Switch to blossom_honey_picnic with lanterns lit (emissive 2.1)
+  rig.setGatheringVisual('blossom_honey_picnic', true);
+  assert.equal(gatheringGroup.visible, true);
+
+  let foundLitLantern = false;
+  gatheringGroup.traverse((child) => {
+    const mat = (child as THREE.Mesh).material as THREE.MeshStandardMaterial | undefined;
+    if (mat && mat.emissiveIntensity === 2.1) {
+      foundLitLantern = true;
+    }
+  });
+  assert.equal(foundLitLantern, true, 'lit marigold lanterns should boost emissive intensity to 2.1');
+
+  // Switch back to 'none'
+  rig.setGatheringVisual('none', false);
+  assert.equal(gatheringGroup.visible, false);
+
+  rig.dispose();
+  palette.disposeAll();
 });

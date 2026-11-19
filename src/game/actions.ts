@@ -262,6 +262,21 @@ export function applyDialogueChoice(
     }
   }
 
+  let nextInventory = world.inventory;
+  let nextDiscovered = world.discoveredItemIds;
+  let grantedItemLabel: string | undefined;
+  if (choice.grantPersonalItem) {
+    const added = addItemToInventory(
+      world.inventory,
+      world.discoveredItemIds,
+      choice.grantPersonalItem.itemId,
+      choice.grantPersonalItem.count ?? 1,
+    );
+    nextInventory = added.inventory;
+    nextDiscovered = added.discoveredItemIds;
+    grantedItemLabel = PERSONAL_ITEM_MAP[choice.grantPersonalItem.itemId]?.label;
+  }
+
   // Record topic history (per-resident for 'any' topics) & lastTopicByResident to prevent monotonous small-talk loops
   const nextTopicHistory = { ...(world.topicHistory ?? {}) };
   const nextLastTopic = { ...(world.lastTopicByResident ?? {}) };
@@ -708,10 +723,14 @@ export function applyDialogueChoice(
     flags: nextFlags,
     memories: nextMemories,
     npcMemories: nextNpcMemories,
+    inventory: nextInventory,
+    discoveredItemIds: nextDiscovered,
   };
 
   const giftToast = isGift
     ? `Shared ${world.worldProps?.[choice.deliverHeldItem!]?.label ?? 'item'} with ${RESIDENTS[residentId].name}!`
+    : grantedItemLabel
+    ? `Tucked ${grantedItemLabel} into your satchel!`
     : undefined;
 
   const tierToast = tierAdvanced
@@ -920,6 +939,13 @@ export function getDailyMailboxLetter(world: WorldState): { subject: string; bod
       body: 'Thank you for reminding two stubborn friends how bright the lane feels when we share it. Your porch is always welcome at Hearth & Crumb and Copperwheel.',
     };
   }
+  if (!f.bellRestored && world.sideFlags?.orchardGatheringComplete) {
+    return {
+      sender: 'Rowan, Orchard Keeper',
+      subject: 'Lanterns Beneath the Boughs',
+      body: 'The marigold lanterns and tasting table in Fern Hollow Orchard stay open every afternoon now—stop by anytime to sample honeyed treats beneath the crabapples.',
+    };
+  }
   if (f.heardBellMystery && world.day >= 2) {
     return {
       sender: 'Jun, Letter Carrier',
@@ -938,7 +964,7 @@ export function interactWithProp(
   world: WorldState,
   propId: PropInteractableId,
 ): PropInteractionResult {
-  const env: EnvironmentalState = computeEnvironmentState(world.flags);
+  const env: EnvironmentalState = computeEnvironmentState(world.flags, world.sideFlags);
 
   if (propId === 'player_mailbox') {
     const letter = getDailyMailboxLetter(world);
@@ -1076,6 +1102,33 @@ export function interactWithProp(
         { itemId: 'crabapple', count: 2 },
         { itemId: 'wild_honey', count: 1 },
       ],
+    };
+  }
+
+  if (propId === 'orchard_skep') {
+    const composed = composeEnvironmentState(world);
+    const da = world.dailyActivities ?? createInitialDailyActivities();
+    const season = composed.season.season;
+    const phase = composed.timeOfDay.phase;
+    const effWeather = composed.weather.effective;
+    const skepLead =
+      season === 'winter'
+        ? 'A quiet winter cluster warms the inside of Rowan’s braided straw dome beneath frosted clover.'
+        : effWeather === 'light_rain'
+        ? 'Honeybees stay snug inside the dry waxed dome while rain beads across the clover leaves around the cedar stool.'
+        : phase === 'morning' || phase === 'afternoon'
+        ? 'Golden honeybees trace figure-eights past the skep entrance with dustings of blossom pollen, filling the glade with a gentle hum.'
+        : 'Returning bees tuck their wings inside the straw rings as honey-warmth drifts softly beneath the orchard boughs.';
+    const extraNote =
+      env.orchardGatheringOutcome && env.orchardGatheringOutcome !== 'none'
+        ? ' Just north of the skep, warm marigold lanterns sway above the Fern Hollow tasting table.'
+        : da.orchardHarvestedToday
+        ? ' Today’s fresh honeycomb is already tucked safely into your satchel.'
+        : ' Rowan leaves extra wild honeycomb beside the cedar harvest crates just north.';
+    return {
+      nextWorld: world,
+      title: 'Woven Bee Skep & Honey Crock',
+      body: `${skepLead}${extraNote}`,
     };
   }
 
@@ -1272,6 +1325,9 @@ export function interactWithProp(
     }
     if (env.bellGleaming) {
       notes.push('• Festival Ribbon: The Gazebo Bell chimes daily at dusk!');
+    }
+    if (env.orchardGatheringOutcome && env.orchardGatheringOutcome !== 'none') {
+      notes.push('• Fern Hollow Orchard: Tasting Table open daily under the north lanterns!');
     }
     return {
       nextWorld: world,

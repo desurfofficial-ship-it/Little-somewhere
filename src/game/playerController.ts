@@ -392,6 +392,7 @@ export function selectBestInteractiveTarget(
           : prop.id === 'cottage_window_box' ||
             prop.id === 'greenhouse_planters' ||
             prop.id === 'orchard_harvest' ||
+            prop.id === 'orchard_skep' ||
             prop.id === 'pond_driftwood'
           ? prop.name
           : `Inspect ${prop.name}`;

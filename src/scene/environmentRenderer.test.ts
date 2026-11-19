@@ -472,3 +472,109 @@ test('THREE.Box3 clearance verifies zero player-mesh clipping with Fountain and 
   dummyTex.dispose();
 });
 
+test('EnvironmentVisualController drives orchardRig.setGatheringVisual and orchardAmbientExtras across outcomes and seasons', () => {
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color('#DCEBF2');
+  scene.fog = new THREE.Fog('#DCEBF2', 42, 86);
+
+  let lastOutcome: string | undefined;
+  let lastLanterns: boolean | undefined;
+  let lastExtrasOpts:
+    | { songbirdsActive: boolean; driftActive: boolean; season: string; windStrength: number }
+    | undefined;
+
+  const controller = new EnvironmentVisualController({
+    scene,
+    groundMat: new THREE.MeshStandardMaterial(),
+    groveRig: {
+      group: new THREE.Group(),
+      crownBaseMat: new THREE.MeshStandardMaterial(),
+      crownTopMat: new THREE.MeshStandardMaterial(),
+    },
+    hemiLight: new THREE.HemisphereLight(),
+    sunLight: new THREE.DirectionalLight(),
+    windowMaterials: [],
+    lanternMat: new THREE.MeshStandardMaterial(),
+    prototypeLanternMats: [],
+    flowerGroups: [],
+    gazeboRig: {
+      group: new THREE.Group(),
+      bellPivot: new THREE.Group(),
+      bellMesh: new THREE.Mesh(),
+      clapperMesh: new THREE.Mesh(),
+      ivyGroup: new THREE.Group(),
+      ribbonMesh: new THREE.Mesh(),
+    },
+    fountainRig: {
+      group: new THREE.Group(),
+      waterMesh: new THREE.Mesh(),
+      spoutParticles: new THREE.Group(),
+    },
+    bakeryTablesGroup: new THREE.Group(),
+    festoonGroup: new THREE.Group(),
+    noticeboardRig: { group: new THREE.Group(), flyers: [] },
+    oakGlint: new THREE.Mesh(),
+    mbFlag: new THREE.Mesh(),
+    bellSwingVelRef: { current: 0 },
+    isSoftwareGl: true,
+    orchardRig: {
+      group: new THREE.Group(),
+      updateWind() {},
+      setGatheringVisual(outcome, lanternsOn) {
+        lastOutcome = outcome;
+        lastLanterns = lanternsOn;
+      },
+      dispose() {},
+    },
+    orchardAmbientExtras: {
+      group: new THREE.Group(),
+      birdCount: 3,
+      driftCount: 10,
+      update(_elapsed, opts) {
+        lastExtrasOpts = opts;
+      },
+      dispose() {},
+    },
+  });
+
+  const duskPicnic = {
+    ...createFreshWorldState(),
+    day: 24,
+    season: 'autumn' as const,
+    weather: 'sunlit' as const,
+    minuteOfDay: 1080, // golden hour: lanterns on + leaf drift active
+    sideFlags: {
+      ...createFreshWorldState().sideFlags,
+      orchardGatheringComplete: true,
+      orchardGatheringOutcome: 'blossom_honey_picnic' as const,
+    },
+  };
+  controller.update(composeEnvironmentState(duskPicnic), duskPicnic, duskPicnic.playerPos, 1.0, 0.03);
+  assert.equal(lastOutcome, 'blossom_honey_picnic');
+  assert.equal(lastLanterns, true);
+  assert.equal(lastExtrasOpts?.driftActive, true);
+  assert.equal(lastExtrasOpts?.season, 'autumn');
+
+  // Rainy morning: hides both songbirds and petal drift while keeping cozy lanterns lit
+  const rainy = { ...duskPicnic, season: 'spring' as const, weather: 'light_rain' as const, minuteOfDay: 540 };
+  controller.update(composeEnvironmentState(rainy), rainy, rainy.playerPos, 1.5, 0.03);
+  assert.equal(lastLanterns, true);
+  assert.equal(lastExtrasOpts?.songbirdsActive, false);
+  assert.equal(lastExtrasOpts?.driftActive, false);
+
+  // Sunlit afternoon turns daytime lanterns down while keeping songbirds and drift active
+  const sunlitAfternoon = { ...duskPicnic, season: 'spring' as const, weather: 'sunlit' as const, minuteOfDay: 840 };
+  controller.update(composeEnvironmentState(sunlitAfternoon), sunlitAfternoon, sunlitAfternoon.playerPos, 1.8, 0.03);
+  assert.equal(lastLanterns, false);
+  assert.equal(lastExtrasOpts?.songbirdsActive, true);
+  assert.equal(lastExtrasOpts?.driftActive, true);
+
+  // Dry winter: keeps songbirds active, suppresses blossom/leaf drift
+  const dryWinter = { ...duskPicnic, season: 'winter' as const, weather: 'breezy' as const, minuteOfDay: 600 };
+  controller.update(composeEnvironmentState(dryWinter), dryWinter, dryWinter.playerPos, 2.0, 0.03);
+  assert.equal(lastExtrasOpts?.songbirdsActive, true);
+  assert.equal(lastExtrasOpts?.driftActive, false);
+
+  controller.dispose();
+});
+

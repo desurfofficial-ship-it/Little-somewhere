@@ -4,6 +4,8 @@ import * as THREE from 'three';
 import {
   ORCHARD_BUTTERFLY_ANCHORS,
   ORCHARD_SKEP_ANCHOR,
+  ORCHARD_SONGBIRD_ANCHORS,
+  buildOrchardAmbientExtras,
   buildOrchardMicroLife,
   type OrchardMicroLifeRig,
 } from './builders/orchardMicroLife';
@@ -155,4 +157,56 @@ test('wind strength only modulates drift speed, never leaves the anchor bounds',
   }
 
   rig.dispose();
+});
+
+test('Milestone 3 Build 2: orchard ambient extras mount 3 songbirds at anchors and bound seasonal blossom/leaf drift', () => {
+  const softRig = buildOrchardAmbientExtras({ isSoftwareGl: true });
+  assert.equal(softRig.birdCount, ORCHARD_SONGBIRD_ANCHORS.length);
+  assert.equal(softRig.birdCount, 3);
+  assert.equal(softRig.driftCount, 10, 'software GL caps drift petals at 10');
+
+  // Active spring daytime: both songbirds and petal drift visible & bounded in north orchard
+  softRig.update(1.4, {
+    songbirdsActive: true,
+    driftActive: true,
+    season: 'spring',
+    windStrength: 0.6,
+  });
+  assert.equal(softRig.group.visible, true);
+  const driftMesh = collectInstanced(softRig.group)[0];
+  assert.ok(driftMesh, 'expected single InstancedMesh for seasonal blossom/leaf drift');
+  assert.equal(driftMesh.visible, true);
+  assertFiniteMatrices(driftMesh, 'blossomDrift');
+
+  const m = new THREE.Matrix4();
+  const pos = new THREE.Vector3();
+  const quat = new THREE.Quaternion();
+  const scale = new THREE.Vector3();
+  for (let i = 0; i < driftMesh.count; i++) {
+    driftMesh.getMatrixAt(i, m);
+    m.decompose(pos, quat, scale);
+    assert.ok(pos.z < -13.5, `petal ${i} drifted outside orchard (z=${pos.z})`);
+    assert.ok(pos.y >= 0.15 && pos.y <= 3.6, `petal ${i} y=${pos.y} outside canopy-to-ground band`);
+  }
+
+  // Winter hides drift even when songbirds stay perched
+  softRig.update(2.2, {
+    songbirdsActive: true,
+    driftActive: false,
+    season: 'winter',
+    windStrength: 0.4,
+  });
+  assert.equal(softRig.group.visible, true);
+  assert.equal(driftMesh.visible, false);
+
+  // Rainy / dusk disables both
+  softRig.update(2.8, {
+    songbirdsActive: false,
+    driftActive: false,
+    season: 'autumn',
+    windStrength: 0.5,
+  });
+  assert.equal(softRig.group.visible, false);
+
+  softRig.dispose();
 });

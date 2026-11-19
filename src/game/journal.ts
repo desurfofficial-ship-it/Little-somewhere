@@ -355,6 +355,14 @@ function describeNpcMemoryTopic(
     case 'lanterns_resolved_space':
     case 'lanterns_resolved_harmony':
       return `neighbors settled how lanterns and dusk fireflies share Mirror Pond`;
+    case 'orchard_gathering_started':
+      return `Rowan began planning an orchard tasting table beneath the crabapple boughs`;
+    case 'orchard_tart_planned':
+      return `Clara pledged spiced Fern Hollow crabapple tarts for the orchard tasting table`;
+    case 'orchard_picnic_planned':
+      return `Mina prepared chamomile and wild skep honey for the orchard picnic`;
+    case 'orchard_gathering_hosted':
+      return `Rowan, Clara, and Mina hung marigold lanterns over the Fern Hollow tasting table`;
     default:
       return entry.tag.replace(/_/g, ' ');
   }
@@ -831,9 +839,22 @@ function buildDiscoveriesSection(
     {
       id: 'fern_hollow_orchard',
       name: 'Fern Hollow Orchard',
-      statusKind: 'active',
-      statusLabel: 'North lane open',
-      summary: 'Dappled crabapple trees, harvest crates, and a bee skep beyond the stone gate.',
+      statusKind:
+        env.orchardGatheringOutcome && env.orchardGatheringOutcome !== 'none'
+          ? 'transformed'
+          : 'active',
+      statusLabel:
+        env.orchardGatheringOutcome === 'spiced_tart_table'
+          ? 'Spiced Tart Table'
+          : env.orchardGatheringOutcome === 'blossom_honey_picnic'
+          ? 'Honey Picnic Open'
+          : 'North lane open',
+      summary:
+        env.orchardGatheringOutcome === 'spiced_tart_table'
+          ? 'Marigold lanterns sway above Clara’s warm crabapple tarts beside Rowan’s bee skep.'
+          : env.orchardGatheringOutcome === 'blossom_honey_picnic'
+          ? 'Mina’s honeyed chamomile teacups and lantern garlands welcome neighbors under the crabapple boughs.'
+          : 'Dappled crabapple trees, harvest crates, and a bee skep beyond the stone gate.',
     },
   ];
 

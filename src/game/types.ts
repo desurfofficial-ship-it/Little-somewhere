@@ -25,6 +25,7 @@ export type PropInteractableId =
   | 'cottage_window_box'
   | 'greenhouse_planters'
   | 'orchard_harvest'
+  | 'orchard_skep'
   | 'pond_driftwood';
 
 export type PlayerLocation = 'exterior' | 'cottage_interior';
@@ -230,6 +231,7 @@ export interface EnvironmentalState {
   bakeryTablesOpen: boolean;
   reconciledTogether: boolean;
   noticeboardUpdated: boolean;
+  orchardGatheringOutcome?: 'none' | 'spiced_tart_table' | 'blossom_honey_picnic';
 }
 
 export interface JournalMemory {
@@ -666,6 +668,7 @@ export interface DialogueChoice {
   adjustNpcRelations?: NpcRelationAdjustment[];
   advanceStoryline?: StorylineAdvanceSpec | StorylineAdvanceSpec[];
   deliverHeldItem?: CarryableItemId;
+  grantPersonalItem?: { itemId: PersonalItemId; count?: number };
   unlockMemory?: Omit<JournalMemory, 'day' | 'phase'>;
   requiresFlag?: keyof StoryFlags;
   requiresFalseFlag?: keyof StoryFlags;

@@ -39,6 +39,7 @@ export const ORCHARD_TREES: readonly OrchardTreeSpec[] = [
 ];
 
 export const ORCHARD_GATE = { x: -2.6, z: -14.9, pierWestX: -4.3, pierEastX: -0.9 } as const;
+export const ORCHARD_TASTING_TABLE = { x: 1.8, z: -19.4, radius: 0.68 } as const;
 
 export interface OrchardRig {
   group: THREE.Group;
@@ -48,6 +49,15 @@ export interface OrchardRig {
    * breeze. Zero per-frame allocations; trunks and contact shadows stay put.
    */
   updateWind(elapsed: number, windStrength: number): void;
+  /**
+   * Shows/hides the permanent Fern Hollow Orchard Gathering tasting table,
+   * outcome centerpiece ('spiced_tart_table' vs 'blossom_honey_picnic'),
+   * and marigold lantern garland glow without allocations.
+   */
+  setGatheringVisual(
+    outcome: 'none' | 'spiced_tart_table' | 'blossom_honey_picnic',
+    lanternsOn: boolean,
+  ): void;
   dispose(): void;
 }
 
@@ -516,8 +526,215 @@ export function buildFernHollowOrchard(ctx: OrchardBuildContext): OrchardRig {
   const entranceGeo = own(new THREE.CylinderGeometry(0.05, 0.05, 0.05, 8).rotateX(Math.PI / 2).translate(0, 0.52, 0.23));
   const entranceMat = palette.standard('#3E3026', 0.9, 0.0);
   const entrance = new THREE.Mesh(entranceGeo, entranceMat);
-  skepGroup.add(skepMesh, entrance);
+
+  // Glazed ceramic honey crock + wooden honey dipper resting at the skep base + trefoil clover
+  const glazedHoneyMat = palette.standard('#D99A44', 0.4, 0.06);
+  const crockShadow = addContactShadow(skepGroup, shadowTex, 0.42, 0.42, 0.36, 0.019);
+  crockShadow.position.set(0.36, 0.019, 0.22);
+  const crockPts = [
+    new THREE.Vector2(0.0, 0.0),
+    new THREE.Vector2(0.11, 0.0),
+    new THREE.Vector2(0.145, 0.11),
+    new THREE.Vector2(0.13, 0.21),
+    new THREE.Vector2(0.095, 0.25),
+    new THREE.Vector2(0.115, 0.28),
+    new THREE.Vector2(0.08, 0.28),
+  ];
+  const honeyCrock = new THREE.Mesh(own(new THREE.LatheGeometry(crockPts, 10)), glazedHoneyMat);
+  honeyCrock.position.set(0.36, 0, 0.22);
+  honeyCrock.castShadow = castShadows;
+  const dipperStick = new THREE.Mesh(
+    own(new THREE.CylinderGeometry(0.012, 0.012, 0.24, 5).rotateZ(1.05)),
+    cedarWarmMat,
+  );
+  dipperStick.position.set(0.39, 0.285, 0.24);
+  const cloverMat = palette.standard(STORYBOOK_PALETTE.moss, 0.88, 0.0);
+  const cloverGeo = own(new THREE.DodecahedronGeometry(0.075, 0).scale(1.3, 0.35, 1.3));
+  const cloverPositions: Array<[number, number]> = [
+    [-0.26, 0.26],
+    [0.2, -0.28],
+    [0.54, 0.08],
+  ];
+  for (const [cx, cz] of cloverPositions) {
+    const tuft = new THREE.Mesh(cloverGeo, cloverMat);
+    tuft.position.set(cx, 0.025, cz);
+    skepGroup.add(tuft);
+  }
+  skepGroup.add(skepMesh, entrance, honeyCrock, dipperStick);
   group.add(skepGroup);
+
+  // ------------------------------------------------------------------
+  // 5b. Permanent Orchard Gathering Diorama (Tasting Table + Lantern Garland)
+  // ------------------------------------------------------------------
+  const gatheringGroup = new THREE.Group();
+  gatheringGroup.position.set(ORCHARD_TASTING_TABLE.x, 0, ORCHARD_TASTING_TABLE.z);
+  addContactShadow(gatheringGroup, shadowTex, 2.0, 1.5, 0.45, 0.02);
+
+  // Hand-turned cedar trestle table (tabletop at y=0.72, aprons + X-frame legs + stretcher)
+  const tabletop = new THREE.Mesh(
+    own(new THREE.BoxGeometry(1.12, 0.07, 0.68)),
+    cedarWarmMat,
+  );
+  tabletop.position.y = 0.72;
+  tabletop.castShadow = castShadows;
+  tabletop.receiveShadow = true;
+
+  const legGeo = own(new THREE.BoxGeometry(0.065, 0.72, 0.065));
+  for (const lx of [-0.46, 0.46]) {
+    for (const [lz, tilt] of [
+      [-0.22, 0.22],
+      [0.22, -0.22],
+    ] as const) {
+      const leg = new THREE.Mesh(legGeo, cedarDarkMat);
+      leg.position.set(lx, 0.36, lz * 0.6);
+      leg.rotation.x = tilt;
+      leg.castShadow = castShadows;
+      gatheringGroup.add(leg);
+    }
+  }
+  const stretcher = new THREE.Mesh(
+    own(new THREE.BoxGeometry(0.96, 0.055, 0.065)),
+    cedarDarkMat,
+  );
+  stretcher.position.set(0, 0.24, 0);
+
+  // Draped sage-and-cream linen runner
+  const runnerMat = palette.standard(STORYBOOK_PALETTE.creamTrim, 0.92, 0.0);
+  const runnerTop = new THREE.Mesh(
+    own(new THREE.BoxGeometry(0.46, 0.014, 0.7)),
+    runnerMat,
+  );
+  runnerTop.position.set(0, 0.762, 0);
+  const runnerDropMat = palette.standard(STORYBOOK_PALETTE.foliageSage, 0.9, 0.0);
+  const runnerDropF = new THREE.Mesh(own(new THREE.BoxGeometry(0.46, 0.22, 0.016)), runnerDropMat);
+  runnerDropF.position.set(0, 0.64, 0.35);
+  const runnerDropB = new THREE.Mesh(own(new THREE.BoxGeometry(0.46, 0.22, 0.016)), runnerDropMat);
+  runnerDropB.position.set(0, 0.64, -0.35);
+
+  // Two cedar stools tucked cleanly inside the table's footprint with wool cushions
+  const terraCushionMat = palette.standard(STORYBOOK_PALETTE.terracottaPot, 0.92, 0.0);
+  const sageCushionMat = palette.standard(STORYBOOK_PALETTE.sageShutter, 0.92, 0.0);
+  for (const [sx, cMat] of [
+    [-0.56, terraCushionMat],
+    [0.56, sageCushionMat],
+  ] as const) {
+    const stoolTop = new THREE.Mesh(own(new THREE.CylinderGeometry(0.18, 0.18, 0.045, 9)), cedarWarmMat);
+    stoolTop.position.set(sx, 0.42, 0.16);
+    stoolTop.castShadow = castShadows;
+    const cushion = new THREE.Mesh(own(new THREE.CylinderGeometry(0.155, 0.165, 0.05, 9)), cMat);
+    cushion.position.set(sx, 0.465, 0.16);
+    const stoolPost = new THREE.Mesh(own(new THREE.CylinderGeometry(0.055, 0.085, 0.4, 7)), cedarDarkMat);
+    stoolPost.position.set(sx, 0.2, 0.16);
+    gatheringGroup.add(stoolTop, cushion, stoolPost);
+  }
+
+  // Slender overhead garland posts anchored cleanly to table trestle ends (zero extra ground footprint)
+  const brassFinialMat = palette.standard(STORYBOOK_PALETTE.agedBrass, 0.28, 0.68);
+  const poleGeo = own(new THREE.CylinderGeometry(0.032, 0.042, 2.52, 6));
+  const poleCapGeo = own(new THREE.SphereGeometry(0.055, 7, 6));
+  for (const px of [-0.52, 0.52]) {
+    const pole = new THREE.Mesh(poleGeo, cedarDarkMat);
+    pole.position.set(px, 1.26, -0.26);
+    pole.castShadow = castShadows;
+    const cap = new THREE.Mesh(poleCapGeo, brassFinialMat);
+    cap.position.set(px, 2.54, -0.26);
+    gatheringGroup.add(pole, cap);
+  }
+
+  // Overhead twine + 5 marigold lantern globes strung high above character clearance (y >= 2.26)
+  const marigoldBulbMat = new THREE.MeshStandardMaterial({
+    color: '#FFE59D',
+    emissive: new THREE.Color('#FFAA38'),
+    emissiveIntensity: 0.45,
+    roughness: 0.24,
+  });
+  const bulbGeo = own(new THREE.SphereGeometry(0.082, 8, 7));
+  const bulbCapGeo = own(new THREE.CylinderGeometry(0.042, 0.055, 0.035, 6));
+  for (let i = 0; i < 5; i++) {
+    const t = i / 4;
+    const bx = THREE.MathUtils.lerp(-0.46, 0.46, t);
+    const sag = Math.sin(t * Math.PI) * 0.22;
+    const by = 2.48 - sag;
+    const lanternCap = new THREE.Mesh(bulbCapGeo, cedarDarkMat);
+    lanternCap.position.set(bx, by + 0.075, -0.26);
+    const lanternBulb = new THREE.Mesh(bulbGeo, marigoldBulbMat);
+    lanternBulb.position.set(bx, by, -0.26);
+    gatheringGroup.add(lanternCap, lanternBulb);
+    if (i < 4) {
+      const nt = (i + 1) / 4;
+      const nbx = THREE.MathUtils.lerp(-0.46, 0.46, nt);
+      const nsag = Math.sin(nt * Math.PI) * 0.22;
+      const dx = nbx - bx;
+      const dy = (2.48 - nsag) - by;
+      const seg = new THREE.Mesh(
+        own(new THREE.CylinderGeometry(0.011, 0.011, Math.hypot(dx, dy), 4)),
+        cedarDarkMat,
+      );
+      seg.position.set((bx + nbx) * 0.5, by + dy * 0.5 + 0.09, -0.26);
+      seg.rotation.z = Math.PI / 2 - Math.atan2(dy, dx);
+      gatheringGroup.add(seg);
+    }
+  }
+
+  // Outcome A centerpiece: Spiced Crabapple Tart Table
+  const spicedTartGroup = new THREE.Group();
+  const glazeMat = palette.standard('#FAF3E6', 0.36, 0.05);
+  const crustMat = palette.standard('#D89E54', 0.72, 0.0);
+  const platter = new THREE.Mesh(own(new THREE.CylinderGeometry(0.24, 0.21, 0.035, 12)), glazeMat);
+  platter.position.set(0, 0.785, 0.02);
+  const tartBase = new THREE.Mesh(own(new THREE.CylinderGeometry(0.18, 0.16, 0.055, 12)), crustMat);
+  tartBase.position.set(0, 0.815, 0.02);
+  const tartFill = new THREE.Mesh(own(new THREE.CylinderGeometry(0.155, 0.155, 0.018, 12)), looseFruitMat);
+  tartFill.position.set(0, 0.842, 0.02);
+  const plateA = new THREE.Mesh(own(new THREE.CylinderGeometry(0.105, 0.085, 0.022, 10)), glazeMat);
+  plateA.position.set(-0.34, 0.77, -0.05);
+  const plateB = new THREE.Mesh(own(new THREE.CylinderGeometry(0.105, 0.085, 0.022, 10)), glazeMat);
+  plateB.position.set(0.34, 0.77, 0.06);
+  const fruitBowl = new THREE.Mesh(own(new THREE.CylinderGeometry(0.12, 0.075, 0.075, 10)), strawMat);
+  fruitBowl.position.set(0.32, 0.79, -0.18);
+  const treatApple = new THREE.Mesh(own(createAppleGeometry()), looseFruitMat);
+  treatApple.position.set(0.32, 0.83, -0.18);
+  spicedTartGroup.add(platter, tartBase, tartFill, plateA, plateB, fruitBowl, treatApple);
+
+  // Outcome B centerpiece: Chamomile-Honey Picnic
+  const blossomPicnicGroup = new THREE.Group();
+  const celadonMat = palette.standard('#A5BEAE', 0.35, 0.08);
+  const camomileBloomMat = palette.standard(STORYBOOK_PALETTE.petalCream, 0.86, 0.0);
+  const teapotPts = [
+    new THREE.Vector2(0.0, 0.0),
+    new THREE.Vector2(0.075, 0.0),
+    new THREE.Vector2(0.115, 0.07),
+    new THREE.Vector2(0.105, 0.14),
+    new THREE.Vector2(0.06, 0.18),
+    new THREE.Vector2(0.072, 0.195),
+    new THREE.Vector2(0.0, 0.21),
+  ];
+  const teapot = new THREE.Mesh(own(new THREE.LatheGeometry(teapotPts, 10)), celadonMat);
+  teapot.position.set(-0.04, 0.768, 0.02);
+  const teapotSpout = new THREE.Mesh(own(new THREE.CylinderGeometry(0.016, 0.026, 0.11, 6)), celadonMat);
+  teapotSpout.position.set(-0.15, 0.88, 0.02);
+  teapotSpout.rotation.z = 0.82;
+  const cupGeo = own(new THREE.CylinderGeometry(0.048, 0.036, 0.055, 8));
+  for (const [cx, cz] of [
+    [0.24, 0.06],
+    [-0.3, -0.12],
+    [0.18, -0.18],
+  ] as const) {
+    const cup = new THREE.Mesh(cupGeo, glazeMat);
+    cup.position.set(cx, 0.79, cz);
+    blossomPicnicGroup.add(cup);
+  }
+  const tableHoneyJar = new THREE.Mesh(own(new THREE.CylinderGeometry(0.06, 0.065, 0.11, 8)), glazedHoneyMat);
+  tableHoneyJar.position.set(0.28, 0.815, 0.16);
+  const budVase = new THREE.Mesh(own(new THREE.CylinderGeometry(0.04, 0.055, 0.12, 8)), glazeMat);
+  budVase.position.set(-0.26, 0.82, 0.14);
+  const camBloom = new THREE.Mesh(own(new THREE.SphereGeometry(0.055, 7, 6)), camomileBloomMat);
+  camBloom.position.set(-0.26, 0.91, 0.14);
+  blossomPicnicGroup.add(teapot, teapotSpout, tableHoneyJar, budVase, camBloom);
+
+  gatheringGroup.add(tabletop, stretcher, runnerTop, runnerDropF, runnerDropB, spicedTartGroup, blossomPicnicGroup);
+  gatheringGroup.visible = false;
+  group.add(gatheringGroup);
 
   // ------------------------------------------------------------------
   // 6. Stepping-stone path: promenade -> through the gate -> orchard
@@ -600,8 +817,16 @@ export function buildFernHollowOrchard(ctx: OrchardBuildContext): OrchardRig {
       crownsTopInst.instanceMatrix.needsUpdate = true;
       fruitInst.instanceMatrix.needsUpdate = true;
     },
+    setGatheringVisual(outcome, lanternsOn) {
+      const visible = outcome !== 'none';
+      gatheringGroup.visible = visible;
+      spicedTartGroup.visible = outcome === 'spiced_tart_table';
+      blossomPicnicGroup.visible = outcome === 'blossom_honey_picnic';
+      marigoldBulbMat.emissiveIntensity = lanternsOn ? 2.1 : 0.48;
+    },
     dispose() {
       for (const geo of ownedGeos) geo.dispose();
+      marigoldBulbMat.dispose();
       treeShadowGeo.dispose();
       treeShadowMat.dispose();
       signFaceGeo.dispose();

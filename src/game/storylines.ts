@@ -243,6 +243,48 @@ export const STORYLINES: readonly StorylineDefinition[] = [
       },
     },
   },
+  {
+    id: 'side_orchard_gathering',
+    title: 'The Fern Hollow Orchard Gathering',
+    subtitle: 'Rowan wants to welcome neighbors beneath the north boughs for honey and harvest treats.',
+    category: 'personal_story',
+    leadResidents: ['rowan', 'clara', 'mina'],
+    stages: [
+      {
+        stage: 1,
+        title: 'An Empty Table Under the Boughs',
+        journalHint:
+          'Rowan asked whether Clara has spiced crabapple pastry in mind—or if Mina prefers floral honeyed tea for the north orchard table.',
+        involvedResidents: ['clara', 'mina'],
+      },
+      {
+        stage: 2,
+        title: 'Harvest & Blossoms Chosen',
+        journalHint:
+          'Return to Rowan at Fern Hollow Orchard to set out the tasting table and string up the evening lantern garlands.',
+        involvedResidents: ['rowan'],
+      },
+      {
+        stage: 3,
+        title: 'Tasting Table Open',
+        journalHint:
+          'Rowan, Clara, and Mina hung marigold garlands above the cedar tasting table so neighbors gather regularly beneath the crabapple boughs.',
+        involvedResidents: ['rowan', 'clara', 'mina'],
+      },
+    ],
+    outcomes: {
+      spiced_tart_table: {
+        label: 'Spiced Crabapple Tart Table',
+        journalSummary:
+          'Clara glazed crisp Fern Hollow crabapples into warm spiced tarts served on stoneware platters beneath the lantern garlands.',
+      },
+      blossom_honey_picnic: {
+        label: 'Chamomile-Honey Picnic',
+        journalSummary:
+          'Mina steeped chamomile and wild skep honey over stoneware teacups while afternoon breeze carried orchard petals across the table.',
+      },
+    },
+  },
 ];
 
 export const STORYLINE_MAP: Record<string, StorylineDefinition> = STORYLINES.reduce(
@@ -466,6 +508,37 @@ export function hydrateStorylinesFromLegacyState(params: {
     };
   }
 
+  // 6. Rowan, Clara & Mina's Fern Hollow Orchard Gathering
+  if (sideFlags.orchardGatheringComplete) {
+    out.side_orchard_gathering = {
+      id: 'side_orchard_gathering',
+      stage: 3,
+      status: 'completed',
+      outcome:
+        typeof sideFlags.orchardGatheringOutcome === 'string' &&
+        STORYLINE_MAP.side_orchard_gathering.outcomes[sideFlags.orchardGatheringOutcome]
+          ? sideFlags.orchardGatheringOutcome
+          : 'spiced_tart_table',
+      startedDay: safeDay,
+      updatedDay: safeDay,
+      completedDay: safeDay,
+    };
+  } else if (sideFlags.orchardGatheringStarted) {
+    const outcome =
+      typeof sideFlags.orchardGatheringOutcome === 'string' &&
+      STORYLINE_MAP.side_orchard_gathering.outcomes[sideFlags.orchardGatheringOutcome]
+        ? sideFlags.orchardGatheringOutcome
+        : undefined;
+    out.side_orchard_gathering = {
+      id: 'side_orchard_gathering',
+      stage: outcome ? 2 : 1,
+      status: 'active',
+      ...(outcome ? { outcome } : {}),
+      startedDay: safeDay,
+      updatedDay: safeDay,
+    };
+  }
+
   return out;
 }
 
@@ -599,6 +672,11 @@ export function syncSideFlagsFromStorylineInPlace(
       if (started) sideFlags.lanternConflictStarted = true;
       if (completed) sideFlags.lanternConflictResolved = true;
       if (progress.outcome) sideFlags.lanternConflictOutcome = progress.outcome;
+      break;
+    case 'side_orchard_gathering':
+      if (started) sideFlags.orchardGatheringStarted = true;
+      if (completed) sideFlags.orchardGatheringComplete = true;
+      if (progress.outcome) sideFlags.orchardGatheringOutcome = progress.outcome;
       break;
     default:
       break;

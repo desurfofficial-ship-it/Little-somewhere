@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   applyDialogueChoice,
+  getDailyMailboxLetter,
   giveInventoryItemAction,
   interactWithProp,
   performRingBellAction,
@@ -1041,6 +1042,70 @@ test('Milestone 2C satchel gifting honors Rowan loved reactions, daily cap, keep
   assert.equal(minaGift.keepsakeAwardedId, 'woven_herb_wreath');
   assert.equal(minaGift.nextWorld.inventory.woven_herb_wreath, 1);
   assert.ok(minaGift.nextWorld.neighborGiftsReceived.includes('mina'));
+});
+
+test('Milestone 3 Build 2: orchard_skep reflects weather/season/gathering, noticeboard & mailbox update, and Rowan cues match stage', () => {
+  const fresh = createFreshWorldState();
+
+  // Orchard Bee Skep seasonal / weather / gathering prose
+  const dryMorningSkep = interactWithProp(fresh, 'orchard_skep');
+  assert.equal(dryMorningSkep.title, 'Woven Bee Skep & Honey Crock');
+  assert.ok(dryMorningSkep.body.includes('figure-eights'));
+
+  const rainySkep = interactWithProp({ ...fresh, weather: 'light_rain' }, 'orchard_skep');
+  assert.ok(rainySkep.body.includes('dry waxed dome'));
+
+  const winterSkep = interactWithProp({ ...fresh, season: 'winter', day: 35 }, 'orchard_skep');
+  assert.ok(winterSkep.body.includes('winter cluster'));
+
+  // Rowan quest cue transitions across Arc 6 stages
+  const rowanReady: WorldState = {
+    ...fresh,
+    residents: {
+      ...fresh.residents,
+      rowan: { ...fresh.residents.rowan, met: true },
+    },
+  };
+  assert.equal(getResidentAvailableQuestCue('rowan', rowanReady), 'story');
+
+  const stage2Rowan: WorldState = {
+    ...rowanReady,
+    storylines: {
+      ...rowanReady.storylines,
+      side_orchard_gathering: {
+        id: 'side_orchard_gathering',
+        stage: 2,
+        status: 'active',
+        outcome: 'spiced_tart_table',
+      },
+    },
+  };
+  assert.equal(getResidentAvailableQuestCue('rowan', stage2Rowan), 'ready');
+
+  // Post-completion updates noticeboard, mailbox letter, and skep body
+  const postGathering: WorldState = {
+    ...stage2Rowan,
+    sideFlags: {
+      ...stage2Rowan.sideFlags,
+      orchardGatheringComplete: true,
+      orchardGatheringOutcome: 'spiced_tart_table',
+    },
+    storylines: {
+      ...stage2Rowan.storylines,
+      side_orchard_gathering: {
+        id: 'side_orchard_gathering',
+        stage: 3,
+        status: 'completed',
+        outcome: 'spiced_tart_table',
+      },
+    },
+  };
+  const postSkep = interactWithProp(postGathering, 'orchard_skep');
+  assert.ok(postSkep.body.includes('marigold lanterns'));
+  const notice = interactWithProp(postGathering, 'plaza_noticeboard');
+  assert.ok(notice.body.includes('Fern Hollow Orchard: Tasting Table open daily'));
+  const letter = getDailyMailboxLetter(postGathering);
+  assert.equal(letter.subject, 'Lanterns Beneath the Boughs');
 });
 
 
