@@ -29,18 +29,20 @@ The **Player & Character Excellence Upgrade** (Phases 1–12) plus the **Bench S
 
 1. **Software WebGL Timing (`isSoftwareGl`) & Layout Rules**:
    - Headless browsers pace via `afterDraw(tick)` with `dt` clamped to `0.05s`. Never use `backdrop-filter` / `backdrop-blur` over WebGL, keep `VirtualJoystick` `shrink-0` on mobile, and always run `npm test` after touching `worldMap.ts`, `residents.ts`, `storage.ts`, or `environmentRenderer.ts`.
-2. **Remaining Optional Visual Hooks (Non-Blocking)**:
-   - Future Milestone 3 polish can hook optional 3D meshes for `puddlesActive`, `claraPastryBasketVisible`, `minaGreenhouseStage`, and `arthurEarlyPorchLamp` into `environmentRenderer.ts`, plus multi-region expansion.
+2. **Environmental Hooks Now Wired (Milestone 3 polish foundation)**:
+   - `puddlesActive`, `claraPastryBasketVisible`, `minaGreenhouseStage`, and `arthurEarlyPorchLamp` all have 3D visual layers in `src/scene/builders/reactiveProps.ts` (built once in `NeighborhoodCanvas.tsx`, toggled/animated by `environmentRenderer.ts`).
+   - Meadow margins additionally carry instanced botanical dressing (`src/scene/builders/botanicalDressing.ts`); when adding lanes or obstacles, keep `COBBLE_LANE_RECTS` in sync with the cobble strips and the dressing placement tests will guard walkability.
+   - **Visual backlog**: `docs/audits/09-comprehensive-asset-visual-audit.md` (2026-11-19) supersedes `docs/art-direction/VISUAL_AUDIT.md`; it confirms zero P0 defects and defines the approved-roadmap-pending priorities R-01 golden/dusk lighting drama, R-02 water material elevation, R-03 touch-only VirtualJoystick, plus P2 polish items R-04..R-09.
+   - Remaining Milestone 3 work: multi-region map expansion, walkable interiors, and additional residents.
 
 ---
 
 ## 4. Verification Status (2026-11-19)
 
-- `npm test` (`tsx --test src/game/*.test.ts src/scene/*.test.ts`) — **49/49 passing** (`0` failures)
+- `npm test` (`tsx --test src/game/*.test.ts src/scene/*.test.ts`) — **55/55 passing** on the merged tree (`0` failures; see WORKLOG Entry 016 for the post-merge verification run)
 - `npm run lint` (`tsc --noEmit`) — **Passing (0 errors)**
 - `npm run build` (`vite build`) & `compile_applet` — **Passing**
-- Browser QA (`playwright-cli` on `1440×900` Desktop & `390×844` Mobile: unobstructed West Plaza Bench sitting alignment, dry/repaired Fountain + `Toss a Lucky Coin` ripple/cascades, Mirror Pond Lantern Dusk + `Skip a Smooth Pebble` ripple + emerging west brook + anchored pier & sailboat, and `390×844` mobile Mirror Pond sheet) — **0 console errors, 0 console warnings**
-
+- Browser QA (headless Chromium on `1440×900` Desktop & `390×844` Mobile): branch QA — morning dressing pass, dusk festoon/fireflies/window glow, rain-day puddles & rain streaks, `+2h` phase advance; main-line QA — bench sitting clearance, repaired Fountain coin-wish ripple & cascades, Mirror Pond Lantern Dusk stone-skip ripple + west brook + pier & sailboat — **0 console errors, 0 console warnings**
 
 
 

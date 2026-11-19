@@ -66,6 +66,8 @@ This roadmap defines a disciplined, incremental rollout to elevate **LITTLE SOME
 
 ## Stage 4 — Botanical Dressing, Micro-Life & HUD Polish
 
+- **Status Update (2026-11-19)**: The botanical dressing & micro-life objectives are **delivered** via `src/scene/builders/botanicalDressing.ts` (instanced clover/grass/wildflower/pebble margin dressing, collision-aware seeded placement) and `src/scene/builders/reactiveProps.ts` (butterfly pairs by pond & greenhouse, gentle dusk fireflies, Mirror Pond shimmer flecks, per-resident chimney hearth wisps, plus 3D visual layers for the `puddlesActive` / `claraPastryBasketVisible` / `minaGreenhouseStage` / `arthurEarlyPorchLamp` environment hooks). Remaining open items from this stage: `VirtualJoystick` touch-only visibility on non-touch desktop viewports and `TitleOverlay` framing polish.
+
 - **Objectives**:
   - Upgrade perimeter grove `InstancedMesh` trees and interior courtyard trees to multi-lobe sculpted canopies (`2` instanced layers: trunks + multi-puff crowns).
   - Add instanced clover, wildflower clumps, stone curbs, wooden benches, garden fences, and pooled environmental life (chimney hearth wisps, Mirror Pond water ripple shader/shimmer, butterfly/dragonfly pairs by pond & greenhouse, gentle dusk fireflies).

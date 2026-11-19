@@ -72,6 +72,8 @@ import {
   buildMirrorPondAndBridge,
   buildPerimeterBorder,
 } from './builders/vegetation';
+import { buildMeadowDressing } from './builders/botanicalDressing';
+import { buildAllReactiveRigs } from './builders/reactiveProps';
 import {
   buildCarryablePropMesh,
   buildStorybookBench,
@@ -366,6 +368,12 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
     const groveRig = buildGroveTreesInstanced(palette, isSoftwareGl);
     scene.add(groveRig.group);
 
+    // Instanced botanical dressing: clover cushions, grass tufts, wildflower
+    // clumps & fieldstone pebbles across the meadow margins (5 draw calls,
+    // collision-aware seeded placement)
+    const meadowDressing = buildMeadowDressing(palette, isSoftwareGl);
+    scene.add(meadowDressing.group);
+
     const willowProtoCtx = {
       palette,
       shadowTex,
@@ -497,6 +505,24 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
     festoonGroup.visible = false;
     scene.add(festoonGroup);
 
+    // Reactive micro-props & pooled ambient life (environment hooks + micro-life)
+    function buildAndMountReactiveRigs() {
+      const rigs = buildAllReactiveRigs(palette, isSoftwareGl);
+      scene.add(
+        rigs.pastryBasket.group,
+        rigs.greenhouseStage.group,
+        rigs.porchLamp.group,
+        rigs.puddles.mesh,
+        rigs.butterflies.wingsL,
+        rigs.butterflies.wingsR,
+        rigs.butterflies.bodies,
+        rigs.fireflies.mesh,
+        rigs.pondSparkles.mesh,
+        rigs.chimneyWisps.mesh,
+      );
+      return rigs;
+    }
+
     const envController = new EnvironmentVisualController({
       scene,
       groundMat,
@@ -517,6 +543,7 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
       mbFlag,
       bellSwingVelRef,
       isSoftwareGl,
+      reactiveRigs: buildAndMountReactiveRigs(),
     });
 
     // Tap-to-walk destination indicator ring
@@ -1497,6 +1524,7 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
       renderer.domElement.removeEventListener('pointerdown', handlePointerDown);
       renderer.domElement.removeEventListener('wheel', handleWheel);
       envController.dispose();
+      meadowDressing.dispose();
       groundMat.dispose();
       cobbleMat.dispose();
       lanternMat.dispose();

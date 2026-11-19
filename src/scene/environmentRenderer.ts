@@ -4,6 +4,7 @@ import { SeasonType, Vec2, WorldState } from '../game/types';
 import { GazeboRig, FountainRig, MirrorPondRig } from './models';
 import { NoticeboardRig } from './builders/landmarks';
 import { GroveTreesRig } from './builders/vegetation';
+import { ReactiveVisualRigs } from './builders/reactiveProps';
 import { getWaterShaderUniforms } from './waterShaders';
 
 // Pre-allocated scratch helpers (zero per-frame heap allocations)
@@ -50,12 +51,15 @@ export interface EnvironmentRendererDeps {
   mbFlag: THREE.Mesh;
   bellSwingVelRef: { current: number };
   isSoftwareGl: boolean;
+  /** Optional reactive micro-props & pooled ambient life (see builders/reactiveProps.ts). */
+  reactiveRigs?: ReactiveVisualRigs;
 }
 
 export class EnvironmentVisualController {
   private lastStaticRevision = -1;
   private lastMailboxUnread: boolean | null = null;
   private lastSeason: SeasonType | null = null;
+  private lastGreenhouseStage = -1;
   private fountainSplashAge = 99;
   private readonly fountainSplashPos = new THREE.Vector3(0, 0, 1.1);
   private pondSplashAge = 99;
@@ -67,6 +71,8 @@ export class EnvironmentVisualController {
   private readonly petalMesh: THREE.InstancedMesh;
   private readonly rainSeeds: Float32Array;
   private readonly petalSeeds: Float32Array;
+  /** Reusable chimney activity mask (zero per-frame allocation). */
+  private readonly wispMask: boolean[] = [false, false, false];
 
   constructor(private readonly deps: EnvironmentRendererDeps) {
     // Software-WebGL capped particle budgets
@@ -217,6 +223,30 @@ export class EnvironmentVisualController {
       for (let i = 0; i < prototypeLanternMats.length; i++) {
         prototypeLanternMats[i].emissiveIntensity = protoGlow;
       }
+
+      // Reactive NPC micro-props (revision-gated, see composeEnvironmentState npcTouches)
+      const rigs = this.deps.reactiveRigs;
+      if (rigs) {
+        rigs.pastryBasket.group.visible = composed.npcTouches.claraPastryBasketVisible;
+
+        const stage = composed.npcTouches.minaGreenhouseStage;
+        if (stage !== this.lastGreenhouseStage) {
+          this.lastGreenhouseStage = stage;
+          rigs.greenhouseStage.group.visible = stage >= 2;
+          rigs.greenhouseStage.stageBuds.visible = stage === 2;
+          rigs.greenhouseStage.stageBloom.visible = stage >= 3;
+        }
+
+        const lampActive = composed.npcTouches.arthurEarlyPorchLamp;
+        rigs.porchLamp.glassMat.emissiveIntensity = lampActive ? 1.55 : 0.15;
+        rigs.porchLamp.haloMesh.visible = lampActive;
+      }
+    }
+
+    // 2.5. Minute-sensitive weather dressing (puddles dry out mid-morning without a revision bump)
+    const rigsNow = this.deps.reactiveRigs;
+    if (rigsNow) {
+      rigsNow.puddles.mesh.visible = composed.weather.puddlesActive;
     }
 
     // 3. Continuous Time-of-Day + Weather Atmosphere Curves (zero GC)
@@ -464,6 +494,48 @@ export class EnvironmentVisualController {
     } else {
       this.petalMesh.visible = false;
     }
+
+    // 5. Pooled Ambient Micro-Life (butterflies, dusk fireflies, pond shimmer, hearth wisps)
+    const rigs = this.deps.reactiveRigs;
+    if (rigs) {
+      // Butterflies: warm & bright daytime weather only
+      const showButterflies =
+        (effWeather === 'sunlit' || effWeather === 'breezy') &&
+        composed.timeOfDay.phase !== 'dusk' &&
+        composed.season.season !== 'winter';
+      if (showButterflies) {
+        rigs.butterflies.update(elapsed);
+        rigs.butterflies.wingsL.visible = true;
+        rigs.butterflies.wingsR.visible = true;
+        rigs.butterflies.bodies.visible = true;
+      } else {
+        rigs.butterflies.wingsL.visible = false;
+        rigs.butterflies.wingsR.visible = false;
+        rigs.butterflies.bodies.visible = false;
+      }
+
+      // Fireflies: gentle dusk only
+      const showFireflies =
+        composed.timeOfDay.phase === 'dusk' || composed.timeOfDay.tNorm > 0.84;
+      if (showFireflies) {
+        rigs.fireflies.update(elapsed);
+        rigs.fireflies.mesh.visible = true;
+      } else {
+        rigs.fireflies.mesh.visible = false;
+      }
+
+      // Pond shimmer: always alive
+      rigs.pondSparkles.update(elapsed);
+      rigs.pondSparkles.mesh.visible = true;
+
+      // Chimney wisps: per-resident daily work schedule mask
+      const wispPhase = composed.timeOfDay.phase;
+      for (let c = 0; c < rigs.chimneyWisps.chimneys.length; c++) {
+        this.wispMask[c] = rigs.chimneyWisps.chimneys[c].phases.includes(wispPhase);
+      }
+      rigs.chimneyWisps.update(elapsed, this.wispMask);
+      rigs.chimneyWisps.mesh.visible = true;
+    }
   }
 
   triggerFountainWishRipple(worldX = 0, worldZ = 2.6): void {
@@ -483,5 +555,6 @@ export class EnvironmentVisualController {
     (this.rainMesh.material as THREE.Material).dispose();
     this.petalMesh.geometry.dispose();
     (this.petalMesh.material as THREE.Material).dispose();
+    this.deps.reactiveRigs?.disposeAll();
   }
 }

@@ -97,6 +97,12 @@ export function buildGroveTreesInstanced(
     new THREE.Color('#6C9658'),
     new THREE.Color('#91B771'),
   ];
+  const trunkPalette = [
+    new THREE.Color('#6B4B36'),
+    new THREE.Color('#5E4230'),
+    new THREE.Color('#77553C'),
+    new THREE.Color('#63452F'),
+  ];
 
   for (let ring = 0; ring < treeCount; ring++) {
     const angle = (ring / treeCount) * Math.PI * 2;
@@ -114,6 +120,7 @@ export function buildGroveTreesInstanced(
     crownsBaseInst.setMatrixAt(ring, dummy.matrix);
     crownsTopInst.setMatrixAt(ring, dummy.matrix);
 
+    trunksInst.setColorAt(ring, trunkPalette[ring % trunkPalette.length]);
     crownsBaseInst.setColorAt(ring, basePalette[ring % basePalette.length]);
     crownsTopInst.setColorAt(ring, topPalette[(ring + 1) % topPalette.length]);
   }
