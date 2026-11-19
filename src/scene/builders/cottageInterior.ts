@@ -1,9 +1,36 @@
 import * as THREE from 'three';
 import { COTTAGE_INTERACTABLES, COTTAGE_SEAT_SPOTS } from '../../game/cottage';
+
 import { getSeasonForDay } from '../../game/time';
 import { CottageHomeState, TimePhase, WorldState } from '../../game/types';
 import { MaterialPalette, STORYBOOK_PALETTE } from '../materials';
 import { addContactShadow } from './vegetation';
+
+/**
+ * Round-4 Pass 13 helpers: allocation-free memory lookups for the rig's per-frame
+ * update (no closure allocation — the interior update loop is a zero-GC contract).
+ */
+function hasMemoryId(
+  memories: ReadonlyArray<{ id: string }> | undefined,
+  id: string,
+): boolean {
+  if (!memories) return false;
+  for (let i = 0; i < memories.length; i++) {
+    if (memories[i].id === id) return true;
+  }
+  return false;
+}
+
+function hasMemoryIdPrefix(
+  memories: ReadonlyArray<{ id: string }> | undefined,
+  prefix: string,
+): boolean {
+  if (!memories) return false;
+  for (let i = 0; i < memories.length; i++) {
+    if (memories[i].id.startsWith(prefix)) return true;
+  }
+  return false;
+}
 
 type VaseFlowerKey = NonNullable<CottageHomeState['placedFlowerId']>;
 type KeepsakeKey =
@@ -33,6 +60,18 @@ export interface WillowCottageInteriorRig {
   windowShaftMat: THREE.MeshBasicMaterial;
   moteMaterial: THREE.PointsMaterial;
   curtainPanels: { north: THREE.Mesh; south: THREE.Mesh };
+  /**
+   * Round-4 Pass 13: progress-derived mementos — the home remembers the life lived
+   * around it. Every group is gated on existing persisted WorldState (read-only);
+   * no new save fields, no new interactions.
+   */
+  homeMementos: {
+    greenhouseCutting: THREE.Group;
+    orchardHoney: THREE.Group;
+    bakeryCard: THREE.Group;
+    nookBook: THREE.Group;
+    teaCaddy: THREE.Group;
+  };
   update(world: WorldState, phase: TimePhase, elapsed: number): void;
   dispose(): void;
 }
@@ -149,6 +188,17 @@ export function buildWillowCottageInterior(
   const honeyAmberMat = palette.standard('#D9A441', 0.5, 0.02);
   const strawHatMat = palette.standard('#C9A85C', 0.85, 0.0);
   const teaBrewMat = palette.standard('#B97F4A', 0.6, 0.0);
+  // Round-4 Pass 13: soft glass for the greenhouse cutting jar memento
+  const jarGlassMat = trackMat(
+    new THREE.MeshStandardMaterial({
+      color: '#DDEFEF',
+      transparent: true,
+      opacity: 0.42,
+      roughness: 0.18,
+      metalness: 0.04,
+    }),
+  );
+  const paperCardMat = palette.standard('#F7F1E3', 0.9, 0.0);
 
   // 1. Foundation Plinth, Plank Floor & Braided Hearth Rug
   const plinth = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(7.35, 0.24, 5.75)), darkStoneMat);
@@ -335,6 +385,24 @@ export function buildWillowCottageInterior(
     mantelSprig,
   );
 
+  // M2 (Round-4 Pass 13). Clara's recipe card leaning against the flue — appears once
+  // the player has kneaded dough beside her (bakeryState.kneadingSessions > 0).
+  // (hearthGroup local: mantel top y 1.58, flue front face z 0.17)
+  const bakeryCard = new THREE.Group();
+  bakeryCard.position.set(0.2, 1.64, 0.19);
+  bakeryCard.rotation.x = -0.22;
+  bakeryCard.rotation.y = -0.08;
+  bakeryCard.visible = false;
+  const cardSheet = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(0.15, 0.11, 0.012)), paperCardMat);
+  const cardLineA = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(0.1, 0.01, 0.004)), cedarDarkMat);
+  cardLineA.position.set(-0.01, 0.03, 0.008);
+  const cardLineB = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(0.08, 0.01, 0.004)), cedarDarkMat);
+  cardLineB.position.set(-0.02, 0.0, 0.008);
+  const cardLineC = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(0.06, 0.01, 0.004)), cedarDarkMat);
+  cardLineC.position.set(0.0, -0.03, 0.008);
+  bakeryCard.add(cardSheet, cardLineA, cardLineB, cardLineC);
+  hearthGroup.add(bakeryCard);
+
   // H8 (Pass 6). Kitchen counter sign-of-use: crock + spoons, bread board + slice, folded cloth
   // (hearthGroup local: counter top surface y 0.96, spans x 0.69..1.47, z -0.42..0.46)
   const crockBody = new THREE.Mesh(trackGeo(new THREE.CylinderGeometry(0.078, 0.092, 0.17, 12)), ceramicMat);
@@ -503,6 +571,20 @@ export function buildWillowCottageInterior(
   honeyDipper.rotation.z = 0.5;
   tableGroup.add(honeyPot, honeyLid, honeyDipper);
 
+  // M5 (Round-4 Pass 13). Everyday tea tin beside the honey pot — appears once the
+  // tea-table ritual has been recorded at least once (mem_teatable_* in memories).
+  const teaCaddy = new THREE.Group();
+  teaCaddy.position.set(-0.34, 0.8, -0.18);
+  teaCaddy.visible = false;
+  const caddyBody = new THREE.Mesh(trackGeo(new THREE.CylinderGeometry(0.05, 0.052, 0.09, 12)), ceramicMat);
+  caddyBody.position.y = 0.045;
+  const caddyLid = new THREE.Mesh(trackGeo(new THREE.CylinderGeometry(0.054, 0.054, 0.018, 12)), cedarWarmMat);
+  caddyLid.position.y = 0.099;
+  const caddyKnob = new THREE.Mesh(trackGeo(new THREE.SphereGeometry(0.014, 8, 8)), brassMat);
+  caddyKnob.position.y = 0.118;
+  teaCaddy.add(caddyBody, caddyLid, caddyKnob);
+  tableGroup.add(teaCaddy);
+
   // H10 (Pass 5). Reactive tea moment: stoneware teacup + steam wisp visible while the
   // player is seated at a cottage seat (visual-only, derived from posture — no save state)
   const teacupGroup = new THREE.Group();
@@ -663,6 +745,26 @@ export function buildWillowCottageInterior(
     planterGroup.add(mound, bloom, bloomCore);
   }
   group.add(planterGroup);
+
+  // M4 (Round-4 Pass 13). A greenhouse cutting in a glass jar on the sill end —
+  // appears once a shared plot has been harvested (greenhouseState.totalHarvests > 0).
+  const greenhouseCutting = new THREE.Group();
+  greenhouseCutting.position.set(-3.45, 0.98, 0.72);
+  greenhouseCutting.visible = false;
+  const jarBody = new THREE.Mesh(trackGeo(new THREE.CylinderGeometry(0.05, 0.055, 0.13, 10)), jarGlassMat);
+  jarBody.position.y = 0.065;
+  const jarWater = new THREE.Mesh(trackGeo(new THREE.CylinderGeometry(0.042, 0.046, 0.07, 10)), palette.standard('#B9DAD6', 0.5, 0.0));
+  jarWater.position.y = 0.042;
+  const cuttingStem = new THREE.Mesh(trackGeo(new THREE.CylinderGeometry(0.008, 0.011, 0.16, 6)), foliageMat);
+  cuttingStem.position.set(0.008, 0.16, 0);
+  cuttingStem.rotation.z = -0.12;
+  const cuttingLeaf = new THREE.Mesh(trackGeo(new THREE.DodecahedronGeometry(0.045, 0)), foliageMat);
+  cuttingLeaf.scale.set(1, 0.85, 1);
+  cuttingLeaf.position.set(0.028, 0.26, 0);
+  const cuttingBloom = new THREE.Mesh(trackGeo(new THREE.SphereGeometry(0.028, 7, 6)), petalCreamMat);
+  cuttingBloom.position.set(0.03, 0.31, 0);
+  greenhouseCutting.add(jarBody, jarWater, cuttingStem, cuttingLeaf, cuttingBloom);
+  group.add(greenhouseCutting);
 
   // G. Front Porch Doorway (interior_door: focus=(3.45, 0.0))
   const doorGroup = new THREE.Group();
@@ -871,6 +973,20 @@ export function buildWillowCottageInterior(
   sillPot.add(sillPotBody, sillPotPlant);
   shelfGroup.add(bookStack, teacup, sillPot);
 
+  // M1 (Round-4 Pass 13). Orchard honey crock on the sideboard — appears once the
+  // Fern Hollow orchard harvest has been lived (mem_orchard_harvest in memories).
+  const orchardHoney = new THREE.Group();
+  orchardHoney.position.set(0.14, 0.855, 0.1);
+  orchardHoney.visible = false;
+  const crockJar = new THREE.Mesh(trackGeo(new THREE.CylinderGeometry(0.072, 0.08, 0.11, 12)), honeyAmberMat);
+  crockJar.position.y = 0.055;
+  const crockLid = new THREE.Mesh(trackGeo(new THREE.CylinderGeometry(0.076, 0.076, 0.022, 12)), cedarDarkMat);
+  crockLid.position.y = 0.121;
+  const crockSwatch = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(0.05, 0.06, 0.01)), paperCardMat);
+  crockSwatch.position.set(0.0, 0.055, 0.081);
+  orchardHoney.add(crockJar, crockLid, crockSwatch);
+  shelfGroup.add(orchardHoney);
+
   // H8. Rolled blanket at the bed foot (inside cottage_bed footprint)
   const bedBlanket = new THREE.Group();
   bedBlanket.position.set(0.42, 0.6, 0.5);
@@ -881,6 +997,20 @@ export function buildWillowCottageInterior(
   blanketBelt.position.x = 0.1;
   bedBlanket.add(blanketRoll, blanketBelt);
   bedGroup.add(bedBlanket);
+
+  // M3 (Round-4 Pass 13). Nora's borrowed book resting on the quilt — appears once a
+  // featured nook book has been settled into (nookState.booksRead > 0).
+  const nookBook = new THREE.Group();
+  nookBook.position.set(0.02, 0.605, -0.28);
+  nookBook.rotation.y = 0.35;
+  nookBook.visible = false;
+  const bookCover = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(0.2, 0.026, 0.14)), sageMat);
+  const bookPages = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(0.17, 0.02, 0.115)), linenMat);
+  bookPages.position.y = 0.004;
+  const bookmarkRibbon = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(0.016, 0.008, 0.11)), terracottaMat);
+  bookmarkRibbon.position.set(0.05, 0.018, -0.005);
+  nookBook.add(bookCover, bookPages, bookmarkRibbon);
+  bedGroup.add(nookBook);
 
   // H9. Umbrella by the door jamb + scarf peg on the north wall east end
   const umbrella = new THREE.Group();
@@ -1147,6 +1277,14 @@ export function buildWillowCottageInterior(
       shelfKeepsakes[key].visible = shown.includes(key);
     }
 
+    // Round-4 Pass 13: the home remembers — mementos derived from lived progress
+    // (read-only world reads; allocation-free lookups; no save-schema impact).
+    homeMementos.greenhouseCutting.visible = (world.greenhouseState?.totalHarvests ?? 0) > 0;
+    homeMementos.bakeryCard.visible = (world.bakeryState?.kneadingSessions ?? 0) > 0;
+    homeMementos.nookBook.visible = (world.nookState?.booksRead ?? 0) > 0;
+    homeMementos.orchardHoney.visible = hasMemoryId(world.memories, 'mem_orchard_harvest');
+    homeMementos.teaCaddy.visible = hasMemoryIdPrefix(world.memories, 'mem_teatable_');
+
     // Warm kettle steam puffs
     const kettleWarm =
       (cs?.kettleWarmUntilMinute ?? 0) > 0 && world.minuteOfDay <= cs.kettleWarmUntilMinute;
@@ -1216,6 +1354,14 @@ export function buildWillowCottageInterior(
     }
   }
 
+  const homeMementos = {
+    greenhouseCutting,
+    orchardHoney,
+    bakeryCard,
+    nookBook,
+    teaCaddy,
+  };
+
   return {
     group,
     hitProxies,
@@ -1231,6 +1377,7 @@ export function buildWillowCottageInterior(
     windowShaftMat: shaftMat,
     moteMaterial: moteMat,
     curtainPanels: { north: curtainNorth, south: curtainSouth },
+    homeMementos,
     update,
     dispose,
   };

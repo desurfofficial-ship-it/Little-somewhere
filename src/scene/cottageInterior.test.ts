@@ -349,3 +349,73 @@ test('Pass 8: breezy days sway the curtains; winter feathers the sill with frost
   rig.dispose();
   palette.disposeAll();
 });
+
+test('Pass 13: the home remembers — mementos stay hidden in a fresh world', () => {
+  const palette = new MaterialPalette();
+  const rig = buildWillowCottageInterior(palette, new THREE.Texture());
+  const base = createFreshWorldState();
+
+  rig.update(base, 'morning', 1.0);
+  assert.equal(rig.homeMementos.greenhouseCutting.visible, false, 'No greenhouse cutting before a harvest');
+  assert.equal(rig.homeMementos.orchardHoney.visible, false, 'No orchard honey before the harvest memory');
+  assert.equal(rig.homeMementos.bakeryCard.visible, false, 'No bakery card before kneading with Clara');
+  assert.equal(rig.homeMementos.nookBook.visible, false, 'No borrowed book before reading at the nook');
+  assert.equal(rig.homeMementos.teaCaddy.visible, false, 'No tea tin before a tea-table moment');
+
+  rig.dispose();
+  palette.disposeAll();
+});
+
+test('Pass 13: the home remembers — lived progress reveals each memento at its home surface', () => {
+  const palette = new MaterialPalette();
+  const rig = buildWillowCottageInterior(palette, new THREE.Texture());
+  const base = createFreshWorldState();
+
+  const lived = {
+    ...base,
+    greenhouseState: { ...base.greenhouseState, totalHarvests: 2 },
+    bakeryState: { ...base.bakeryState, kneadingSessions: 2 },
+    nookState: { ...base.nookState, booksRead: 2 },
+    memories: [
+      { id: 'mem_orchard_harvest', day: 4, phase: 'afternoon' as const, title: 't', summary: 's' },
+      { id: 'mem_teatable_chamomile_pear_tea', day: 9, phase: 'morning' as const, title: 't2', summary: 's2' },
+    ],
+  };
+
+  rig.update(lived, 'morning', 1.0);
+  const m = rig.homeMementos;
+  assert.equal(m.greenhouseCutting.visible, true, 'A cutting from the greenhouse reaches the sill');
+  assert.equal(m.orchardHoney.visible, true, 'Orchard honey crock appears on the sideboard');
+  assert.equal(m.bakeryCard.visible, true, "Clara's recipe card leans on the mantel");
+  assert.equal(m.nookBook.visible, true, "Nora's borrowed book rests on the quilt");
+  assert.equal(m.teaCaddy.visible, true, 'Everyday tea tin joins the oak table');
+
+  // Each memento lives inside its host furniture footprint (world coordinates),
+  // so nothing new protrudes into the walk band.
+  const inBox = (obj: THREE.Object3D, x0: number, x1: number, z0: number, z1: number, label: string) => {
+    const p = new THREE.Vector3();
+    obj.getWorldPosition(p);
+    assert.ok(
+      p.x >= x0 && p.x <= x1 && p.z >= z0 && p.z <= z1,
+      `${label} out of footprint: (${p.x.toFixed(2)}, ${p.z.toFixed(2)})`,
+    );
+  };
+  inBox(m.greenhouseCutting, -3.6, -3.3, 0.55, 0.9, 'Greenhouse cutting (west sill end)');
+  inBox(m.orchardHoney, 0.25, 2.35, -2.68, -1.88, 'Orchard honey (sideboard)');
+  inBox(m.bakeryCard, -3.45, -0.95, -2.68, -1.68, 'Bakery card (hearth mantel)');
+  inBox(m.nookBook, -3.42, -1.55, 0.85, 2.55, "Nook book (bed quilt)");
+  inBox(m.teaCaddy, -0.45, 0.95, 0.35, 1.65, 'Tea caddy (oak table)');
+
+  // The diorama envelope still holds with all mementos visible
+  const box = new THREE.Box3().setFromObject(rig.group);
+  assert.ok(box.min.y >= -0.35 && box.max.y <= 3.6, `Bounds y: ${box.min.y.toFixed(2)}..${box.max.y.toFixed(2)}`);
+
+  // Signals are derived, not sticky: back to a fresh world everything hides again
+  rig.update(base, 'morning', 2.0);
+  for (const key of Object.keys(m) as Array<keyof typeof m>) {
+    assert.equal(m[key].visible, false, `${key} hides again when the world has not lived it`);
+  }
+
+  rig.dispose();
+  palette.disposeAll();
+});
