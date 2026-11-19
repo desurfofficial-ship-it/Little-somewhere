@@ -1,0 +1,115 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {
+  HEARTH_RECIPES,
+  MAX_ITEM_STACK,
+  NEIGHBOR_KEEPSAKE_REWARDS,
+  PERSONAL_ITEMS,
+  PERSONAL_ITEM_MAP,
+  RESIDENT_GIFT_PREFS,
+  addItemToInventory,
+  canCraftRecipe,
+  consumeItemFromInventory,
+  createStarterInventory,
+  getGiftReactionTier,
+  getItemCount,
+  getOwnedGiftableItems,
+  getOwnedKeepsakeItems,
+  getOwnedVaseFlowerItems,
+  getTotalItemCount,
+} from './inventory';
+import { RESIDENT_ORDER } from './residents';
+import { PersonalItemId } from './types';
+
+test('personal item catalog, starter inventory, and stack clamping enforce invariants', () => {
+  assert.equal(PERSONAL_ITEMS.length, 18);
+  const uniqueIds = new Set(PERSONAL_ITEMS.map((item) => item.id));
+  assert.equal(uniqueIds.size, PERSONAL_ITEMS.length);
+
+  const starter = createStarterInventory();
+  assert.equal(getItemCount(starter, 'chamomile_blossom'), 1);
+  assert.equal(getItemCount(starter, 'lemon_thyme'), 1);
+  assert.equal(getTotalItemCount(starter), 2);
+
+  // Adding clamps safely at MAX_ITEM_STACK and records discoveredItemIds without duplicates
+  const addedOnce = addItemToInventory(starter, ['chamomile_blossom'], 'crabapple', 25);
+  assert.equal(getItemCount(addedOnce.inventory, 'crabapple'), MAX_ITEM_STACK);
+  assert.equal(addedOnce.added, MAX_ITEM_STACK);
+  assert.ok(addedOnce.discoveredItemIds.includes('crabapple'));
+
+  const addedMore = addItemToInventory(addedOnce.inventory, addedOnce.discoveredItemIds, 'crabapple', 5);
+  assert.equal(addedMore.added, 0);
+  assert.equal(getItemCount(addedMore.inventory, 'crabapple'), MAX_ITEM_STACK);
+  assert.equal(
+    addedMore.discoveredItemIds.filter((id) => id === 'crabapple').length,
+    1,
+  );
+
+  // Consuming cleans up zero-count keys and fails cleanly if insufficient
+  const failConsume = consumeItemFromInventory(starter, 'wild_honey', 1);
+  assert.equal(failConsume.ok, false);
+  const okConsume = consumeItemFromInventory(starter, 'chamomile_blossom', 1);
+  assert.equal(okConsume.ok, true);
+  assert.equal(okConsume.inventory.chamomile_blossom, undefined);
+  assert.equal(getItemCount(okConsume.inventory, 'chamomile_blossom'), 0);
+});
+
+test('hearth recipes, gift preferences, keepsake rewards, and category filters validate cleanly', () => {
+  assert.equal(HEARTH_RECIPES.length, 4);
+  for (const recipe of HEARTH_RECIPES) {
+    assert.ok(PERSONAL_ITEM_MAP[recipe.outputItemId], `Missing output ${recipe.outputItemId}`);
+    for (const ing of recipe.ingredients) {
+      assert.ok(PERSONAL_ITEM_MAP[ing.itemId], `Missing ingredient ${ing.itemId}`);
+    }
+  }
+
+  const starter = createStarterInventory();
+  const teaRecipe = HEARTH_RECIPES.find((r) => r.id === 'recipe_chamomile_tea')!;
+  const loafRecipe = HEARTH_RECIPES.find((r) => r.id === 'recipe_herb_loaf')!;
+  assert.equal(canCraftRecipe(starter, teaRecipe), true);
+  assert.equal(canCraftRecipe(starter, loafRecipe), false);
+
+  // Every resident has loved & liked preferences referencing valid personal items
+  for (const rid of RESIDENT_ORDER) {
+    const prefs = RESIDENT_GIFT_PREFS[rid];
+    assert.ok(prefs && prefs.loved.length >= 3);
+    assert.ok(prefs.liked.length >= 3);
+    for (const id of [...prefs.loved, ...prefs.liked]) {
+      assert.ok(PERSONAL_ITEM_MAP[id], `Invalid item ${id} for ${rid}`);
+      assert.equal(PERSONAL_ITEM_MAP[id].giftable, true);
+    }
+  }
+
+  // Gift reaction tiers respect loved, liked, baked fallback, and neutral
+  assert.equal(getGiftReactionTier('arthur', 'chamomile_pear_tea'), 'loved');
+  assert.equal(getGiftReactionTier('arthur', 'crabapple_tart'), 'liked');
+  assert.equal(getGiftReactionTier('toby', 'herb_loaf'), 'liked'); // baked_treat fallback
+  assert.equal(getGiftReactionTier('pip', 'lemon_thyme'), 'neutral');
+
+  // Keepsake rewards map to displayable keepsake items
+  assert.equal(NEIGHBOR_KEEPSAKE_REWARDS.length, 5);
+  for (const reward of NEIGHBOR_KEEPSAKE_REWARDS) {
+    const def = PERSONAL_ITEM_MAP[reward.itemId];
+    assert.equal(def.category, 'keepsake');
+    assert.equal(def.homeDisplayable, 'shelf');
+    assert.equal(def.giftable, false);
+  }
+
+  // Filter helpers distinguish giftables, vase blooms, and keepsakes
+  const mixedInv: Partial<Record<PersonalItemId, number>> = {
+    chamomile_blossom: 1,
+    lemon_thyme: 1,
+    willow_zine_copy: 1,
+    crabapple_tart: 2,
+  };
+  const giftables = getOwnedGiftableItems(mixedInv).map((x) => x.def.id);
+  assert.ok(giftables.includes('chamomile_blossom'));
+  assert.ok(giftables.includes('crabapple_tart'));
+  assert.ok(!giftables.includes('willow_zine_copy'));
+
+  const vaseFlowers = getOwnedVaseFlowerItems(mixedInv).map((x) => x.def.id);
+  assert.deepEqual(vaseFlowers, ['chamomile_blossom']);
+
+  const keepsakes = getOwnedKeepsakeItems(mixedInv).map((d) => d.id);
+  assert.deepEqual(keepsakes, ['willow_zine_copy']);
+});

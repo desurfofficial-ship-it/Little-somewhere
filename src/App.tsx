@@ -4,6 +4,7 @@ import {
   Clock,
   MessageCircle,
   Pause,
+  ShoppingBag,
   Sparkles,
   Volume2,
   VolumeX,
@@ -12,10 +13,13 @@ import {
 } from 'lucide-react';
 import {
   CarryableItemId,
+  CottageInteractableId,
   DialogueChoice,
   DialogueSession,
   GameScreenState,
   InteractiveTarget,
+  PersonalItemId,
+  PlayerLocation,
   PlayerPosture,
   PropInteractableId,
   ResidentId,
@@ -43,6 +47,11 @@ import {
 import {
   PropInteractionResult,
   applyDialogueChoice,
+  cookRecipeAction,
+  enterCottageAction,
+  exitCottageAction,
+  giveInventoryItemAction,
+  interactWithCottageProp,
   interactWithProp,
   markResidentMet,
   performFountainWishAction,
@@ -50,7 +59,9 @@ import {
   performPondStoneSkipAction,
   performRingBellAction,
   pickupWorldPropAction,
+  placeFlowerInVaseAction,
   placeWorldPropAction,
+  toggleDisplayedKeepsakeAction,
   togglePlayerSitAction,
 } from './game/actions';
 import { interruptSocialEncounter } from './game/simulation';
@@ -67,6 +78,8 @@ import { TitleOverlay } from './components/TitleOverlay';
 import { VirtualJoystick } from './components/VirtualJoystick';
 import { DialogueSheet } from './components/DialogueSheet';
 import { JournalDrawer } from './components/JournalDrawer';
+import { CottageStationMode, InventoryDrawer } from './components/InventoryDrawer';
+import { CottageStationModal } from './components/CottageStationModal';
 import { PauseModal } from './components/PauseModal';
 
 const getSaveStamp = computeWorldSaveRevision;
@@ -91,6 +104,9 @@ export default function App() {
   const [hudWeather, setHudWeather] = useState<WeatherType>(initialComposed.weather.effective);
   const [hudSeason, setHudSeason] = useState<SeasonType>(initialComposed.season.season);
   const [playerPos, setPlayerPos] = useState<Vec2>(initialLoaded.playerPos);
+  const [playerLocation, setPlayerLocation] = useState<PlayerLocation>(
+    initialLoaded.playerLocation ?? 'exterior',
+  );
   const [playerHeldItem, setPlayerHeldItem] = useState<CarryableItemId | null>(
     initialLoaded.playerHeldItem ?? null,
   );
@@ -100,6 +116,8 @@ export default function App() {
   const [propCard, setPropCard] = useState<PropInteractionResult | null>(null);
   const [activePropId, setActivePropId] = useState<PropInteractableId | null>(null);
   const [journalOpen, setJournalOpen] = useState<boolean>(false);
+  const [inventoryOpen, setInventoryOpen] = useState<boolean>(false);
+  const [cottageStationMode, setCottageStationMode] = useState<CottageStationMode | null>(null);
   const [muted, setMuted] = useState<boolean>(false);
   const [bellRingCounter, setBellRingCounter] = useState<number>(0);
   const [fountainWishCounter, setFountainWishCounter] = useState<number>(0);
@@ -171,6 +189,7 @@ export default function App() {
     setHudWeather(composed.weather.effective);
     setHudSeason(composed.season.season);
     setPlayerPos(next.playerPos);
+    setPlayerLocation(next.playerLocation ?? 'exterior');
     setPlayerHeldItem(next.playerHeldItem ?? null);
     lastSavedStampRef.current = getSaveStamp(next);
     saveWorldState(next);
@@ -196,6 +215,7 @@ export default function App() {
     setHudWeather(composed.weather.effective);
     setHudSeason(composed.season.season);
     setPlayerPos(fresh.playerPos);
+    setPlayerLocation(fresh.playerLocation ?? 'exterior');
     setPlayerHeldItem(fresh.playerHeldItem ?? null);
     setNearbyBubble(null);
     lastSavedStampRef.current = getSaveStamp(fresh);
@@ -203,6 +223,8 @@ export default function App() {
     setActivePropId(null);
     setPropCard(null);
     setJournalOpen(false);
+    setInventoryOpen(false);
+    setCottageStationMode(null);
     setIntroTipDismissed(false);
     if (document.activeElement instanceof HTMLElement) {
       document.activeElement.blur();
@@ -249,8 +271,55 @@ export default function App() {
         if (res.toast) {
           showToast(res.toast);
         }
+      } else if (target.kind === 'cottage_prop') {
+        const cid = target.cottagePropId ?? (target.id as CottageInteractableId);
+        const res = interactWithCottageProp(current, cid);
+        if (res.actionType === 'exit_cottage') {
+          commitWorld(res.nextWorld);
+          cozyAudio.playUiTap(0.98);
+          showToast('Stepped out onto Willow Step Porch.');
+          return;
+        }
+        if (res.actionType === 'hearth_panel') {
+          cozyAudio.playUiTap(1.06);
+          setDialogueSession(null);
+          setPropCard(null);
+          setCottageStationMode('hearth');
+          return;
+        }
+        if (res.actionType === 'vase_panel') {
+          cozyAudio.playUiTap(1.06);
+          setDialogueSession(null);
+          setPropCard(null);
+          setCottageStationMode('vase');
+          return;
+        }
+        if (res.actionType === 'shelf_panel') {
+          cozyAudio.playUiTap(1.06);
+          setDialogueSession(null);
+          setPropCard(null);
+          setCottageStationMode('shelf');
+          return;
+        }
+        if (res.nextWorld !== current) {
+          commitWorld(res.nextWorld);
+        }
+        triggerPlayerPulse('interact', target.worldPos);
+        cozyAudio.playUiTap(1.04);
+        setDialogueSession(null);
+        setActivePropId(null);
+        setPropCard(res);
       } else {
         const pid = target.id as PropInteractableId;
+        if (pid === 'player_door') {
+          const entered = enterCottageAction(current);
+          commitWorld(entered.nextWorld);
+          cozyAudio.playUiTap(1.06);
+          if (entered.toast) {
+            showToast(entered.toast);
+          }
+          return;
+        }
         const res = interactWithProp(current, pid);
         if (res.nextWorld !== current) {
           commitWorld(res.nextWorld);
@@ -260,6 +329,8 @@ export default function App() {
         if (res.memoryUnlockedTitle) {
           cozyAudio.playMemoryChime();
           showToast(`Memory saved: ${res.memoryUnlockedTitle}`);
+        } else if (res.nextWorld !== current) {
+          cozyAudio.playUiTap(1.1);
         }
         setDialogueSession(null);
         setActivePropId(pid);
@@ -305,8 +376,85 @@ export default function App() {
     [commitWorld, dialogueSession, showToast, triggerPlayerPulse],
   );
 
+  const handleGiveGift = useCallback(
+    (itemId: PersonalItemId) => {
+      if (!dialogueSession) return;
+      const res = giveInventoryItemAction(
+        worldRef.current,
+        dialogueSession.residentId,
+        itemId,
+        dialogueSession,
+      );
+      if (res.ok) {
+        commitWorld(res.nextWorld);
+        setDialogueSession(res.nextSession);
+        triggerPlayerPulse('talk');
+        if (res.keepsakeAwardedId) {
+          cozyAudio.playMemoryChime();
+        } else {
+          cozyAudio.playUiTap(1.14);
+        }
+      } else {
+        cozyAudio.playUiTap(0.92);
+      }
+      if (res.toast) {
+        showToast(res.toast);
+      }
+    },
+    [commitWorld, dialogueSession, showToast, triggerPlayerPulse],
+  );
+
+  const handleCookRecipe = useCallback(
+    (recipeId: string) => {
+      const res = cookRecipeAction(worldRef.current, recipeId);
+      if (res.ok) {
+        commitWorld(res.nextWorld);
+        triggerPlayerPulse('interact');
+        if (res.memoryUnlockedTitle) {
+          cozyAudio.playMemoryChime();
+        } else {
+          cozyAudio.playUiTap(1.12);
+        }
+      }
+      if (res.toast) {
+        showToast(res.toast);
+      }
+    },
+    [commitWorld, showToast, triggerPlayerPulse],
+  );
+
+  const handlePlaceFlower = useCallback(
+    (flowerId: PersonalItemId | null) => {
+      const res = placeFlowerInVaseAction(worldRef.current, flowerId);
+      if (res.ok) {
+        commitWorld(res.nextWorld);
+        triggerPlayerPulse('interact');
+        cozyAudio.playUiTap(1.06);
+      }
+      if (res.toast) {
+        showToast(res.toast);
+      }
+    },
+    [commitWorld, showToast, triggerPlayerPulse],
+  );
+
+  const handleToggleKeepsake = useCallback(
+    (keepsakeId: PersonalItemId) => {
+      const res = toggleDisplayedKeepsakeAction(worldRef.current, keepsakeId);
+      if (res.ok) {
+        commitWorld(res.nextWorld);
+        triggerPlayerPulse('interact');
+        cozyAudio.playUiTap(1.06);
+      }
+      if (res.toast) {
+        showToast(res.toast);
+      }
+    },
+    [commitWorld, showToast, triggerPlayerPulse],
+  );
+
   const handlePropAction = useCallback(
-    (actionType: 'rest_next_day' | 'ring_bell' | 'fountain_wish' | 'skip_stone') => {
+    (actionType: NonNullable<PropInteractionResult['actionType']>) => {
       if (actionType === 'rest_next_day') {
         const nextDayWorld = performNextDayRest(worldRef.current);
         commitWorld(nextDayWorld);
@@ -314,6 +462,32 @@ export default function App() {
         setPropCard(null);
         cozyAudio.playMemoryChime();
         showToast(`Good morning! Day ${nextDayWorld.day} begins in Little Somewhere.`);
+      } else if (actionType === 'enter_cottage') {
+        const entered = enterCottageAction(worldRef.current);
+        commitWorld(entered.nextWorld);
+        setActivePropId(null);
+        setPropCard(null);
+        cozyAudio.playUiTap(1.06);
+        showToast(entered.toast);
+      } else if (actionType === 'exit_cottage') {
+        const exited = exitCottageAction(worldRef.current);
+        commitWorld(exited.nextWorld);
+        setActivePropId(null);
+        setPropCard(null);
+        cozyAudio.playUiTap(0.98);
+        showToast(exited.toast);
+      } else if (actionType === 'hearth_panel') {
+        setActivePropId(null);
+        setPropCard(null);
+        setCottageStationMode('hearth');
+      } else if (actionType === 'vase_panel') {
+        setActivePropId(null);
+        setPropCard(null);
+        setCottageStationMode('vase');
+      } else if (actionType === 'shelf_panel') {
+        setActivePropId(null);
+        setPropCard(null);
+        setCottageStationMode('shelf');
       } else if (actionType === 'ring_bell') {
         const res = performRingBellAction(worldRef.current);
         commitWorld(res.nextWorld);
@@ -394,6 +568,14 @@ export default function App() {
           setPropCard(null);
           return;
         }
+        if (cottageStationMode) {
+          setCottageStationMode(null);
+          return;
+        }
+        if (inventoryOpen) {
+          setInventoryOpen(false);
+          return;
+        }
         if (journalOpen) {
           setJournalOpen(false);
           return;
@@ -406,17 +588,43 @@ export default function App() {
 
       if (e.code === 'KeyJ') {
         e.preventDefault();
+        setInventoryOpen(false);
+        setCottageStationMode(null);
         setJournalOpen((o) => !o);
         return;
       }
 
-      if (e.code === 'KeyE' && nearestTarget && !dialogueSession && !propCard && !journalOpen) {
+      if (e.code === 'KeyI') {
+        e.preventDefault();
+        setJournalOpen(false);
+        setCottageStationMode(null);
+        setInventoryOpen((o) => !o);
+        return;
+      }
+
+      if (
+        e.code === 'KeyE' &&
+        nearestTarget &&
+        !dialogueSession &&
+        !propCard &&
+        !journalOpen &&
+        !inventoryOpen &&
+        !cottageStationMode
+      ) {
         e.preventDefault();
         openTargetInteraction(nearestTarget);
         return;
       }
 
-      if (e.code === 'KeyG' && worldRef.current.playerHeldItem && !dialogueSession && !propCard && !journalOpen) {
+      if (
+        e.code === 'KeyG' &&
+        worldRef.current.playerHeldItem &&
+        !dialogueSession &&
+        !propCard &&
+        !journalOpen &&
+        !inventoryOpen &&
+        !cottageStationMode
+      ) {
         e.preventDefault();
         handlePlaceHeldItem();
       }
@@ -425,10 +633,12 @@ export default function App() {
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [
+    cottageStationMode,
     dialogueSession,
     handlePlaceHeldItem,
     handleStartGame,
     handleToggleMute,
+    inventoryOpen,
     journalOpen,
     nearestTarget,
     openTargetInteraction,
@@ -481,6 +691,7 @@ export default function App() {
       playerFacing: number;
       playerPosture: PlayerPosture;
       playerHeldItem: CarryableItemId | null;
+      playerLocation: PlayerLocation;
       nearestTarget: InteractiveTarget | null;
       nearbyBubble: HudBubbleSnapshot | null;
       weather: WeatherType;
@@ -488,6 +699,7 @@ export default function App() {
     }) => {
       setHudClock(snap.minuteOfDay);
       setPlayerPos(snap.playerPos);
+      setPlayerLocation(snap.playerLocation);
       setPlayerHeldItem(snap.playerHeldItem);
       setNearestTarget(snap.nearestTarget);
       setNearbyBubble(snap.nearbyBubble);
@@ -516,7 +728,10 @@ export default function App() {
       ? 'Golden Hour'
       : 'Lantern Dusk';
   const landmark = getLandmarkAt(playerPos);
+  const isIndoors = playerLocation === 'cottage_interior';
+  const locationLabel = isIndoors ? 'Willow Step Cottage' : landmark.name;
   const isSheetOpen = Boolean(dialogueSession || propCard);
+  const anyModalOpen = isSheetOpen || journalOpen || inventoryOpen || Boolean(cottageStationMode);
 
   return (
     <main className="relative w-full h-full overflow-hidden">
@@ -530,7 +745,7 @@ export default function App() {
           bellRingCounter={bellRingCounter}
           fountainWishCounter={fountainWishCounter}
           pondSkipCounter={pondSkipCounter}
-          isDialogueOpen={isSheetOpen || journalOpen}
+          isDialogueOpen={anyModalOpen}
           activeDialogueResidentId={dialogueSession?.residentId ?? null}
           activePropId={propCard ? activePropId : null}
           playerActionPulse={playerActionPulse}
@@ -554,16 +769,18 @@ export default function App() {
         <div className="fixed inset-0 z-10 pointer-events-none flex flex-col justify-between p-3 sm:p-5">
           {/* Top Bar: Left Location & Clock | Right Compact Utility Buttons */}
           <div className="flex items-start justify-between gap-2 sm:gap-3">
-            <div className="bg-[#FAF5EC]/95 border border-[#D4C4AE] rounded-2xl px-3 py-2 sm:px-4 sm:py-2.5 shadow-[0_6px_20px_rgba(45,36,30,0.12)] pointer-events-auto min-w-0 max-w-[195px] sm:max-w-md">
+            <div className="bg-[#FAF5EC]/95 border border-[#D4C4AE] rounded-2xl px-3 py-2 sm:px-4 sm:py-2.5 shadow-[0_6px_20px_rgba(45,36,30,0.12)] pointer-events-auto min-w-0 max-w-[172px] sm:max-w-md">
               <div className="font-display text-sm sm:text-lg font-semibold text-[#2D241E] truncate">
-                {landmark.name}
+                {locationLabel}
               </div>
               <div className="text-[11px] sm:text-xs text-[#6A5B50] flex items-center gap-1 sm:gap-1.5 font-mono-nums whitespace-nowrap truncate">
                 <span>Day {worldSnapshot.day}</span>
                 <span aria-hidden="true">·</span>
                 <span>{formatClock(hudClock)}</span>
                 <span className="hidden sm:inline" aria-hidden="true">·</span>
-                <span className="hidden sm:inline font-sans">{phaseLabel}</span>
+                <span className="hidden sm:inline font-sans">
+                  {isIndoors ? 'Indoors' : phaseLabel}
+                </span>
                 <span className="hidden md:inline" aria-hidden="true">·</span>
                 <span className="hidden md:inline font-sans">
                   {getSeasonLabel(hudSeason)} · {getWeatherLabel(hudWeather)}
@@ -587,13 +804,32 @@ export default function App() {
                 type="button"
                 onClick={() => {
                   cozyAudio.playUiTap(1.05);
+                  setJournalOpen(false);
+                  setCottageStationMode(null);
+                  setInventoryOpen(true);
+                }}
+                aria-label="Open Satchel"
+                title="Satchel & Keepsakes [I]"
+                className="min-h-[44px] min-w-[44px] px-2.5 sm:px-3.5 py-2 rounded-xl bg-[#FAF5EC]/95 hover:bg-[#F1E8D9] border border-[#D4C4AE] text-[#2D241E] text-xs sm:text-sm font-semibold flex items-center justify-center gap-1.5 sm:gap-2 shadow-sm transition-colors cursor-pointer whitespace-nowrap"
+              >
+                <ShoppingBag className="w-4 h-4 text-[#5E8062] shrink-0" />
+                <span className="hidden sm:inline">Satchel</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  cozyAudio.playUiTap(1.05);
+                  setInventoryOpen(false);
+                  setCottageStationMode(null);
                   setJournalOpen(true);
                 }}
                 aria-label="Open Pocket Journal"
-                className="min-h-[44px] px-3 sm:px-3.5 py-2 rounded-xl bg-[#FAF5EC]/95 hover:bg-[#F1E8D9] border border-[#D4C4AE] text-[#2D241E] text-xs sm:text-sm font-semibold flex items-center gap-1.5 sm:gap-2 shadow-sm transition-colors cursor-pointer whitespace-nowrap"
+                title="Pocket Journal [J]"
+                className="min-h-[44px] min-w-[44px] px-2.5 sm:px-3.5 py-2 rounded-xl bg-[#FAF5EC]/95 hover:bg-[#F1E8D9] border border-[#D4C4AE] text-[#2D241E] text-xs sm:text-sm font-semibold flex items-center justify-center gap-1.5 sm:gap-2 shadow-sm transition-colors cursor-pointer whitespace-nowrap"
               >
-                <BookOpen className="w-4 h-4 text-[#C86446]" />
-                <span>Journal</span>
+                <BookOpen className="w-4 h-4 text-[#C86446] shrink-0" />
+                <span className="hidden sm:inline">Journal</span>
               </button>
 
               <div className="hidden md:flex items-center gap-1 bg-[#FAF5EC]/95 border border-[#D4C4AE] rounded-xl p-0.5 shadow-sm">
@@ -647,8 +883,7 @@ export default function App() {
             </div>
           ) : (
             nearbyBubble &&
-            !isSheetOpen &&
-            !journalOpen &&
+            !anyModalOpen &&
             screenState === 'playing' && (
               <div className="self-center mt-1.5 max-w-[300px] sm:max-w-sm bg-[#FAF5EC]/88 border border-[#D4C4AE]/80 rounded-xl px-3 py-1 shadow-sm text-[11px] sm:text-xs text-[#2D241E] text-center">
                 <span className="font-display font-semibold text-[#C86446]">
@@ -660,7 +895,7 @@ export default function App() {
           )}
 
           {/* Bottom Controls: Left Thumbstick (touch devices only) + Contextual Interact & Held Item CTA */}
-          {!isSheetOpen && !journalOpen && screenState === 'playing' && (
+          {!anyModalOpen && screenState === 'playing' && (
             <div className="flex items-end justify-between gap-3 sm:gap-4 pb-1">
               {hasTouchInput ? (
                 <VirtualJoystick vectorRef={joystickVectorRef} />
@@ -736,6 +971,7 @@ export default function App() {
         sideFlags={worldSnapshot.sideFlags}
         world={worldSnapshot}
         onSelectChoice={handleSelectChoice}
+        onGiveGift={handleGiveGift}
         onClose={() => {
           if (dialogueSession) {
             triggerPlayerPulse('wave');
@@ -745,6 +981,26 @@ export default function App() {
           setPropCard(null);
         }}
         onPropAction={handlePropAction}
+      />
+
+      {/* Personal Satchel Drawer */}
+      <InventoryDrawer
+        open={inventoryOpen}
+        world={worldSnapshot}
+        playerLocation={playerLocation}
+        onClose={() => setInventoryOpen(false)}
+        onOpenCottageStation={(mode) => setCottageStationMode(mode)}
+      />
+
+      {/* Willow Step Cottage Home Stations (Hearth, Table Vase, Keepsake Shelf) */}
+      <CottageStationModal
+        mode={cottageStationMode}
+        world={worldSnapshot}
+        onChangeMode={(mode) => setCottageStationMode(mode)}
+        onClose={() => setCottageStationMode(null)}
+        onCookRecipe={handleCookRecipe}
+        onPlaceFlower={handlePlaceFlower}
+        onToggleKeepsake={handleToggleKeepsake}
       />
 
       {/* Pocket Journal Drawer */}
@@ -766,6 +1022,8 @@ export default function App() {
           setActivePropId(null);
           setPropCard(null);
           setJournalOpen(false);
+          setInventoryOpen(false);
+          setCottageStationMode(null);
           setScreenState('title');
         }}
       />

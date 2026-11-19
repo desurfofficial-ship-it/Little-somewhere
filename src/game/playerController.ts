@@ -1,11 +1,16 @@
 import {
   InteractiveTarget,
   NpcAnimationState,
+  PlayerLocation,
   PlayerMovementMode,
   ResidentId,
   Vec2,
   WorldState,
 } from './types';
+import {
+  resolveInteriorMovement,
+  selectBestInteriorTarget,
+} from './cottage';
 import {
   PROP_INTERACTABLES,
   SEAT_SPOTS,
@@ -98,6 +103,7 @@ export interface StepPlayerMovementInput {
   interactionActive?: boolean;
   posture: WorldState['playerPosture'];
   seatId: string | null;
+  location?: PlayerLocation;
   dt: number;
 }
 
@@ -199,11 +205,14 @@ export function stepPlayerMovement(input: StepPlayerMovementInput): StepPlayerMo
     vz = 0;
   }
 
+  const isInterior = input.location === 'cottage_interior';
   const nextPosCandidate = {
     x: pos.x + vx * dt,
     z: pos.z + vz * dt,
   };
-  const resolvedPos = resolveMovement(pos, nextPosCandidate, 0.48);
+  const resolvedPos = isInterior
+    ? resolveInteriorMovement(pos, nextPosCandidate, 0.42)
+    : resolveMovement(pos, nextPosCandidate, 0.48);
 
   // Measure actual traveled velocity after sliding collision (damps into wall cleanly without sticky rebound)
   const actualVx = (resolvedPos.x - pos.x) / dt;
@@ -245,7 +254,7 @@ export function stepPlayerMovement(input: StepPlayerMovementInput): StepPlayerMo
   const nextSin = Math.sin(walkPhase);
   const crossedFootstep = actualSpeed >= 0.5 && ((prevSin < 0 && nextSin >= 0) || (prevSin > 0 && nextSin <= 0));
 
-  const groundY = getGroundHeightAt(resolvedPos.x, resolvedPos.z);
+  const groundY = isInterior ? 0 : getGroundHeightAt(resolvedPos.x, resolvedPos.z);
 
   return {
     pos: resolvedPos,
@@ -287,6 +296,10 @@ export function selectBestInteractiveTarget(
   world: WorldState,
   residentNames: Record<ResidentId, { name: string }>,
 ): InteractiveTarget | null {
+  if (world.playerLocation === 'cottage_interior') {
+    return selectBestInteriorTarget(world);
+  }
+
   if (world.playerPosture === 'sitting') {
     const seat = getSeatById(world.playerSeatId);
     return {
@@ -366,7 +379,12 @@ export function selectBestInteractiveTarget(
         prop.id === 'gazebo_bell' && world.flags.bellRestored
           ? 'Ring Bell'
           : prop.id === 'player_door'
-          ? 'Rest / Porch'
+          ? 'Enter Cottage'
+          : prop.id === 'cottage_window_box' ||
+            prop.id === 'greenhouse_planters' ||
+            prop.id === 'orchard_harvest' ||
+            prop.id === 'pond_driftwood'
+          ? prop.name
           : `Inspect ${prop.name}`;
       evaluateCandidate(
         {

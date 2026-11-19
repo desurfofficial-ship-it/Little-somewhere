@@ -3626,27 +3626,152 @@ export const DIALOGUE_TOPICS: readonly DialogueTopic[] = [
     endings: { p2_e: { moodLabel: 'Beaming', text: `Best trade deal in Willow Lane history!` } },
   }),
 
-  // Rowan
-  makeSimpleTopic('daily_rowan_blossom', 'rowan', 'daily_slice', 2, {}, {
-    moodLabel: 'Patient',
-    buildText: (id, w, p) => `${resolveRelationshipGreeting(id, w, p)} Every tree in Fern Hollow keeps its own calendar—I mark the first blossom of each one in the keeper’s journal, and no two lines ever match.`,
-    choices: [
-      { id: 'rowan_first_tree', label: 'Which tree wakes up first every spring?', tone: 'curious', nextNodeId: 'r1_e', trustDelta: 1, setEmotion: 'happy' },
-      { id: 'rowan_honey', label: 'Does the skep make blossom honey from these rows?', tone: 'warm', nextNodeId: 'r2_e', trustDelta: 1, setEmotion: 'relaxed' },
-    ],
-    endings: {
-      r1_e: { moodLabel: 'Fond', text: `The old west crown, always—she leans into the sun over the hollow and blooms a full week early, like she’s keeping the gate warm for the others.` },
-      r2_e: { moodLabel: 'Warm', text: `Crabapple blossom honey, a jar or two each season. I leave most of it for the bees—keeping the skep healthy matters more than the harvest.` },
+  // ================= MILESTONE 2C — EVERYDAY LIFE PERSONAL TOPICS =================
+  makeSimpleTopic(
+    'everyday_cottage_hearth',
+    'any',
+    'daily_slice',
+    4,
+    {
+      notSeenToday: true,
+      requiresNpcMemory: { tag: 'player_gift', maxDaysOld: 4 },
     },
-  }),
-  makeSimpleTopic('daily_rowan_ladder', 'rowan', 'daily_slice', 2, {}, {
-    moodLabel: 'Steady',
-    buildText: () => `Barnaby’s harvest ladder leans against the west rows this week. Fruit picks cleanest just after golden hour—warm fruit, cool air, steady hands.`,
-    choices: [
-      { id: 'rowan_pick', label: 'Could we pick a basket together this week?', tone: 'warm', nextNodeId: 'r3_e', trustDelta: 1, setEmotion: 'excited' },
-    ],
-    endings: { r3_e: { moodLabel: 'Delighted', text: `Gladly! I’ll set the wicker baskets by the gate—two pickers fill a corner crate twice as fast, and the tree always gets its share first.` } },
-  }),
+    {
+      moodLabel: 'Grateful',
+      buildText: (id, w) => {
+        const mem = w.npcMemories?.[id]?.find((m) => m.tag === 'player_gift' && m.detail?.personalItemId);
+        const itemLabel = mem?.detail?.personalItemId?.replace(/_/g, ' ') ?? 'your thoughtful gift';
+        return id === 'clara'
+          ? `That ${itemLabel} you brought by still sits right near the warming rack—it made my whole afternoon!`
+          : `I still smile thinking of the ${itemLabel} you brought over earlier. Neighbors like you make Willow Lane feel lived-in.`;
+      },
+      choices: [
+        {
+          id: 'ev_gift_warm',
+          label: 'Willow Step Cottage always has room for sharing.',
+          tone: 'warm',
+          nextNodeId: 'ev_gift_warm_end',
+          trustDelta: 1,
+          setEmotion: 'happy',
+          markMemoryTagsMentioned: ['player_gift'],
+        },
+        {
+          id: 'ev_gift_curious',
+          label: 'Let me know what else you enjoy from the orchard or hearth.',
+          tone: 'curious',
+          nextNodeId: 'ev_gift_curious_end',
+          trustDelta: 1,
+          setEmotion: 'relaxed',
+          markMemoryTagsMentioned: ['player_gift'],
+        },
+      ],
+      endings: {
+        ev_gift_warm_end: {
+          moodLabel: 'Warm',
+          text: `Anytime your kettle starts whistling, my doorstep’s never far away.`,
+        },
+        ev_gift_curious_end: {
+          moodLabel: 'Fond',
+          text: `Fresh blossoms, warm loaves, smooth river glass—little things gathered with care mean the most.`,
+        },
+      },
+    },
+  ),
+
+  makeSimpleTopic(
+    'everyday_hearth_aroma',
+    'clara',
+    'daily_slice',
+    4,
+    { notSeenToday: true, talkedCountMin: 1 },
+    {
+      moodLabel: 'Warm',
+      buildText: (_id, w) =>
+        (w.dailyActivities?.bakedCountToday ?? 0) > 0
+          ? `Wait a second—smell that gingered honey & chamomile crust! Have you been baking in Willow Step Cottage today?`
+          : `Your cottage stone hearth holds heat wonderfully once you get the copper kettle humming. Try tossing a fresh herb loaf or crabapple tart in sometime!`,
+      choices: [
+        {
+          id: 'ev_clara_hearth_tip',
+          label: 'Do you have a favorite pairing for afternoon cottage tea?',
+          tone: 'curious',
+          nextNodeId: 'ev_clara_hearth_end',
+          trustDelta: 1,
+          setEmotion: 'happy',
+        },
+      ],
+      endings: {
+        ev_clara_hearth_end: {
+          moodLabel: 'Cheerful',
+          text: `Fern Hollow crabapples glazed with wild honey—or sweet lavender shortbread when golden hour hits the window sill!`,
+        },
+      },
+    },
+  ),
+
+  makeSimpleTopic(
+    'everyday_orchard_gathering',
+    'mina',
+    'daily_slice',
+    4,
+    { notSeenToday: true, talkedCountMin: 1 },
+    {
+      moodLabel: 'Bright',
+      buildText: (_id, w) =>
+        w.dailyActivities?.orchardHarvestedToday || w.dailyActivities?.greenhousePlantersTendedToday
+          ? `Fresh soil on your cuffs! Glad to see you clipping lemon thyme and checking Fern Hollow’s crates today.`
+          : `Look inside the herb trays beside Sunbeam Greenhouse or wander north to Fern Hollow Orchard—every day brings fresh blooms and honeycomb.`,
+      choices: [
+        {
+          id: 'ev_mina_vase',
+          label: 'I’m setting fresh blooms in my cottage table vase too.',
+          tone: 'warm',
+          nextNodeId: 'ev_mina_vase_end',
+          trustDelta: 1,
+          setEmotion: 'happy',
+        },
+      ],
+      endings: {
+        ev_mina_vase_end: {
+          moodLabel: 'Gentle',
+          text: `Nothing wakes up a quiet room faster than chamomile or lavender catching sunlight in stoneware!`,
+        },
+      },
+    },
+  ),
+
+  makeSimpleTopic(
+    'everyday_cottage_keepsakes',
+    'nora',
+    'daily_slice',
+    4,
+    { notSeenToday: true, talkedCountMin: 1 },
+    {
+      moodLabel: 'Thoughtful',
+      buildText: (_id, w) => {
+        const count = w.cottageState?.displayedKeepsakeIds?.length ?? 0;
+        return count > 0
+          ? `Heard your oak shelf at Willow Step Cottage already holds ${count === 1 ? 'a cherished neighborhood keepsake' : `${count} neighborhood keepsakes`}—small things anchor a home fast.`
+          : `An empty cottage shelf fills up gently if you keep writing, trading small gifts, and noticing little finds along Mirror Pond.`;
+      },
+      choices: [
+        {
+          id: 'ev_nora_almanac',
+          label: 'Been reading the seasonal almanac by the south window.',
+          tone: 'warm',
+          nextNodeId: 'ev_nora_almanac_end',
+          trustDelta: 1,
+          setEmotion: 'relaxed',
+        },
+      ],
+      endings: {
+        ev_nora_almanac_end: {
+          moodLabel: 'Warm',
+          text: `Keep turning a page every morning—the seasons tell half the neighborhood’s best secrets.`,
+        },
+      },
+    },
+  ),
 ];
 
 export function buildResidentDialogue(

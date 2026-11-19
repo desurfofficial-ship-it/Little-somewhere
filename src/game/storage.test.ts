@@ -653,7 +653,7 @@ test('v4->v5 migration hydrates storyline progress from legacy sideFlags without
 
   const res = deserializeWorldState(JSON.stringify(v4Save));
   assert.equal(res.migratedFromVersion, 4);
-  assert.equal(res.state.schemaVersion, 5);
+  assert.equal(res.state.schemaVersion, CURRENT_SCHEMA_VERSION);
   assert.equal(res.state.storylines.side_pip_zine.status, 'active');
   assert.equal(res.state.storylines.side_pip_zine.stage, 1);
   assert.equal(res.state.storylines.side_herb_loaf.status, 'completed');
@@ -671,7 +671,7 @@ test('v4->v5 migration hydrates storyline progress from legacy sideFlags without
     const rawV4 = JSON.stringify(v4Save);
     store.set(STORAGE_KEY, rawV4);
     const loaded = loadWorldState();
-    assert.equal(loaded.schemaVersion, 5);
+    assert.equal(loaded.schemaVersion, CURRENT_SCHEMA_VERSION);
     assert.equal(store.get(STORAGE_BACKUP_KEY), rawV4);
   });
 });

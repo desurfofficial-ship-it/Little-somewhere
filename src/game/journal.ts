@@ -16,6 +16,8 @@ import {
   getTimePhase,
 } from './residents';
 import { getResidentAvailableQuestCue } from './narrative';
+import { PERSONAL_ITEMS, PERSONAL_ITEM_MAP } from './inventory';
+import { describePlacedFlower } from './cottage';
 import {
   STORYLINES,
   getActiveStorylineCue,
@@ -133,6 +135,16 @@ export interface JournalLaneMoment {
   isNew: boolean;
 }
 
+export interface JournalHomeSummary {
+  placedFlowerLabel: string | null;
+  vaseDescription: string;
+  displayedKeepsakeLabels: string[];
+  discoveredCount: number;
+  totalItemCatalogCount: number;
+  cottageRestCount: number;
+  almanacReadToday: boolean;
+}
+
 export interface PocketJournalView {
   day: number;
   phase: TimePhase;
@@ -150,6 +162,7 @@ export interface PocketJournalView {
   people: JournalPersonCard[];
   landmarks: JournalDiscoveryLandmark[];
   laneMoments: JournalLaneMoment[];
+  homeSummary: JournalHomeSummary;
   noticeboardFlyerCount: number;
   greenhouseStage: number;
   plantersBloomed: number;
@@ -233,9 +246,12 @@ function describeNpcMemoryTopic(
   entry: NpcMemoryEntry,
 ): string {
   const selfName = RESIDENTS[residentId]?.name ?? residentId;
-  const itemText = entry.detail?.itemId
-    ? entry.detail.itemId.replace(/_/g, ' ')
-    : 'a keepsake';
+  const personalItemLabel = entry.detail?.personalItemId
+    ? PERSONAL_ITEM_MAP[entry.detail.personalItemId]?.label
+    : undefined;
+  const itemText =
+    personalItemLabel ??
+    (entry.detail?.itemId ? entry.detail.itemId.replace(/_/g, ' ') : 'a keepsake');
   const placeText = entry.detail?.placeName ?? 'the neighborhood';
   const others = formatSubjectList(residentId, entry.subjectResidents);
   const targetTierLabel = entry.detail?.targetTier
@@ -901,6 +917,20 @@ export function buildPocketJournalView(
     landmarks.filter((l) => l.isNew).length +
     laneMoments.filter((m) => m.isNew).length;
 
+  const cottage = world.cottageState;
+  const placedFlowerId = cottage?.placedFlowerId ?? null;
+  const homeSummary: JournalHomeSummary = {
+    placedFlowerLabel: placedFlowerId ? (PERSONAL_ITEM_MAP[placedFlowerId]?.label ?? null) : null,
+    vaseDescription: describePlacedFlower(placedFlowerId),
+    displayedKeepsakeLabels: (cottage?.displayedKeepsakeIds ?? [])
+      .map((kid) => PERSONAL_ITEM_MAP[kid]?.label)
+      .filter((label): label is string => Boolean(label)),
+    discoveredCount: world.discoveredItemIds?.length ?? 0,
+    totalItemCatalogCount: PERSONAL_ITEMS.length,
+    cottageRestCount: cottage?.cottageRestCount ?? 0,
+    almanacReadToday: Boolean(cottage?.almanacReadToday),
+  };
+
   return {
     day: world.day,
     phase,
@@ -918,6 +948,7 @@ export function buildPocketJournalView(
     people,
     landmarks,
     laneMoments,
+    homeSummary,
     noticeboardFlyerCount: composed.npcTouches.noticeboardFlyerCount,
     greenhouseStage: composed.npcTouches.minaGreenhouseStage,
     plantersBloomed: composed.playerChanges.plantersBloomed,

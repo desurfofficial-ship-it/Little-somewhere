@@ -747,6 +747,47 @@ export const JournalDrawer: React.FC<JournalDrawerProps> = ({
                 </ul>
               </section>
 
+              {/* Willow Step Cottage & Home Life */}
+              <section
+                aria-labelledby="journal-heading-cottage-home"
+                className="p-4 rounded-xl bg-[#F4ECE0] border border-[#E2D4C0]"
+              >
+                <h3
+                  id="journal-heading-cottage-home"
+                  className="font-display text-lg font-semibold text-[#2D241E] mb-2"
+                >
+                  Willow Step Cottage &amp; Satchel
+                </h3>
+                <ul className="text-sm text-[#3D3128] space-y-1.5">
+                  <li>
+                    Table centerpiece: <strong>{journal.homeSummary.vaseDescription}</strong>
+                  </li>
+                  <li>
+                    Keepsake shelf:{' '}
+                    <strong>
+                      {journal.homeSummary.displayedKeepsakeLabels.length > 0
+                        ? journal.homeSummary.displayedKeepsakeLabels.join(', ')
+                        : 'No neighbor keepsakes arranged on the shelf yet'}
+                    </strong>
+                  </li>
+                  <li>
+                    Satchel finds discovered:{' '}
+                    <strong className="font-mono-nums">
+                      {journal.homeSummary.discoveredCount}/{journal.homeSummary.totalItemCatalogCount}
+                    </strong>{' '}
+                    neighborhood items
+                  </li>
+                  {journal.homeSummary.cottageRestCount > 0 && (
+                    <li>
+                      Mornings woken at home:{' '}
+                      <strong className="font-mono-nums">
+                        {journal.homeSummary.cottageRestCount}
+                      </strong>
+                    </li>
+                  )}
+                </ul>
+              </section>
+
               {/* Places & Landmarks */}
               <section aria-labelledby="journal-heading-landmarks" className="space-y-3">
                 <h3

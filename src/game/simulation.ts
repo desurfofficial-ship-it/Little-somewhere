@@ -783,7 +783,9 @@ export function stepSimulationInPlace(
         rt.animState = extra ? extra.animState : getDefaultPoseForSlot(id, phase);
       }
 
-      const pDist = distance2D(world.playerPos, rt.position);
+      const isIndoors = world.playerLocation === 'cottage_interior';
+      const outdoorPlayerPos = isIndoors ? world.exteriorPlayerPos : world.playerPos;
+      const pDist = isIndoors ? Infinity : distance2D(world.playerPos, rt.position);
       const rel = world.playerRelations?.[id];
       const affinity = rel?.affinity ?? 0;
       const reliability = rel?.reliability ?? 25;
@@ -812,9 +814,10 @@ export function stepSimulationInPlace(
           rt.needs.social = clampNeed(rt.needs.social + 0.35 * dtMinutes);
         }
 
-        // NPC-initiated spontaneous greeting micro-bubble when player strolls close
+        // NPC-initiated spontaneous greeting micro-bubble when player strolls close outdoors
         if (
           !dialogueOpen &&
+          !isIndoors &&
           rt.emotion !== 'angry' &&
           rt.socialPartnerId === null &&
           world.minuteOfDay - rt.lastGreetedPlayerMinute >= GREETING_COOLDOWN_MINUTES
@@ -837,6 +840,7 @@ export function stepSimulationInPlace(
 
   // 3. Evaluate NPC-to-NPC social encounter pairing (bounded, supports 2-3 participants + mutual helping)
   const maxConcurrentEncounters = Math.max(2, Math.floor(RESIDENT_ORDER.length / 4));
+  const outdoorPlayerRef = world.playerLocation === 'cottage_interior' ? world.exteriorPlayerPos : world.playerPos;
   if (!dialogueOpen && world.activeEncounters.length < maxConcurrentEncounters) {
     const socialSlot = Math.floor(world.minuteOfDay / 15);
     for (let i = 0; i < RESIDENT_ORDER.length; i++) {
@@ -845,14 +849,14 @@ export function stepSimulationInPlace(
       const rtA = world.npcRuntime[a];
       if (rtA.socialPartnerId !== null || rtA.waypoints.length > 0 || rtA.posture === 'sitting') continue;
       if (world.minuteOfDay < rtA.socialCooldownUntilMinute) continue;
-      if (distance2D(world.playerPos, rtA.position) < 2.2) continue;
+      if (distance2D(outdoorPlayerRef, rtA.position) < 2.2) continue;
 
       for (let j = i + 1; j < RESIDENT_ORDER.length; j++) {
         const b = RESIDENT_ORDER[j];
         const rtB = world.npcRuntime[b];
         if (rtB.socialPartnerId !== null || rtB.waypoints.length > 0 || rtB.posture === 'sitting') continue;
         if (world.minuteOfDay < rtB.socialCooldownUntilMinute) continue;
-        if (distance2D(world.playerPos, rtB.position) < 2.2) continue;
+        if (distance2D(outdoorPlayerRef, rtB.position) < 2.2) continue;
         if (distance2D(rtA.position, rtB.position) > 7.5) continue;
 
         const relAB = getNpcRelation(world.npcRelations, a, b);
@@ -884,7 +888,7 @@ export function stepSimulationInPlace(
           const rtC = world.npcRuntime[c];
           if (rtC.socialPartnerId !== null || rtC.waypoints.length > 0 || rtC.posture === 'sitting') continue;
           if (world.minuteOfDay < rtC.socialCooldownUntilMinute) continue;
-          if (distance2D(world.playerPos, rtC.position) < 2.2) continue;
+          if (distance2D(outdoorPlayerRef, rtC.position) < 2.2) continue;
           if (distance2D(rtA.position, rtC.position) > 5.8) continue;
           if (
             shouldSuppressNpcSocial(getNpcRelation(world.npcRelations, a, c)) ||
@@ -1012,6 +1016,22 @@ export function stepSimulation(
     sideFlags: { ...(world.sideFlags ?? {}) },
     storylines: cloneStorylines(world.storylines),
     npcMemories: cloneNpcMemories(world.npcMemories),
+    exteriorPlayerPos: world.exteriorPlayerPos ? { ...world.exteriorPlayerPos } : { ...world.playerPos },
+    inventory: { ...(world.inventory ?? {}) },
+    discoveredItemIds: [...(world.discoveredItemIds ?? [])],
+    cottageState: world.cottageState
+      ? {
+          ...world.cottageState,
+          displayedKeepsakeIds: [...(world.cottageState.displayedKeepsakeIds ?? [])],
+        }
+      : world.cottageState,
+    dailyActivities: world.dailyActivities
+      ? {
+          ...world.dailyActivities,
+          giftedResidentsToday: [...(world.dailyActivities.giftedResidentsToday ?? [])],
+        }
+      : world.dailyActivities,
+    neighborGiftsReceived: [...(world.neighborGiftsReceived ?? [])],
   };
   stepSimulationInPlace(next, dtSeconds, options);
   return next;

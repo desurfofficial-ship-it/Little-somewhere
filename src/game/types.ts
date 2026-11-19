@@ -21,7 +21,87 @@ export type PropInteractableId =
   | 'fountain_plaza'
   | 'hollow_oak'
   | 'plaza_noticeboard'
-  | 'mirror_pond';
+  | 'mirror_pond'
+  | 'cottage_window_box'
+  | 'greenhouse_planters'
+  | 'orchard_harvest'
+  | 'pond_driftwood';
+
+export type PlayerLocation = 'exterior' | 'cottage_interior';
+
+export type CottageInteractableId =
+  | 'interior_door'
+  | 'cottage_bed'
+  | 'cottage_hearth'
+  | 'cottage_table'
+  | 'cottage_shelf'
+  | 'cottage_desk'
+  | 'cottage_planter';
+
+export type PersonalItemCategory =
+  | 'flora_ingredient'
+  | 'baked_treat'
+  | 'field_find'
+  | 'keepsake';
+
+export type PersonalItemId =
+  | 'crabapple'
+  | 'lemon_thyme'
+  | 'chamomile_blossom'
+  | 'lavender_sprig'
+  | 'wild_honey'
+  | 'chamomile_pear_tea'
+  | 'herb_loaf'
+  | 'crabapple_tart'
+  | 'lavender_shortbread'
+  | 'smooth_river_glass'
+  | 'heron_feather'
+  | 'pressed_fern'
+  | 'cedar_shaving_rose'
+  | 'willow_zine_copy'
+  | 'brass_pocket_bell'
+  | 'pond_watercolor_card'
+  | 'woven_herb_wreath'
+  | 'cedar_music_box';
+
+export type GiftReactionTier = 'loved' | 'liked' | 'neutral';
+
+export interface PersonalItemDef {
+  id: PersonalItemId;
+  label: string;
+  category: PersonalItemCategory;
+  description: string;
+  homeDisplayable?: 'vase' | 'shelf';
+  giftable: boolean;
+}
+
+export interface RecipeDef {
+  id: string;
+  outputItemId: PersonalItemId;
+  outputCount: number;
+  label: string;
+  description: string;
+  minutesRequired: number;
+  ingredients: Array<{ itemId: PersonalItemId; count: number }>;
+}
+
+export interface CottageHomeState {
+  placedFlowerId: 'chamomile_blossom' | 'lavender_sprig' | 'crabapple' | null;
+  displayedKeepsakeIds: PersonalItemId[];
+  hearthLit: boolean;
+  kettleWarmUntilMinute: number;
+  almanacReadToday: boolean;
+  cottageRestCount: number;
+}
+
+export interface DailyActivitiesState {
+  cottagePlanterTendedToday: boolean;
+  greenhousePlantersTendedToday: boolean;
+  orchardHarvestedToday: boolean;
+  pondCombedToday: boolean;
+  bakedCountToday: number;
+  giftedResidentsToday: ResidentId[];
+}
 
 export type CarryableItemId =
   | 'water_pail'
@@ -294,6 +374,7 @@ export type NpcMemoryDistortionFlavor =
 
 export interface NpcMemoryDetail {
   itemId?: CarryableItemId;
+  personalItemId?: PersonalItemId;
   placeName?: string;
   targetTier?: RelationshipTier;
   acousticOnly?: boolean;
@@ -476,6 +557,15 @@ export interface WorldState {
   mailboxUnread: boolean;
   dailyLettersRead: number[];
   bellRungCount: number;
+  // Milestone 2C — Everyday Life (WorldState v6)
+  playerLocation: PlayerLocation;
+  exteriorPlayerPos: Vec2;
+  exteriorPlayerFacing: number;
+  inventory: Partial<Record<PersonalItemId, number>>;
+  discoveredItemIds: PersonalItemId[];
+  cottageState: CottageHomeState;
+  dailyActivities: DailyActivitiesState;
+  neighborGiftsReceived: ResidentId[];
 }
 
 export type DialogueCategory =
@@ -646,7 +736,7 @@ export interface DialogueSession {
 }
 
 export interface InteractiveTarget {
-  kind: 'resident' | 'prop' | 'seat' | 'carryable';
+  kind: 'resident' | 'prop' | 'seat' | 'carryable' | 'cottage_prop';
   id: string;
   label: string;
   actionLabel: string;
@@ -654,4 +744,5 @@ export interface InteractiveTarget {
   worldPos: Vec2;
   seatId?: string;
   carryableId?: CarryableItemId;
+  cottagePropId?: CottageInteractableId;
 }

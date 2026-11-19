@@ -13,6 +13,12 @@ import {
   pruneExpiredNpcMemoriesInPlace,
 } from './memories';
 import { createInitialNpcRuntime } from './simulation';
+import {
+  COTTAGE_WAKE_FACING,
+  COTTAGE_WAKE_SPAWN,
+  createInitialCottageState,
+  createInitialDailyActivities,
+} from './cottage';
 import { WorldState } from './types';
 
 export const STORAGE_KEY = 'little_somewhere_world_v1';
@@ -293,6 +299,54 @@ export function computeWorldSaveRevision(state: WorldState): string {
     pushStr(events[i].id);
   }
 
+  // Milestone 2C v6 fields
+  pushStr(state.playerLocation ?? 'exterior');
+  pushNum(Math.round((state.exteriorPlayerPos?.x ?? state.playerPos.x) * 20));
+  pushNum(Math.round((state.exteriorPlayerPos?.z ?? state.playerPos.z) * 20));
+  pushNum(Math.round((state.exteriorPlayerFacing ?? state.playerFacing) * 20));
+
+  const invKeys = Object.keys(state.inventory ?? {}).sort();
+  pushNum(invKeys.length);
+  for (let i = 0; i < invKeys.length; i++) {
+    const ik = invKeys[i] as keyof WorldState['inventory'];
+    pushStr(ik);
+    pushNum(state.inventory?.[ik] ?? 0);
+  }
+
+  const disc = state.discoveredItemIds ?? [];
+  pushNum(disc.length);
+  for (let i = 0; i < disc.length; i++) pushStr(disc[i]);
+
+  const cs = state.cottageState;
+  if (cs) {
+    pushStr(cs.placedFlowerId ?? '');
+    pushBool(cs.hearthLit);
+    pushNum(Math.round(cs.kettleWarmUntilMinute));
+    pushBool(cs.almanacReadToday);
+    pushNum(cs.cottageRestCount);
+    pushNum(cs.displayedKeepsakeIds.length);
+    for (let i = 0; i < cs.displayedKeepsakeIds.length; i++) {
+      pushStr(cs.displayedKeepsakeIds[i]);
+    }
+  }
+
+  const da = state.dailyActivities;
+  if (da) {
+    pushBool(da.cottagePlanterTendedToday);
+    pushBool(da.greenhousePlantersTendedToday);
+    pushBool(da.orchardHarvestedToday);
+    pushBool(da.pondCombedToday);
+    pushNum(da.bakedCountToday);
+    pushNum(da.giftedResidentsToday.length);
+    for (let i = 0; i < da.giftedResidentsToday.length; i++) {
+      pushStr(da.giftedResidentsToday[i]);
+    }
+  }
+
+  const ng = state.neighborGiftsReceived ?? [];
+  pushNum(ng.length);
+  for (let i = 0; i < ng.length; i++) pushStr(ng[i]);
+
   return `${h1.toString(36)}-${h2.toString(36)}`;
 }
 
@@ -350,6 +404,8 @@ export function advanceToNextDay(state: WorldState): WorldState {
   const nextDay = state.day + 1;
   const nextNpcMemories = cloneNpcMemories(state.npcMemories);
   pruneExpiredNpcMemoriesInPlace(nextNpcMemories, nextDay);
+  const wokeInsideCottage = state.playerLocation === 'cottage_interior';
+  const prevCottage = state.cottageState ?? createInitialCottageState();
 
   return {
     ...state,
@@ -357,8 +413,11 @@ export function advanceToNextDay(state: WorldState): WorldState {
     minuteOfDay: NEXT_DAY_WAKE_MINUTE, // 8:00 AM
     season: getSeasonForDay(nextDay).season,
     weather: rollWeatherForDay(state.simSeed, nextDay),
-    playerPos: { ...PLAYER_SPAWN },
-    playerFacing: PLAYER_DEFAULT_FACING,
+    playerLocation: wokeInsideCottage ? 'cottage_interior' : 'exterior',
+    playerPos: wokeInsideCottage ? { ...COTTAGE_WAKE_SPAWN } : { ...PLAYER_SPAWN },
+    playerFacing: wokeInsideCottage ? COTTAGE_WAKE_FACING : PLAYER_DEFAULT_FACING,
+    exteriorPlayerPos: { ...PLAYER_SPAWN },
+    exteriorPlayerFacing: PLAYER_DEFAULT_FACING,
     playerPosture: 'standing',
     playerSeatId: null,
     worldProps: nextWorldProps,
@@ -368,5 +427,12 @@ export function advanceToNextDay(state: WorldState): WorldState {
     npcRuntime: createInitialNpcRuntime(NEXT_DAY_WAKE_MINUTE, state.flags.claraArthurReconciled),
     activeEncounters: [],
     mailboxUnread: true,
+    cottageState: {
+      ...prevCottage,
+      almanacReadToday: false,
+      kettleWarmUntilMinute: 0,
+      cottageRestCount: prevCottage.cottageRestCount + (wokeInsideCottage ? 1 : 0),
+    },
+    dailyActivities: createInitialDailyActivities(),
   };
 }

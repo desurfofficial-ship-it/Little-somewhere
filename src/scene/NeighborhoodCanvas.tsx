@@ -3,8 +3,10 @@ import * as THREE from 'three';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import {
   CarryableItemId,
+  CottageInteractableId,
   GameScreenState,
   InteractiveTarget,
+  PlayerLocation,
   PlayerPosture,
   PropInteractableId,
   ResidentId,
@@ -41,6 +43,11 @@ import {
   stepPlayerMovement,
   wrapAngleDelta,
 } from '../game/playerController';
+import {
+  COTTAGE_BOUNDS,
+  COTTAGE_INTERACTABLES,
+  isInteriorPointWalkable,
+} from '../game/cottage';
 import { computeWaypointPath } from '../game/navigation';
 import { getResidentAvailableQuestCue } from '../game/narrative';
 import { composeEnvironmentState } from '../game/environment';
@@ -78,6 +85,7 @@ import { buildMeadowDressing } from './builders/botanicalDressing';
 import { buildFernHollowOrchard } from './builders/orchard';
 import { buildOrchardMicroLife } from './builders/orchardMicroLife';
 import { buildAllReactiveRigs } from './builders/reactiveProps';
+import { buildWillowCottageInterior } from './builders/cottageInterior';
 import {
   buildCarryablePropMesh,
   buildStorybookBench,
@@ -130,6 +138,7 @@ export interface NeighborhoodCanvasProps {
     playerFacing: number;
     playerPosture: PlayerPosture;
     playerHeldItem: CarryableItemId | null;
+    playerLocation: PlayerLocation;
     nearestTarget: InteractiveTarget | null;
     nearbyBubble: HudBubbleSnapshot | null;
     weather: WeatherType;
@@ -178,6 +187,22 @@ function findNearestWalkablePoint(x: number, z: number, playerPos: Vec2): Vec2 |
   const midX = (playerPos.x + cx) * 0.5;
   const midZ = (playerPos.z + cz) * 0.5;
   return isPointWalkable(midX, midZ, 0.48) ? { x: midX, z: midZ } : null;
+}
+
+function findNearestInteriorWalkablePoint(x: number, z: number): Vec2 | null {
+  const cx = THREE.MathUtils.clamp(x, COTTAGE_BOUNDS.minX + 0.45, COTTAGE_BOUNDS.maxX - 0.45);
+  const cz = THREE.MathUtils.clamp(z, COTTAGE_BOUNDS.minZ + 0.45, COTTAGE_BOUNDS.maxZ - 0.45);
+  if (isInteriorPointWalkable(cx, cz, 0.42)) return { x: cx, z: cz };
+
+  for (let r = 0.45; r <= 2.4; r += 0.45) {
+    for (let a = 0; a < 8; a++) {
+      const ang = (a / 8) * Math.PI * 2;
+      const nx = THREE.MathUtils.clamp(cx + Math.cos(ang) * r, COTTAGE_BOUNDS.minX + 0.45, COTTAGE_BOUNDS.maxX - 0.45);
+      const nz = THREE.MathUtils.clamp(cz + Math.sin(ang) * r, COTTAGE_BOUNDS.minZ + 0.45, COTTAGE_BOUNDS.maxZ - 0.45);
+      if (isInteriorPointWalkable(nx, nz, 0.42)) return { x: nx, z: nz };
+    }
+  }
+  return null;
 }
 
 export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
@@ -272,6 +297,11 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
     scene.background = new THREE.Color('#DCEBF2');
     scene.fog = new THREE.Fog('#DCEBF2', 42, 86);
 
+    const exteriorRoot = new THREE.Group();
+    const interiorRoot = new THREE.Group();
+    interiorRoot.visible = false;
+    scene.add(exteriorRoot, interiorRoot);
+
     const pmremGenerator = new THREE.PMREMGenerator(renderer);
     const roomEnv = new RoomEnvironment();
     scene.environment = pmremGenerator.fromScene(roomEnv, 0.04).texture;
@@ -342,7 +372,7 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
     const ground = new THREE.Mesh(groundGeo, groundMat);
     ground.rotation.x = -Math.PI / 2;
     ground.receiveShadow = true;
-    scene.add(ground);
+    exteriorRoot.add(ground);
 
     // Shared storybook palette & reactive scene elements
     const palette = new MaterialPalette();
@@ -362,7 +392,7 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
       const m = new THREE.Mesh(new THREE.BoxGeometry(w, 0.06, l), cobbleMat);
       m.position.set(x, 0.02, z);
       m.receiveShadow = true;
-      scene.add(m);
+      exteriorRoot.add(m);
     };
     // Central Plaza + cross lanes + bridge & woodshop spurs
     addCobbleStrip(0, 0, 12.5, 13.5);
@@ -375,15 +405,15 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
     addCobbleStrip(0, -6.5, 22, 3.2); // North promenade by gazebo
 
     // Natural perimeter stone/cedar border, rolling distant hills & multi-lobe instanced grove
-    scene.add(buildPerimeterBorder(palette, shadowTex));
+    exteriorRoot.add(buildPerimeterBorder(palette, shadowTex));
     const groveRig = buildGroveTreesInstanced(palette, isSoftwareGl);
-    scene.add(groveRig.group);
+    exteriorRoot.add(groveRig.group);
 
     // Instanced botanical dressing: clover cushions, grass tufts, wildflower
     // clumps & fieldstone pebbles across the meadow margins (5 draw calls,
     // collision-aware seeded placement)
     const meadowDressing = buildMeadowDressing(palette, isSoftwareGl);
-    scene.add(meadowDressing.group);
+    exteriorRoot.add(meadowDressing.group);
 
     // Fern Hollow Orchard — Milestone 3 north district landmark (instanced
     // crabapple trees sharing the grove season-tint materials, gate, ladder,
@@ -394,7 +424,7 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
       signTex: orchardSignTex,
       isSoftwareGl,
     });
-    scene.add(orchardRig.group);
+    exteriorRoot.add(orchardRig.group);
 
     // Fern Hollow micro-life: blossom butterflies + skep bees (weather-gated
     // by the environment controller, updated in its section 6)
@@ -425,52 +455,115 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
     // 1. Player Cottage Prototype (Willow Step Cottage + Courtyard + Mailbox)
     const willowCottage = buildWillowStepCottage(willowProtoCtx);
     willowCottage.group.position.set(-14.5, 0, 10.0);
-    scene.add(willowCottage.group);
+    exteriorRoot.add(willowCottage.group);
 
     const willowCourtyard = buildWillowLaneCourtyardProps(willowProtoCtx);
-    scene.add(willowCourtyard.group);
+    exteriorRoot.add(willowCourtyard.group);
 
     const willowMailbox = buildWillowMailbox(willowProtoCtx);
     willowMailbox.group.position.set(-9.8, 0, 7.2);
-    scene.add(willowMailbox.group);
+    exteriorRoot.add(willowMailbox.group);
     const mbFlag = willowMailbox.flagMesh;
 
     // 2. Hearth & Crumb Bakery (Clara) + Reactive Outdoor Café Tables
-    scene.add(buildStorybookBakery(buildingCtx));
+    exteriorRoot.add(buildStorybookBakery(buildingCtx));
     const bakeryTablesGroup = buildBakeryCafeTables(palette, shadowTex);
-    scene.add(bakeryTablesGroup);
+    exteriorRoot.add(bakeryTablesGroup);
 
     // 3. Linden Book Nook (Nora)
-    scene.add(buildStorybookBookNook(buildingCtx));
+    exteriorRoot.add(buildStorybookBookNook(buildingCtx));
 
     // 4. Copperwheel Cottage (Arthur)
-    scene.add(buildStorybookArthurWorkshop(buildingCtx));
+    exteriorRoot.add(buildStorybookArthurWorkshop(buildingCtx));
 
     // 5. Sunbeam Greenhouse (Mina)
-    scene.add(buildStorybookGreenhouse(buildingCtx));
+    exteriorRoot.add(buildStorybookGreenhouse(buildingCtx));
 
     // 6. Pinecone Woodshop (Barnaby)
-    scene.add(buildStorybookBarnabyWoodshop(buildingCtx));
+    exteriorRoot.add(buildStorybookBarnabyWoodshop(buildingCtx));
 
     // 7. Old Bell Gazebo (Centerpiece Landmark!)
     const gazeboRig: GazeboRig = buildStorybookGazebo(palette, shadowTex, sageRoofTex);
-    scene.add(gazeboRig.group);
+    exteriorRoot.add(gazeboRig.group);
 
     // 8. Mossy Stone Fountain
     const fountainRig: FountainRig = buildStorybookFountain(palette, shadowTex);
-    scene.add(fountainRig.group);
+    exteriorRoot.add(fountainRig.group);
 
     // 9. Sora's Tea Cart & Neighborhood Noticeboard
-    scene.add(buildStorybookTeaCart(palette, shadowTex));
+    exteriorRoot.add(buildStorybookTeaCart(palette, shadowTex));
     const noticeboardRig = buildStorybookNoticeboard(palette, shadowTex, terracottaRoofTex);
-    scene.add(noticeboardRig.group);
+    exteriorRoot.add(noticeboardRig.group);
 
     // 10. Mirror Pond, Arched Cedar Bridge & Gnarled Hollow Oak
     const pondRig = buildMirrorPondAndBridge(palette, shadowTex, prototypeLanternMats);
-    scene.add(pondRig.group);
+    exteriorRoot.add(pondRig.group);
     const hollowOakRig = buildHollowOakLandmark(palette, shadowTex);
-    scene.add(hollowOakRig.group);
+    exteriorRoot.add(hollowOakRig.group);
     const oakGlint = hollowOakRig.oakGlint;
+
+    // 10b. Everyday Life Outdoor Activity Props (porch herb box, greenhouse herb tray, pond driftwood nook)
+    {
+      const cedarMat = palette.standard(STORYBOOK_PALETTE.cedarWarm, 0.72, 0.02);
+      const terraMat = palette.standard(STORYBOOK_PALETTE.terracottaPot, 0.44, 0.04);
+      const herbMat = palette.standard(STORYBOOK_PALETTE.foliageMid, 0.84, 0.0);
+      const camPetalMat = palette.standard(STORYBOOK_PALETTE.petalCream, 0.65, 0.0);
+      const lavMat = palette.standard(STORYBOOK_PALETTE.petalLavender, 0.65, 0.0);
+      const brassMat = palette.standard(STORYBOOK_PALETTE.agedBrass, 0.25, 0.85);
+      const driftMat = palette.standard('#A89882', 0.86, 0.0);
+      const glassMat = palette.standard('#E5A93C', 0.22, 0.15);
+
+      // Willow Cottage Porch Chamomile & Herb Box
+      const porchHerbGroup = new THREE.Group();
+      porchHerbGroup.position.set(-10.8, 0, 12.1);
+      addContactShadow(porchHerbGroup, shadowTex, 0.9, 0.9, 0.35, 0.015);
+      const trough = new THREE.Mesh(new THREE.BoxGeometry(0.46, 0.3, 0.76), cedarMat);
+      trough.position.y = 0.22;
+      trough.castShadow = true;
+      const herbCluster = new THREE.Mesh(new THREE.DodecahedronGeometry(0.24, 0), herbMat);
+      herbCluster.position.set(0, 0.42, -0.1);
+      const herbBloom = new THREE.Mesh(new THREE.SphereGeometry(0.08, 7, 7), camPetalMat);
+      herbBloom.position.set(0.05, 0.56, 0.12);
+      const can = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.12, 0.2, 8), brassMat);
+      can.position.set(0.24, 0.1, 0.26);
+      porchHerbGroup.add(trough, herbCluster, herbBloom, can);
+      exteriorRoot.add(porchHerbGroup);
+
+      // Greenhouse Outdoor Herb Planters
+      const ghPlanterGroup = new THREE.Group();
+      ghPlanterGroup.position.set(11.1, 0, 1.7);
+      addContactShadow(ghPlanterGroup, shadowTex, 1.0, 1.1, 0.38, 0.015);
+      const benchStand = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.46, 0.92), cedarMat);
+      benchStand.position.y = 0.23;
+      benchStand.castShadow = true;
+      const potA = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.11, 0.22, 8), terraMat);
+      potA.position.set(0, 0.57, -0.22);
+      const potB = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.11, 0.22, 8), terraMat);
+      potB.position.set(0, 0.57, 0.22);
+      const thyme = new THREE.Mesh(new THREE.DodecahedronGeometry(0.16, 0), herbMat);
+      thyme.position.set(0, 0.72, -0.22);
+      const lavender = new THREE.Mesh(new THREE.CapsuleGeometry(0.07, 0.14, 3, 6), lavMat);
+      lavender.position.set(0, 0.76, 0.22);
+      ghPlanterGroup.add(benchStand, potA, potB, thyme, lavender);
+      exteriorRoot.add(ghPlanterGroup);
+
+      // Mirror Pond East Driftwood & Curio Basket Nook
+      const driftwoodGroup = new THREE.Group();
+      driftwoodGroup.position.set(5.85, 0, 13.8);
+      addContactShadow(driftwoodGroup, shadowTex, 1.1, 0.9, 0.35, 0.015);
+      const driftLog = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.16, 1.05, 8), driftMat);
+      driftLog.rotation.x = Math.PI / 2;
+      driftLog.rotation.z = 0.42;
+      driftLog.position.set(0, 0.12, 0);
+      driftLog.castShadow = true;
+      const reedBasket = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.14, 0.22, 9), cedarMat);
+      reedBasket.position.set(-0.22, 0.11, -0.28);
+      const pebbleA = new THREE.Mesh(new THREE.SphereGeometry(0.06, 7, 6), glassMat);
+      pebbleA.scale.set(1.2, 0.65, 1.0);
+      pebbleA.position.set(-0.22, 0.22, -0.28);
+      driftwoodGroup.add(driftLog, reedBasket, pebbleA);
+      exteriorRoot.add(driftwoodGroup);
+    }
 
     // 11. Plaza Stone/Iron Lamps & Festoon Lantern Strands
     const lanternMat = new THREE.MeshStandardMaterial({
@@ -504,7 +597,7 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
       const cap = new THREE.Mesh(new THREE.ConeGeometry(0.22, 0.16, 6), lampIronMat);
       cap.position.y = 3.2;
       lamp.add(plinth, post, collar, bulb, cap);
-      scene.add(lamp);
+      exteriorRoot.add(lamp);
     }
 
     // Festoon lantern bulbs + overhead swag wire strung across plaza
@@ -530,12 +623,12 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
       }
     }
     festoonGroup.visible = false;
-    scene.add(festoonGroup);
+    exteriorRoot.add(festoonGroup);
 
     // Reactive micro-props & pooled ambient life (environment hooks + micro-life)
     function buildAndMountReactiveRigs() {
       const rigs = buildAllReactiveRigs(palette, isSoftwareGl);
-      scene.add(
+      exteriorRoot.add(
         rigs.pastryBasket.group,
         rigs.greenhouseStage.group,
         rigs.porchLamp.group,
@@ -552,6 +645,7 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
 
     const envController = new EnvironmentVisualController({
       scene,
+      exteriorRoot,
       groundMat,
       groveRig,
       hemiLight,
@@ -574,6 +668,10 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
       orchardRig,
       orchardMicroLife: orchardMicroLifeRig,
     });
+
+    // Willow Step Cottage Interior Cutaway Diorama (toggles cleanly via interiorRoot)
+    const cottageInteriorRig = buildWillowCottageInterior(palette, shadowTex);
+    interiorRoot.add(cottageInteriorRig.group);
 
     // Tap-to-walk destination indicator ring
     const destRing = new THREE.Mesh(
@@ -599,7 +697,7 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
     for (let i = 0; i < chimePoolCount; i++) {
       const m = new THREE.Mesh(chimeGeo, chimeMat);
       m.visible = false;
-      scene.add(m);
+      exteriorRoot.add(m);
       chimeParticles.push({ mesh: m, vel: new THREE.Vector3(), life: 0 });
     }
 
@@ -621,7 +719,7 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
     for (let i = 0; i < splashPoolCount; i++) {
       const m = new THREE.Mesh(splashGeo, splashMat);
       m.visible = false;
-      scene.add(m);
+      exteriorRoot.add(m);
       splashParticles.push({ mesh: m, vel: new THREE.Vector3(), life: 0, floorY: 0.1 });
     }
 
@@ -680,7 +778,7 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
       interactableMeshes.push(hitProxy);
 
       residentRigs[id] = rig;
-      scene.add(rig.root);
+      exteriorRoot.add(rig.root);
     }
 
     // Add invisible raycast proxies for interactive landmark props (full-perimeter proxies for Fountain & Mirror Pond)
@@ -690,7 +788,7 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
         const hit = new THREE.Mesh(new THREE.CylinderGeometry(2.45, 2.55, 2.5, 12), proxyMat);
         hit.position.set(0, 1.25, 1.5);
         hit.userData = { targetKind: 'prop', targetId: prop.id };
-        scene.add(hit);
+        exteriorRoot.add(hit);
         interactableMeshes.push(hit);
       } else if (prop.id === 'mirror_pond') {
         const basinHit = new THREE.Mesh(new THREE.BoxGeometry(7.0, 1.1, 4.9), proxyMat);
@@ -702,13 +800,13 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
         const pierHit = new THREE.Mesh(new THREE.BoxGeometry(1.4, 1.1, 1.5), proxyMat);
         pierHit.position.set(2.22, 0.55, 15.9);
         pierHit.userData = { targetKind: 'prop', targetId: prop.id };
-        scene.add(basinHit, ledgeHit, pierHit);
+        exteriorRoot.add(basinHit, ledgeHit, pierHit);
         interactableMeshes.push(basinHit, ledgeHit, pierHit);
       } else {
         const hit = new THREE.Mesh(new THREE.CylinderGeometry(0.95, 0.95, 2.2, 8), proxyMat);
         hit.position.set(prop.x, 1.1, prop.z);
         hit.userData = { targetKind: 'prop', targetId: prop.id };
-        scene.add(hit);
+        exteriorRoot.add(hit);
         interactableMeshes.push(hit);
       }
     }
@@ -718,7 +816,7 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
       const bench = buildStorybookBench(palette, shadowTex);
       bench.position.set(seat.seatPos.x, 0, seat.seatPos.z);
       bench.rotation.y = seat.facingAngle;
-      scene.add(bench);
+      exteriorRoot.add(bench);
 
       const seatHit = new THREE.Mesh(
         new THREE.CylinderGeometry(0.68, 0.68, 1.0, 8),
@@ -726,7 +824,7 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
       );
       seatHit.position.set(seat.seatPos.x, 0.5, seat.seatPos.z);
       seatHit.userData = { targetKind: 'seat', targetId: seat.id };
-      scene.add(seatHit);
+      exteriorRoot.add(seatHit);
       interactableMeshes.push(seatHit);
     }
 
@@ -740,7 +838,7 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
       const shadow = (group.userData.shadowMesh as THREE.Object3D | undefined) ?? null;
       const py = getGroundHeightAt(def.pos.x, def.pos.z);
       group.position.set(def.pos.x, py, def.pos.z);
-      scene.add(group);
+      exteriorRoot.add(group);
 
       const hitProxy = new THREE.Mesh(
         new THREE.CylinderGeometry(0.55, 0.55, 0.9, 8),
@@ -748,7 +846,7 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
       );
       hitProxy.position.set(def.pos.x, py + 0.4, def.pos.z);
       hitProxy.userData = { targetKind: 'carryable', targetId: def.id };
-      scene.add(hitProxy);
+      exteriorRoot.add(hitProxy);
       interactableMeshes.push(hitProxy);
 
       carryableRigs[def.id] = { group, shadow, hitProxy };
@@ -781,6 +879,8 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
     let lastSyncedPosture: PlayerPosture | null = null;
     let lastSyncedHeldItem: CarryableItemId | null | undefined = undefined;
     let lastSyncedBubbleKey: string | null = null;
+    let lastSyncedLocation: PlayerLocation | null = null;
+    let prevWorldLocation: PlayerLocation = worldRef.current.playerLocation ?? 'exterior';
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.code === 'Space' || e.code === 'Enter') {
@@ -807,10 +907,12 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
       _pointer.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
       _raycaster.setFromCamera(_pointer, camera);
 
-      const hits = _raycaster.intersectObjects(interactableMeshes, false);
+      const isIndoors = worldRef.current.playerLocation === 'cottage_interior';
+      const activeInteractables = isIndoors ? cottageInteriorRig.hitProxies : interactableMeshes;
+      const hits = _raycaster.intersectObjects(activeInteractables, false);
       if (hits.length > 0) {
         const ud = hits[0].object.userData as {
-          targetKind: 'resident' | 'prop' | 'seat' | 'carryable';
+          targetKind: 'resident' | 'prop' | 'seat' | 'carryable' | 'cottage_prop';
           targetId: string;
         };
         const pPos = worldRef.current.playerPos;
@@ -822,7 +924,21 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
         let isImmediate = false;
         let scoreDist = 0;
 
-        if (ud.targetKind === 'resident') {
+        if (ud.targetKind === 'cottage_prop') {
+          const cid = ud.targetId as CottageInteractableId;
+          const prop = COTTAGE_INTERACTABLES.find((p) => p.id === cid);
+          if (!prop) return;
+          tPos = { x: prop.focusX, z: prop.focusZ };
+          walkDest = { x: prop.x, z: prop.z };
+          label = prop.name;
+          actionLabel = prop.actionLabel;
+          const effDist = Math.min(
+            distance2D(pPos, { x: prop.x, z: prop.z }),
+            distance2D(pPos, { x: prop.focusX, z: prop.focusZ }),
+          );
+          scoreDist = effDist;
+          isImmediate = effDist <= prop.interactRadius;
+        } else if (ud.targetKind === 'resident') {
           const rid = ud.targetId as ResidentId;
           tPos = worldRef.current.npcRuntime[rid].position;
           label = RESIDENTS[rid].name;
@@ -862,7 +978,7 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
               pid === 'gazebo_bell' && worldRef.current.flags.bellRestored
                 ? 'Ring Bell'
                 : pid === 'player_door'
-                ? 'Rest / Porch'
+                ? 'Enter Cottage'
                 : `Inspect ${prop.name}`;
             scoreDist = metrics.scoreDistance;
             isImmediate = metrics.inRange;
@@ -878,11 +994,22 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
           worldPos: { ...tPos },
           seatId: ud.targetKind === 'seat' ? ud.targetId : undefined,
           carryableId: ud.targetKind === 'carryable' ? (ud.targetId as CarryableItemId) : undefined,
+          cottagePropId:
+            ud.targetKind === 'cottage_prop' ? (ud.targetId as CottageInteractableId) : undefined,
         };
 
         if (isImmediate) {
           cozyAudio.playUiTap(1.05);
           onSelectTargetRef.current(targetObj);
+        } else if (isIndoors) {
+          const dest = walkDest ?? { ...tPos };
+          const walkableDest = isInteriorPointWalkable(dest.x, dest.z, 0.42)
+            ? dest
+            : findNearestInteriorWalkablePoint(dest.x, dest.z) ?? dest;
+          tapWalkDest = walkableDest;
+          tapWalkWaypoints = [walkableDest];
+          tapStuckSeconds = 0;
+          pendingTargetAfterWalk = targetObj;
         } else {
           const dest = walkDest ?? { ...tPos };
           const walkableDest = isPointWalkable(dest.x, dest.z, 0.48)
@@ -896,14 +1023,24 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
         return;
       }
 
-      // Ground tap-to-walk routed via A* around Mirror Pond, Fountain, and cottages
+      // Ground tap-to-walk
       if (_raycaster.ray.intersectPlane(_groundPlane, _vec3A)) {
-        const walkableDest = findNearestWalkablePoint(_vec3A.x, _vec3A.z, worldRef.current.playerPos);
-        if (walkableDest) {
-          tapWalkDest = walkableDest;
-          tapWalkWaypoints = computeWaypointPath(worldRef.current.playerPos, walkableDest, 0.48);
-          tapStuckSeconds = 0;
-          pendingTargetAfterWalk = null;
+        if (isIndoors) {
+          const walkableDest = findNearestInteriorWalkablePoint(_vec3A.x, _vec3A.z);
+          if (walkableDest) {
+            tapWalkDest = walkableDest;
+            tapWalkWaypoints = [walkableDest];
+            tapStuckSeconds = 0;
+            pendingTargetAfterWalk = null;
+          }
+        } else {
+          const walkableDest = findNearestWalkablePoint(_vec3A.x, _vec3A.z, worldRef.current.playerPos);
+          if (walkableDest) {
+            tapWalkDest = walkableDest;
+            tapWalkWaypoints = computeWaypointPath(worldRef.current.playerPos, walkableDest, 0.48);
+            tapStuckSeconds = 0;
+            pendingTargetAfterWalk = null;
+          }
         }
       }
     };
@@ -1003,8 +1140,36 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
     ): void {
       // Five-layer environment composition & dirty-flagged GPU/scene visual controller
       const composed = composeEnvironmentState(world);
-      envController.update(composed, world, world.playerPos, elapsed, dt);
-      updateWillowPrototypeMotion(willowCottage, willowCourtyard, elapsed);
+      const isIndoors = world.playerLocation === 'cottage_interior';
+      envController.update(
+        composed,
+        world,
+        isIndoors ? world.exteriorPlayerPos : world.playerPos,
+        elapsed,
+        dt,
+      );
+
+      if (isIndoors) {
+        exteriorRoot.visible = false;
+        interiorRoot.visible = true;
+        (scene.background as THREE.Color).set('#2C221B');
+        if (scene.fog instanceof THREE.Fog) {
+          scene.fog.near = 200;
+          scene.fog.far = 260;
+        }
+        hemiLight.color.set('#FBE7CC');
+        hemiLight.groundColor.set('#6E523E');
+        hemiLight.intensity = 0.85;
+        sunLight.color.set('#FFE9C2');
+        sunLight.intensity = 1.25;
+        sunLight.position.set(10, 16, 11);
+        scene.environmentIntensity = 0.65;
+        cottageInteriorRig.update(world, composed.timeOfDay.phase, elapsed);
+      } else {
+        exteriorRoot.visible = true;
+        interiorRoot.visible = false;
+        updateWillowPrototypeMotion(willowCottage, willowCourtyard, elapsed);
+      }
 
       // Update chime sparkle particles
       for (const p of chimeParticles) {
@@ -1043,7 +1208,7 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
           const px = placement?.pos.x ?? def.pos.x;
           const pz = placement?.pos.z ?? def.pos.z;
           const py = getGroundHeightAt(px, pz);
-          if (rig.group.parent !== scene) scene.add(rig.group);
+          if (rig.group.parent !== exteriorRoot) exteriorRoot.add(rig.group);
           rig.group.position.set(px, py, pz);
           rig.group.rotation.set(0, Math.sin(elapsed * 0.7 + i) * 0.04, 0);
           rig.group.visible = true;
@@ -1104,8 +1269,8 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
             (2.05 + Math.sin(elapsed * 3.2) * 0.08) * RESIDENTS[id].appearance.heightScale;
         }
 
-        const pDist = distance2D(world.playerPos, rt.position);
-        rig.ringMesh.visible = pDist < 2.9;
+        const pDist = isIndoors ? Infinity : distance2D(world.playerPos, rt.position);
+        rig.ringMesh.visible = !isIndoors && pDist < 2.9;
         if (rig.ringMesh.visible) {
           const heldProp = world.playerHeldItem ? world.worldProps?.[world.playerHeldItem] : null;
           const likesGift = Boolean(heldProp && heldProp.likedBy.includes(id));
@@ -1115,6 +1280,7 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
         }
 
         if (
+          !isIndoors &&
           rt.activeBubbleText &&
           world.minuteOfDay <= rt.activeBubbleUntilMinute &&
           pDist < nearestBubbleDist
@@ -1137,6 +1303,7 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
       const bubbleKey = nearbyBubble ? `${nearbyBubble.residentId}:${nearbyBubble.text}` : null;
       const heldItem = world.playerHeldItem ?? null;
       const posture = world.playerPosture ?? 'standing';
+      const playerLocation = world.playerLocation ?? 'exterior';
       const movedDist = Number.isNaN(lastSyncedX)
         ? 999
         : Math.hypot(world.playerPos.x - lastSyncedX, world.playerPos.z - lastSyncedZ);
@@ -1146,6 +1313,7 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
         bubbleKey !== lastSyncedBubbleKey ||
         posture !== lastSyncedPosture ||
         heldItem !== lastSyncedHeldItem ||
+        playerLocation !== lastSyncedLocation ||
         composed.weather.effective !== lastSyncedWeather ||
         composed.season.season !== lastSyncedSeason;
 
@@ -1159,6 +1327,7 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
         lastSyncedBubbleKey = bubbleKey;
         lastSyncedPosture = posture;
         lastSyncedHeldItem = heldItem;
+        lastSyncedLocation = playerLocation;
         lastSyncedMinuteInt = minuteInt;
         lastSyncedX = world.playerPos.x;
         lastSyncedZ = world.playerPos.z;
@@ -1170,6 +1339,7 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
           playerFacing: world.playerFacing,
           playerPosture: posture,
           playerHeldItem: heldItem,
+          playerLocation,
           nearestTarget,
           nearbyBubble,
           weather: composed.weather.effective,
@@ -1332,6 +1502,25 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
         }
       }
 
+      const curLocation: PlayerLocation = world.playerLocation ?? 'exterior';
+      const locationChanged = curLocation !== prevWorldLocation;
+      if (locationChanged) {
+        prevWorldLocation = curLocation;
+        tapWalkDest = null;
+        tapWalkWaypoints = [];
+        tapStuckSeconds = 0;
+        pendingTargetAfterWalk = null;
+        playerMotion = createInitialPlayerMotion(world.playerPos);
+        if (curLocation === 'cottage_interior') {
+          playerMotion.groundY = 0;
+        }
+        // Snap camera smoothly toward the entered room or porch so there's zero disorienting cross-map pan
+        const snapFocusX = curLocation === 'cottage_interior' ? world.playerPos.x * 0.45 : world.playerPos.x;
+        const snapFocusZ = curLocation === 'cottage_interior' ? world.playerPos.z * 0.45 : world.playerPos.z;
+        const snapZoom = curLocation === 'cottage_interior' ? 0.66 : zoomRef.current;
+        camera.position.set(snapFocusX + 19.5 * snapZoom, 18.2 * snapZoom, snapFocusZ + 19.5 * snapZoom);
+      }
+
       const currentActiveProp = activePropIdRef.current;
       const interactionActive =
         currentActiveProp !== null || (activePulseTimer > 0 && activePulseKind === 'interact');
@@ -1355,6 +1544,7 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
         interactionActive,
         posture: world.playerPosture ?? 'standing',
         seatId: world.playerSeatId ?? null,
+        location: curLocation,
         dt,
       });
 
@@ -1476,7 +1666,7 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
       // Update environment lighting, seasonal tints, reactive props, resident rigs & HUD
       syncVisualAndHud(world, elapsed, dt);
 
-      // Camera Choreography: Title Screen orbits Plaza/Gazebo; Playing follows player smoothly
+      // Camera Choreography: Title Screen orbits Plaza/Gazebo; Playing follows player (or miniature cottage interior)
       if (state === 'title') {
         const orbitAngle = elapsed * 0.14 + 0.65;
         const r = 27;
@@ -1485,6 +1675,18 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
         // R-08: gaze biased east of the plaza so the slow orbit keeps the tallest
         // west-side rooflines (Bakery/Book Nook) clear of the top-left title card.
         camera.lookAt(1.5, 1.4, -2.5);
+      } else if (curLocation === 'cottage_interior') {
+        const interiorZoom = THREE.MathUtils.clamp(zoomRef.current * 0.68, 0.56, 0.92);
+        const focusX = world.playerPos.x * 0.42;
+        const focusZ = world.playerPos.z * 0.42;
+        const desiredCamX = focusX + 19.5 * interiorZoom;
+        const desiredCamY = 18.2 * interiorZoom;
+        const desiredCamZ = focusZ + 19.5 * interiorZoom;
+        camera.position.x = THREE.MathUtils.damp(camera.position.x, desiredCamX, 6.5, dt);
+        camera.position.y = THREE.MathUtils.damp(camera.position.y, desiredCamY, 6.5, dt);
+        camera.position.z = THREE.MathUtils.damp(camera.position.z, desiredCamZ, 6.5, dt);
+        _vec3A.set(focusX, 0.85, focusZ);
+        camera.lookAt(_vec3A);
       } else {
         const targetOcclusionLift =
           world.playerPos.z > 8.5 && Math.abs(world.playerPos.x) > 8.5 ? 1.5 : 0;
@@ -1555,6 +1757,7 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
       renderer.domElement.removeEventListener('pointerdown', handlePointerDown);
       renderer.domElement.removeEventListener('wheel', handleWheel);
       envController.dispose();
+      cottageInteriorRig.dispose();
       meadowDressing.dispose();
       orchardRig.dispose();
       orchardMicroLifeRig.dispose();

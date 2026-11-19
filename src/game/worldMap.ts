@@ -240,6 +240,10 @@ export const PROP_INTERACTABLES: PropInteractable[] = [
   { id: 'hollow_oak', name: 'Hollow Oak Root', x: -6.2, z: 14.0, interactRadius: 2.5 },
   { id: 'plaza_noticeboard', name: 'Neighborhood Noticeboard', x: 4.4, z: -2.2, interactRadius: 2.3 },
   { id: 'mirror_pond', name: 'Mirror Pond Bank', x: 1.8, z: 10.6, interactRadius: 2.6 },
+  { id: 'cottage_window_box', name: 'Porch Herb & Chamomile Box', x: -10.1, z: 12.1, interactRadius: 2.3 },
+  { id: 'greenhouse_planters', name: 'Sunbeam Herb Planters', x: 10.0, z: 1.7, interactRadius: 2.4 },
+  { id: 'orchard_harvest', name: 'Orchard Harvest Crates', x: -4.2, z: -19.2, interactRadius: 2.4 },
+  { id: 'pond_driftwood', name: 'Mirror Pond Driftwood Nook', x: 6.5, z: 13.8, interactRadius: 2.4 },
 ];
 
 export interface PropInteractionMetrics {
@@ -358,6 +362,14 @@ export function getPropInteractionMetrics(
       ? { x: 4.4, z: -3.2 }
       : propId === 'player_door'
       ? { x: -10.8, z: 10.0 }
+      : propId === 'cottage_window_box'
+      ? { x: -10.8, z: 12.1 }
+      : propId === 'greenhouse_planters'
+      ? { x: 11.1, z: 1.7 }
+      : propId === 'orchard_harvest'
+      ? { x: -3.7, z: -20.3 }
+      : propId === 'pond_driftwood'
+      ? { x: 5.85, z: 13.8 }
       : { x: def.x, z: def.z };
 
   return {

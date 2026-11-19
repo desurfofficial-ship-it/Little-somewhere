@@ -20,7 +20,35 @@ import {
 import { RESIDENTS, getTimePhase } from './residents';
 import { advanceToNextDay } from './storage';
 import { isSeatOccupiedByNpc } from './playerController';
-import { getLandmarkAt, getSeatById, isPointWalkable, resolveMovement } from './worldMap';
+import {
+  PLAYER_DEFAULT_FACING,
+  PLAYER_SPAWN,
+  getLandmarkAt,
+  getSeatById,
+  isPointWalkable,
+  resolveMovement,
+} from './worldMap';
+import {
+  COTTAGE_DOOR_DEFAULT_FACING,
+  COTTAGE_DOOR_SPAWN,
+  COTTAGE_PORCH_EXIT_POS,
+  COTTAGE_VASE_ITEMS,
+  createInitialCottageState,
+  createInitialDailyActivities,
+  describePlacedFlower,
+  getSeasonalAlmanacReading,
+} from './cottage';
+import {
+  HEARTH_RECIPES,
+  NEIGHBOR_KEEPSAKE_REWARDS,
+  PERSONAL_ITEM_MAP,
+  addItemToInventory,
+  canCraftRecipe,
+  consumeItemFromInventory,
+  getGiftReactionTier,
+  getItemCount,
+} from './inventory';
+import { DAY_END_MINUTE } from './time';
 import {
   ACOUSTIC_BELL_RADIUS,
   LOCAL_WITNESS_RADIUS,
@@ -37,9 +65,12 @@ import {
 } from './storylines';
 import {
   CarryableItemId,
+  CottageInteractableId,
   DialogueChoice,
   DialogueSession,
   EnvironmentalState,
+  GiftReactionTier,
+  PersonalItemId,
   PropInteractableId,
   ResidentId,
   WorldState,
@@ -50,7 +81,16 @@ export interface PropInteractionResult {
   title: string;
   body: string;
   actionLabel?: string;
-  actionType?: 'rest_next_day' | 'ring_bell' | 'fountain_wish' | 'skip_stone';
+  actionType?:
+    | 'rest_next_day'
+    | 'ring_bell'
+    | 'fountain_wish'
+    | 'skip_stone'
+    | 'enter_cottage'
+    | 'exit_cottage'
+    | 'hearth_panel'
+    | 'vase_panel'
+    | 'shelf_panel';
   memoryUnlockedTitle?: string;
 }
 
@@ -913,9 +953,134 @@ export function interactWithProp(
     return {
       nextWorld: world,
       title: 'Willow Step Cottage Porch',
-      body: `Day ${world.day} is winding softly down outside. Rest inside until tomorrow morning? All neighbor friendships, memories, and neighborhood changes will stay just as you shaped them.`,
-      actionLabel: 'Rest Until Morning',
-      actionType: 'rest_next_day',
+      body: 'Your warm timber cottage waits just inside—kettle on the hearth, stoneware vase on the table, and a patchwork quilt bed by the window.',
+      actionLabel: 'Enter Cottage',
+      actionType: 'enter_cottage',
+    };
+  }
+
+  if (propId === 'cottage_window_box') {
+    const da = world.dailyActivities ?? createInitialDailyActivities();
+    if (da.cottagePlanterTendedToday) {
+      return {
+        nextWorld: world,
+        title: 'Porch Herb & Chamomile Box',
+        body: 'You watered and clipped today’s fresh chamomile blossoms. New buds will open by tomorrow morning.',
+      };
+    }
+    let invRes = addItemToInventory(world.inventory, world.discoveredItemIds, 'chamomile_blossom', 1);
+    const bonusLavender = world.day % 2 === 0;
+    if (bonusLavender) {
+      invRes = addItemToInventory(invRes.inventory, invRes.discoveredItemIds, 'lavender_sprig', 1);
+    }
+    const nextMin = Math.min(DAY_END_MINUTE, world.minuteOfDay + 12);
+    return {
+      nextWorld: {
+        ...world,
+        minuteOfDay: nextMin,
+        inventory: invRes.inventory,
+        discoveredItemIds: invRes.discoveredItemIds,
+        dailyActivities: { ...da, cottagePlanterTendedToday: true },
+      },
+      title: 'Porch Herb & Chamomile Box',
+      body: bonusLavender
+        ? 'You brushed morning soil aside and clipped fresh Chamomile Blossoms alongside Sweet Lavender for your satchel (+12m).'
+        : 'Warm sunlight scents the sill as you gather a handful of Chamomile Blossoms for your tea kettle or table vase (+12m).',
+    };
+  }
+
+  if (propId === 'greenhouse_planters') {
+    const da = world.dailyActivities ?? createInitialDailyActivities();
+    if (da.greenhousePlantersTendedToday) {
+      return {
+        nextWorld: world,
+        title: 'Sunbeam Herb Planters',
+        body: 'The terracotta herb trays beside Mina’s greenhouse are freshly watered for the day.',
+      };
+    }
+    let invRes = addItemToInventory(world.inventory, world.discoveredItemIds, 'lemon_thyme', 1);
+    invRes = addItemToInventory(invRes.inventory, invRes.discoveredItemIds, 'lavender_sprig', 1);
+    const nextMin = Math.min(DAY_END_MINUTE, world.minuteOfDay + 15);
+    return {
+      nextWorld: {
+        ...world,
+        minuteOfDay: nextMin,
+        inventory: invRes.inventory,
+        discoveredItemIds: invRes.discoveredItemIds,
+        dailyActivities: { ...da, greenhousePlantersTendedToday: true },
+      },
+      title: 'Sunbeam Herb Planters',
+      body: 'Mina left snipping shears out by the warm glasshouse trays. Gathered Lemon Thyme Sprig and Sweet Lavender (+15m).',
+    };
+  }
+
+  if (propId === 'orchard_harvest') {
+    const da = world.dailyActivities ?? createInitialDailyActivities();
+    if (da.orchardHarvestedToday) {
+      return {
+        nextWorld: world,
+        title: 'Fern Hollow Harvest Crates',
+        body: 'Today’s ripe crabapples and wild honeycomb have been gathered cleanly beneath the orchard boughs.',
+      };
+    }
+    let invRes = addItemToInventory(world.inventory, world.discoveredItemIds, 'crabapple', 2);
+    invRes = addItemToInventory(invRes.inventory, invRes.discoveredItemIds, 'wild_honey', 1);
+    const phase = getTimePhase(world.minuteOfDay);
+    const memId = 'mem_orchard_harvest';
+    const hasMem = world.memories.some((m) => m.id === memId);
+    const nextMemories = hasMem
+      ? world.memories
+      : [
+          {
+            id: memId,
+            day: world.day,
+            phase,
+            title: 'Sunlit Boughs at Fern Hollow',
+            summary:
+              'Filled my satchel with crisp Orchard Crabapples and golden honeycomb beside the woven bee skep.',
+          },
+          ...world.memories,
+        ];
+    const nextMin = Math.min(DAY_END_MINUTE, world.minuteOfDay + 20);
+    return {
+      nextWorld: {
+        ...world,
+        minuteOfDay: nextMin,
+        inventory: invRes.inventory,
+        discoveredItemIds: invRes.discoveredItemIds,
+        dailyActivities: { ...da, orchardHarvestedToday: true },
+        memories: nextMemories,
+      },
+      title: 'Fern Hollow Harvest Crates',
+      body: 'Dappled shade smells of warm apples and clover. Gathered 2 Orchard Crabapples and 1 Orchard Honeycomb into your satchel (+20m).',
+      memoryUnlockedTitle: hasMem ? undefined : 'Sunlit Boughs at Fern Hollow',
+    };
+  }
+
+  if (propId === 'pond_driftwood') {
+    const da = world.dailyActivities ?? createInitialDailyActivities();
+    if (da.pondCombedToday) {
+      return {
+        nextWorld: world,
+        title: 'Mirror Pond Driftwood Nook',
+        body: 'Smooth pebbles sit dry along the reeds—wait for tomorrow’s ripples to turn up new shoreline curios.',
+      };
+    }
+    const pool: PersonalItemId[] = ['smooth_river_glass', 'heron_feather', 'pressed_fern', 'cedar_shaving_rose'];
+    const foundId = pool[(world.day + Math.floor(world.minuteOfDay / 60)) % pool.length];
+    const foundDef = PERSONAL_ITEM_MAP[foundId];
+    const invRes = addItemToInventory(world.inventory, world.discoveredItemIds, foundId, 1);
+    const nextMin = Math.min(DAY_END_MINUTE, world.minuteOfDay + 15);
+    return {
+      nextWorld: {
+        ...world,
+        minuteOfDay: nextMin,
+        inventory: invRes.inventory,
+        discoveredItemIds: invRes.discoveredItemIds,
+        dailyActivities: { ...da, pondCombedToday: true },
+      },
+      title: 'Mirror Pond Driftwood Nook',
+      body: `While listening to water lap against the driftwood bank, you spotted ${foundDef.label} nestled beside the reeds and tucked it into your satchel (+15m).`,
     };
   }
 
@@ -1069,25 +1234,33 @@ export function interactWithProp(
     };
   }
 
-  // plaza_noticeboard
-  const composed = composeEnvironmentState(world);
-  const notes: string[] = [
-    `• Tomorrow's Sky (${composed.season.seasonLabel} Day ${composed.season.dayOfSeason}): ${getWeatherLabel(composed.weather.tomorrowForecast)}.`,
-    '• Hearth & Crumb: Warm rosemary loaves every morning!',
-  ];
-  if (world.flags.heardBellMystery) {
-    notes.push('• Town Note: Anyone seen Barnaby’s cedar ladder or the gazebo clapper?');
+  // plaza_noticeboard (or fallback)
+  if (propId === 'plaza_noticeboard') {
+    const composed = composeEnvironmentState(world);
+    const notes: string[] = [
+      `• Tomorrow's Sky (${composed.season.seasonLabel} Day ${composed.season.dayOfSeason}): ${getWeatherLabel(composed.weather.tomorrowForecast)}.`,
+      '• Hearth & Crumb: Warm rosemary loaves every morning!',
+    ];
+    if (world.flags.heardBellMystery) {
+      notes.push('• Town Note: Anyone seen Barnaby’s cedar ladder or the gazebo clapper?');
+    }
+    if (env.fountainFlowing) {
+      notes.push('• Plaza Update: Fountain water is flowing clear again!');
+    }
+    if (env.bellGleaming) {
+      notes.push('• Festival Ribbon: The Gazebo Bell chimes daily at dusk!');
+    }
+    return {
+      nextWorld: world,
+      title: 'Neighborhood Noticeboard',
+      body: notes.join('  '),
+    };
   }
-  if (env.fountainFlowing) {
-    notes.push('• Plaza Update: Fountain water is flowing clear again!');
-  }
-  if (env.bellGleaming) {
-    notes.push('• Festival Ribbon: The Gazebo Bell chimes daily at dusk!');
-  }
+
   return {
     nextWorld: world,
-    title: 'Neighborhood Noticeboard',
-    body: notes.join('  '),
+    title: 'Willow Lane',
+    body: 'Sunlight filters gently across the cobblestones.',
   };
 }
 
@@ -1330,4 +1503,631 @@ export function performPondStoneSkipAction(world: WorldState): {
 
 export function performNextDayRest(world: WorldState): WorldState {
   return advanceToNextDay(world);
+}
+
+export function enterCottageAction(world: WorldState): { nextWorld: WorldState; toast: string } {
+  if (world.playerLocation === 'cottage_interior') {
+    return { nextWorld: world, toast: '' };
+  }
+  let working = world;
+  if (working.playerHeldItem && working.worldProps?.[working.playerHeldItem]) {
+    working = placeWorldPropAction(working).nextWorld;
+  }
+  const safeExteriorPos = isPointWalkable(working.playerPos.x, working.playerPos.z, 0.48)
+    ? { ...working.playerPos }
+    : { ...COTTAGE_PORCH_EXIT_POS };
+  return {
+    nextWorld: {
+      ...working,
+      playerLocation: 'cottage_interior',
+      exteriorPlayerPos: safeExteriorPos,
+      exteriorPlayerFacing: working.playerFacing,
+      playerPos: { ...COTTAGE_DOOR_SPAWN },
+      playerFacing: COTTAGE_DOOR_DEFAULT_FACING,
+      playerPosture: 'standing',
+      playerSeatId: null,
+    },
+    toast: 'Stepped inside Willow Step Cottage.',
+  };
+}
+
+export function exitCottageAction(world: WorldState): { nextWorld: WorldState; toast: string } {
+  if (world.playerLocation !== 'cottage_interior') {
+    return { nextWorld: world, toast: '' };
+  }
+  const exPos = world.exteriorPlayerPos ?? COTTAGE_PORCH_EXIT_POS;
+  const safePos = isPointWalkable(exPos.x, exPos.z, 0.48) ? { ...exPos } : { ...PLAYER_SPAWN };
+  return {
+    nextWorld: {
+      ...world,
+      playerLocation: 'exterior',
+      playerPos: safePos,
+      playerFacing: world.exteriorPlayerFacing ?? PLAYER_DEFAULT_FACING,
+      playerPosture: 'standing',
+      playerSeatId: null,
+    },
+    toast: 'Stepped out onto Willow Step Porch.',
+  };
+}
+
+export function interactWithCottageProp(
+  world: WorldState,
+  cottagePropId: CottageInteractableId,
+): PropInteractionResult {
+  const cottage = world.cottageState ?? createInitialCottageState();
+  const da = world.dailyActivities ?? createInitialDailyActivities();
+
+  if (cottagePropId === 'interior_door') {
+    const exited = exitCottageAction(world);
+    return {
+      nextWorld: exited.nextWorld,
+      title: 'Front Porch Door',
+      body: 'Stepped back out onto Willow Step Porch.',
+      actionType: 'exit_cottage',
+    };
+  }
+
+  if (cottagePropId === 'cottage_bed') {
+    return {
+      nextWorld: world,
+      title: 'Patchwork Quilt Bed',
+      body: `Day ${world.day} settles softly outside your cottage window. Turn in until tomorrow morning? All neighbor friendships, memories, satchel items, and home keepsakes stay safely right here.`,
+      actionLabel: 'Rest Until Morning',
+      actionType: 'rest_next_day',
+    };
+  }
+
+  if (cottagePropId === 'cottage_hearth') {
+    return {
+      nextWorld: world,
+      title: 'Copper Kettle & Stone Hearth',
+      body: 'Embers crackle warmly inside the hearthstone. Steep honeyed chamomile tea or bake treats with orchard crabapples and fresh herbs from your satchel.',
+      actionLabel: 'Open Hearth & Kettle',
+      actionType: 'hearth_panel',
+    };
+  }
+
+  if (cottagePropId === 'cottage_table') {
+    return {
+      nextWorld: world,
+      title: 'Oak Table & Stoneware Vase',
+      body: describePlacedFlower(cottage.placedFlowerId),
+      actionLabel: 'Arrange Table Vase',
+      actionType: 'vase_panel',
+    };
+  }
+
+  if (cottagePropId === 'cottage_shelf') {
+    const count = cottage.displayedKeepsakeIds.length;
+    return {
+      nextWorld: world,
+      title: 'Oak Keepsake Display Shelf',
+      body:
+        count > 0
+          ? `Your sunlit wall shelf currently displays ${count} neighborhood ${count === 1 ? 'keepsake' : 'keepsakes'}.`
+          : 'Your carved oak wall shelf has room for cherished keepsakes gifted by close neighbors.',
+      actionLabel: 'Arrange Keepsakes',
+      actionType: 'shelf_panel',
+    };
+  }
+
+  if (cottagePropId === 'cottage_desk') {
+    const reading = getSeasonalAlmanacReading(world.season, world.day);
+    const nextMin = cottage.almanacReadToday
+      ? world.minuteOfDay
+      : Math.min(DAY_END_MINUTE, world.minuteOfDay + 10);
+    return {
+      nextWorld: {
+        ...world,
+        minuteOfDay: nextMin,
+        cottageState: {
+          ...cottage,
+          almanacReadToday: true,
+        },
+      },
+      title: reading.title,
+      body: reading.body,
+    };
+  }
+
+  // cottage_planter
+  if (da.cottagePlanterTendedToday) {
+    return {
+      nextWorld: world,
+      title: 'Sunlit Sill Planter',
+      body: 'Your indoor sill planter is watered and blooming softly in the afternoon sun.',
+    };
+  }
+  const invRes = addItemToInventory(world.inventory, world.discoveredItemIds, 'chamomile_blossom', 1);
+  const nextMin = Math.min(DAY_END_MINUTE, world.minuteOfDay + 10);
+  return {
+    nextWorld: {
+      ...world,
+      minuteOfDay: nextMin,
+      inventory: invRes.inventory,
+      discoveredItemIds: invRes.discoveredItemIds,
+      dailyActivities: { ...da, cottagePlanterTendedToday: true },
+    },
+    title: 'Sunlit Sill Planter',
+    body: 'Clipped fresh Chamomile Blossoms from the warm wooden sill box and tucked them into your satchel (+10m).',
+  };
+}
+
+export function cookRecipeAction(
+  world: WorldState,
+  recipeId: string,
+): {
+  ok: boolean;
+  nextWorld: WorldState;
+  toast: string;
+  memoryUnlockedTitle?: string;
+} {
+  const recipe = HEARTH_RECIPES.find((r) => r.id === recipeId);
+  if (!recipe) {
+    return { ok: false, nextWorld: world, toast: 'Unknown hearth recipe.' };
+  }
+  if (!canCraftRecipe(world.inventory, recipe)) {
+    return { ok: false, nextWorld: world, toast: 'Still missing fresh ingredients for that recipe.' };
+  }
+
+  let nextInv = { ...(world.inventory ?? {}) };
+  for (const ing of recipe.ingredients) {
+    const consumed = consumeItemFromInventory(nextInv, ing.itemId, ing.count);
+    if (!consumed.ok) {
+      return { ok: false, nextWorld: world, toast: 'Missing required ingredient.' };
+    }
+    nextInv = consumed.inventory;
+  }
+
+  const addedRes = addItemToInventory(
+    nextInv,
+    world.discoveredItemIds,
+    recipe.outputItemId,
+    recipe.outputCount,
+  );
+  const outDef = PERSONAL_ITEM_MAP[recipe.outputItemId];
+  const cottage = world.cottageState ?? createInitialCottageState();
+  const da = world.dailyActivities ?? createInitialDailyActivities();
+  const nextMin = Math.min(DAY_END_MINUTE, world.minuteOfDay + recipe.minutesRequired);
+  const phase = getTimePhase(nextMin);
+
+  const memId = 'mem_cottage_hearth';
+  const hasMem = world.memories.some((m) => m.id === memId);
+  const nextMemories = hasMem
+    ? world.memories
+    : [
+        {
+          id: memId,
+          day: world.day,
+          phase,
+          title: 'First Hearth Bake at Willow Step',
+          summary:
+            'Warm gingered steam filled Willow Step Cottage while preparing my first treat at the stone hearth.',
+        },
+        ...world.memories,
+      ];
+
+  return {
+    ok: true,
+    nextWorld: {
+      ...world,
+      minuteOfDay: nextMin,
+      inventory: addedRes.inventory,
+      discoveredItemIds: addedRes.discoveredItemIds,
+      cottageState: {
+        ...cottage,
+        hearthLit: true,
+        kettleWarmUntilMinute: Math.min(DAY_END_MINUTE, nextMin + 90),
+      },
+      dailyActivities: {
+        ...da,
+        bakedCountToday: da.bakedCountToday + 1,
+      },
+      memories: nextMemories,
+    },
+    toast: `Prepared ${outDef.label} at the hearth (+${recipe.minutesRequired}m)!`,
+    memoryUnlockedTitle: hasMem ? undefined : 'First Hearth Bake at Willow Step',
+  };
+}
+
+export function placeFlowerInVaseAction(
+  world: WorldState,
+  flowerId: PersonalItemId | null,
+): { ok: boolean; nextWorld: WorldState; toast: string } {
+  const cottage = world.cottageState ?? createInitialCottageState();
+  let nextInv = { ...(world.inventory ?? {}) };
+  let nextDiscovered = [...(world.discoveredItemIds ?? [])];
+
+  if (flowerId === null) {
+    if (!cottage.placedFlowerId) {
+      return { ok: false, nextWorld: world, toast: 'Your table vase is already empty.' };
+    }
+    const prevId = cottage.placedFlowerId;
+    const returned = addItemToInventory(nextInv, nextDiscovered, prevId, 1);
+    return {
+      ok: true,
+      nextWorld: {
+        ...world,
+        inventory: returned.inventory,
+        discoveredItemIds: returned.discoveredItemIds,
+        cottageState: {
+          ...cottage,
+          placedFlowerId: null,
+        },
+      },
+      toast: `Returned ${PERSONAL_ITEM_MAP[prevId].label} to your satchel.`,
+    };
+  }
+
+  if (!COTTAGE_VASE_ITEMS.has(flowerId as NonNullable<WorldState['cottageState']['placedFlowerId']>)) {
+    return { ok: false, nextWorld: world, toast: 'That item cannot be arranged in the table vase.' };
+  }
+  const consumed = consumeItemFromInventory(nextInv, flowerId, 1);
+  if (!consumed.ok) {
+    return { ok: false, nextWorld: world, toast: 'You do not have that bloom in your satchel.' };
+  }
+  nextInv = consumed.inventory;
+
+  if (cottage.placedFlowerId) {
+    const returned = addItemToInventory(nextInv, nextDiscovered, cottage.placedFlowerId, 1);
+    nextInv = returned.inventory;
+    nextDiscovered = returned.discoveredItemIds;
+  }
+
+  return {
+    ok: true,
+    nextWorld: {
+      ...world,
+      inventory: nextInv,
+      discoveredItemIds: nextDiscovered,
+      cottageState: {
+        ...cottage,
+        placedFlowerId: flowerId as NonNullable<WorldState['cottageState']['placedFlowerId']>,
+      },
+    },
+    toast: `Arranged ${PERSONAL_ITEM_MAP[flowerId].label} in your cottage vase.`,
+  };
+}
+
+export function toggleDisplayedKeepsakeAction(
+  world: WorldState,
+  keepsakeId: PersonalItemId,
+): { ok: boolean; nextWorld: WorldState; toast: string } {
+  const def = PERSONAL_ITEM_MAP[keepsakeId];
+  if (!def || def.homeDisplayable !== 'shelf') {
+    return { ok: false, nextWorld: world, toast: 'That item does not fit on the keepsake shelf.' };
+  }
+  if (getItemCount(world.inventory, keepsakeId) <= 0) {
+    return { ok: false, nextWorld: world, toast: 'You have not earned that keepsake yet.' };
+  }
+
+  const cottage = world.cottageState ?? createInitialCottageState();
+  const current = [...cottage.displayedKeepsakeIds];
+  const existsIdx = current.indexOf(keepsakeId);
+  if (existsIdx >= 0) {
+    current.splice(existsIdx, 1);
+    return {
+      ok: true,
+      nextWorld: {
+        ...world,
+        cottageState: {
+          ...cottage,
+          displayedKeepsakeIds: current,
+        },
+      },
+      toast: `Tucked ${def.label} safely back into your chest.`,
+    };
+  }
+
+  if (current.length >= 5) {
+    return { ok: false, nextWorld: world, toast: 'Your oak shelf already holds 5 keepsakes.' };
+  }
+
+  current.push(keepsakeId);
+  return {
+    ok: true,
+    nextWorld: {
+      ...world,
+      cottageState: {
+        ...cottage,
+        displayedKeepsakeIds: current,
+      },
+    },
+    toast: `Set ${def.label} onto your sunlit oak keepsake shelf.`,
+  };
+}
+
+function buildGiftReactionLine(
+  residentId: ResidentId,
+  itemId: PersonalItemId,
+  tier: GiftReactionTier,
+): string {
+  const def = PERSONAL_ITEM_MAP[itemId];
+  if (tier === 'loved') {
+    switch (residentId) {
+      case 'clara':
+        return `Oh goodness—${def.label}! Look at the color on that—this makes my whole afternoon shine brighter than the hearth!`;
+      case 'arthur':
+        return `Ah… ${def.label}. You remembered exactly what steadies an old watchmaker’s hands. Thank you kindly, neighbor.`;
+      case 'mina':
+        return `Oh!! Fresh ${def.label}! Look how bright the petals still are—wait till you see where I press and keep this!`;
+      case 'jun':
+        return `No way—${def.label}?! Best stop on my entire Willow Lane mail route today, hands down!`;
+      case 'barnaby':
+        return `Well now—${def.label}! Now that’s craftsmanship worth pausing a chisel for. Much obliged!`;
+      case 'sora':
+        return `${def.label}… thank you. Just holding this settles the whole afternoon like a warm resolving chord.`;
+      case 'toby':
+        return `Whoa—is that really ${def.label} for me?! Look how the light catches it—I’m sketching this right away!`;
+      case 'nora':
+        return `${def.label}… how remarkably thoughtful of you. I’ll tuck this right beside my favorite bookmark.`;
+      case 'pip':
+        return `WHOA!! ${def.label}?! Are you serious?! Best neighbor on Willow Lane EVER!`;
+    }
+  }
+  if (tier === 'liked') {
+    return `Why thank you! ${def.label} is right up my alley—how kind of you to think of me while out on your walk.`;
+  }
+  return `Oh, ${def.label}? That’s very thoughtful of you to share, neighbor. Thank you!`;
+}
+
+export function giveInventoryItemAction(
+  world: WorldState,
+  residentId: ResidentId,
+  itemId: PersonalItemId,
+  session: DialogueSession,
+): {
+  ok: boolean;
+  nextWorld: WorldState;
+  nextSession: DialogueSession;
+  reactionTier: GiftReactionTier;
+  keepsakeAwardedId?: PersonalItemId;
+  toast: string;
+} {
+  const itemDef = PERSONAL_ITEM_MAP[itemId];
+  const da = world.dailyActivities ?? createInitialDailyActivities();
+  if (!itemDef || !itemDef.giftable) {
+    return {
+      ok: false,
+      nextWorld: world,
+      nextSession: session,
+      reactionTier: 'neutral',
+      toast: 'That keepsake is meant for your cottage shelf.',
+    };
+  }
+  if (da.giftedResidentsToday.includes(residentId)) {
+    return {
+      ok: false,
+      nextWorld: world,
+      nextSession: session,
+      reactionTier: 'neutral',
+      toast: `You already shared a gift with ${RESIDENTS[residentId].name} today.`,
+    };
+  }
+
+  const consumed = consumeItemFromInventory(world.inventory, itemId, 1);
+  if (!consumed.ok) {
+    return {
+      ok: false,
+      nextWorld: world,
+      nextSession: session,
+      reactionTier: 'neutral',
+      toast: 'That item is no longer in your satchel.',
+    };
+  }
+
+  const reactionTier = getGiftReactionTier(residentId, itemId);
+  const phase = getTimePhase(world.minuteOfDay);
+  const currentRes = world.residents[residentId];
+  const existingRel = world.playerRelations?.[residentId] ?? {
+    residentId,
+    affinity: currentRes.trust * 20,
+    familiarity: currentRes.met ? 10 : 0,
+    dailyAffinityGained: 0,
+    talkedCount: currentRes.met ? 1 : 0,
+    lastTalkDay: null,
+    lastTalkPhase: null,
+    mood: currentRes.mood,
+    moodUntilMinute: 0,
+    reliability: 25,
+    negativeCount: 0,
+    favorsCompleted: 0,
+    giftsGiven: 0,
+    lastEmotion: 'relaxed' as const,
+  };
+
+  const prevTier = getRelationshipTier(existingRel.affinity);
+  const prevHearts = getHeartLevel(existingRel.affinity);
+
+  const { relation: nextPlayerRel, progress: nextResidentProg } = recordPlayerTalkAffinity(
+    existingRel,
+    currentRes,
+    {
+      day: world.day,
+      phase,
+      minuteOfDay: world.minuteOfDay,
+      requestedTrustDelta: reactionTier === 'loved' ? 1.5 : reactionTier === 'liked' ? 1 : 0,
+      requestedReliabilityDelta: reactionTier === 'loved' ? 10 : reactionTier === 'liked' ? 6 : 3,
+      isStoryMilestone: false,
+      isGift: true,
+      nextNodeId: 'gift_reaction',
+      forcedEmotion: reactionTier === 'loved' ? 'excited' : reactionTier === 'liked' ? 'happy' : 'relaxed',
+    },
+  );
+
+  let nextNpcRuntime = world.npcRuntime;
+  if (world.npcRuntime?.[residentId]) {
+    nextNpcRuntime = {
+      ...world.npcRuntime,
+      [residentId]: {
+        ...world.npcRuntime[residentId],
+        emotion: nextPlayerRel.lastEmotion,
+        emotionIntensity: reactionTier === 'loved' ? 0.9 : 0.78,
+        emotionUntilMinute: world.minuteOfDay + 90,
+      },
+    };
+  }
+
+  let nextInventory = consumed.inventory;
+  let nextDiscovered = [...(world.discoveredItemIds ?? [])];
+  const nextNeighborGifts = [...(world.neighborGiftsReceived ?? [])];
+  let keepsakeAwardedId: PersonalItemId | undefined;
+  let keepsakeNote = '';
+
+  const reward = NEIGHBOR_KEEPSAKE_REWARDS.find((r) => r.residentId === residentId);
+  if (
+    reward &&
+    nextPlayerRel.affinity >= reward.minAffinity &&
+    !nextNeighborGifts.includes(residentId)
+  ) {
+    const addedKeepsake = addItemToInventory(nextInventory, nextDiscovered, reward.itemId, 1);
+    nextInventory = addedKeepsake.inventory;
+    nextDiscovered = addedKeepsake.discoveredItemIds;
+    nextNeighborGifts.push(residentId);
+    keepsakeAwardedId = reward.itemId;
+    keepsakeNote = `  ${reward.note}`;
+  }
+
+  const roundedMinute = Math.round(world.minuteOfDay);
+  const eventPos = nextNpcRuntime?.[residentId]?.position ?? world.playerPos;
+  const placeName = getLandmarkAt(eventPos).name;
+  const giftEventId = `gift_${world.day}_${residentId}_${itemId}`;
+
+  const nextEvents = [...(world.worldEvents ?? [])];
+  pushWorldEventInPlace(nextEvents, {
+    id: giftEventId,
+    day: world.day,
+    phase,
+    minuteOfDay: roundedMinute,
+    kind: 'player_help',
+    actors: [residentId],
+    summary: `Gifted ${itemDef.label} to ${RESIDENTS[residentId].name}.`,
+    summaryTag: `gift_${itemId}`,
+  });
+
+  const nextNpcMemories = cloneNpcMemories(world.npcMemories);
+  recordNpcMemoryInPlace(
+    nextNpcMemories,
+    residentId,
+    createNpcMemoryEntry({
+      id: giftEventId,
+      eventId: giftEventId,
+      tag: 'player_gift',
+      category: 'interaction',
+      subjectPlayer: true,
+      subjectResidents: [residentId],
+      provenance: 'firsthand',
+      sourceKind: 'participant',
+      createdDay: world.day,
+      createdMinute: roundedMinute,
+      importance: reactionTier === 'loved' ? 4 : 3,
+      retention: 'durable',
+      valence: 'warm',
+      emotionalWeight: reactionTier === 'loved' ? 84 : 70,
+      detail: { personalItemId: itemId, placeName },
+    }),
+    world.day,
+  );
+
+  const witnesses = collectWitnessesForPosition(world, eventPos, LOCAL_WITNESS_RADIUS, {
+    excludeIds: [residentId],
+  });
+  for (const wid of witnesses) {
+    recordNpcMemoryInPlace(
+      nextNpcMemories,
+      wid,
+      createNpcMemoryEntry({
+        id: giftEventId,
+        eventId: giftEventId,
+        tag: 'player_help_observed',
+        category: 'interaction',
+        subjectPlayer: true,
+        subjectResidents: [residentId],
+        provenance: 'firsthand',
+        sourceKind: 'witness',
+        createdDay: world.day,
+        createdMinute: roundedMinute,
+        importance: 2,
+        retention: 'durable',
+        valence: 'warm',
+        emotionalWeight: 56,
+        detail: { personalItemId: itemId, placeName },
+      }),
+      world.day,
+    );
+  }
+
+  const nextTier = getRelationshipTier(nextPlayerRel.affinity);
+  const nextHearts = getHeartLevel(nextPlayerRel.affinity);
+  const tierAdvanced = TIER_RANK[nextTier] > TIER_RANK[prevTier];
+  const heartAdvanced = nextHearts > prevHearts;
+
+  const nextWorld: WorldState = {
+    ...world,
+    inventory: nextInventory,
+    discoveredItemIds: nextDiscovered,
+    dailyActivities: {
+      ...da,
+      giftedResidentsToday: [...da.giftedResidentsToday, residentId],
+    },
+    neighborGiftsReceived: nextNeighborGifts,
+    residents: {
+      ...world.residents,
+      [residentId]: nextResidentProg,
+    },
+    playerRelations: {
+      ...(world.playerRelations ?? {}),
+      [residentId]: nextPlayerRel,
+    },
+    npcRuntime: nextNpcRuntime,
+    worldEvents: nextEvents,
+    npcMemories: nextNpcMemories,
+  };
+
+  const reactionLine = buildGiftReactionLine(residentId, itemId, reactionTier) + keepsakeNote;
+  const giftToast = keepsakeAwardedId
+    ? `${RESIDENTS[residentId].name} gave you ${PERSONAL_ITEM_MAP[keepsakeAwardedId].label}!`
+    : reactionTier === 'loved'
+    ? `${RESIDENTS[residentId].name} loved your ${itemDef.label}!`
+    : `Gave ${itemDef.label} to ${RESIDENTS[residentId].name}.`;
+
+  const milestoneLabel = keepsakeAwardedId
+    ? `Keepsake received!`
+    : tierAdvanced
+    ? `New bond: ${getRelationshipTierLabel(nextTier)}`
+    : heartAdvanced
+    ? 'Friendship deepened!'
+    : undefined;
+
+  const nextSession: DialogueSession = {
+    ...session,
+    tier: nextTier,
+    emotion: nextPlayerRel.lastEmotion,
+    currentNodeId: 'gift_reaction',
+    recentToast: giftToast,
+    milestonePulseSeq:
+      milestoneLabel !== undefined ? (session.milestonePulseSeq ?? 0) + 1 : session.milestonePulseSeq,
+    milestoneLabel,
+    nodes: {
+      ...session.nodes,
+      gift_reaction: {
+        id: 'gift_reaction',
+        speakerName: RESIDENTS[residentId].name,
+        speakerRole: RESIDENTS[residentId].role,
+        moodLabel: reactionTier === 'loved' ? 'Delighted' : reactionTier === 'liked' ? 'Warm' : 'Grateful',
+        text: reactionLine,
+        choices: [],
+        isEnd: true,
+      },
+    },
+  };
+
+  return {
+    ok: true,
+    nextWorld,
+    nextSession,
+    reactionTier,
+    keepsakeAwardedId,
+    toast: giftToast,
+  };
 }

@@ -2,11 +2,15 @@ import {
   ActiveSocialEncounter,
   CarryableItemId,
   CharacterEmotion,
+  CottageHomeState,
+  DailyActivitiesState,
   JournalMemory,
   NpcMemoryDetail,
   NpcMemoryEntry,
   NpcNpcRelation,
   NpcRuntimeState,
+  PersonalItemId,
+  PlayerLocation,
   PlayerNpcRelation,
   RelationshipTier,
   ResidentActivityEntry,
@@ -74,8 +78,21 @@ import {
   hydrateStorylinesFromLegacyState,
   sanitizeStorylines,
 } from './storylines';
+import {
+  MAX_ITEM_STACK,
+  PERSONAL_ITEM_MAP,
+  VALID_PERSONAL_ITEM_IDS,
+  createStarterInventory,
+} from './inventory';
+import {
+  COTTAGE_DOOR_SPAWN,
+  COTTAGE_VASE_ITEMS,
+  createInitialCottageState,
+  createInitialDailyActivities,
+  isInteriorPointWalkable,
+} from './cottage';
 
-export const CURRENT_SCHEMA_VERSION = 5;
+export const CURRENT_SCHEMA_VERSION = 6;
 export const DEFAULT_SIM_SEED = 18042;
 
 export interface MigrationResult {
@@ -177,6 +194,8 @@ export function createDefaultWorldState(): WorldState {
   const minuteOfDay = DEFAULT_START_MINUTE;
   const flags = createInitialStoryFlags();
   const residents = createInitialResidentsProgress();
+  const starterInv = createStarterInventory();
+  const starterDiscovered = Object.keys(starterInv) as PersonalItemId[];
   return {
     schemaVersion: CURRENT_SCHEMA_VERSION,
     simSeed: DEFAULT_SIM_SEED,
@@ -208,6 +227,14 @@ export function createDefaultWorldState(): WorldState {
     mailboxUnread: true,
     dailyLettersRead: [],
     bellRungCount: 0,
+    playerLocation: 'exterior',
+    exteriorPlayerPos: { ...PLAYER_SPAWN },
+    exteriorPlayerFacing: PLAYER_DEFAULT_FACING,
+    inventory: starterInv,
+    discoveredItemIds: starterDiscovered,
+    cottageState: createInitialCottageState(),
+    dailyActivities: createInitialDailyActivities(),
+    neighborGiftsReceived: [],
   };
 }
 
@@ -802,6 +829,9 @@ function sanitizeMemoryDetail(raw: unknown): NpcMemoryDetail | undefined {
   if (typeof raw.itemId === 'string' && VALID_CARRYABLE_IDS.has(raw.itemId as CarryableItemId)) {
     detail.itemId = raw.itemId as CarryableItemId;
   }
+  if (typeof raw.personalItemId === 'string' && VALID_PERSONAL_ITEM_IDS.has(raw.personalItemId as PersonalItemId)) {
+    detail.personalItemId = raw.personalItemId as PersonalItemId;
+  }
   if (typeof raw.placeName === 'string' && raw.placeName.length > 0) {
     detail.placeName = raw.placeName;
   }
@@ -996,16 +1026,23 @@ export function sanitizeWorldState(candidate: unknown, externalWarnings: string[
   const rawSeed = asFiniteNumber(candidate.simSeed, DEFAULT_SIM_SEED);
   const simSeed = (Math.floor(rawSeed) >>> 0) || DEFAULT_SIM_SEED;
 
+  const playerLocation: PlayerLocation =
+    candidate.playerLocation === 'cottage_interior' ? 'cottage_interior' : 'exterior';
+
   const rawSeatId =
-    typeof candidate.playerSeatId === 'string' && getSeatById(candidate.playerSeatId)
+    playerLocation === 'exterior' &&
+    typeof candidate.playerSeatId === 'string' &&
+    getSeatById(candidate.playerSeatId)
       ? candidate.playerSeatId
       : null;
   const playerPosture =
-    candidate.playerPosture === 'sitting' && rawSeatId ? 'sitting' : 'standing';
+    playerLocation === 'exterior' && candidate.playerPosture === 'sitting' && rawSeatId
+      ? 'sitting'
+      : 'standing';
   const playerSeatId = playerPosture === 'sitting' ? rawSeatId : null;
 
-  let playerX = PLAYER_SPAWN.x;
-  let playerZ = PLAYER_SPAWN.z;
+  let playerX = playerLocation === 'cottage_interior' ? COTTAGE_DOOR_SPAWN.x : PLAYER_SPAWN.x;
+  let playerZ = playerLocation === 'cottage_interior' ? COTTAGE_DOOR_SPAWN.z : PLAYER_SPAWN.z;
   let playerFacing = asFiniteNumber(candidate.playerFacing, PLAYER_DEFAULT_FACING);
   if (playerPosture === 'sitting' && playerSeatId) {
     const seat = getSeatById(playerSeatId)!;
@@ -1013,15 +1050,34 @@ export function sanitizeWorldState(candidate: unknown, externalWarnings: string[
     playerZ = seat.seatPos.z;
     playerFacing = seat.facingAngle;
   } else if (isRecord(candidate.playerPos)) {
-    const cx = asFiniteNumber(candidate.playerPos.x, PLAYER_SPAWN.x);
-    const cz = asFiniteNumber(candidate.playerPos.z, PLAYER_SPAWN.z);
-    if (isPointWalkable(cx, cz, 0.48)) {
+    const cx = asFiniteNumber(candidate.playerPos.x, playerX);
+    const cz = asFiniteNumber(candidate.playerPos.z, playerZ);
+    const walkable =
+      playerLocation === 'cottage_interior'
+        ? isInteriorPointWalkable(cx, cz, 0.42)
+        : isPointWalkable(cx, cz, 0.48);
+    if (walkable) {
       playerX = cx;
       playerZ = cz;
     } else {
-      warnings.push('non-walkable playerPos reset to PLAYER_SPAWN');
+      warnings.push('non-walkable playerPos reset to safe spawn');
     }
   }
+
+  let extX = playerLocation === 'exterior' ? playerX : PLAYER_SPAWN.x;
+  let extZ = playerLocation === 'exterior' ? playerZ : PLAYER_SPAWN.z;
+  if (playerLocation === 'cottage_interior' && isRecord(candidate.exteriorPlayerPos)) {
+    const cx = asFiniteNumber(candidate.exteriorPlayerPos.x, PLAYER_SPAWN.x);
+    const cz = asFiniteNumber(candidate.exteriorPlayerPos.z, PLAYER_SPAWN.z);
+    if (isPointWalkable(cx, cz, 0.48)) {
+      extX = cx;
+      extZ = cz;
+    }
+  }
+  const exteriorPlayerFacing = asFiniteNumber(
+    candidate.exteriorPlayerFacing,
+    playerLocation === 'exterior' ? playerFacing : PLAYER_DEFAULT_FACING,
+  );
 
   const flags = sanitizeFlags(candidate.flags, warnings);
   const residents = sanitizeResidents(candidate.residents, warnings);
@@ -1082,6 +1138,91 @@ export function sanitizeWorldState(candidate: unknown, externalWarnings: string[
       ? candidate.regionId
       : DEFAULT_REGION_ID;
 
+  // Sanitize Milestone 2C v6 fields (inventory, discovered items, cottage home state, daily activities)
+  const inventory: Partial<Record<PersonalItemId, number>> = {};
+  if (isRecord(candidate.inventory)) {
+    for (const [key, val] of Object.entries(candidate.inventory)) {
+      if (!VALID_PERSONAL_ITEM_IDS.has(key as PersonalItemId)) continue;
+      if (typeof val === 'number' && Number.isFinite(val) && val >= 1) {
+        inventory[key as PersonalItemId] = Math.min(MAX_ITEM_STACK, Math.floor(val));
+      }
+    }
+  } else if (candidate.inventory === undefined) {
+    Object.assign(inventory, createStarterInventory());
+  }
+
+  const discoveredSet = new Set<PersonalItemId>();
+  if (Array.isArray(candidate.discoveredItemIds)) {
+    for (const item of candidate.discoveredItemIds) {
+      if (typeof item === 'string' && VALID_PERSONAL_ITEM_IDS.has(item as PersonalItemId)) {
+        discoveredSet.add(item as PersonalItemId);
+      }
+    }
+  }
+  for (const ownedId of Object.keys(inventory) as PersonalItemId[]) {
+    discoveredSet.add(ownedId);
+  }
+  const discoveredItemIds = Array.from(discoveredSet);
+
+  const defCottage = createInitialCottageState();
+  const rawCottage = isRecord(candidate.cottageState) ? candidate.cottageState : {};
+  const placedFlowerId =
+    typeof rawCottage.placedFlowerId === 'string' &&
+    COTTAGE_VASE_ITEMS.has(rawCottage.placedFlowerId as NonNullable<CottageHomeState['placedFlowerId']>)
+      ? (rawCottage.placedFlowerId as CottageHomeState['placedFlowerId'])
+      : null;
+  const displayedKeepsakeIds = Array.isArray(rawCottage.displayedKeepsakeIds)
+    ? Array.from(
+        new Set(
+          rawCottage.displayedKeepsakeIds.filter(
+            (id): id is PersonalItemId =>
+              typeof id === 'string' &&
+              VALID_PERSONAL_ITEM_IDS.has(id as PersonalItemId) &&
+              PERSONAL_ITEM_MAP[id as PersonalItemId]?.homeDisplayable === 'shelf' &&
+              (inventory[id as PersonalItemId] ?? 0) > 0,
+          ),
+        ),
+      ).slice(0, 5)
+    : [];
+  const cottageState: CottageHomeState = {
+    placedFlowerId,
+    displayedKeepsakeIds,
+    hearthLit: asBoolean(rawCottage.hearthLit, defCottage.hearthLit),
+    kettleWarmUntilMinute: Math.max(0, asFiniteNumber(rawCottage.kettleWarmUntilMinute, 0)),
+    almanacReadToday: asBoolean(rawCottage.almanacReadToday, false),
+    cottageRestCount: Math.max(0, Math.floor(asFiniteNumber(rawCottage.cottageRestCount, 0))),
+  };
+
+  const rawDaily = isRecord(candidate.dailyActivities) ? candidate.dailyActivities : {};
+  const dailyActivities: DailyActivitiesState = {
+    cottagePlanterTendedToday: asBoolean(rawDaily.cottagePlanterTendedToday, false),
+    greenhousePlantersTendedToday: asBoolean(rawDaily.greenhousePlantersTendedToday, false),
+    orchardHarvestedToday: asBoolean(rawDaily.orchardHarvestedToday, false),
+    pondCombedToday: asBoolean(rawDaily.pondCombedToday, false),
+    bakedCountToday: Math.max(0, Math.floor(asFiniteNumber(rawDaily.bakedCountToday, 0))),
+    giftedResidentsToday: Array.isArray(rawDaily.giftedResidentsToday)
+      ? Array.from(
+          new Set(
+            rawDaily.giftedResidentsToday.filter(
+              (r): r is ResidentId =>
+                typeof r === 'string' && (RESIDENT_ORDER as readonly string[]).includes(r),
+            ),
+          ),
+        )
+      : [],
+  };
+
+  const neighborGiftsReceived = Array.isArray(candidate.neighborGiftsReceived)
+    ? Array.from(
+        new Set(
+          candidate.neighborGiftsReceived.filter(
+            (r): r is ResidentId =>
+              typeof r === 'string' && (RESIDENT_ORDER as readonly string[]).includes(r),
+          ),
+        ),
+      )
+    : [];
+
   return {
     schemaVersion: CURRENT_SCHEMA_VERSION,
     simSeed,
@@ -1094,7 +1235,7 @@ export function sanitizeWorldState(candidate: unknown, externalWarnings: string[
     playerFacing,
     playerPosture,
     playerSeatId,
-    playerHeldItem,
+    playerHeldItem: playerLocation === 'cottage_interior' ? null : playerHeldItem,
     worldProps,
     residents,
     npcRuntime,
@@ -1113,6 +1254,14 @@ export function sanitizeWorldState(candidate: unknown, externalWarnings: string[
     mailboxUnread: asBoolean(candidate.mailboxUnread, true),
     dailyLettersRead,
     bellRungCount: Math.max(0, Math.floor(asFiniteNumber(candidate.bellRungCount, 0))),
+    playerLocation,
+    exteriorPlayerPos: { x: extX, z: extZ },
+    exteriorPlayerFacing,
+    inventory,
+    discoveredItemIds,
+    cottageState,
+    dailyActivities,
+    neighborGiftsReceived,
   };
 }
 
@@ -1451,11 +1600,48 @@ export function migrateV4ToV5(v4Raw: Record<string, unknown>): Record<string, un
   };
 }
 
+/**
+ * Pure sequential v5 -> v6 save upgrader adding Milestone 2C Everyday Life fields:
+ * cottage interior location/state, personal satchel inventory, daily activities, and keepsake tracking.
+ */
+export function migrateV5ToV6(v5Raw: Record<string, unknown>): Record<string, unknown> {
+  const starterInv = createStarterInventory();
+  const discovered = Object.keys(starterInv) as PersonalItemId[];
+
+  // Grant keepsake editions for already-completed storylines in legacy saves
+  const storylines = isRecord(v5Raw.storylines) ? v5Raw.storylines : {};
+  const zine = isRecord(storylines.side_pip_zine) ? storylines.side_pip_zine : null;
+  if (zine && zine.status === 'completed') {
+    starterInv.willow_zine_copy = 1;
+    discovered.push('willow_zine_copy');
+  }
+
+  const extPos = isRecord(v5Raw.playerPos)
+    ? {
+        x: asFiniteNumber(v5Raw.playerPos.x, PLAYER_SPAWN.x),
+        z: asFiniteNumber(v5Raw.playerPos.z, PLAYER_SPAWN.z),
+      }
+    : { ...PLAYER_SPAWN };
+
+  return {
+    ...v5Raw,
+    schemaVersion: 6,
+    playerLocation: 'exterior',
+    exteriorPlayerPos: extPos,
+    exteriorPlayerFacing: asFiniteNumber(v5Raw.playerFacing, PLAYER_DEFAULT_FACING),
+    inventory: starterInv,
+    discoveredItemIds: discovered,
+    cottageState: createInitialCottageState(),
+    dailyActivities: createInitialDailyActivities(),
+    neighborGiftsReceived: [],
+  };
+}
+
 export function migrateWorldState(raw: unknown): MigrationResult {
   const warnings: string[] = [];
   const detected = detectSchemaVersion(raw);
   if (detected === null) {
-    warnings.push('unrecognized or corrupt save payload; created fresh WorldState v5');
+    warnings.push(`unrecognized or corrupt save payload; created fresh WorldState v${CURRENT_SCHEMA_VERSION}`);
     return {
       state: createDefaultWorldState(),
       migratedFromVersion: null,
@@ -1484,6 +1670,11 @@ export function migrateWorldState(raw: unknown): MigrationResult {
   if (version === 4) {
     working = migrateV4ToV5(working);
     version = 5;
+  }
+
+  if (version === 5) {
+    working = migrateV5ToV6(working);
+    version = 6;
   }
 
   if (version > CURRENT_SCHEMA_VERSION) {

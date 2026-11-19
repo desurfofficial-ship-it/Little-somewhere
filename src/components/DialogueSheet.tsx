@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   ChevronRight,
   Gift,
@@ -14,6 +14,7 @@ import {
   CharacterEmotion,
   DialogueChoice,
   DialogueSession,
+  PersonalItemId,
   PlayerNpcRelation,
   RelationshipTier,
   ResidentProgress,
@@ -27,6 +28,7 @@ import {
   getRelationshipTier,
   getRelationshipTierLabel,
 } from '../game/relationships';
+import { getOwnedGiftableItems, PERSONAL_ITEM_CATEGORY_LABELS } from '../game/inventory';
 import { RESIDENTS } from '../game/residents';
 import { PropInteractionResult } from '../game/actions';
 
@@ -102,8 +104,9 @@ interface DialogueSheetProps {
   sideFlags?: Record<string, boolean | number | string>;
   world?: WorldState;
   onSelectChoice: (choice: DialogueChoice) => void;
+  onGiveGift?: (itemId: PersonalItemId) => void;
   onClose: () => void;
-  onPropAction: (actionType: 'rest_next_day' | 'ring_bell' | 'fountain_wish' | 'skip_stone') => void;
+  onPropAction: (actionType: NonNullable<PropInteractionResult['actionType']>) => void;
 }
 
 export const DialogueSheet: React.FC<DialogueSheetProps> = ({
@@ -116,9 +119,16 @@ export const DialogueSheet: React.FC<DialogueSheetProps> = ({
   sideFlags = {},
   world,
   onSelectChoice,
+  onGiveGift,
   onClose,
   onPropAction,
 }) => {
+  const [giftPickerOpen, setGiftPickerOpen] = useState<boolean>(false);
+
+  useEffect(() => {
+    setGiftPickerOpen(false);
+  }, [session?.residentId, session?.currentNodeId]);
+
   if (!session && !propCard) return null;
 
   if (propCard) {
@@ -309,6 +319,65 @@ export const DialogueSheet: React.FC<DialogueSheetProps> = ({
               </button>
             );
           })}
+
+          {world && onGiveGift && session.currentNodeId !== 'gift_reaction' && (
+            <div className="pt-1 border-t border-[#E6DAC7] mt-1 space-y-2">
+              <div className="flex items-center justify-between gap-2">
+                <button
+                  type="button"
+                  onClick={() => setGiftPickerOpen((v) => !v)}
+                  className="min-h-[44px] px-3.5 py-2 rounded-xl bg-[#EEF3EC] hover:bg-[#E2ECE0] border border-[#B6CBB5] text-[#263829] text-xs sm:text-sm font-semibold flex items-center gap-2 transition-colors cursor-pointer"
+                >
+                  <Gift className="w-4 h-4 text-[#5E8062] shrink-0" />
+                  <span>{giftPickerOpen ? 'Hide Satchel Gifts' : 'Offer Gift from Satchel'}</span>
+                </button>
+              </div>
+
+              {giftPickerOpen && (
+                <div className="p-2.5 rounded-xl bg-[#F4ECE0] border border-[#DFD1BC] max-h-[22vh] overflow-y-auto storybook-scroll space-y-1.5">
+                  {world.dailyActivities?.giftedResidentsToday?.includes(session.residentId) ? (
+                    <p className="text-xs text-[#5E5046] px-1 py-1">
+                      You already shared a gift with {node.speakerName} today. Stop by again tomorrow!
+                    </p>
+                  ) : (
+                    (() => {
+                      const ownedGifts = getOwnedGiftableItems(world.inventory);
+                      if (ownedGifts.length === 0) {
+                        return (
+                          <p className="text-xs text-[#5E5046] px-1 py-1">
+                            Your satchel has no giftable items right now—gather blossoms, orchard crabapples, or bake at your cottage hearth.
+                          </p>
+                        );
+                      }
+                      return ownedGifts.map(({ def, count }) => (
+                        <button
+                          key={def.id}
+                          type="button"
+                          onClick={() => {
+                            setGiftPickerOpen(false);
+                            onGiveGift(def.id);
+                          }}
+                          className="w-full min-h-[44px] px-3 py-2 rounded-xl bg-[#FAF5EC] hover:bg-[#EFE5D5] border border-[#D4C4AE] text-left flex items-center justify-between gap-2 transition-colors cursor-pointer"
+                        >
+                          <div className="min-w-0">
+                            <div className="text-xs sm:text-sm font-semibold text-[#2D241E] truncate">
+                              {def.label}
+                            </div>
+                            <div className="text-[11px] text-[#6A5B50]">
+                              {PERSONAL_ITEM_CATEGORY_LABELS[def.category]}
+                            </div>
+                          </div>
+                          <span className="font-mono-nums text-xs font-semibold text-[#5E8062] shrink-0">
+                            ×{count} · Give
+                          </span>
+                        </button>
+                      ));
+                    })()
+                  )}
+                </div>
+              )}
+            </div>
+          )}
 
           {(node.isEnd || availableChoices.length === 0) && (
             <div className="flex justify-end pt-1">

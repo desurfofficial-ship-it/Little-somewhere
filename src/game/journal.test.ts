@@ -12,6 +12,7 @@ import {
 import { createNpcMemoryEntry, recordNpcMemoryInPlace } from './memories';
 import { buildResidentDialogue } from './narrative';
 import { createFreshWorldState, deserializeWorldState } from './storage';
+import { CURRENT_SCHEMA_VERSION } from './migrations';
 import { ResidentId, WorldState } from './types';
 
 function pickChoice(
@@ -424,7 +425,7 @@ test('legacy v1/v3/v4 saves with mem_side_* memories migrate to v5 and render cl
   };
 
   const migrated = deserializeWorldState(JSON.stringify(legacySave));
-  assert.equal(migrated.state.schemaVersion, 5);
+  assert.equal(migrated.state.schemaVersion, CURRENT_SCHEMA_VERSION);
 
   const view = buildPocketJournalView(migrated.state);
   assert.equal(view.memories.length, 4);
@@ -479,3 +480,29 @@ test('read-state storage helpers handle Node (no window) and browser localStorag
     }
   }
 });
+
+test('Milestone 2C: Pocket Journal projects cottage homeSummary and personalItemId gift notes cleanly', () => {
+  let world = createFreshWorldState();
+  world = cookRecipeAction(world, 'recipe_chamomile_tea').nextWorld;
+  world = {
+    ...world,
+    inventory: { ...world.inventory, lavender_sprig: 1, willow_zine_copy: 1 },
+    discoveredItemIds: [...world.discoveredItemIds, 'lavender_sprig', 'willow_zine_copy'],
+  };
+  world = placeFlowerInVaseAction(world, 'lavender_sprig').nextWorld;
+  world = toggleDisplayedKeepsakeAction(world, 'willow_zine_copy').nextWorld;
+
+  const session = buildResidentDialogue('arthur', world, 'afternoon');
+  world = giveInventoryItemAction(world, 'arthur', 'chamomile_pear_tea', session).nextWorld;
+
+  const view = buildPocketJournalView(world);
+  assert.equal(view.homeSummary.placedFlowerLabel, 'Sweet Lavender');
+  assert.deepEqual(view.homeSummary.displayedKeepsakeLabels, ['Willow Lane Zine #1']);
+  assert.ok(view.homeSummary.discoveredCount >= 4);
+  assert.ok(view.memories.some((m) => m.id === 'mem_cottage_hearth'));
+
+  const arthurCard = view.people.find((p) => p.id === 'arthur')!;
+  const giftNote = arthurCard.knownNotes.find((n) => n.text.includes('Warm Chamomile Tea'));
+  assert.ok(giftNote, 'Arthur journal card should mention Warm Chamomile Tea gift naturally');
+});
+
