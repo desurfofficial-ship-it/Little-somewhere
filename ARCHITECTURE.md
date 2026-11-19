@@ -117,8 +117,12 @@ computeEnvironmentState(world.flags)
 | `src/game/storage.ts` | `localStorage` save/load/reset and `advanceToNextDay()` |
 | `src/game/audio.ts` | Procedural Web Audio synthesizer (footsteps, voice, chime, brass bell) |
 | `src/game/engine.test.ts` | Deterministic `node:test` suite for collision, schedules, and story flow |
-| `src/scene/textures.ts` | Seeded procedural `CanvasTexture` generators (meadow, cobbles, shingles) |
-| `src/scene/models.ts` | Composite 3–12 part low-poly clay cottages, greenhouse, gazebo, characters |
+| `src/scene/textures.ts` | Seeded procedural `CanvasTexture` generators (meadow, cobbles, shingles, contact shadows) |
+| `src/scene/materials.ts` | Shared `MaterialPalette` cache enforcing roughness/ACES color discipline |
+| `src/scene/models.ts` | Composite clay cottages, greenhouse, lathe brass bell gazebo, stone fountain, characters |
+| `src/scene/prototypes/willowLaneDiorama.ts` | Premium Handcrafted Storybook Diorama prototype (Willow Step Cottage, lane, foliage & Jun) |
 | `src/scene/NeighborhoodCanvas.tsx` | Three.js renderer, lighting cycle, movement, raycasting, animation loop |
 | `src/components/*` | `TitleOverlay`, `VirtualJoystick`, `DialogueSheet`, `JournalDrawer`, `PauseModal` |
 | `src/App.tsx` | Top-level game shell, HUD bar, keyboard shortcuts, persistence wiring |
+| `docs/art-direction/*` | Official **Premium Handcrafted Storybook Diorama** identity, standards, audit & roadmap |
+

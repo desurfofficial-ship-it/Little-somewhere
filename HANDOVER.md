@@ -8,20 +8,23 @@
 
 ## 1. Current State of the Repository
 
-The playable vertical slice is **complete, compiled, unit-tested, and browser-verified** on both desktop (`1440×900`) and mobile (`390×844`):
+The playable vertical slice and **Willow Lane Storybook Visual Prototype** are **complete, compiled, unit-tested, and browser-verified** on both desktop (`1440×900`) and mobile (`390×844`):
+- **Official Visual Direction**: **PREMIUM HANDCRAFTED STORYBOOK DIORAMA** (`docs/art-direction/VISUAL_IDENTITY.md`), demonstrated in-engine via `src/scene/prototypes/willowLaneDiorama.ts` (Willow Step Cottage, Willow Mailbox, Willow Lane flagstones/curbs/signpost/fence/trees, and Storybook Jun) and shared `MaterialPalette` (`src/scene/materials.ts`). Remaining cottages, landmarks, and the other 8 residents remain queued for staged Stage 1–3 transformation per `docs/art-direction/VISUAL_TRANSFORMATION_ROADMAP.md`.
 - **Core Gameplay Loop**: Title Screen (`body[data-state="title"]`) -> Live Isometric Neighborhood (`body[data-state="playing"]`) -> Branching Resident Dialogue / Prop Inspection -> Pocket Journal -> Porch Rest to Advance Day -> `localStorage` Persistence.
 - **9 Living Residents**: Clara, Arthur, Mina, Jun, Barnaby, Sora, Toby, Nora, and Pip each have distinct 3D silhouettes, 4-phase schedules (`morning`, `afternoon`, `golden`, `dusk`), trust levels (`0–5`), and interconnected dialogue for *The Silent Gazebo Bell*.
-- **Environmental Reactivity**: Resolving beats visibly transforms the 3D scene (window-box flowers bloom in 3 stages, gazebo ivy clears, stone fountain water & droplets activate, bakery outdoor café tables appear, plaza festoon lanterns glow, marigold ribbon drapes the gazebo, Hollow Oak glint vanishes on pickup, and the brass bell physically swings and emits particles when rung).
+- **Environmental Reactivity**: Resolving beats visibly transforms the 3D scene (window-box flowers bloom in 3 stages, gazebo ivy clears, brass clapper installs upon restoration, stone fountain water & droplets activate, bakery outdoor café tables appear, plaza festoon lanterns glow, marigold ribbon drapes the gazebo, Hollow Oak glint vanishes on pickup, and the brass bell physically swings and emits particles when rung).
 
 ---
 
 ## 2. Where to Read First
 
-1. `ARCHITECTURE.md` — System boundaries, `worldRef` vs React snapshot sync, isometric math, and narrative reactivity pipeline.
-2. `GAME_DESIGN.md` — Visual bible, resident profiles, storyline graph, and Milestone 2–3 design specs.
-3. `src/game/types.ts` — Single source of truth for `WorldState`, `StoryFlags`, `EnvironmentalState`, and `DialogueSession`.
-4. `src/game/narrative.ts` — All branching dialogue trees and `computeEnvironmentState()`.
-5. `src/scene/NeighborhoodCanvas.tsx` — Three.js scene lifecycle, camera damping, input handling, and per-frame animation.
+1. `docs/art-direction/VISUAL_IDENTITY.md` & `VISUAL_QUALITY_STANDARDS.md` — **Official Visual Identity (PREMIUM HANDCRAFTED STORYBOOK DIORAMA)** and mandatory asset review checklist.
+2. `docs/art-direction/VISUAL_AUDIT.md` & `VISUAL_TRANSFORMATION_ROADMAP.md` — Comprehensive visual audit and staged rollout plan.
+3. `ARCHITECTURE.md` — System boundaries, `worldRef` vs React snapshot sync, isometric math, and narrative reactivity pipeline.
+4. `GAME_DESIGN.md` — Visual bible, resident profiles, storyline graph, and Milestone 2–3 design specs.
+5. `src/game/types.ts` — Single source of truth for `WorldState`, `StoryFlags`, `EnvironmentalState`, and `DialogueSession`.
+6. `src/game/narrative.ts` — All branching dialogue trees and `computeEnvironmentState()`.
+7. `src/scene/NeighborhoodCanvas.tsx` — Three.js scene lifecycle, camera damping, input handling, and per-frame animation.
 
 ---
 
@@ -53,7 +56,7 @@ The playable vertical slice is **complete, compiled, unit-tested, and browser-ve
 
 ## 5. Verification Status at Handover
 
-- `npx --yes tsx --test src/game/engine.test.ts` — **5/5 passing**
+- `npm test` (`npx --yes tsx --test src/game/engine.test.ts`) — **5/5 passing**
 - `npm run lint` (`tsc --noEmit`) — **Passing (0 errors)**
 - `npm run build` (`vite build`) — **Passing**
-- Browser QA (`playwright-cli` on `1440×900` & `390×844`) — **Passing (0 console errors)**
+- Browser QA (`playwright-cli` on `1440×900` morning/golden/dusk + interaction & `390×844` mobile) — **Passing (0 console errors, 0 warnings)**

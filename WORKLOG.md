@@ -66,3 +66,27 @@ Chronological log of design decisions, implementation milestones, verification r
 - **Confirmed Baseline Verification**:
   - `npm test`, `npm run lint`, and `npm run build` verified cleanly without modifying gameplay behavior.
 
+---
+
+## Entry 005 — Visual Identity, Art Direction & Quality Transformation (Willow Lane Prototype)
+- **Date**: 2026-11-18
+- **Status**: Completed & Verified
+- **Key Deliverables**:
+  - **Official Art Direction Established (`docs/art-direction/`)**:
+    - Authored `VISUAL_IDENTITY.md` (*PREMIUM HANDCRAFTED STORYBOOK DIORAMA*, preserving *Sunlit Diorama & Clay Storybook* warmth while raising production craft), `VISUAL_QUALITY_STANDARDS.md` (mandatory 8-item asset-review checklist), `VISUAL_AUDIT.md`, `VISUAL_TRANSFORMATION_ROADMAP.md` (Stages 0–4), and `REFERENCE_GUIDELINES.md`.
+    - Updated `AGENTS.md`, `GAME_DESIGN.md`, `ARCHITECTURE.md`, and `HANDOVER.md` to enforce the official visual direction across all future development.
+  - **Shared Material Registry & ACES Calibration (`src/scene/materials.ts`, `src/scene/textures.ts`)**:
+    - Added cached `MaterialPalette` registry + ACES-calibrated `STORYBOOK_PALETTE` constants; calibrated meadow and cobblestone `CanvasTexture` contrast to prevent highlight wash-out.
+  - **Focused 3D Visual Prototype (`src/scene/prototypes/willowLaneDiorama.ts`)**:
+    - Rebuilt **Willow Step Cottage** inside exact `player_cottage` collision bounds (`7.4 × 6.4` centered at `(-14.5, 10.0)`) with stepped stone plinth, corner quoins, cream bargeboards, projecting shingle roof dormer, stone-and-brick chimney with pooled drifting smoke puffs, covered East veranda with 4 stone-seated cedar posts + fascia + hanging brass lantern + slatted porch bench/mug/throw, shuttered windows with muntins & flower boxes, stacked firewood rack, and cedar rainwater barrel.
+    - Upgraded **Willow Mailbox** (stone collar, clover tufts, braced cedar post, shingled sage barrel, brass latch, peeking stamped postcard, unread flag), **Willow Lane Courtyard & Pathway** (stepping flagstones, beveled curb trim, split-rail garden fence, lantern signpost, layered shrubs, wildflowers, and 3 multi-lobe sculpted willow/birch/apple trees matched to `CIRCLE_OBSTACLES`), and **Storybook Jun** (pivoted limbs, flared courier coat, amber knit scarf, cross-body leather satchel with brass buckle & postcard, courier cap with badge, expressive catchlight eyes & blush cheeks).
+  - **Immediate Technical & Audit Fixes (`src/scene/NeighborhoodCanvas.tsx`, `src/scene/models.ts`)**:
+    - Replaced deprecated `THREE.Clock` with `THREE.Timer` (`0` console warnings).
+    - Snapped camera directly to `playerPos` on initial `playing` mount (`?autostart=1`).
+    - Dimmed `RoomEnvironment` IBL (`environmentIntensity`), hemisphere fill, and directional key smoothly into Golden Hour & Lantern Dusk so windows and lanterns read warmly at twilight.
+    - Exposed `clapperMesh` on `GazeboRig` (hidden until restored), added Tea Cart canopy support posts, and closed East Plaza cobble seam gap.
+- **Verification**:
+  - `npm test` (`5/5` pass), `npm run lint` (`tsc --noEmit`, 0 errors), and `npm run build` (`vite build`) passed.
+  - Live Chromium inspection (`1440×900` morning, Golden Hour, Lantern Dusk, Jun/Porch interaction, and `390×844` mobile) confirmed **0 console errors, 0 console warnings**.
+
+

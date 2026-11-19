@@ -17,10 +17,12 @@
 
 ---
 
-## 2. Visual Bible — Sunlit Diorama & Clay Storybook
+## 2. Visual Bible — Premium Handcrafted Storybook Diorama
+
+*Official Source of Truth*: See `docs/art-direction/VISUAL_IDENTITY.md` and `docs/art-direction/VISUAL_QUALITY_STANDARDS.md` (preserving the warm personality of *Sunlit Diorama & Clay Storybook* elevated to premium cozy-game craft).
 
 - **Camera**: Elevated isometric view (`28°` FOV) creating a tactile painted-wood-and-clay miniature feel.
-- **Materials**: Matte polymer-clay walls and meadow grass (`roughness 0.80–0.92`) paired with glazed terracotta pots (`0.60`), glass greenhouse panes (`0.12`), and polished brass hardware (`metalness 0.85, roughness 0.25`).
+- **Materials**: Matte polymer-clay walls and meadow grass (`roughness 0.82–0.92`) paired with glazed terracotta pots (`0.42–0.60`), glass greenhouse panes (`0.12`), and brushed brass hardware (`metalness 0.85, roughness 0.25`).
 - **Four Atmospheric Phases**:
   - **Morning (`6:00 AM – 11:30 AM`)**: Crisp sky `#DCEBF2`, honeyed sunlight `#FFF1D0`.
   - **Afternoon (`11:30 AM – 4:00 PM`)**: Clear sunlit sky `#D9ECF5`, bright `#FFF6DF`.

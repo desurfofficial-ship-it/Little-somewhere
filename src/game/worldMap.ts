@@ -65,6 +65,11 @@ export const CIRCLE_OBSTACLES: CircleObstacle[] = [
   { id: 'hollow_oak', x: -6.2, z: 15.6, radius: 1.35 },
   { id: 'tea_cart', x: -5.4, z: -3.2, radius: 1.05 },
   { id: 'plaza_board', x: 4.4, z: -3.2, radius: 0.75 },
+  // Willow Lane prototype courtyard trees & signpost
+  { id: 'willow_tree_sw', x: -19.2, z: 13.6, radius: 0.68 },
+  { id: 'willow_tree_south', x: -15.5, z: 15.0, radius: 0.65 },
+  { id: 'willow_tree_nw', x: -16.8, z: 5.2, radius: 0.62 },
+  { id: 'willow_signpost', x: -12.5, z: 5.7, radius: 0.42 },
 ];
 
 export const LANDMARK_ZONES: LandmarkZone[] = [

@@ -310,6 +310,7 @@ export interface GazeboRig {
   group: THREE.Group;
   bellPivot: THREE.Group;
   bellMesh: THREE.Mesh;
+  clapperMesh: THREE.Mesh;
   ivyGroup: THREE.Group;
   ribbonMesh: THREE.Mesh;
 }
@@ -379,6 +380,7 @@ export function buildOldBellGazebo(): GazeboRig {
 
   const clapper = new THREE.Mesh(new THREE.SphereGeometry(0.13, 10, 10), brassMat);
   clapper.position.y = -1.34;
+  clapper.visible = false;
   bellPivot.add(clapper);
 
   const rope = new THREE.Mesh(
@@ -410,7 +412,7 @@ export function buildOldBellGazebo(): GazeboRig {
   ribbonMesh.visible = false;
   group.add(ribbonMesh);
 
-  return { group, bellPivot, bellMesh, ivyGroup, ribbonMesh };
+  return { group, bellPivot, bellMesh, clapperMesh: clapper, ivyGroup, ribbonMesh };
 }
 
 export interface FountainRig {

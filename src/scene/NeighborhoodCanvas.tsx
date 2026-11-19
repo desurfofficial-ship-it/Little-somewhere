@@ -45,6 +45,14 @@ import {
   createMeadowTexture,
   createRoofShingleTexture,
 } from './textures';
+import { MaterialPalette } from './materials';
+import {
+  buildStorybookJun,
+  buildWillowLaneCourtyardProps,
+  buildWillowMailbox,
+  buildWillowStepCottage,
+  updateWillowPrototypeMotion,
+} from './prototypes/willowLaneDiorama';
 
 export interface NeighborhoodCanvasProps {
   screenState: GameScreenState;
@@ -76,7 +84,9 @@ const _sunAfternoon = new THREE.Color('#FFF6DF');
 const _sunGolden = new THREE.Color('#FFB266');
 const _sunDusk = new THREE.Color('#97AEE0');
 const _hemiSkyMorning = new THREE.Color('#B5D7EB');
-const _hemiSkyDusk = new THREE.Color('#6C82B5');
+const _hemiSkyDusk = new THREE.Color('#5B71A8');
+const _hemiGroundMorning = new THREE.Color('#7A664E');
+const _hemiGroundDusk = new THREE.Color('#3F3D52');
 
 export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
   screenState,
@@ -148,17 +158,25 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
     const pmremGenerator = new THREE.PMREMGenerator(renderer);
     const roomEnv = new RoomEnvironment();
     scene.environment = pmremGenerator.fromScene(roomEnv, 0.04).texture;
+    scene.environmentIntensity = 0.68;
     roomEnv.dispose();
     pmremGenerator.dispose();
 
     const width = container.clientWidth || window.innerWidth;
     const height = container.clientHeight || window.innerHeight;
     const camera = new THREE.PerspectiveCamera(28, width / height, 0.5, 160);
-    camera.position.set(18, 17, 18);
-    camera.lookAt(0, 1.2, 0);
+    if (screenStateRef.current === 'playing') {
+      const zoom = zoomRef.current;
+      const pPos = worldRef.current.playerPos;
+      camera.position.set(pPos.x + 19.5 * zoom, 18.2 * zoom, pPos.z + 19.5 * zoom);
+      camera.lookAt(pPos.x, 1.0, pPos.z);
+    } else {
+      camera.position.set(18, 17, 18);
+      camera.lookAt(0, 1.2, 0);
+    }
 
     // 3-Point Warm/Cool Lighting Rig
-    const hemiLight = new THREE.HemisphereLight('#B5D7EB', '#7D6A54', 0.62);
+    const hemiLight = new THREE.HemisphereLight('#B5D7EB', '#7A664E', 0.54);
     scene.add(hemiLight);
 
     const sunLight = new THREE.DirectionalLight('#FFF1D0', 1.52);
@@ -222,7 +240,7 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
     addCobbleStrip(0, 0, 12.5, 13.5);
     addCobbleStrip(-9, 10, 11, 3.6); // Home lane
     addCobbleStrip(-10, -1, 3.8, 22); // West lane (Book Nook -> Bakery -> Home)
-    addCobbleStrip(8.5, -1, 3.8, 23); // East lane (Workshop -> Greenhouse -> Woodshop)
+    addCobbleStrip(8.3, -1, 4.2, 23); // East lane (Workshop -> Greenhouse -> Woodshop)
     addCobbleStrip(0, 7.2, 22, 3.2); // South promenade above pond
     addCobbleStrip(0, -6.5, 22, 3.2); // North promenade by gazebo
 
@@ -278,49 +296,34 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
     canopiesInst.computeBoundingSphere();
     scene.add(trunksInst, canopiesInst);
 
-    // Track reactive scene elements
+    // Shared storybook palette & reactive scene elements
+    const palette = new MaterialPalette();
     const windowMaterials: THREE.MeshStandardMaterial[] = [];
+    const prototypeLanternMats: THREE.MeshStandardMaterial[] = [];
     const flowerGroups: THREE.Group[] = [];
 
-    // Build Neighborhood Buildings (all pivoted at y = 0)
-    // 1. Player Cottage (Willow Step Cottage)
-    const playerHome = buildClayCottage({
-      width: 6.2,
-      depth: 5.4,
-      wallHeight: 2.5,
-      wallColor: '#F5EAD7',
-      roofColor: '#C46347',
-      trimColor: '#7A543E',
-      doorSide: 'east',
-      hasAwning: true,
-      awningColor: '#698C6B',
-      roofTex: terracottaRoofTex,
+    const willowProtoCtx = {
+      palette,
+      shadowTex,
+      terracottaRoofTex,
       windowMaterials,
+      lanternMaterials: prototypeLanternMats,
       flowerGroups,
-    });
-    playerHome.position.set(-14.5, 0, 10.0);
-    scene.add(playerHome);
+    };
 
-    // Player Mailbox (with unread flag)
-    const mailboxGroup = new THREE.Group();
-    mailboxGroup.position.set(-9.8, 0, 7.2);
-    const mbPost = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.08, 0.1, 1.0, 8),
-      new THREE.MeshStandardMaterial({ color: '#6E4C36', roughness: 0.85 }),
-    );
-    mbPost.position.y = 0.5;
-    const mbBox = new THREE.Mesh(
-      new THREE.BoxGeometry(0.45, 0.35, 0.65),
-      new THREE.MeshStandardMaterial({ color: '#5A7F64', roughness: 0.5, metalness: 0.2 }),
-    );
-    mbBox.position.y = 1.1;
-    const mbFlag = new THREE.Mesh(
-      new THREE.BoxGeometry(0.06, 0.34, 0.12),
-      new THREE.MeshStandardMaterial({ color: '#E25B45', roughness: 0.4 }),
-    );
-    mbFlag.position.set(0.25, 1.28, 0.15);
-    mailboxGroup.add(mbPost, mbBox, mbFlag);
-    scene.add(mailboxGroup);
+    // Build Neighborhood Buildings (all pivoted at y = 0)
+    // 1. Player Cottage Prototype (Willow Step Cottage + Courtyard + Mailbox)
+    const willowCottage = buildWillowStepCottage(willowProtoCtx);
+    willowCottage.group.position.set(-14.5, 0, 10.0);
+    scene.add(willowCottage.group);
+
+    const willowCourtyard = buildWillowLaneCourtyardProps(willowProtoCtx);
+    scene.add(willowCourtyard.group);
+
+    const willowMailbox = buildWillowMailbox(willowProtoCtx);
+    willowMailbox.group.position.set(-9.8, 0, 7.2);
+    scene.add(willowMailbox.group);
+    const mbFlag = willowMailbox.flagMesh;
 
     // 2. Hearth & Crumb Bakery (Clara)
     const bakery = buildClayCottage({
@@ -454,6 +457,14 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
       new THREE.MeshStandardMaterial({ color: '#8C6BB1', roughness: 0.78 }),
     );
     canopy.position.y = 1.95;
+    const cartPostMat = palette.standard('#6B4834', 0.78, 0.04);
+    for (const px of [-0.68, 0.68]) {
+      for (const pz of [-0.42, 0.42]) {
+        const post = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.045, 1.05, 6), cartPostMat);
+        post.position.set(px, 1.42, pz);
+        teaCart.add(post);
+      }
+    }
     teaCart.add(cartBase, kettle, canopy);
     scene.add(teaCart);
 
@@ -636,7 +647,10 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
 
     for (const id of RESIDENT_ORDER) {
       const def = RESIDENTS[id];
-      const rig = buildClayCharacter(def.appearance, shadowTex);
+      const rig =
+        id === 'jun'
+          ? buildStorybookJun(def.appearance, palette, shadowTex)
+          : buildClayCharacter(def.appearance, shadowTex);
       const slot = getResidentScheduleSlot(
         id,
         getTimePhase(worldRef.current.minuteOfDay),
@@ -792,7 +806,8 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
       renderer.compile(scene, camera);
     }
 
-    const clock = new THREE.Clock();
+    const timer = new THREE.Timer();
+    timer.connect(document);
     let frameId = 0;
     let disposed = false;
     let prevPhase: TimePhase = getTimePhase(worldRef.current.minuteOfDay);
@@ -825,16 +840,17 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
       frameId = window.setTimeout(poll, 5);
     }
 
-    function updateEnvironmentVisuals(env: EnvironmentalState, phase: TimePhase, elapsed: number) {
+    function updateEnvironmentVisuals(env: EnvironmentalState, phase: TimePhase, elapsed: number, dt: number) {
       // Planters blooming
       flowerGroups.forEach((fg, idx) => {
         const bloomActive = idx % 3 < env.plantersBloomed;
-        const targetScale = bloomActive ? 1.15 : 0.45;
+        const targetScale = bloomActive ? 1.15 : 0.55;
         fg.scale.setScalar(targetScale);
       });
 
-      // Gazebo Ivy & Ribbon
+      // Gazebo Ivy, Clapper & Ribbon
       gazeboRig.ivyGroup.visible = !env.ivyCleared;
+      gazeboRig.clapperMesh.visible = env.bellGleaming;
       gazeboRig.ribbonMesh.visible = env.reconciledTogether;
       bakeryTablesGroup.visible = env.bakeryTablesOpen;
       festoonGroup.visible = env.festoonLanterns || phase === 'dusk';
@@ -861,9 +877,9 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
         });
       }
 
-      // Bell damped swing
+      // Bell damped swing (frame-rate independent)
       if (Math.abs(bellSwingVelRef.current) > 0.01 || Math.abs(gazeboRig.bellPivot.rotation.z) > 0.005) {
-        const dtClamped = 0.016;
+        const dtClamped = Math.min(dt, 0.032);
         const k = 18.0;
         const damping = 2.2;
         const acc = -k * gazeboRig.bellPivot.rotation.z - damping * bellSwingVelRef.current;
@@ -879,9 +895,10 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
 
     function tick() {
       if (disposed) return;
-      const rawDt = clock.getDelta();
+      timer.update();
+      const rawDt = timer.getDelta();
       const dt = Math.min(rawDt, 0.05);
-      const elapsed = clock.getElapsedTime();
+      const elapsed = timer.getElapsed();
       const state = screenStateRef.current;
       const world = worldRef.current;
 
@@ -918,21 +935,30 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
       if (scene.fog instanceof THREE.Fog) {
         scene.fog.color.copy(scene.background as THREE.Color);
       }
-      hemiLight.color.copy(_hemiSkyMorning).lerp(_hemiSkyDusk, Math.max(0, (tNorm - 0.6) / 0.4));
-      sunLight.intensity = THREE.MathUtils.lerp(1.52, 0.92, Math.max(0, (tNorm - 0.65) / 0.35));
+      const duskFactor = Math.max(0, (tNorm - 0.58) / 0.42);
+      hemiLight.color.copy(_hemiSkyMorning).lerp(_hemiSkyDusk, duskFactor);
+      hemiLight.groundColor.copy(_hemiGroundMorning).lerp(_hemiGroundDusk, duskFactor);
+      hemiLight.intensity = THREE.MathUtils.lerp(0.54, 0.34, duskFactor);
+      scene.environmentIntensity = THREE.MathUtils.lerp(0.68, 0.24, duskFactor);
+      sunLight.intensity = THREE.MathUtils.lerp(1.52, 0.58, Math.max(0, (tNorm - 0.62) / 0.38));
 
       const sunAngle = THREE.MathUtils.lerp(0.5, 2.4, tNorm);
       sunLight.position.set(Math.cos(sunAngle) * 26, 26 - Math.abs(tNorm - 0.5) * 10, 16);
 
-      const windowGlow = phase === 'dusk' ? 1.25 : phase === 'golden' ? 0.65 : 0.2;
+      const windowGlow = phase === 'dusk' ? 1.75 : phase === 'golden' ? 0.78 : 0.22;
       for (const wm of windowMaterials) {
         wm.emissiveIntensity = windowGlow;
       }
-      lanternMat.emissiveIntensity = phase === 'dusk' ? 1.5 : world.flags.lanternsLit ? 0.85 : 0.15;
+      lanternMat.emissiveIntensity = phase === 'dusk' ? 1.85 : world.flags.lanternsLit ? 0.85 : 0.15;
+      const protoLanternGlow = phase === 'dusk' ? 2.1 : phase === 'golden' ? 0.85 : 0.22;
+      for (const lm of prototypeLanternMats) {
+        lm.emissiveIntensity = protoLanternGlow;
+      }
 
-      // Update environment visual reactivity
+      // Update environment visual reactivity & Willow Lane prototype motion
       const env = computeEnvironmentState(world.flags);
-      updateEnvironmentVisuals(env, phase, elapsed);
+      updateEnvironmentVisuals(env, phase, elapsed, dt);
+      updateWillowPrototypeMotion(willowCottage, willowCourtyard, elapsed);
 
       // Update chime sparkle particles
       for (const p of chimeParticles) {
@@ -1196,6 +1222,8 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
       sageRoofTex.dispose();
       slateRoofTex.dispose();
       shadowTex.dispose();
+      palette.disposeAll();
+      timer.dispose();
       renderer.dispose();
       if (renderer.domElement.parentNode === container) {
         container.removeChild(renderer.domElement);

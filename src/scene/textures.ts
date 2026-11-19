@@ -15,29 +15,29 @@ export function createMeadowTexture(maxAnisotropy: number): THREE.CanvasTexture 
   const ctx = canvas.getContext('2d')!;
   const rand = makeSeededRandom(42);
 
-  // Warm sunlit meadow base
-  ctx.fillStyle = '#759D5A';
+  // Warm sunlit meadow base (calibrated mid-tone green for ACESFilmicToneMapping)
+  ctx.fillStyle = '#678E4D';
   ctx.fillRect(0, 0, 512, 512);
 
   // Soft painterly grass patches
-  const tones = ['#6A9250', '#7FA763', '#6F9854', '#85AD68'];
+  const tones = ['#5B8242', '#719856', '#608846', '#7AA05C'];
   for (let i = 0; i < 220; i++) {
     ctx.fillStyle = tones[Math.floor(rand() * tones.length)];
     const x = rand() * 512;
     const y = rand() * 512;
     const r = 10 + rand() * 26;
-    ctx.globalAlpha = 0.25;
+    ctx.globalAlpha = 0.28;
     ctx.beginPath();
     ctx.arc(x, y, r, 0, Math.PI * 2);
     ctx.fill();
   }
 
   // Tiny clover & meadow daisy speckles
-  ctx.globalAlpha = 0.65;
+  ctx.globalAlpha = 0.68;
   for (let i = 0; i < 160; i++) {
     const x = rand() * 512;
     const y = rand() * 512;
-    ctx.fillStyle = rand() > 0.72 ? '#F6E8BE' : '#587A40';
+    ctx.fillStyle = rand() > 0.74 ? '#EFE0B3' : '#4C6E36';
     ctx.beginPath();
     ctx.arc(x, y, 1.2 + rand() * 1.4, 0, Math.PI * 2);
     ctx.fill();
@@ -60,11 +60,11 @@ export function createCobblestoneTexture(maxAnisotropy: number): THREE.CanvasTex
   const ctx = canvas.getContext('2d')!;
   const rand = makeSeededRandom(108);
 
-  // Warm sandy mortar base
-  ctx.fillStyle = '#B8A88F';
+  // Warm earthy mortar base so stone joints remain legible in bright sunlight
+  ctx.fillStyle = '#92816B';
   ctx.fillRect(0, 0, 512, 512);
 
-  const stoneColors = ['#D2C3AA', '#C9B99F', '#BEAD93', '#D9CCB5', '#B7A58C'];
+  const stoneColors = ['#C3B399', '#B9A88E', '#AE9D83', '#CBBCA2', '#A8977D'];
   const rows = 10;
   const cols = 10;
   const cellW = 512 / cols;
@@ -75,17 +75,17 @@ export function createCobblestoneTexture(maxAnisotropy: number): THREE.CanvasTex
     for (let c = -1; c <= cols; c++) {
       const cx = c * cellW + offset + (rand() - 0.5) * 6;
       const cy = r * cellH + (rand() - 0.5) * 4;
-      const w = cellW - 8 + (rand() - 0.5) * 4;
-      const h = cellH - 8 + (rand() - 0.5) * 4;
+      const w = cellW - 9 + (rand() - 0.5) * 4;
+      const h = cellH - 9 + (rand() - 0.5) * 4;
 
       ctx.fillStyle = stoneColors[Math.floor(rand() * stoneColors.length)];
       ctx.beginPath();
-      ctx.roundRect(cx + 4, cy + 4, w, h, 8);
+      ctx.roundRect(cx + 4.5, cy + 4.5, w, h, 8);
       ctx.fill();
 
-      // Soft top highlight on each clay cobblestone
-      ctx.strokeStyle = 'rgba(255, 250, 240, 0.35)';
-      ctx.lineWidth = 1.5;
+      // Subtle warm highlight bevel on clay cobblestone
+      ctx.strokeStyle = 'rgba(255, 246, 232, 0.28)';
+      ctx.lineWidth = 1.4;
       ctx.stroke();
     }
   }
