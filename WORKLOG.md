@@ -416,3 +416,28 @@ Chronological log of design decisions, implementation milestones, verification r
   - `npm test` (`tsx --test src/game/*.test.ts src/scene/*.test.ts`): **66/66 passing** (`0` failures).
   - `npm run lint` (`tsc --noEmit`), `compile_applet`, `lint_applet`, and `npm run build` (`vite build`): **Passing (`0` errors)**.
 
+---
+
+## Entry 023 — Player Full-Capability Polish (Bespoke Rig, Dusk Lantern, Emotes, Feel)
+- **Date**: 2026-11-19
+- **Status**: Completed & Verified
+- **Scope**: A dedicated player-excellence pass building on Entry 013 — the player becomes the second bespoke rig in the cast (after Jun), gains a signature dusk pocket lantern, idle life gestures, a wave-hello emote with neighbor wave-back, footstep dust puffs with tiered audio, pinch-to-zoom on touch, and sprint camera micro-juice.
+- **Key Deliverables**:
+  - **Bespoke player rig (`src/scene/builders/characters.ts` `buildStorybookPlayer`, new)**:
+    - Layers onto the shared storybook body: moss knit scarf (collar + tail + knot), oat-canvas cross-body satchel on the right hip (brass buckle + peeking stamped postcard), leather strap, left elbow patch, and a brass pin on the sage beret — the beloved rust-coat/beret look now reads as its own character, distinct from every resident.
+    - `StorybookPlayerRig extends CharacterRig` with a `PlayerLanternRig`; `PLAYER_LANTERN_GLOW` constants (day 0.08 / golden 0.7 / dusk 1.45) follow the world's existing emissive lantern language (no extra scene light).
+    - `updatePlayerLantern()` damps glow toward the time-phase target, flickers the flame (dual-sine), hides the flame below 0.2 glow, and sways the lantern with stride speed (zero allocations).
+  - **Two new animation states (`NpcAnimationState` + `animateCharacterRig`)**: `adjust_hat` (fond beret pat — arm to head, head tilt, torso settle) and `look_around` (curious lane scan — head sweep + torso follow). 19 total states.
+  - **Idle flourish scheduler (`src/game/playerController.ts`, pure & tested)**: after 6.5–10 randomized quiet seconds the player plays a non-repeating flourish (`adjust_hat` / `look_around` / `admire`), held 1.5 s; movement, sitting, dialogue, and gesture pulses all reset the timer.
+  - **Wave hello emote + neighbor wave-back**: `H` key (edge-triggered) and a HUD `Wave [H]` button (desktop + touch) trigger a `wave` pulse with a two-note "hello" chime (`playWaveHello`); `selectWaveBackResidents()` picks residents within 7 m with A* line-of-sight (skipping mid-conversation partners), who damp-turn toward the player and wave back for 1.75 s with a soft reply chime. Wave pulses from dialogue close reuse the same greeting path.
+  - **Footstep feel**: `playFootstep('walk' | 'run' | 'sprint')` tiers frequency/volume so speed is audible; a 10-pooled cream dust-puff ring buffer (per-puff fading materials) blooms at each foot plant, doubles at sprint, and is disposed with the scene.
+  - **Pinch-to-zoom (touch)**: two-pointer tracking on the canvas (`activeTouchPointers` map) clamps the same 0.72–1.45 zoom range as the wheel/buttons; starting a pinch cleanly cancels pending tap-walk, and pointer listeners are fully torn down.
+  - **Sprint camera micro-juice**: `smoothedSprintZoom` damps to ×1.045 while sprinting for a breath of extra pull-back, multiplied into the dialogue/zoom chain.
+- **Tests**:
+  - `src/game/player.test.ts` (+2): idle flourish lifecycle (threshold fire, fresh timer, full suppression matrix, no back-to-back repeats, re-randomized bounds) and wave-back selection (LOS probe near Clara, radius gating, social-partner skip).
+  - `src/scene/playerRig.test.ts` (new, 3 suites): bespoke kit presence (scarf/satchel/postcard materials, lantern parentage, dark start), lantern glow convergence/dimming + walk sway + flame visibility, and `adjust_hat` / `look_around` / shared-state animation on the bespoke rig.
+  - `src/scene/environmentRenderer.test.ts`: bench back-clearance suite extended with the `player-bespoke` case (seated satchel + lantern clear the backrest).
+- **Verification** (build tree before merge; merged-tree numbers in HANDOVER §4):
+  - `npm test`: **69/69 passing** (64 prior + 5 new). `npm run lint`: **0 errors**. `npm run build`: pass (shell 422.03 kB + scene chunk 733.76 kB, +5.4 kB).
+  - Live headless Chromium desktop `1440×900` (injected dusk `WorldState v3`, zoomed camera): moss scarf + oat satchel + postcard read on the player; brass pocket lantern glows warm orange at Lantern Dusk and sways with the stride; H-key wave captured mid-gesture at 300 ms and lowering at 900 ms; HUD `Wave [H]` button live next to the interact CTA; **Barnaby waves back** (raised arm + turn toward player) within ~500 ms of the player's wave; footstep puff system active.
+  - Mobile `390×844` with injected dusk save: joystick bottom-left + `Wave` and `Sit` CTAs bottom-right render cleanly with zero horizontal overflow; simulated two-finger pinch-out zooms the camera in (~10–15% closer, player 70→85 px); **0 console errors, 0 page errors** on both viewports.

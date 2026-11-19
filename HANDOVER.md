@@ -1,7 +1,7 @@
 # HANDOVER.md — Agent & Engineer Handover Brief
 
 **Project**: LITTLE SOMEWHERE  
-**Current Phase**: **Milestone 2B `IN PROGRESS`** (Phases 1–2 + Third-Party Player Gossip & Narrative Memory Fixes Done; **Phases 3–5 `PLANNED`** pending approval) · **Milestone 3 Build 1 (`Fern Hollow Orchard`) `IN PROGRESS`** (Scenery, `33`-node A* & Bench Done; Gameplay **`PLANNED`**)  
+**Current Phase**: **Milestone 2B `IN PROGRESS`** (Phases 1–2 + Third-Party Player Gossip & Narrative Memory Fixes Done; **Phases 3–5 `PLANNED`** pending approval) · **Milestone 3 Builds 1–2 Complete** (`Fern Hollow Orchard` scenery/nav/bench + **Player Full-Capability Polish** — bespoke rig, dusk lantern, emotes, feel)  
 **Target Next Milestone**: Milestone 2B Phase 3 (`npcMemories`, rumor propagation/distortion, `WorldState v4`) or Milestone 3 Foundation / Interiors upon explicit approval
 
 ---
@@ -46,15 +46,21 @@ All core simulation, dialogue, relationship, environment, water, bench, orchard 
    - **VirtualJoystick rule update**: the thumbstick renders only when `hasTouchInput` (`pointer: coarse` media query or `navigator.maxTouchPoints > 0`); it is hidden on mouse-first desktops with an inert spacer preserving the bottom-bar flex layout.
    - **Ground material rule**: the meadow ground uses `map` (512², 9x9) + `lightMap` macro variation (256², 2x2) over a cloned `uv1` channel; season tint multiplies on top. Keep both when touching `groundMat`.
    - Remaining Milestone 3 work: walkable interiors, additional residents, and further region dressing building on the Fern Hollow Orchard pattern (obstacle-synced builder + nav nodes + landmark zone + seat).
+6. **Player Excellence Layer (Entry 022)**:
+   - The player uses the bespoke `buildStorybookPlayer` rig (moss knit scarf, oat-canvas satchel + peeking postcard, elbow patch, beret pin, **dusk pocket lantern**). Contract: `updatePlayerLantern(rig.lantern, phaseTarget, dt, elapsed, speed)` is called per canvas tick; glow targets come from `PLAYER_LANTERN_GLOW` (day 0.08 / golden 0.7 / dusk 1.45) and follow the emissive-only lantern language — never add a scene light for it.
+   - The `H` key and the HUD `Wave [H]` button trigger the wave emote; both flow through `selectWaveBackResidents` (7 m + A* LOS, skips `socialPartnerId`) into `waveBackTimers` visual overrides inside the resident rig loop. New emotes should reuse this pulse/timer pattern.
+   - Idle flourishes (`adjust_hat` / `look_around` / `admire`) are scheduled by the pure `stepIdleFlourish` in `playerController.ts` and only ever override the `'idle'` anim state — never walk/run/sit/dialogue poses.
+   - Touch pinch-to-zoom tracks `activeTouchPointers` on the canvas; any new canvas pointer logic must respect `pinchActive` (a second finger starts a pinch and cancels pending tap-walk).
+   - Footstep dust puffs are a 10-entry pooled ring buffer with per-puff fading materials — extend by index rotation, never allocate in the tick.
 
 ---
 
-## 4. Verification Status (2026-11-19, Documentation Sync & Narrative Memory Consistency Baseline)
+## 4. Verification Status (2026-11-19, after Entry 023 Player Full-Capability Polish on the merged tree)
 
-- `npm test` (`tsx --test src/game/*.test.ts src/scene/*.test.ts`) — **66/66 passing** (`0` failures; includes updated `jun_advice` memory test + new regression test covering both direct `hollow_oak` and `toby_clapper` Brass Clapper routes)
-- `npm run lint` (`tsc --noEmit`) — **Passing (`0` errors)**
-- `npm run build` (`vite build`) — **Passing**; chunks: `index` `651.82 kB` (shell) + `NeighborhoodCanvas` `728.48 kB` (deferred via `React.lazy`)
-- Prior Browser QA (headless Chromium `1440×900` & `390×844`): Entry 020 verified `DialogueSheet` relationship-tier icons (`stranger` -> `kindred`), fluctuating relationship greetings, milestone avatar bounce, zero horizontal overflow; Entry 021 verified Fern Hollow Orchard zone chip, gate arch + sign, ladder, crates, skep, and bench prompt across morning / Golden Hour / Lantern Dusk; **0 console errors, 0 page errors** on both viewports. *(Entry 022 made zero 3D/layout changes; only added chime/toast parity in `App.tsx` when `interactWithProp` unlocks a memory.)*
+- `npm test` (`tsx --test src/game/*.test.ts src/scene/*.test.ts`) — **71/71 passing** (`0` failures; Entry 022 narrative-consistency regressions + Entry 023's 5 new player suites and the extended bench-clearance `player-bespoke` case)
+- `npm run lint` (`tsc --noEmit`) — **Passing (0 errors)**
+- `npm run build` (`vite build`) — **Passing**; chunk metrics recorded in the Entry 023 WORKLOG
+- Browser QA (headless Chromium `1440×900` & `390×844`, injected dusk `WorldState v3` saves, Entry 023): bespoke player kit (scarf, satchel, postcard) reads on the zoomed camera; brass pocket lantern glows warm orange at Lantern Dusk and sways with the stride; H-key wave captured mid-gesture at 300 ms; HUD `Wave [H]` button live; **Barnaby waves back** (raised arm + turn toward the player) within ~500 ms; mobile joystick + `Wave`/`Sit` CTAs render with zero overflow and simulated pinch-out zooms in ~10–15%; **0 console errors, 0 page errors** on both viewports. Prior QA (Entry 020–022): relationship-tier icons, fluctuating greetings, orchard district chip/sign/props, memory-consistency regressions — all green.
 
 
 

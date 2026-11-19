@@ -1,12 +1,19 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import type { Vec2 } from './types';
 import {
+  PLAYER_IDLE_FLOURISH_DURATION,
+  PLAYER_IDLE_FLOURISH_MAX_SECONDS,
+  PLAYER_IDLE_FLOURISH_MIN_SECONDS,
   PLAYER_RUN_SPEED,
   PLAYER_SPRINT_SPEED,
   PLAYER_WALK_SPEED,
   computeSitGroundY,
+  createInitialIdleFlourish,
   createInitialPlayerMotion,
   selectBestInteractiveTarget,
+  selectWaveBackResidents,
+  stepIdleFlourish,
   stepPlayerMovement,
 } from './playerController';
 import { computeWaypointPath, hasLineOfSight } from './navigation';
@@ -30,6 +37,103 @@ import {
   getSeatById,
   isPointWalkable,
 } from './worldMap';
+
+test('idle flourish scheduler fires after a quiet spell, never repeats back-to-back, and resets on activity', () => {
+  const idleOpts = {
+    isMoving: false,
+    isSitting: false,
+    isDialogueOpen: false,
+    hasGesturePulse: false,
+    dt: 0.1,
+    rand01: () => 0.25,
+  } as const;
+
+  // 6.5s quiet standing triggers the first flourish (loop until it fires)
+  let rt = createInitialIdleFlourish();
+  let steps = 0;
+  while (rt.activeFlourish === null && steps < 200) {
+    rt = stepIdleFlourish(rt, idleOpts);
+    steps++;
+  }
+  assert.ok(rt.activeFlourish !== null, 'flourish fires after the quiet threshold');
+  assert.ok(
+    rt.flourishTimer <= PLAYER_IDLE_FLOURISH_DURATION &&
+      rt.flourishTimer > PLAYER_IDLE_FLOURISH_DURATION - 0.11,
+    `flourish timer fresh (got ${rt.flourishTimer.toFixed(3)})`,
+  );
+  const first = rt.activeFlourish;
+  assert.ok(
+    first === 'adjust_hat' || first === 'look_around' || first === 'admire',
+    'flourish is a valid gesture',
+  );
+
+  // Moving / sitting / dialogue / gesture pulses all reset the quiet timer
+  for (const override of [
+    { isMoving: true },
+    { isSitting: true },
+    { isDialogueOpen: true },
+    { hasGesturePulse: true },
+  ] as const) {
+    let suppressed = createInitialIdleFlourish();
+    for (let i = 0; i < 200; i++) {
+      suppressed = stepIdleFlourish(suppressed, { ...idleOpts, ...override });
+    }
+    assert.equal(suppressed.activeFlourish, null, `no flourish while ${Object.keys(override)[0]}`);
+  }
+
+  // After the flourish completes, the wait re-randomizes within bounds and
+  // the next flourish never repeats the previous gesture.
+  let finished = { ...rt, flourishTimer: 0.05 };
+  finished = stepIdleFlourish(finished, { ...idleOpts, rand01: () => 0.99 });
+  assert.equal(finished.activeFlourish, null, 'flourish ends when its timer runs out');
+  assert.equal(finished.lastFlourish, first, 'completed gesture is remembered');
+  assert.ok(
+    finished.nextFlourishAt >= PLAYER_IDLE_FLOURISH_MIN_SECONDS &&
+      finished.nextFlourishAt <= PLAYER_IDLE_FLOURISH_MAX_SECONDS,
+    'next wait re-randomizes within bounds',
+  );
+
+  let next = { ...finished };
+  for (let i = 0; i < 120; i++) {
+    next = stepIdleFlourish(next, { ...idleOpts, rand01: () => 0.0 });
+    if (next.activeFlourish) break;
+  }
+  assert.ok(next.activeFlourish !== null, 'a fresh quiet spell triggers the next flourish');
+  assert.notEqual(next.activeFlourish, finished.lastFlourish, 'gestures never repeat back-to-back');
+});
+
+test('selectWaveBackResidents greets nearby in-sight residents, ordered by proximity, skipping busy partners', () => {
+  const world = createFreshWorldState();
+  assert.ok(world.npcRuntime, 'fresh world has resident runtime');
+
+  // Find a clear 2.5m spot near Clara with guaranteed line of sight
+  const clara = world.npcRuntime['clara'];
+  let probe: Vec2 | null = null;
+  for (let a = 0; a < 16; a++) {
+    const ang = (a / 16) * Math.PI * 2;
+    const px = clara.position.x + Math.cos(ang) * 2.5;
+    const pz = clara.position.z + Math.sin(ang) * 2.5;
+    if (hasLineOfSight({ x: px, z: pz }, clara.position, 0.38)) {
+      probe = { x: px, z: pz };
+      break;
+    }
+  }
+  assert.ok(probe, 'test setup: found a clear probe position near Clara');
+
+  const inRange = selectWaveBackResidents(world, probe, 7.0);
+  assert.ok(inRange.includes('clara'), 'Clara waves back when close and in sight');
+
+  const tooFar = selectWaveBackResidents(world, probe, 2.0);
+  assert.ok(!tooFar.includes('clara'), 'Clara is out of the 2m radius');
+
+  // Residents mid-conversation keep chatting instead of waving
+  const busyWorld = createFreshWorldState();
+  busyWorld.npcRuntime['clara'].socialPartnerId = 'arthur';
+  assert.ok(
+    !selectWaveBackResidents(busyWorld, probe, 7.0).includes('clara'),
+    'socially engaged residents do not wave back',
+  );
+});
 
 test('player movement supports analog walk, run, sprint speeds, inertia, turn banking, and carry cap', () => {
   const startPos = { ...PLAYER_SPAWN };

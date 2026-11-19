@@ -2,6 +2,7 @@ import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import {
   BookOpen,
   Clock,
+  Hand,
   MessageCircle,
   Pause,
   Sparkles,
@@ -282,6 +283,11 @@ export default function App() {
       showToast(res.toast);
     }
   }, [commitWorld, showToast, triggerPlayerPulse]);
+
+  // Wave hello emote — the player waves, and neighbors within sight wave back
+  const handleWaveHello = useCallback(() => {
+    triggerPlayerPulse('wave');
+  }, [triggerPlayerPulse]);
 
   const handleSelectChoice = useCallback(
     (choice: DialogueChoice) => {
@@ -674,6 +680,18 @@ export default function App() {
               )}
 
               <div className="ml-auto flex flex-col items-end gap-2 pointer-events-auto min-w-0 max-w-[240px] sm:max-w-none">
+                <button
+                  type="button"
+                  onClick={handleWaveHello}
+                  aria-label="Wave hello"
+                  title="Wave hello [H]"
+                  className="min-h-[44px] px-3.5 py-2 rounded-xl bg-[#FAF5EC]/95 hover:bg-[#F1E8D9] border border-[#D4C4AE] text-[#2D241E] text-xs sm:text-sm font-semibold flex items-center gap-2 shadow-sm transition-colors cursor-pointer whitespace-nowrap"
+                >
+                  <Hand className="w-4 h-4 text-[#C86446]" />
+                  <span>Wave</span>
+                  <span className="hidden sm:inline text-xs text-[#6A5B50] font-mono-nums">[H]</span>
+                </button>
+
                 {playerHeldItem && worldSnapshot.worldProps?.[playerHeldItem] && (
                   <button
                     type="button"

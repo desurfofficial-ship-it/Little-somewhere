@@ -173,7 +173,9 @@ export type NpcAnimationState =
   | 'sketch_read'
   | 'music'
   | 'converse'
-  | 'admire';
+  | 'admire'
+  | 'adjust_hat'
+  | 'look_around';
 
 export interface NpcNeeds {
   energy: number; // 0..100

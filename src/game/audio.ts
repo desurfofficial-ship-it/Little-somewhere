@@ -26,22 +26,54 @@ class CozyAudioEngine {
     return this.muted;
   }
 
-  public playFootstep(): void {
+  public playFootstep(intensity: 'walk' | 'run' | 'sprint' = 'walk'): void {
     const ctx = this.ensureContext();
     if (!ctx) return;
     const now = ctx.currentTime;
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
     osc.type = 'triangle';
-    const baseFreq = 140 + (Math.random() - 0.5) * 24;
-    osc.frequency.setValueAtTime(baseFreq, now);
-    osc.frequency.exponentialRampToValueAtTime(70, now + 0.055);
-    gain.gain.setValueAtTime(0.035, now);
-    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.06);
+    // Tiered character: walk is a soft padded step, run adds body, sprint lands
+    // crisply with a touch more snap so speed is audible as well as visible.
+    const baseFreq =
+      intensity === 'sprint' ? 165 : intensity === 'run' ? 150 : 140;
+    const dropTo = intensity === 'sprint' ? 62 : intensity === 'run' ? 66 : 70;
+    const vol = intensity === 'sprint' ? 0.05 : intensity === 'run' ? 0.042 : 0.035;
+    const dur = intensity === 'sprint' ? 0.05 : 0.055;
+    osc.frequency.setValueAtTime(baseFreq + (Math.random() - 0.5) * 24, now);
+    osc.frequency.exponentialRampToValueAtTime(dropTo, now + dur);
+    gain.gain.setValueAtTime(vol, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + dur + 0.005);
     osc.connect(gain);
     gain.connect(ctx.destination);
     osc.start(now);
-    osc.stop(now + 0.065);
+    osc.stop(now + dur + 0.01);
+  }
+
+  public playWaveHello(): void {
+    const ctx = this.ensureContext();
+    if (!ctx) return;
+    const now = ctx.currentTime;
+    // Bright two-note "hello!" flourish — a little greeting curtsy in the air.
+    const notes = [
+      { delay: 0.0, freq: 587.33, amp: 0.05, dur: 0.16 },
+      { delay: 0.11, freq: 783.99, amp: 0.042, dur: 0.22 },
+    ];
+    for (const n of notes) {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      const t = now + n.delay;
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(n.freq, t);
+      osc.frequency.exponentialRampToValueAtTime(n.freq * 1.03, t + n.dur * 0.6);
+      gain.gain.setValueAtTime(0.001, t);
+      gain.gain.linearRampToValueAtTime(n.amp, t + 0.015);
+      gain.gain.exponentialRampToValueAtTime(0.0008, t + n.dur);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(t);
+      osc.stop(t + n.dur + 0.03);
+    }
   }
 
   public playUiTap(pitch = 1.0): void {

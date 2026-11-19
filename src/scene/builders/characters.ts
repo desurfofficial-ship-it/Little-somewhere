@@ -21,6 +21,173 @@ export interface CharacterAnimationOptions {
 }
 
 /**
+ * Dusk pocket lantern carried on the player's satchel — emissive-only glow
+ * (no extra scene light) following the same lantern language as the world's
+ * hanging brass lanterns, with a gentle walking sway and flame flicker.
+ */
+export interface PlayerLanternRig {
+  group: THREE.Group;
+  glassMat: THREE.MeshStandardMaterial;
+  flameMat: THREE.MeshStandardMaterial;
+  glowLevel: number;
+  swingPhase: number;
+}
+
+export interface StorybookPlayerRig extends CharacterRig {
+  lantern: PlayerLanternRig;
+}
+
+export const PLAYER_LANTERN_GLOW = {
+  day: 0.08,
+  golden: 0.7,
+  dusk: 1.45,
+} as const;
+
+/**
+ * Builds the bespoke player rig: the beloved rust-coat & sage beret look layered
+ * with a moss knit scarf, oat-canvas cross-body satchel (brass buckle + peeking
+ * postcard), left elbow patch, beret pin, and the signature dusk pocket lantern.
+ * Extends the shared storybook body so all 19 animation states keep working.
+ */
+export function buildStorybookPlayer(
+  appearance: ResidentAppearance,
+  palette: MaterialPalette,
+  shadowTex: THREE.Texture,
+): StorybookPlayerRig {
+  const rig = buildStorybookCharacter(appearance, palette, shadowTex, 'player');
+  const torso = rig.torsoPivot;
+  if (!torso) return { ...rig, lantern: buildLanternPlaceholder(palette) };
+
+  const knitScarfMat = palette.standard('#87A98B', 0.88, 0.01);
+  const canvasBagMat = palette.standard('#C7B48E', 0.86, 0.01);
+  const canvasShadeMat = palette.standard('#B29F79', 0.84, 0.015);
+  const leatherMat = palette.standard('#7C4F32', 0.68, 0.06);
+  const brassMat = palette.standard(STORYBOOK_PALETTE.agedBrass, 0.24, 0.85);
+  const paperMat = palette.standard('#FAF2E1', 0.88, 0.0);
+  const stampMat = palette.standard('#C86446', 0.65, 0.02);
+
+  // 1. Moss knit scarf wrap + tail (right-hip drape mirrors the satchel side)
+  const scarfCollar = new THREE.Mesh(new THREE.TorusGeometry(0.215, 0.068, 8, 14), knitScarfMat);
+  scarfCollar.rotation.x = Math.PI / 2;
+  scarfCollar.position.y = 0.6;
+  const scarfTail = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.27, 0.05), knitScarfMat);
+  scarfTail.position.set(-0.12, 0.44, 0.24);
+  scarfTail.rotation.z = 0.16;
+  scarfTail.rotation.x = -0.12;
+  const scarfKnot = new THREE.Mesh(new THREE.SphereGeometry(0.055, 8, 8), knitScarfMat);
+  scarfKnot.position.set(-0.1, 0.52, 0.24);
+  torso.add(scarfCollar, scarfTail, scarfKnot);
+
+  // 2. Oat-canvas cross-body satchel on the right hip (brass buckle + postcard)
+  const satchelStrap = new THREE.Mesh(new THREE.TorusGeometry(0.29, 0.028, 6, 16), leatherMat);
+  satchelStrap.position.set(0.02, 0.33, 0);
+  satchelStrap.rotation.y = Math.PI / 2;
+  satchelStrap.rotation.x = -0.65;
+  torso.add(satchelStrap);
+
+  const bagGroup = new THREE.Group();
+  bagGroup.position.set(0.32, 0.13, 0.04);
+  bagGroup.rotation.z = 0.08;
+  const bagBody = new THREE.Mesh(new THREE.BoxGeometry(0.17, 0.24, 0.3), canvasBagMat);
+  bagBody.castShadow = true;
+  const bagFlap = new THREE.Mesh(new THREE.BoxGeometry(0.19, 0.12, 0.31), canvasShadeMat);
+  bagFlap.position.set(0.01, 0.07, 0);
+  const bagBuckle = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.055, 0.06), brassMat);
+  bagBuckle.position.set(0.1, 0.02, 0);
+  const postcardPeek = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.15, 0.19), paperMat);
+  postcardPeek.position.set(-0.02, 0.12, -0.03);
+  postcardPeek.rotation.x = -0.18;
+  const postcardStamp = new THREE.Mesh(new THREE.BoxGeometry(0.035, 0.045, 0.045), stampMat);
+  postcardStamp.position.set(-0.02, 0.16, 0.03);
+  bagGroup.add(bagBody, bagFlap, bagBuckle, postcardPeek, postcardStamp);
+  torso.add(bagGroup);
+
+  // 3. Left elbow patch — a mended, well-loved coat
+  const elbowPatch = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.11, 0.022), canvasShadeMat);
+  elbowPatch.position.set(-0.075, -0.19, 0.02);
+  elbowPatch.rotation.z = 0.18;
+  rig.leftArm.add(elbowPatch);
+
+  // 4. Brass pin on the sage beret
+  const beretPin = new THREE.Mesh(new THREE.SphereGeometry(0.024, 6, 6), brassMat);
+  beretPin.position.set(0.02, 0.21, 0.245);
+  rig.headGroup.add(beretPin);
+
+  // 5. Signature dusk pocket lantern hanging off the satchel
+  const lanternGlassMat = palette.standard('#FFE9B8', 0.4, 0.0);
+  lanternGlassMat.emissive.set('#FFC66E');
+  lanternGlassMat.emissiveIntensity = 0;
+  lanternGlassMat.transparent = true;
+  lanternGlassMat.opacity = 0.94;
+  const lanternFlameMat = palette.standard('#FFD98A', 0.5, 0.0);
+  lanternFlameMat.emissive.set('#FFB84D');
+  lanternFlameMat.emissiveIntensity = 0;
+
+  const lanternGroup = new THREE.Group();
+  lanternGroup.position.set(0.33, -0.05, 0.14);
+  const hookRing = new THREE.Mesh(new THREE.TorusGeometry(0.028, 0.009, 6, 10), brassMat);
+  hookRing.position.y = 0.115;
+  const lanternCap = new THREE.Mesh(new THREE.CylinderGeometry(0.058, 0.046, 0.03, 8), brassMat);
+  lanternCap.position.y = 0.075;
+  const lanternGlass = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.056, 0.115, 8), lanternGlassMat);
+  lanternGlass.position.y = 0;
+  const lanternBase = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.044, 0.026, 8), brassMat);
+  lanternBase.position.y = -0.068;
+  const lanternFlame = new THREE.Mesh(new THREE.SphereGeometry(0.028, 6, 6), lanternFlameMat);
+  lanternFlame.scale.y = 1.35;
+  lanternFlame.position.y = -0.008;
+  lanternGroup.add(hookRing, lanternCap, lanternGlass, lanternBase, lanternFlame);
+  torso.add(lanternGroup);
+
+  return {
+    ...rig,
+    lantern: {
+      group: lanternGroup,
+      glassMat: lanternGlassMat,
+      flameMat: lanternFlameMat,
+      glowLevel: 0,
+      swingPhase: 0,
+    },
+  };
+}
+
+function buildLanternPlaceholder(palette: MaterialPalette): PlayerLanternRig {
+  // Defensive fallback if torsoPivot is ever absent — keeps the rig contract whole.
+  const mat = palette.standard('#FFE9B8', 0.4, 0.0);
+  return {
+    group: new THREE.Group(),
+    glassMat: mat,
+    flameMat: mat,
+    glowLevel: 0,
+    swingPhase: 0,
+  };
+}
+
+/**
+ * Per-frame dusk lantern driver: damps glow toward the time-phase target,
+ * flickers the flame softly, and sways with walking motion. Zero allocations.
+ */
+export function updatePlayerLantern(
+  lantern: PlayerLanternRig,
+  targetGlow: number,
+  dt: number,
+  elapsed: number,
+  motionSpeed: number,
+): void {
+  lantern.glowLevel = THREE.MathUtils.damp(lantern.glowLevel, targetGlow, 3.2, dt);
+  const flicker = 0.94 + Math.sin(elapsed * 12.7) * 0.04 + Math.sin(elapsed * 31.3) * 0.02;
+  lantern.glassMat.emissiveIntensity = lantern.glowLevel * 1.5 * flicker;
+  lantern.flameMat.emissiveIntensity = lantern.glowLevel * 2.4 * flicker;
+  // Daytime keeps only a faint warm hint in the glass; the flame itself sleeps
+  lantern.flameMat.visible = lantern.glowLevel > 0.2;
+
+  lantern.swingPhase += dt * (2.1 + Math.min(4.2, motionSpeed * 1.15));
+  const swayAmp = Math.min(0.24, motionSpeed * 0.038);
+  lantern.group.rotation.z = Math.sin(lantern.swingPhase) * swayAmp;
+  lantern.group.rotation.x = Math.cos(lantern.swingPhase * 0.72) * swayAmp * 0.6;
+}
+
+/**
  * Builds a handcrafted Storybook Diorama character rig with articulated hip/waist/shoulder joints,
  * layered coat/apron/scarf silhouettes, sculpted hair/hats, expressive eyelids & brows,
  * catchlight eyes, carry socket, and bespoke props.
@@ -400,8 +567,9 @@ export function buildStorybookCharacter(
 }
 
 /**
- * Zero-GC per-frame animation driver for all 17 NpcAnimationStates + 10 CharacterEmotion moods +
- * deterministic eye blinking + clamped head look-at + turn banking.
+ * Zero-GC per-frame animation driver for all 19 NpcAnimationStates (17 shared + 2 player
+ * idle flourishes) + 10 CharacterEmotion moods + deterministic eye blinking + clamped head
+ * look-at + turn banking.
  */
 export function animateCharacterRig(
   rig: CharacterRig,
@@ -573,6 +741,25 @@ export function animateCharacterRig(
     targetHeadX = -0.12;
     targetHeadY = Math.sin(elapsed * 0.65 + phaseSeed) * 0.18;
     targetBodyY = Math.sin(elapsed * 1.8 + phaseSeed) * 0.02;
+  } else if (animState === 'adjust_hat') {
+    // Player idle flourish: a fond little pat of the beret
+    const settle = Math.sin(elapsed * 8.2 + phaseSeed) * 0.09;
+    targetLeftArmX = -0.06;
+    targetRightArmX = -2.42 + settle * 0.55;
+    targetRightArmZ = -0.4;
+    targetHeadZ = 0.09 + settle * 0.12;
+    targetHeadX = 0.05;
+    targetTorsoX = 0.035;
+    targetBodyY = Math.sin(elapsed * 2.6 + phaseSeed) * 0.014;
+  } else if (animState === 'look_around') {
+    // Player idle flourish: a curious scan of the lane, torso following the gaze
+    const glance = Math.sin(elapsed * 2.3 + phaseSeed);
+    targetLeftArmX = -0.06;
+    targetRightArmX = -0.06;
+    targetHeadY = glance * 0.44;
+    targetHeadX = 0.045;
+    targetTorsoY = glance * 0.13;
+    targetBodyY = Math.sin(elapsed * 1.9 + phaseSeed) * 0.016;
   }
 
   // Override arm cradle cleanly whenever carrying a prop across idle/walk/run
