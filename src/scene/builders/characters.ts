@@ -364,6 +364,41 @@ export function buildStorybookCharacter(
     loaf.rotation.z = Math.PI / 2;
     loaf.position.set(0.06, -0.31, 0.14);
     rightArm.add(basket, loaf);
+  } else if (appearance.propType === 'fruit_basket') {
+    // Orchard-keeper's woven gathering basket with a high rim + heaped crabapples
+    const basketMat = palette.standard('#A9804F', 0.84, 0.02);
+    const basketShadeMat = palette.standard('#8B6540', 0.86, 0.02);
+    const basketProfile = [
+      new THREE.Vector2(0.02, 0.0),
+      new THREE.Vector2(0.13, 0.015),
+      new THREE.Vector2(0.17, 0.1),
+      new THREE.Vector2(0.185, 0.17),
+      new THREE.Vector2(0.165, 0.185),
+    ];
+    const basketGeo = new THREE.LatheGeometry(basketProfile, 9);
+    const basket = new THREE.Mesh(basketGeo, basketMat);
+    basket.position.set(0.07, -0.5, 0.13);
+    basket.castShadow = true;
+    const rim = new THREE.Mesh(new THREE.TorusGeometry(0.172, 0.02, 5, 12), basketShadeMat);
+    rim.rotation.x = Math.PI / 2;
+    rim.position.set(0.07, -0.315, 0.13);
+    const appleMat = palette.standard('#C8553D', 0.5, 0.02);
+    const leafMat = palette.standard('#5F8B4C', 0.8, 0.0);
+    for (const [ax, ay, az] of [
+      [-0.05, 0.02, 0.0],
+      [0.05, 0.015, -0.02],
+      [0.0, 0.075, 0.01],
+    ] as const) {
+      const apple = new THREE.Mesh(new THREE.SphereGeometry(0.052, 7, 6), appleMat);
+      apple.scale.set(1.0, 0.88, 1.0);
+      apple.position.set(0.07 + ax, -0.29 + ay, 0.13 + az);
+      apple.castShadow = true;
+      const leaf = new THREE.Mesh(new THREE.ConeGeometry(0.032, 0.055, 4), leafMat);
+      leaf.rotation.z = 0.5;
+      leaf.position.set(0.07 + ax + 0.02, -0.29 + ay + 0.055, 0.13 + az);
+      rightArm.add(apple, leaf);
+    }
+    rightArm.add(basket, rim);
   }
 
   // Story quest indicator diamond overhead

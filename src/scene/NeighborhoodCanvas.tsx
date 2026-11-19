@@ -76,6 +76,7 @@ import {
 } from './builders/vegetation';
 import { buildMeadowDressing } from './builders/botanicalDressing';
 import { buildFernHollowOrchard } from './builders/orchard';
+import { buildOrchardMicroLife } from './builders/orchardMicroLife';
 import { buildAllReactiveRigs } from './builders/reactiveProps';
 import {
   buildCarryablePropMesh,
@@ -395,6 +396,11 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
     });
     scene.add(orchardRig.group);
 
+    // Fern Hollow micro-life: blossom butterflies + skep bees (weather-gated
+    // by the environment controller, updated in its section 6)
+    const orchardMicroLifeRig = buildOrchardMicroLife({ isSoftwareGl });
+    scene.add(orchardMicroLifeRig.group);
+
     const willowProtoCtx = {
       palette,
       shadowTex,
@@ -565,6 +571,8 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
       bellSwingVelRef,
       isSoftwareGl,
       reactiveRigs: buildAndMountReactiveRigs(),
+      orchardRig,
+      orchardMicroLife: orchardMicroLifeRig,
     });
 
     // Tap-to-walk destination indicator ring
@@ -1549,6 +1557,7 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
       envController.dispose();
       meadowDressing.dispose();
       orchardRig.dispose();
+      orchardMicroLifeRig.dispose();
       groundMat.dispose();
       groundGeo.dispose();
       cobbleMat.dispose();

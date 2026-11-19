@@ -570,7 +570,7 @@ test('computeWorldSaveRevision tracks npcMemories & gossip cooldowns, and advanc
   assert.equal(day3.memories.length, base.memories.length);
 });
 
-test('bounded npcMemories keeps full 9-resident save compact and scales safely to 25 residents', () => {
+test('bounded npcMemories keeps a full-resident save compact and scales safely to 25 residents', () => {
   const full = createFreshWorldState();
   for (const id of RESIDENT_ORDER) {
     full.npcMemories[id] = [];
@@ -597,12 +597,23 @@ test('bounded npcMemories keeps full 9-resident save compact and scales safely t
   const baseBytes = serializeWorldState(createFreshWorldState()).length;
   const serializedBytes = serializeWorldState(full).length;
   const memDeltaBytes = serializedBytes - baseBytes;
-  assert.ok(memDeltaBytes < 75_000, `Expected 9-resident npcMemories payload < 75KB, got ${memDeltaBytes}`);
-  assert.ok(serializedBytes < 100_000, `Expected full 9-resident v4 save < 100KB, got ${serializedBytes}`);
+  const residentCount = RESIDENT_ORDER.length;
+  // Bound scales with the registry so a growing population stays honest:
+  // 9 residents measured ~68.5KB, 10 residents measured ~76.5KB (~8.5KB/resident).
+  const memBudgetBytes = Math.ceil(residentCount * 8_500 * 1.1);
+  const saveBudgetBytes = Math.ceil(memBudgetBytes + 25_000);
+  assert.ok(
+    memDeltaBytes < memBudgetBytes,
+    `Expected ${residentCount}-resident npcMemories payload < ${(memBudgetBytes / 1000).toFixed(0)}KB, got ${memDeltaBytes}`,
+  );
+  assert.ok(
+    serializedBytes < saveBudgetBytes,
+    `Expected full ${residentCount}-resident v5 save < ${(saveBudgetBytes / 1000).toFixed(0)}KB, got ${serializedBytes}`,
+  );
 
   // Synthetic 25-resident extrapolation check (same per-resident memory payload)
   const memJsonBytes = JSON.stringify(full.npcMemories).length;
-  const scaled25Bytes = serializedBytes + Math.ceil((memJsonBytes / RESIDENT_ORDER.length) * 16);
+  const scaled25Bytes = serializedBytes + Math.ceil((memJsonBytes / residentCount) * 16);
   assert.ok(scaled25Bytes < 220_000, `Expected 25-resident extrapolated save < 220KB, got ${scaled25Bytes}`);
 });
 

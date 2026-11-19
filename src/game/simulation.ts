@@ -81,6 +81,9 @@ function getDefaultPoseForSlot(id: ResidentId, phase: TimePhase): NpcAnimationSt
   if (id === 'arthur' && (phase === 'morning' || phase === 'dusk')) return 'work';
   if (id === 'mina' && (phase === 'morning' || phase === 'dusk')) return 'work';
   if (id === 'barnaby' && phase !== 'dusk') return 'work';
+  if (id === 'rowan') {
+    return phase === 'golden' || phase === 'dusk' ? 'sketch_read' : 'work';
+  }
   return 'idle';
 }
 

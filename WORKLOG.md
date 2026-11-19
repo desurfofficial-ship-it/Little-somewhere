@@ -481,7 +481,6 @@ Chronological log of design decisions, implementation milestones, verification r
   - Verified `src/components/JournalDrawer.tsx` remains untouched pending Phase 5.
 
 ---
-
 ## Entry 026 — Milestone 2B Phase 5: Pocket Journal Upgrade & Storyline Integration
 - **Date**: 2026-11-19
 - **Status**: Completed & Verified
@@ -503,4 +502,32 @@ Chronological log of design decisions, implementation milestones, verification r
   - `npm run lint` (`tsc --noEmit`) & `compile_applet` (`vite build`): **Passing (`0` errors)**.
   - Live headless Chromium (`1440×900` & `390×844` via `?autostart=1`): verified Pocket Journal open/close, all 4 tabs, `>= 44px` touch targets, zero horizontal overflow, `WorldState v5` + read-state persistence across reload, screenshot visual inspection, and **0 console errors / 0 page errors**.
 
+---
 
+## Entry 028 — Milestone 3 Build 4: 10th Resident (Rowan, Orchard Keeper) + Fern Hollow Micro-Life (Sway Hooks, Butterflies, Skep Bees)
+- **Date**: 2026-11-19
+- **Status**: Completed & Verified
+- **Scope**: The two remaining "next build" candidates ship together as one bulk build on the Milestone 2B Phase 5 tree: the neighborhood's **10th resident** anchors the Fern Hollow Orchard district, and the orchard comes alive with **wind-sway crowns/fruit** (sway hooks) plus weather-gated **blossom butterflies** and **skep bees**. (Cottage interiors & player polish remain reverted upstream per `refactor: revert cottage navigation graph`; Build 4 touches none of that surface.) Also repaired that revert's leftovers: removed the orphaned `src/game/cottageInterior.test.ts`, `src/scene/cottageInterior.test.ts`, and unused `src/scene/builders/cottageInterior.ts`, which still referenced the deleted `COTTAGE_INTERIOR_*` worldMap exports and broke `npm test` (SyntaxError) on the bare upstream tree.
+- **Key Deliverables**:
+  - **10th Resident — Rowan, Orchard Keeper (`src/game/types.ts`, `src/game/residents.ts`, `src/game/simulation.ts`, `src/game/narrative.ts`, `src/scene/builders/characters.ts`)**:
+    - `ResidentId` grew to 10 entries and `propType` gained `fruit_basket`. Rowan lives at the orchard (`Fern Hollow Orchard`, homePos (-7.8, -20.0) — walkable), with a 4-phase schedule (blossom counting on the south rows, skep tending, bench journaling, keeper's-corner dusk) and **4 autonomous activities**: gate greeting, skep watch, `seat_orchard_bench` journaling (5th seat claim), and a light-rain shelter under the west canopy — all verified walkable + A*-reachable from his morning anchor by the existing suites.
+    - Signature prop: a handcrafted woven gathering basket (lathe profile + torus rim) heaped with three crabapples and leaf cones, mounted on the right arm — distinct silhouette from Clara's loaf basket.
+    - Simulation integration is registry-derived: `getDefaultPoseForSlot` gives Rowan work poses morning/afternoon and journal-sketching golden/dusk; evening wind-down, morning-lark behavior, traits, social encounters, memories, gossip, and pairing all derive from the shared `RESIDENT_ORDER` machinery with zero special cases.
+    - Dialogue: two `daily_slice` topics (`daily_rowan_blossom` — blossom-count calendar with first-tree + crabapple-honey branches; `daily_rowan_ladder` — Barnaby's ladder + golden-hour picking with a pick-together branch). Greeting prefixes, guarded states, gift delivery (`water_pail`/`rosemary_basket` liked), amends, and gossip reuse the shared engine.
+    - Saves: old `WorldState v5` saves hydrate Rowan through `sanitizeResidents`/`createInitialResidentsProgress` automatically (no migration bump needed).
+  - **Orchard Sway Hooks (`src/scene/builders/orchard.ts`)**:
+    - `OrchardRig.updateWind(elapsed, windStrength)`: crowns + fruit sway about a local trunk-top pivot (y 2.3) via pre-composed `T(pivot) * R * T(-pivot)` matrices; fruit composes `treeBase * swayLocal * fruitLocal` so the canopy rides **rigidly**. Wind 0 restores the authored rest pose exactly once; identical frames short-circuit; all scratch matrices are closure-level (zero-GC). Trunks + contact shadows stay anchored.
+  - **Orchard Micro-Life (`src/scene/builders/orchardMicroLife.ts` new)**:
+    - **Blossom butterflies** (3 software-GL / 6 full): instanced wing pairs + capsule bodies, per-blossom instance tints (cream/pale-yellow/pink/oat), six anchors hugging crowns, the gate flower strip, the bench overlook and the skep corner; analytic travel-facing yaw, wing-root flap, size flit — same zero-GC rig language as the meadow butterflies.
+    - **Skep bees** (2 software-GL / 4): merged capsule+head geometry, figure-eight loops around the skep entrance with bobbing and tangent-facing yaw.
+    - The rig owns its visibility (`group.visible = butterfliesActive || beesActive`); the renderer only calls `update(elapsed, { butterfliesActive, beesActive, windStrength })`.
+  - **Wiring (`src/scene/environmentRenderer.ts`, `src/scene/NeighborhoodCanvas.tsx`)**:
+    - `EnvironmentVisualController` gained optional `orchardRig` (drives `updateWind` in section 4 with the shared wind curve: breezy 1.0 / rain 0.65 / calm 0.25) and `orchardMicroLife` (section 6 gating: butterflies sunlit/breezy & non-dusk & non-winter; bees dry mornings-afternoons-golden & non-winter). Canvas builds, mounts, passes and disposes both rigs.
+  - **Tests (`src/scene/orchard.test.ts` +2 suites, `src/scene/orchardMicroLife.test.ts` new 3 suites)**:
+    - Sway: crowns+fruit respond to breeze with all 72 fruit moving, rest pose restored bit-exactly after calm, repeated calm calls are no-ops, crown pivot drift < 0.35 with tilt < 0.12 rad, fruit stays in the canopy band, no NaN. Crown meshes are identified by their shared season-tint materials (tree shadows also hold 6 instances, so counting would grab the wrong mesh).
+    - Micro-life: pooled mesh counts per quality tier, anchors hug orchard fixtures inside the north district, inactive = hidden, active motion stays finite/anchored (butterflies within anchor bands, bees within 1.15 of the skep), wind only modulates drift speed.
+    - `storage.test.ts` save-size bound now scales with `RESIDENT_ORDER.length` (registry-derived message + budget) instead of hardcoding 9 residents.
+- **Verification**:
+  - `npm test`: **99/99 passing** (`0` failures; 94 prior on the Pocket Journal tree + 5 new micro-life/sway suites, storage bound modernized for the 10th resident).
+  - `npm run lint` (`tsc --noEmit`): **Passing (0 errors)**. `npm run build` (`vite build`): **Passing**.
+  - Headless Chromium QA (1440×900, injected breezy-morning `WorldState v5` save parked at the orchard gate, `scripts/make_build4_save.ts` + `scripts/qa_build4.py`): `body[data-state="playing"]`, Rowan live at his morning activity (gate greeting beneath the orchard sign) with straw hat + woven fruit-basket prop, crabapple fruit visible in the swaying crowns, skep bees looping near the skep, breeze petal drift active; **0 console errors, 0 page errors** (only benign SwiftShader `ReadPixels` perf warnings from screenshot capture).

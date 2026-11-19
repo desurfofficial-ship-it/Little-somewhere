@@ -3625,6 +3625,28 @@ export const DIALOGUE_TOPICS: readonly DialogueTopic[] = [
     ],
     endings: { p2_e: { moodLabel: 'Beaming', text: `Best trade deal in Willow Lane history!` } },
   }),
+
+  // Rowan
+  makeSimpleTopic('daily_rowan_blossom', 'rowan', 'daily_slice', 2, {}, {
+    moodLabel: 'Patient',
+    buildText: (id, w, p) => `${resolveRelationshipGreeting(id, w, p)} Every tree in Fern Hollow keeps its own calendar—I mark the first blossom of each one in the keeper’s journal, and no two lines ever match.`,
+    choices: [
+      { id: 'rowan_first_tree', label: 'Which tree wakes up first every spring?', tone: 'curious', nextNodeId: 'r1_e', trustDelta: 1, setEmotion: 'happy' },
+      { id: 'rowan_honey', label: 'Does the skep make blossom honey from these rows?', tone: 'warm', nextNodeId: 'r2_e', trustDelta: 1, setEmotion: 'relaxed' },
+    ],
+    endings: {
+      r1_e: { moodLabel: 'Fond', text: `The old west crown, always—she leans into the sun over the hollow and blooms a full week early, like she’s keeping the gate warm for the others.` },
+      r2_e: { moodLabel: 'Warm', text: `Crabapple blossom honey, a jar or two each season. I leave most of it for the bees—keeping the skep healthy matters more than the harvest.` },
+    },
+  }),
+  makeSimpleTopic('daily_rowan_ladder', 'rowan', 'daily_slice', 2, {}, {
+    moodLabel: 'Steady',
+    buildText: () => `Barnaby’s harvest ladder leans against the west rows this week. Fruit picks cleanest just after golden hour—warm fruit, cool air, steady hands.`,
+    choices: [
+      { id: 'rowan_pick', label: 'Could we pick a basket together this week?', tone: 'warm', nextNodeId: 'r3_e', trustDelta: 1, setEmotion: 'excited' },
+    ],
+    endings: { r3_e: { moodLabel: 'Delighted', text: `Gladly! I’ll set the wicker baskets by the gate—two pickers fill a corner crate twice as fast, and the tree always gets its share first.` } },
+  }),
 ];
 
 export function buildResidentDialogue(

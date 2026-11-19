@@ -11,7 +11,8 @@ export type ResidentId =
   | 'sora'
   | 'toby'
   | 'nora'
-  | 'pip';
+  | 'pip'
+  | 'rowan';
 
 export type PropInteractableId =
   | 'player_door'
@@ -69,7 +70,15 @@ export interface ResidentAppearance {
   skinColor: string;
   accentColor: string;
   hatStyle: 'none' | 'beret' | 'cap' | 'straw' | 'hood' | 'bun';
-  propType: 'none' | 'satchel' | 'watering_can' | 'violin' | 'sketchbook' | 'book' | 'loaf';
+  propType:
+    | 'none'
+    | 'satchel'
+    | 'watering_can'
+    | 'violin'
+    | 'sketchbook'
+    | 'book'
+    | 'loaf'
+    | 'fruit_basket';
   heightScale: number;
 }
 

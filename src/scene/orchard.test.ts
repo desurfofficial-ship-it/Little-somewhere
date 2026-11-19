@@ -121,3 +121,137 @@ test('orchard bench seat, approach and landmark zone are player-ready', () => {
     cursor = wp;
   }
 });
+
+function collectSwayMeshes(
+  rig: OrchardRig,
+  palette: MaterialPalette,
+): {
+  crownsBase: THREE.InstancedMesh;
+  crownsTop: THREE.InstancedMesh;
+  fruit: THREE.InstancedMesh;
+} {
+  // Identify crown layers by their shared season-tint materials (tree shadows
+  // also hold 6 instances, so counting alone would grab the wrong mesh).
+  const crownBaseMat = palette.get('grove_crown_base', { color: '#FFFFFF', roughness: 0.85, metalness: 0.0 });
+  const crownTopMat = palette.get('grove_crown_top', { color: '#FFFFFF', roughness: 0.82, metalness: 0.0 });
+  const meshes: THREE.InstancedMesh[] = [];
+  rig.group.traverse((child) => {
+    if ((child as THREE.InstancedMesh).isInstancedMesh) meshes.push(child as THREE.InstancedMesh);
+  });
+  const crownsBase = meshes.find((m) => m.material === crownBaseMat)!;
+  const crownsTop = meshes.find((m) => m.material === crownTopMat)!;
+  assert.ok(crownsBase, 'crown base mesh must exist');
+  assert.ok(crownsTop, 'crown top mesh must exist');
+  const fruit = meshes.find((m) => m.count === 72)!;
+  return { crownsBase, crownsTop, fruit };
+}
+
+function snapshotMatrices(mesh: THREE.InstancedMesh): number[][] {
+  const m = new THREE.Matrix4();
+  const snap: number[][] = [];
+  for (let i = 0; i < mesh.count; i++) {
+    mesh.getMatrixAt(i, m);
+    snap.push(Array.from(m.elements));
+  }
+  return snap;
+}
+
+test('wind sway deforms crowns + fruit and restores the authored rest pose when calm', () => {
+  const palette = new MaterialPalette();
+  const rig: OrchardRig = buildFernHollowOrchard({
+    palette,
+    shadowTex: new THREE.Texture(),
+    signTex: new THREE.Texture(),
+    isSoftwareGl: true,
+  });
+  const { crownsBase, crownsTop, fruit } = collectSwayMeshes(rig, palette);
+
+  const restBase = snapshotMatrices(crownsBase);
+  const restFruit = snapshotMatrices(fruit);
+
+  // Brisk breeze: every crown moves, every fruit follows its tree
+  rig.updateWind(1.35, 1.0);
+  const swayedBase = snapshotMatrices(crownsBase);
+  const swayedTop = snapshotMatrices(crownsTop);
+  const swayedFruit = snapshotMatrices(fruit);
+  let movedCrowns = 0;
+  let movedFruit = 0;
+  for (let i = 0; i < 6; i++) {
+    if (swayedBase[i].some((v, k) => Math.abs(v - restBase[i][k]) > 1e-5)) movedCrowns++;
+  }
+  for (let i = 0; i < 72; i++) {
+    if (swayedFruit[i].some((v, k) => Math.abs(v - restFruit[i][k]) > 1e-5)) movedFruit++;
+  }
+  assert.equal(movedCrowns, 6, 'all six crowns must respond to the breeze');
+  assert.equal(movedFruit, 72, 'fruit must follow its tree through the sway');
+
+  // No NaN under sustained wind
+  for (const snap of [swayedBase, swayedTop, swayedFruit]) {
+    for (const row of snap) {
+      for (const v of row) assert.ok(Number.isFinite(v), 'sway matrices must stay finite');
+    }
+  }
+
+  // Calm: rest pose restored exactly (once, not repeatedly)
+  rig.updateWind(2.0, 0);
+  const restored = snapshotMatrices(crownsBase);
+  for (let i = 0; i < 6; i++) {
+    for (let k = 0; k < 16; k++) {
+      assert.ok(Math.abs(restored[i][k] - restBase[i][k]) < 1e-6, 'calm must restore the authored pose');
+    }
+  }
+
+  // Zero-GC contract: repeated calm updates are no-ops, matrices untouched
+  rig.updateWind(2.5, 0);
+  rig.updateWind(3.0, 0);
+  const restoredAgain = snapshotMatrices(crownsBase);
+  for (let i = 0; i < 6; i++) {
+    assert.deepEqual(restoredAgain[i], restored[i]);
+  }
+
+  rig.dispose();
+});
+
+test('sway stays grounded: crowns pivot near the trunk top, trunks never move', () => {
+  const palette = new MaterialPalette();
+  const rig: OrchardRig = buildFernHollowOrchard({
+    palette,
+    shadowTex: new THREE.Texture(),
+    signTex: new THREE.Texture(),
+    isSoftwareGl: false,
+  });
+  const { crownsBase, fruit } = collectSwayMeshes(rig, palette);
+
+  rig.updateWind(4.2, 1.0);
+
+  // Crown base should stay within a small radius of its tree trunk anchor.
+  // (Crown heights live in the shared geometry; instance matrices carry y≈0.)
+  const m = new THREE.Matrix4();
+  const pos = new THREE.Vector3();
+  const quat = new THREE.Quaternion();
+  const scale = new THREE.Vector3();
+  const restQuat = new THREE.Quaternion();
+  for (let i = 0; i < 6; i++) {
+    crownsBase.getMatrixAt(i, m);
+    m.decompose(pos, quat, scale);
+    const tree = ORCHARD_TREES[i];
+    const drift = Math.hypot(pos.x - tree.x, pos.z - tree.z);
+    assert.ok(
+      drift < 0.35,
+      `crown ${i} pivoted ${drift.toFixed(2)} from its trunk-top anchor — sway too wild`,
+    );
+    assert.ok(pos.y > -0.1 && pos.y < 0.25, `crown ${i} pivot offset ${pos.y.toFixed(2)} out of band`);
+    // Rotation stays a gentle tilt away from the authored yaw-only rest pose
+    restQuat.setFromAxisAngle(new THREE.Vector3(0, 1, 0), tree.yaw);
+    const tilt = quat.angleTo(restQuat);
+    assert.ok(tilt < 0.12, `crown ${i} tilt ${tilt.toFixed(3)} rad exceeded a gentle breeze`);
+  }
+  // Fruit stays inside the canopy band even while swaying
+  for (let i = 0; i < 72; i++) {
+    fruit.getMatrixAt(i, m);
+    m.decompose(pos, quat, scale);
+    assert.ok(pos.y > 1.5 && pos.y < 3.8, `swaying fruit ${i} height ${pos.y.toFixed(2)} outside canopy band`);
+  }
+
+  rig.dispose();
+});

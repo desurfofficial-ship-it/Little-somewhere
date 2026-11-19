@@ -42,6 +42,12 @@ export const ORCHARD_GATE = { x: -2.6, z: -14.9, pierWestX: -4.3, pierEastX: -0.
 
 export interface OrchardRig {
   group: THREE.Group;
+  /**
+   * Wind-driven crown sway hook (orchard micro-life). `windStrength` 0..1 —
+   * 0 freezes crowns/fruit back at their authored rest pose, 1 is a brisk
+   * breeze. Zero per-frame allocations; trunks and contact shadows stay put.
+   */
+  updateWind(elapsed: number, windStrength: number): void;
   dispose(): void;
 }
 
@@ -53,6 +59,9 @@ export interface OrchardBuildContext {
 }
 
 const FRUIT_PER_TREE = 12;
+
+/** Local-space pivot height about which crowns & fruit sway (trunk-top). */
+const CROWN_PIVOT_Y = 2.3;
 
 function makeSeededRandom(seed: number) {
   let s = seed >>> 0;
@@ -130,6 +139,26 @@ export function buildFernHollowOrchard(ctx: OrchardBuildContext): OrchardRig {
   const castShadows = !isSoftwareGl;
   const rand = makeSeededRandom(1907);
 
+  // ------------------------------------------------------------------
+  // 0. Wind-sway state (orchard micro-life hooks)
+  // Tree world matrices + fruit local matrices captured at build; per-frame
+  // sway composes treeBase * swayLocal (crowns) and treeBase * swayLocal *
+  // fruitLocal (fruit) so every fruit rides its crown rigidly about the
+  // trunk-top pivot. Zero allocations in updateWind.
+  // ------------------------------------------------------------------
+  const swayTreeMatrices: THREE.Matrix4[] = [];
+  const swayFruitLocalMatrices: THREE.Matrix4[] = [];
+  const _swayEuler = new THREE.Euler(0, 0, 0);
+  const _swayQuat = new THREE.Quaternion();
+  const _swayRotM = new THREE.Matrix4();
+  const _swayLocalM = new THREE.Matrix4();
+  const _pivotPosM = new THREE.Matrix4().makeTranslation(0, CROWN_PIVOT_Y, 0);
+  const _pivotNegM = new THREE.Matrix4().makeTranslation(0, -CROWN_PIVOT_Y, 0);
+  const _swayOutM = new THREE.Matrix4();
+  const _matScratch = new THREE.Matrix4();
+  let lastWindStrength = -1;
+  let lastWindElapsed = -1;
+
   // Shared palette materials (cached registry; crowns double as season-tint targets)
   const trunkMat = palette.standard(STORYBOOK_PALETTE.oakBark, 0.9, 0.01);
   const crownBaseMat = palette.get('grove_crown_base', {
@@ -198,6 +227,8 @@ export function buildFernHollowOrchard(ctx: OrchardBuildContext): OrchardRig {
     crownsBaseInst.setColorAt(i, new THREE.Color(crownBaseTints[i % crownBaseTints.length]));
     crownsTopInst.setColorAt(i, new THREE.Color(crownTopTints[(i + 1) % crownTopTints.length]));
 
+    swayTreeMatrices.push(dummy.matrix.clone());
+
     // Fruit ring around the lower canopy + a few clustered near the top lobe
     for (let f = 0; f < FRUIT_PER_TREE; f++) {
       const ang = (f / FRUIT_PER_TREE) * Math.PI * 2 + rand() * 0.55;
@@ -219,6 +250,7 @@ export function buildFernHollowOrchard(ctx: OrchardBuildContext): OrchardRig {
         i * FRUIT_PER_TREE + f,
         new THREE.Color(fruitTints[Math.floor(rand() * fruitTints.length)]),
       );
+      swayFruitLocalMatrices.push(localDummy.matrix.clone());
     }
   }
   trunksInst.computeBoundingSphere();
@@ -507,6 +539,67 @@ export function buildFernHollowOrchard(ctx: OrchardBuildContext): OrchardRig {
 
   return {
     group,
+    updateWind(elapsed: number, windStrength: number) {
+      const wind = Math.min(1, Math.max(0, windStrength));
+      // Fully calm (and unchanged) — leave matrices untouched
+      if (wind <= 0.001) {
+        if (lastWindStrength > 0.001) {
+          // Restore authored rest pose exactly once when the wind dies down
+          for (let i = 0; i < ORCHARD_TREES.length; i++) {
+            crownsBaseInst.setMatrixAt(i, swayTreeMatrices[i]);
+            crownsTopInst.setMatrixAt(i, swayTreeMatrices[i]);
+            for (let f = 0; f < FRUIT_PER_TREE; f++) {
+              _swayOutM.multiplyMatrices(
+                swayTreeMatrices[i],
+                swayFruitLocalMatrices[i * FRUIT_PER_TREE + f],
+              );
+              fruitInst.setMatrixAt(i * FRUIT_PER_TREE + f, _swayOutM);
+            }
+          }
+          crownsBaseInst.instanceMatrix.needsUpdate = true;
+          crownsTopInst.instanceMatrix.needsUpdate = true;
+          fruitInst.instanceMatrix.needsUpdate = true;
+        }
+        lastWindStrength = wind;
+        return;
+      }
+      // Identical frame (paused clock) — nothing new to integrate
+      if (wind === lastWindStrength && elapsed === lastWindElapsed) return;
+      lastWindStrength = wind;
+      lastWindElapsed = elapsed;
+
+      const amp = 0.018 + wind * 0.03; // ~0.026 rad idle drift .. 0.048 rad breeze
+      for (let i = 0; i < ORCHARD_TREES.length; i++) {
+        const tree = ORCHARD_TREES[i];
+        const phase = tree.yaw * 1.7;
+        const speed = 0.9 + wind * 1.1;
+        _swayEuler.set(
+          Math.sin(elapsed * speed + phase) * amp,
+          0,
+          Math.cos(elapsed * speed * 0.83 + phase * 1.31) * amp * 0.72,
+        );
+        _swayQuat.setFromEuler(_swayEuler);
+        _swayRotM.makeRotationFromQuaternion(_swayQuat);
+        // swayLocal = T(pivot) * R * T(-pivot): rotation about the trunk-top in tree space
+        _swayLocalM.multiplyMatrices(_pivotPosM, _swayRotM);
+        _swayLocalM.multiply(_pivotNegM);
+
+        // Crowns ride treeBase * swayLocal; fruit rides treeBase * swayLocal *
+        // fruitLocal so the whole canopy stays rigid about the pivot.
+        _swayOutM.multiplyMatrices(swayTreeMatrices[i], _swayLocalM);
+        crownsBaseInst.setMatrixAt(i, _swayOutM);
+        crownsTopInst.setMatrixAt(i, _swayOutM);
+
+        const crownSwayM = _swayOutM;
+        for (let f = 0; f < FRUIT_PER_TREE; f++) {
+          _matScratch.multiplyMatrices(crownSwayM, swayFruitLocalMatrices[i * FRUIT_PER_TREE + f]);
+          fruitInst.setMatrixAt(i * FRUIT_PER_TREE + f, _matScratch);
+        }
+      }
+      crownsBaseInst.instanceMatrix.needsUpdate = true;
+      crownsTopInst.instanceMatrix.needsUpdate = true;
+      fruitInst.instanceMatrix.needsUpdate = true;
+    },
     dispose() {
       for (const geo of ownedGeos) geo.dispose();
       treeShadowGeo.dispose();
