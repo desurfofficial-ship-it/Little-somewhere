@@ -1,10 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { applyDialogueChoice, pickupWorldPropAction } from './actions';
+import { evaluateDialogueCondition, isChoiceAvailable } from './dialogueEngine';
 import { DIALOGUE_TOPICS, buildResidentDialogue } from './narrative';
 import { getNpcRelation } from './relationships';
+import { RESIDENT_ORDER } from './residents';
 import { createFreshWorldState } from './storage';
-import { ResidentId, WorldState } from './types';
+import { ResidentId, TimePhase, WorldState } from './types';
 
 test('every topic in DIALOGUE_TOPICS builds valid node graphs with zero broken nextNodeId links', () => {
   const baseWorld = createFreshWorldState();
@@ -241,4 +243,393 @@ test('negative encounter unlocks sincere amends choice and Barnaby-Arthur craft 
   const bridgeChoice = barnabySession.nodes.root.choices.find((c) => c.id === 'barnaby_bridge_craft')!;
   const mediated = applyDialogueChoice(barnabyWorld, barnabySession, bridgeChoice).nextWorld;
   assert.ok(getNpcRelation(mediated.npcRelations, 'arthur', 'barnaby').affinity > barnabyBefore);
+});
+
+test('Phase 1 migration regression: zero duplicate choice IDs per session and all quest/concurrent branches preserved', () => {
+  // 1. Arthur ready session has exactly one unique arthur_restore_bell choice (DUP-01 resolved)
+  const readyWorld: WorldState = {
+    ...createFreshWorldState(),
+    flags: {
+      ...createFreshWorldState().flags,
+      heardBellMystery: true,
+      foundPostcard: true,
+      deliveredPostcard: true,
+      brewedChamomileTea: true,
+      borrowedBarnabyLadder: true,
+      clearedGazeboIvy: true,
+      foundBrassClapper: true,
+    },
+  };
+  const arthurReadySession = buildResidentDialogue('arthur', readyWorld, 'afternoon');
+  assert.equal(arthurReadySession.topicId, 'quest_arthur_bell');
+  const restoreChoices = arthurReadySession.nodes.root.choices.filter((c) => c.id === 'arthur_restore_bell');
+  assert.equal(restoreChoices.length, 1, 'arthur_restore_bell must appear exactly once');
+  for (const node of Object.values(arthurReadySession.nodes)) {
+    const ids = node.choices.map((c) => c.id);
+    assert.equal(new Set(ids).size, ids.length, `Duplicate choice IDs in node ${node.id}`);
+  }
+
+  // Verify arthur_postcard, arthur_tea, arthur_smalltalk, and arthur_restore_bell preserve outcomes
+  const postcardChoice = arthurReadySession.nodes.root.choices.find((c) => c.id === 'arthur_postcard')!;
+  const teaChoice = arthurReadySession.nodes.root.choices.find((c) => c.id === 'arthur_tea')!;
+  const smalltalkChoice = arthurReadySession.nodes.root.choices.find((c) => c.id === 'arthur_smalltalk')!;
+  assert.ok(postcardChoice && teaChoice && smalltalkChoice);
+  assert.equal(applyDialogueChoice(readyWorld, arthurReadySession, postcardChoice).nextWorld.npcRuntime.arthur.emotion, 'surprised');
+  assert.equal(applyDialogueChoice(readyWorld, arthurReadySession, teaChoice).nextWorld.npcRuntime.arthur.emotion, 'relaxed');
+
+  const restored = applyDialogueChoice(readyWorld, arthurReadySession, restoreChoices[0]).nextWorld;
+  assert.equal(restored.flags.bellRestored, true);
+  assert.equal(restored.flags.claraArthurReconciled, true);
+  assert.equal(restored.flags.lanternsLit, true);
+  assert.equal(restored.flags.mediationStyle, 'festival_ring');
+  assert.ok(restored.memories.some((m) => m.id === 'mem_bell_restored'));
+
+  // 2. Pip alternate branch (pip_chalk)
+  const fresh = createFreshWorldState();
+  const pipSession = buildResidentDialogue('pip', fresh, 'morning');
+  const pipChalk = pipSession.nodes.root.choices.find((c) => c.id === 'pip_chalk')!;
+  const afterPipChalk = applyDialogueChoice(fresh, pipSession, pipChalk).nextWorld;
+  assert.equal(afterPipChalk.flags.heardBellMystery, true);
+  const pipMem = afterPipChalk.memories.find((m) => m.id === 'mem_bell_mystery');
+  assert.ok(pipMem?.summary.includes('chalk star-maps'));
+
+  // 3. Nora branches: nora_books preserves foundPostcard=false; nora_take_card unlocks mem_lost_postcard
+  const noraSession = buildResidentDialogue('nora', afterPipChalk, 'morning');
+  const noraBooks = noraSession.nodes.root.choices.find((c) => c.id === 'nora_books')!;
+  const afterBooks = applyDialogueChoice(afterPipChalk, noraSession, noraBooks).nextWorld;
+  assert.equal(afterBooks.flags.foundPostcard, false);
+
+  const noraBell = noraSession.nodes.root.choices.find((c) => c.id === 'nora_bell')!;
+  const noraStep1 = applyDialogueChoice(afterPipChalk, noraSession, noraBell);
+  const noraTake = noraStep1.nextSession.nodes.nora_story.choices.find((c) => c.id === 'nora_take_card')!;
+  const afterTake = applyDialogueChoice(noraStep1.nextWorld, noraStep1.nextSession, noraTake).nextWorld;
+  assert.equal(afterTake.flags.foundPostcard, true);
+  assert.ok(afterTake.memories.some((m) => m.id === 'mem_lost_postcard'));
+
+  // 4. Jun branches: jun_reassure unlocks mem_postcard_sent, jun_advice delivers without mem_postcard_sent
+  const junSession = buildResidentDialogue('jun', afterTake, 'morning');
+  const junReassure = junSession.nodes.root.choices.find((c) => c.id === 'jun_reassure')!;
+  const junAdvice = junSession.nodes.root.choices.find((c) => c.id === 'jun_advice')!;
+  const afterReassure = applyDialogueChoice(afterTake, junSession, junReassure).nextWorld;
+  assert.equal(afterReassure.flags.deliveredPostcard, true);
+  assert.ok(afterReassure.memories.some((m) => m.id === 'mem_postcard_sent'));
+  const afterAdvice = applyDialogueChoice(afterTake, junSession, junAdvice).nextWorld;
+  assert.equal(afterAdvice.flags.deliveredPostcard, true);
+  assert.equal(afterAdvice.memories.some((m) => m.id === 'mem_postcard_sent'), false);
+
+  // 5. Sora tea, Toby clapper, Clara baking bridge
+  const soraSession = buildResidentDialogue('sora', afterReassure, 'afternoon');
+  const soraTea = soraSession.nodes.root.choices.find((c) => c.id === 'sora_tea')!;
+  const afterSora = applyDialogueChoice(afterReassure, soraSession, soraTea).nextWorld;
+  assert.equal(afterSora.flags.brewedChamomileTea, true);
+  assert.ok(afterSora.memories.some((m) => m.id === 'mem_chamomile_tea'));
+
+  const tobySession = buildResidentDialogue('toby', afterSora, 'afternoon');
+  const tobyClapper = tobySession.nodes.root.choices.find((c) => c.id === 'toby_clapper')!;
+  const afterToby = applyDialogueChoice(afterSora, tobySession, tobyClapper).nextWorld;
+  assert.equal(afterToby.flags.foundBrassClapper, true);
+  assert.ok(afterToby.memories.some((m) => m.id === 'mem_brass_clapper'));
+
+  const claraBridgeSession = buildResidentDialogue('clara', afterToby, 'afternoon');
+  const claraBaking = claraBridgeSession.nodes.root.choices.find((c) => c.id === 'clara_bridge_baking')!;
+  const afterBaking = applyDialogueChoice(afterToby, claraBridgeSession, claraBaking).nextWorld;
+  assert.equal(afterBaking.flags.mediationStyle, 'shared_baking');
+  assert.equal(afterBaking.flags.claraArthurReconciled, true);
+  assert.equal(afterBaking.flags.lanternsLit, true);
+  assert.ok(afterBaking.memories.some((m) => m.id === 'mem_reconciliation_bread'));
+});
+
+test('Phase 1 migration regression: quest_clara_rift gating, conflict negative paths, ambient/gossip/tier topics, and daily_jun_route lanterns', () => {
+  // Clara blunt nudge available when no mediation evidence exists, gated out once foundBrassClapper=true, and capped at maxSeenCount=2
+  let world = createFreshWorldState();
+  const clara1 = buildResidentDialogue('clara', world, 'morning');
+  assert.equal(clara1.topicId, 'quest_clara_rift');
+  const bluntNudge = clara1.nodes.root.choices.find((c) => c.id === 'clara_blunt_nudge')!;
+  assert.equal(isChoiceAvailable(bluntNudge, world, 'clara'), true);
+  const withClapper: WorldState = { ...world, flags: { ...world.flags, foundBrassClapper: true } };
+  assert.equal(isChoiceAvailable(bluntNudge, withClapper, 'clara'), false);
+
+  world = applyDialogueChoice(world, clara1, clara1.nodes.root.choices.find((c) => c.id === 'clara_listen')!).nextWorld;
+  // Re-surface quest_clara_rift after a second daily topic or directly verify maxSeenCount=2 cutoff
+  world = {
+    ...world,
+    topicHistory: {
+      ...world.topicHistory,
+      quest_clara_rift: { seenCount: 2, lastSeenDay: world.day, lastSeenPhase: 'morning', chosenChoiceIds: ['clara_listen'] },
+    },
+  };
+  const claraAfterCap = buildResidentDialogue('clara', world, 'afternoon');
+  assert.notEqual(claraAfterCap.topicId, 'quest_clara_rift');
+
+  // Conflict negative paths raise NPC tension
+  const conflictWorld: WorldState = {
+    ...createFreshWorldState(),
+    flags: { ...createFreshWorldState().flags, bellRestored: true, claraArthurReconciled: false },
+  };
+  const arthurConflict = buildResidentDialogue('arthur', conflictWorld, 'golden');
+  const brushOff = arthurConflict.nodes.root.choices.find((c) => c.id === 'arthur_brush_off')!;
+  const afterBrush = applyDialogueChoice(conflictWorld, arthurConflict, brushOff).nextWorld;
+  assert.ok(
+    getNpcRelation(afterBrush.npcRelations, 'arthur', 'clara').tension >
+      getNpcRelation(conflictWorld.npcRelations, 'arthur', 'clara').tension,
+  );
+
+  const barnabyConflictWorld: WorldState = {
+    ...createFreshWorldState(),
+    flags: { ...createFreshWorldState().flags, borrowedBarnabyLadder: true, repairedFountain: true },
+  };
+  const barnabyConflict = buildResidentDialogue('barnaby', barnabyConflictWorld, 'afternoon');
+  const stewBlunt = barnabyConflict.nodes.root.choices.find((c) => c.id === 'barnaby_stew_blunt')!;
+  const afterStew = applyDialogueChoice(barnabyConflictWorld, barnabyConflict, stewBlunt).nextWorld;
+  assert.ok(
+    getNpcRelation(afterStew.npcRelations, 'arthur', 'barnaby').tension >
+      getNpcRelation(barnabyConflictWorld.npcRelations, 'arthur', 'barnaby').tension,
+  );
+
+  // Per-resident topicHistory scoping for 'any' topics (event_fountain_repair & tier_close_kindred_bond)
+  const fountainWorld: WorldState = {
+    ...createFreshWorldState(),
+    flags: {
+      ...createFreshWorldState().flags,
+      heardBellMystery: true,
+      repairedFountain: true,
+      claraArthurReconciled: true,
+    },
+  };
+  const claraFountain = buildResidentDialogue('clara', fountainWorld, 'afternoon');
+  assert.equal(claraFountain.topicId, 'event_fountain_repair');
+  const afterClaraFountain = applyDialogueChoice(
+    fountainWorld,
+    claraFountain,
+    claraFountain.nodes.root.choices.find((c) => c.id === 'ev_fountain_cheer')!,
+  ).nextWorld;
+
+  // Pip must STILL be able to see event_fountain_repair (not starved by Clara!)
+  const pipFountain = buildResidentDialogue('pip', afterClaraFountain, 'afternoon');
+  assert.equal(pipFountain.topicId, 'event_fountain_repair');
+
+  // Jun lantern milestone in daily_jun_route sets lanternsLit
+  const junDailyWorld: WorldState = {
+    ...createFreshWorldState(),
+    flags: { ...createFreshWorldState().flags, heardBellMystery: true, repairedFountain: true },
+  };
+  const junDaily = buildResidentDialogue('jun', junDailyWorld, 'afternoon');
+  // If event_fountain_repair triggers first, pick it then talk again to reach daily_jun_route
+  let jw = applyDialogueChoice(junDailyWorld, junDaily, junDaily.nodes.root.choices[0]).nextWorld;
+  const junDaily2 = buildResidentDialogue('jun', jw, 'afternoon');
+  assert.equal(junDaily2.topicId, 'daily_jun_route');
+  const lanternsChoice = junDaily2.nodes.root.choices.find((c) => c.id === 'jun_lanterns')!;
+  jw = applyDialogueChoice(jw, junDaily2, lanternsChoice).nextWorld;
+  assert.equal(jw.flags.lanternsLit, true);
+});
+
+test('Phase 1 engine scalability: new DialogueCondition predicates and reachable context flavor remarks work cleanly', () => {
+  const world = createFreshWorldState();
+  const sittingWorld: WorldState = {
+    ...world,
+    weather: 'light_rain',
+    flags: { ...world.flags, claraArthurReconciled: true },
+    npcRuntime: {
+      ...world.npcRuntime,
+      clara: {
+        ...world.npcRuntime.clara,
+        posture: 'sitting',
+        reservedSeatId: 'seat_west_plaza',
+      },
+    },
+    playerRelations: {
+      ...world.playerRelations,
+      clara: { ...world.playerRelations.clara, affinity: 75 },
+    },
+  };
+
+  assert.equal(evaluateDialogueCondition({ minTier: 'close' }, 'clara', sittingWorld, 'afternoon', 't1'), true);
+  assert.equal(evaluateDialogueCondition({ minTier: 'kindred' }, 'clara', sittingWorld, 'afternoon', 't1'), false);
+  assert.equal(evaluateDialogueCondition({ maxTier: 'friendly' }, 'clara', sittingWorld, 'afternoon', 't1'), false);
+  assert.equal(evaluateDialogueCondition({ requiresPosture: ['sitting'] }, 'clara', sittingWorld, 'afternoon', 't1'), true);
+  assert.equal(evaluateDialogueCondition({ requiresWeatherNot: ['light_rain'] }, 'clara', sittingWorld, 'afternoon', 't1'), false);
+  assert.equal(evaluateDialogueCondition({ requiresWeatherNot: ['sunlit'] }, 'clara', sittingWorld, 'afternoon', 't1'), true);
+
+  // Legacy 3/4-arg vs full-context isChoiceAvailable
+  const gatedChoice = {
+    id: 'test_gated',
+    label: 'Close friend choice',
+    nextNodeId: 'end',
+    minTier: 'close' as const,
+    requiresCondition: { requiresPosture: ['sitting' as const] },
+  };
+  assert.equal(isChoiceAvailable(gatedChoice, sittingWorld, 'clara'), true);
+  assert.equal(isChoiceAvailable(gatedChoice, world, 'clara'), false);
+  assert.equal(isChoiceAvailable(gatedChoice, world.flags, world.residents.clara.trust, world.sideFlags), true);
+
+  // Reachable sitting context remark on daily_slice topic (suppress higher-priority gossip for today)
+  const dailyClaraWorld: WorldState = {
+    ...sittingWorld,
+    weather: 'sunlit',
+    topicHistory: {
+      'clara:tier_close_kindred_bond': { seenCount: 1, lastSeenDay: sittingWorld.day, lastSeenPhase: 'afternoon', chosenChoiceIds: [] },
+      gossip_clara_mina_loaves: { seenCount: 1, lastSeenDay: sittingWorld.day, lastSeenPhase: 'afternoon', chosenChoiceIds: [] },
+    },
+  };
+  const claraDaily = buildResidentDialogue('clara', dailyClaraWorld, 'afternoon');
+  assert.equal(claraDaily.category, 'daily_slice');
+  assert.ok(
+    claraDaily.nodes.root.text.includes('catches the best breeze in town'),
+    `Expected sitting context flavor remark in daily_slice text: "${claraDaily.nodes.root.text}"`,
+  );
+
+  // Forward Phase 2/3 hooks on evaluateDialogueCondition (npcMemories & storylines)
+  const hookedWorld = {
+    ...world,
+    npcMemories: {
+      clara: [{ id: 'm1', tag: 'shared_bread' }],
+    },
+    storylines: {
+      bakery_revival: { id: 'bakery_revival', stage: 2, status: 'active', outcome: 'warm' },
+    },
+  } as unknown as WorldState;
+
+  assert.equal(
+    evaluateDialogueCondition({ requiresNpcMemoriesAny: ['shared_bread'] }, 'clara', hookedWorld, 'afternoon', 'h1'),
+    true,
+  );
+  assert.equal(
+    evaluateDialogueCondition({ excludesNpcMemories: ['shared_bread'] }, 'clara', hookedWorld, 'afternoon', 'h1'),
+    false,
+  );
+  assert.equal(
+    evaluateDialogueCondition(
+      { requiresStoryline: { id: 'bakery_revival', minStage: 2, status: ['active'], outcome: 'warm' } },
+      'clara',
+      hookedWorld,
+      'afternoon',
+      'h1',
+    ),
+    true,
+  );
+  assert.equal(
+    evaluateDialogueCondition(
+      { requiresStoryline: { id: 'bakery_revival', minStage: 3 } },
+      'clara',
+      hookedWorld,
+      'afternoon',
+      'h1',
+    ),
+    false,
+  );
+});
+
+test('Phase 1 migration regression: remaining concurrent milestones, gossip/tier/emotion/weather topics, and full cast x 4 phase sweep', () => {
+  const base = createFreshWorldState();
+
+  // 1. barnaby_ladder, barnaby_fountain, mina_plant, clara_bridge_truth
+  const midWorld: WorldState = {
+    ...base,
+    flags: {
+      ...base.flags,
+      heardBellMystery: true,
+      foundPostcard: true,
+      deliveredPostcard: true,
+      brewedChamomileTea: true,
+      foundBrassClapper: true,
+    },
+  };
+
+  const barnabyS = buildResidentDialogue('barnaby', midWorld, 'morning');
+  const bLadder = barnabyS.nodes.root.choices.find((c) => c.id === 'barnaby_ladder')!;
+  const bFountain = barnabyS.nodes.root.choices.find((c) => c.id === 'barnaby_fountain')!;
+  assert.ok(bLadder && bFountain);
+  const afterLadder = applyDialogueChoice(midWorld, barnabyS, bLadder).nextWorld;
+  assert.equal(afterLadder.flags.borrowedBarnabyLadder, true);
+  assert.equal(afterLadder.flags.clearedGazeboIvy, true);
+  assert.ok(afterLadder.memories.some((m) => m.id === 'mem_gazebo_cleared'));
+
+  const afterFountain = applyDialogueChoice(afterLadder, barnabyS, bFountain).nextWorld;
+  assert.equal(afterFountain.flags.repairedFountain, true);
+  assert.ok(afterFountain.memories.some((m) => m.id === 'mem_fountain_fixed'));
+
+  const minaS = buildResidentDialogue('mina', afterFountain, 'morning');
+  const minaPlant = minaS.nodes.root.choices.find((c) => c.id === 'mina_plant')!;
+  const afterMina = applyDialogueChoice(afterFountain, minaS, minaPlant).nextWorld;
+  assert.equal(afterMina.flags.plantedMoonPetals, true);
+  assert.ok(afterMina.memories.some((m) => m.id === 'mem_moon_petals'));
+
+  const claraTruthS = buildResidentDialogue('clara', afterMina, 'afternoon');
+  const claraTruth = claraTruthS.nodes.root.choices.find((c) => c.id === 'clara_bridge_truth')!;
+  const afterTruth = applyDialogueChoice(afterMina, claraTruthS, claraTruth).nextWorld;
+  assert.equal(afterTruth.flags.mediationStyle, 'gentle_truth');
+  assert.equal(afterTruth.flags.claraArthurReconciled, true);
+  assert.ok(afterTruth.memories.some((m) => m.id === 'mem_reconciliation_truth'));
+
+  // 2. Gossip topics: gossip_clara_mina_loaves & gossip_pip_toby_pond
+  const gossipWorld: WorldState = {
+    ...base,
+    flags: { ...base.flags, heardBellMystery: true, claraArthurReconciled: true },
+  };
+  const claraGossip = buildResidentDialogue('clara', gossipWorld, 'afternoon');
+  assert.equal(claraGossip.topicId, 'gossip_clara_mina_loaves');
+  const tobyGossip = buildResidentDialogue('toby', gossipWorld, 'afternoon');
+  assert.equal(tobyGossip.topicId, 'gossip_pip_toby_pond');
+
+  // 3. Tier topic per-resident scoping: Clara seeing tier_close_kindred_bond does not block Mina same day
+  const tierWorld: WorldState = {
+    ...gossipWorld,
+    playerRelations: {
+      ...gossipWorld.playerRelations,
+      clara: { ...gossipWorld.playerRelations.clara, affinity: 75 },
+      mina: { ...gossipWorld.playerRelations.mina, affinity: 75 },
+    },
+  };
+  const claraTier = buildResidentDialogue('clara', tierWorld, 'afternoon');
+  assert.equal(claraTier.topicId, 'tier_close_kindred_bond');
+  const afterClaraTier = applyDialogueChoice(tierWorld, claraTier, claraTier.nodes.root.choices[0]).nextWorld;
+  const minaTier = buildResidentDialogue('mina', afterClaraTier, 'afternoon');
+  assert.equal(minaTier.topicId, 'tier_close_kindred_bond');
+
+  // 4. Emotion tired positive & blunt outcomes
+  const tiredWorld: WorldState = {
+    ...gossipWorld,
+    npcRuntime: {
+      ...gossipWorld.npcRuntime,
+      barnaby: { ...gossipWorld.npcRuntime.barnaby, emotion: 'tired' },
+    },
+  };
+  const tiredSession = buildResidentDialogue('barnaby', tiredWorld, 'afternoon');
+  assert.equal(tiredSession.topicId, 'emotion_tired_check');
+  const tiredKind = tiredSession.nodes.root.choices.find((c) => c.id === 'em_tired_kind')!;
+  const tiredBlunt = tiredSession.nodes.root.choices.find((c) => c.id === 'em_tired_blunt')!;
+  assert.equal(applyDialogueChoice(tiredWorld, tiredSession, tiredKind).nextWorld.npcRuntime.barnaby.emotion, 'relaxed');
+  const afterTiredBlunt = applyDialogueChoice(tiredWorld, tiredSession, tiredBlunt).nextWorld;
+  assert.equal(afterTiredBlunt.npcRuntime.barnaby.emotion, 'frustrated');
+  assert.equal(afterTiredBlunt.playerRelations.barnaby.negativeCount, 1);
+
+  // 5. Weather topics: light_rain & misty_morning/breezy
+  const rainSession = buildResidentDialogue('mina', { ...gossipWorld, weather: 'light_rain' }, 'afternoon');
+  assert.equal(rainSession.topicId, 'weather_rain_reflection');
+  const mistySession = buildResidentDialogue('mina', { ...gossipWorld, weather: 'misty_morning' }, 'morning');
+  assert.equal(mistySession.topicId, 'weather_misty_breezy_note');
+  const breezySession = buildResidentDialogue('mina', { ...gossipWorld, weather: 'breezy' }, 'afternoon');
+  assert.equal(breezySession.topicId, 'weather_misty_breezy_note');
+
+  // 6. Full cast x 4 phases sweep in both fresh and late-story states: zero broken nextNodeId or duplicate choice IDs
+  const lateWorld: WorldState = {
+    ...afterTruth,
+    flags: { ...afterTruth.flags, bellRestored: true, lanternsLit: true },
+  };
+  const phases: TimePhase[] = ['morning', 'afternoon', 'golden', 'dusk'];
+  for (const state of [base, lateWorld]) {
+    for (const resId of RESIDENT_ORDER) {
+      for (const phase of phases) {
+        const s = buildResidentDialogue(resId, state, phase);
+        assert.ok(s.nodes[s.currentNodeId], `Missing root node for ${resId}/${phase}`);
+        for (const node of Object.values(s.nodes)) {
+          const ids = node.choices.map((c) => c.id);
+          assert.equal(new Set(ids).size, ids.length, `Duplicate choice ID in ${resId}/${phase}/${s.topicId}/${node.id}`);
+          for (const choice of node.choices) {
+            assert.ok(s.nodes[choice.nextNodeId], `Broken link ${choice.nextNodeId} in ${resId}/${phase}/${s.topicId}`);
+          }
+        }
+      }
+    }
+  }
 });

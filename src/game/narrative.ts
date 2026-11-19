@@ -1,16 +1,24 @@
 import {
+  CharacterEmotion,
   DialogueChoice,
   DialogueNode,
   DialogueSession,
   DialogueTopic,
   EnvironmentalState,
+  JournalMemory,
   ResidentId,
   StoryFlags,
   TimePhase,
   WorldState,
 } from './types';
 import { RESIDENTS } from './residents';
-import { isChoiceAvailable, selectDialogueSession } from './dialogueEngine';
+import {
+  isChoiceAvailable,
+  makeBranchingTopic,
+  makeSimpleTopic,
+  phaseGreet,
+  selectDialogueSession,
+} from './dialogueEngine';
 
 export { isChoiceAvailable };
 
@@ -69,59 +77,238 @@ export function getResidentAvailableQuestCue(
   return 'none';
 }
 
-function phaseGreet(phase: TimePhase): string {
-  if (phase === 'morning') return 'Morning air feels crisp today.';
-  if (phase === 'afternoon') return 'The afternoon sun makes the cobbles warm.';
-  if (phase === 'golden') return 'This golden light always slows the lane down.';
-  return 'Lantern dusk is my favorite hour here.';
-}
-
-function makeSimpleTopic(
-  id: string,
-  residentId: ResidentId | 'any',
-  category: DialogueTopic['category'],
-  priority: number,
-  condition: DialogueTopic['condition'],
-  spec: {
+interface ConcurrentMilestoneDef {
+  residentId: ResidentId;
+  when: (f: StoryFlags) => boolean;
+  choice: {
+    id: string;
+    label: string;
+    tone: DialogueChoice['tone'];
+    nextNodeId: string;
+    requiresFlag?: keyof StoryFlags;
+    requiresFalseFlag?: keyof StoryFlags;
+    trustDelta: number;
+    setEmotion: CharacterEmotion;
+    buildFlags: (f: StoryFlags) => Partial<StoryFlags>;
+    unlockMemory: Omit<JournalMemory, 'day' | 'phase'>;
+  };
+  endNode: {
+    id: string;
     moodLabel: string;
-    buildText: (resId: ResidentId, world: WorldState, phase: TimePhase) => string;
-    choices: DialogueChoice[];
-    endings: Record<string, { moodLabel: string; text: string }>;
-  },
-): DialogueTopic {
-  return {
-    id,
-    residentId,
-    category,
-    priority,
-    condition,
-    build: (resId, world, phase) => {
-      const def = RESIDENTS[resId];
-      const nodes: Record<string, DialogueNode> = {
-        root: {
-          id: 'root',
-          speakerName: def.name,
-          speakerRole: def.role,
-          moodLabel: spec.moodLabel,
-          text: spec.buildText(resId, world, phase),
-          choices: spec.choices,
-        },
-      };
-      for (const [endId, endSpec] of Object.entries(spec.endings)) {
-        nodes[endId] = {
-          id: endId,
-          speakerName: def.name,
-          speakerRole: def.role,
-          moodLabel: endSpec.moodLabel,
-          text: endSpec.text,
-          choices: [],
-          isEnd: true,
-        };
-      }
-      return { rootId: 'root', nodes };
-    },
+    text: string;
   };
 }
+
+const CONCURRENT_QUEST_MILESTONES: readonly ConcurrentMilestoneDef[] = [
+  {
+    residentId: 'barnaby',
+    when: (f) => f.heardBellMystery && !f.borrowedBarnabyLadder,
+    choice: {
+      id: 'barnaby_ladder',
+      label: 'Could I borrow your cedar ladder to clear the gazebo ivy?',
+      tone: 'practical',
+      nextNodeId: 'barnaby_lend',
+      requiresFlag: 'heardBellMystery',
+      requiresFalseFlag: 'borrowedBarnabyLadder',
+      trustDelta: 1,
+      setEmotion: 'happy',
+      buildFlags: () => ({ borrowedBarnabyLadder: true, clearedGazeboIvy: true }),
+      unlockMemory: {
+        id: 'mem_gazebo_cleared',
+        title: 'Sunlit Rafters',
+        summary: 'Barnaby lent his cedar ladder and we gently cleared the creeping ivy off the gazebo bell beam.',
+        residentId: 'barnaby',
+      },
+    },
+    endNode: {
+      id: 'barnaby_lend',
+      moodLabel: 'Pleased',
+      text: 'Hah! I was hoping someone would ask. Let’s haul it up right now—there, the ivy is tucked along the posts and the brass bell frame is clear in the sun again.',
+    },
+  },
+  {
+    residentId: 'barnaby',
+    when: (f) => !f.repairedFountain,
+    choice: {
+      id: 'barnaby_fountain',
+      label: 'Do you know why the plaza stone fountain stopped running?',
+      tone: 'curious',
+      nextNodeId: 'barnaby_valve',
+      requiresFalseFlag: 'repairedFountain',
+      trustDelta: 1,
+      setEmotion: 'happy',
+      buildFlags: () => ({ repairedFountain: true }),
+      unlockMemory: {
+        id: 'mem_fountain_fixed',
+        title: 'Water in the Plaza',
+        summary: 'With Barnaby’s brass wrench tip, the mossy stone fountain in the center square flows once more.',
+        residentId: 'barnaby',
+      },
+    },
+    endNode: {
+      id: 'barnaby_valve',
+      moodLabel: 'Helpful',
+      text: 'Just an autumn leaf caught in the brass intake! Let me tap it loose for you—listen, water’s already bubbling back into the plaza basin.',
+    },
+  },
+  {
+    residentId: 'mina',
+    when: (f) => !f.plantedMoonPetals,
+    choice: {
+      id: 'mina_plant',
+      label: 'Let’s plant moon-petals in the plaza window boxes!',
+      tone: 'warm',
+      nextNodeId: 'mina_planted',
+      requiresFalseFlag: 'plantedMoonPetals',
+      trustDelta: 1,
+      setEmotion: 'excited',
+      buildFlags: () => ({ plantedMoonPetals: true }),
+      unlockMemory: {
+        id: 'mem_moon_petals',
+        title: 'Moon-Petals on the Sill',
+        summary: 'Mina and I tucked fresh moon-petal seedlings into the neighborhood planter boxes.',
+        residentId: 'mina',
+      },
+    },
+    endNode: {
+      id: 'mina_planted',
+      moodLabel: 'Joyful',
+      text: 'Done! Watch the cottage planters around the square—warm apricot and lavender blossoms are already waking up.',
+    },
+  },
+  {
+    residentId: 'sora',
+    when: (f) => !f.brewedChamomileTea,
+    choice: {
+      id: 'sora_tea',
+      label: 'Could you steep two cups of chamomile-pear tea for Arthur and Clara?',
+      tone: 'warm',
+      nextNodeId: 'sora_brewed',
+      requiresFalseFlag: 'brewedChamomileTea',
+      trustDelta: 1,
+      setEmotion: 'happy',
+      buildFlags: () => ({ brewedChamomileTea: true }),
+      unlockMemory: {
+        id: 'mem_chamomile_tea',
+        title: 'Chamomile-Pear Flask',
+        summary: 'Sora brewed a warm flask of chamomile-pear tea meant to soften old silences.',
+        residentId: 'sora',
+      },
+    },
+    endNode: {
+      id: 'sora_brewed',
+      moodLabel: 'Warm',
+      text: 'Of course. Honey, roasted pear, and Mina’s chamomile. Take a flask to Arthur—sometimes warm tea speaks faster than an apology.',
+    },
+  },
+  {
+    residentId: 'toby',
+    when: (f) => !f.foundBrassClapper,
+    choice: {
+      id: 'toby_clapper',
+      label: 'Let’s rescue the brass clapper from the hollow oak together.',
+      tone: 'practical',
+      nextNodeId: 'toby_found',
+      requiresFlag: 'heardBellMystery',
+      requiresFalseFlag: 'foundBrassClapper',
+      trustDelta: 1,
+      setEmotion: 'happy',
+      buildFlags: () => ({ foundBrassClapper: true }),
+      unlockMemory: {
+        id: 'mem_brass_clapper',
+        title: 'The Hidden Brass Clapper',
+        summary: 'Toby showed me where the gazebo bell’s brass clapper lay wrapped in blue linen inside the hollow oak.',
+        residentId: 'toby',
+      },
+    },
+    endNode: {
+      id: 'toby_found',
+      moodLabel: 'Proud',
+      text: 'Got it! Still polished and warm! Only Arthur knows the pin-lock to fit it back inside the gazebo bell—he won’t be mad if you bring it gently.',
+    },
+  },
+  {
+    residentId: 'clara',
+    when: (f) => !f.claraArthurReconciled && (f.deliveredPostcard || f.brewedChamomileTea || f.foundBrassClapper),
+    choice: {
+      id: 'clara_bridge_baking',
+      label: 'Invite Arthur to share warm sourdough by the fountain instead of apologizing.',
+      tone: 'warm',
+      nextNodeId: 'clara_agrees',
+      trustDelta: 1,
+      setEmotion: 'happy',
+      buildFlags: () => ({ mediationStyle: 'shared_baking', claraArthurReconciled: true, lanternsLit: true }),
+      unlockMemory: {
+        id: 'mem_reconciliation_bread',
+        title: 'A Warm Loaf Bridge',
+        summary: 'Clara agreed to set out sunny bakery tables and share warm sourdough with Arthur without keeping score.',
+        residentId: 'clara',
+      },
+    },
+    endNode: {
+      id: 'clara_agrees',
+      moodLabel: 'Moved',
+      text: 'No grand speeches… just warm sourdough and open tables in the sun. Alright. Tell Arthur I’ll meet him by the gazebo at Golden Hour.',
+    },
+  },
+  {
+    residentId: 'clara',
+    when: (f) =>
+      !f.claraArthurReconciled &&
+      (f.deliveredPostcard || f.brewedChamomileTea || f.foundBrassClapper) &&
+      f.foundBrassClapper,
+    choice: {
+      id: 'clara_bridge_truth',
+      label: 'Tell her Arthur never threw away the bell—he kept the clapper safe.',
+      tone: 'gentle',
+      nextNodeId: 'clara_truth',
+      requiresFlag: 'foundBrassClapper',
+      trustDelta: 1,
+      setEmotion: 'happy',
+      buildFlags: () => ({ mediationStyle: 'gentle_truth', claraArthurReconciled: true, lanternsLit: true }),
+      unlockMemory: {
+        id: 'mem_reconciliation_truth',
+        title: 'Kept Safe in Blue Linen',
+        summary: 'Hearing that Arthur safeguarded the brass clapper softened Clara’s long silence.',
+        residentId: 'clara',
+      },
+    },
+    endNode: {
+      id: 'clara_truth',
+      moodLabel: 'Softened',
+      text: 'Wrapped in blue linen? That stubborn old clockmaker… he never stopped caring about this town. I’ll walk over to the gazebo this evening and hear him out.',
+    },
+  },
+  {
+    residentId: 'arthur',
+    when: (f) => !f.bellRestored && f.foundBrassClapper && f.clearedGazeboIvy,
+    choice: {
+      id: 'arthur_restore_bell',
+      label: 'The ivy is cleared and we found the brass clapper—let’s hang it!',
+      tone: 'practical',
+      nextNodeId: 'arthur_restores',
+      trustDelta: 2,
+      setEmotion: 'happy',
+      buildFlags: (f) => ({
+        bellRestored: true,
+        claraArthurReconciled: true,
+        lanternsLit: true,
+        mediationStyle: f.mediationStyle === 'none' ? 'festival_ring' : f.mediationStyle,
+      }),
+      unlockMemory: {
+        id: 'mem_bell_restored',
+        title: 'First Chime in Three Autumns',
+        summary: 'Arthur climbed Barnaby’s cedar ladder and fitted the brass clapper back inside the Gazebo Bell, filling Little Somewhere with golden sound.',
+        residentId: 'arthur',
+      },
+    },
+    endNode: {
+      id: 'arthur_restores',
+      moodLabel: 'Moved',
+      text: 'You cleared the rafters and kept the clapper safe… Come on then, let’s fit the brass pin together. Walk up to the Gazebo anytime and give the bell rope a pull!',
+    },
+  },
+];
 
 /**
  * Injects pending main-quest milestone options so ambient topics never lock story progression.
@@ -135,244 +322,30 @@ function buildConcurrentQuestChoices(
   const choices: DialogueChoice[] = [];
   const extraNodes: Record<string, DialogueNode> = {};
 
-  if (id === 'barnaby') {
-    if (f.heardBellMystery && !f.borrowedBarnabyLadder) {
-      choices.push({
-        id: 'barnaby_ladder',
-        label: 'Could I borrow your cedar ladder to clear the gazebo ivy?',
-        tone: 'practical',
-        nextNodeId: 'barnaby_lend',
-        requiresFlag: 'heardBellMystery',
-        requiresFalseFlag: 'borrowedBarnabyLadder',
-        trustDelta: 1,
-        isStoryMilestone: true,
-        setEmotion: 'happy',
-        setFlags: { borrowedBarnabyLadder: true, clearedGazeboIvy: true },
-        unlockMemory: {
-          id: 'mem_gazebo_cleared',
-          title: 'Sunlit Rafters',
-          summary: 'Barnaby lent his cedar ladder and we gently cleared the creeping ivy off the gazebo bell beam.',
-          residentId: 'barnaby',
-        },
-      });
-      extraNodes['barnaby_lend'] = {
-        id: 'barnaby_lend',
-        speakerName: def.name,
-        speakerRole: def.role,
-        moodLabel: 'Pleased',
-        text: `Hah! I was hoping someone would ask. Let’s haul it up right now—there, the ivy is tucked along the posts and the brass bell frame is clear in the sun again.`,
-        choices: [],
-        isEnd: true,
-      };
-    }
-    if (!f.repairedFountain) {
-      choices.push({
-        id: 'barnaby_fountain',
-        label: 'Do you know why the plaza stone fountain stopped running?',
-        tone: 'curious',
-        nextNodeId: 'barnaby_valve',
-        requiresFalseFlag: 'repairedFountain',
-        trustDelta: 1,
-        isStoryMilestone: true,
-        setEmotion: 'happy',
-        setFlags: { repairedFountain: true },
-        unlockMemory: {
-          id: 'mem_fountain_fixed',
-          title: 'Water in the Plaza',
-          summary: 'With Barnaby’s brass wrench tip, the mossy stone fountain in the center square flows once more.',
-          residentId: 'barnaby',
-        },
-      });
-      extraNodes['barnaby_valve'] = {
-        id: 'barnaby_valve',
-        speakerName: def.name,
-        speakerRole: def.role,
-        moodLabel: 'Helpful',
-        text: `Just an autumn leaf caught in the brass intake! Let me tap it loose for you—listen, water’s already bubbling back into the plaza basin.`,
-        choices: [],
-        isEnd: true,
-      };
-    }
-  }
-
-  if (id === 'mina' && !f.plantedMoonPetals) {
+  for (const m of CONCURRENT_QUEST_MILESTONES) {
+    if (m.residentId !== id || !m.when(f)) continue;
     choices.push({
-      id: 'mina_plant',
-      label: 'Let’s plant moon-petals in the plaza window boxes!',
-      tone: 'warm',
-      nextNodeId: 'mina_planted',
-      requiresFalseFlag: 'plantedMoonPetals',
-      trustDelta: 1,
+      id: m.choice.id,
+      label: m.choice.label,
+      tone: m.choice.tone,
+      nextNodeId: m.choice.nextNodeId,
+      requiresFlag: m.choice.requiresFlag,
+      requiresFalseFlag: m.choice.requiresFalseFlag,
+      trustDelta: m.choice.trustDelta,
       isStoryMilestone: true,
-      setEmotion: 'excited',
-      setFlags: { plantedMoonPetals: true },
-      unlockMemory: {
-        id: 'mem_moon_petals',
-        title: 'Moon-Petals on the Sill',
-        summary: 'Mina and I tucked fresh moon-petal seedlings into the neighborhood planter boxes.',
-        residentId: 'mina',
-      },
+      setEmotion: m.choice.setEmotion,
+      setFlags: m.choice.buildFlags(f),
+      unlockMemory: m.choice.unlockMemory,
     });
-    extraNodes['mina_planted'] = {
-      id: 'mina_planted',
+    extraNodes[m.endNode.id] = {
+      id: m.endNode.id,
       speakerName: def.name,
       speakerRole: def.role,
-      moodLabel: 'Joyful',
-      text: `Done! Watch the cottage planters around the square—warm apricot and lavender blossoms are already waking up.`,
+      moodLabel: m.endNode.moodLabel,
+      text: m.endNode.text,
       choices: [],
       isEnd: true,
     };
-  }
-
-  if (id === 'sora' && !f.brewedChamomileTea) {
-    choices.push({
-      id: 'sora_tea',
-      label: 'Could you steep two cups of chamomile-pear tea for Arthur and Clara?',
-      tone: 'warm',
-      nextNodeId: 'sora_brewed',
-      requiresFalseFlag: 'brewedChamomileTea',
-      trustDelta: 1,
-      isStoryMilestone: true,
-      setEmotion: 'happy',
-      setFlags: { brewedChamomileTea: true },
-      unlockMemory: {
-        id: 'mem_chamomile_tea',
-        title: 'Chamomile-Pear Flask',
-        summary: 'Sora brewed a warm flask of chamomile-pear tea meant to soften old silences.',
-        residentId: 'sora',
-      },
-    });
-    extraNodes['sora_brewed'] = {
-      id: 'sora_brewed',
-      speakerName: def.name,
-      speakerRole: def.role,
-      moodLabel: 'Warm',
-      text: `Of course. Honey, roasted pear, and Mina’s chamomile. Take a flask to Arthur—sometimes warm tea speaks faster than an apology.`,
-      choices: [],
-      isEnd: true,
-    };
-  }
-
-  if (id === 'toby' && !f.foundBrassClapper) {
-    choices.push({
-      id: 'toby_clapper',
-      label: 'Let’s rescue the brass clapper from the hollow oak together.',
-      tone: 'practical',
-      nextNodeId: 'toby_found',
-      requiresFlag: 'heardBellMystery',
-      requiresFalseFlag: 'foundBrassClapper',
-      trustDelta: 1,
-      isStoryMilestone: true,
-      setEmotion: 'happy',
-      setFlags: { foundBrassClapper: true },
-      unlockMemory: {
-        id: 'mem_brass_clapper',
-        title: 'The Hidden Brass Clapper',
-        summary: 'Toby showed me where the gazebo bell’s brass clapper lay wrapped in blue linen inside the hollow oak.',
-        residentId: 'toby',
-      },
-    });
-    extraNodes['toby_found'] = {
-      id: 'toby_found',
-      speakerName: def.name,
-      speakerRole: def.role,
-      moodLabel: 'Proud',
-      text: `Got it! Still polished and warm! Only Arthur knows the pin-lock to fit it back inside the gazebo bell—he won’t be mad if you bring it gently.`,
-      choices: [],
-      isEnd: true,
-    };
-  }
-
-  if (id === 'clara' && !f.claraArthurReconciled && (f.deliveredPostcard || f.brewedChamomileTea || f.foundBrassClapper)) {
-    choices.push({
-      id: 'clara_bridge_baking',
-      label: 'Invite Arthur to share warm sourdough by the fountain instead of apologizing.',
-      tone: 'warm',
-      nextNodeId: 'clara_agrees',
-      trustDelta: 1,
-      isStoryMilestone: true,
-      setEmotion: 'happy',
-      setFlags: { mediationStyle: 'shared_baking', claraArthurReconciled: true, lanternsLit: true },
-      unlockMemory: {
-        id: 'mem_reconciliation_bread',
-        title: 'A Warm Loaf Bridge',
-        summary: 'Clara agreed to set out sunny bakery tables and share warm sourdough with Arthur without keeping score.',
-        residentId: 'clara',
-      },
-    });
-    extraNodes['clara_agrees'] = {
-      id: 'clara_agrees',
-      speakerName: def.name,
-      speakerRole: def.role,
-      moodLabel: 'Moved',
-      text: `No grand speeches… just warm sourdough and open tables in the sun. Alright. Tell Arthur I’ll meet him by the gazebo at Golden Hour.`,
-      choices: [],
-      isEnd: true,
-    };
-
-    if (f.foundBrassClapper) {
-      choices.push({
-        id: 'clara_bridge_truth',
-        label: 'Tell her Arthur never threw away the bell—he kept the clapper safe.',
-        tone: 'gentle',
-        nextNodeId: 'clara_truth',
-        requiresFlag: 'foundBrassClapper',
-        trustDelta: 1,
-        isStoryMilestone: true,
-        setEmotion: 'happy',
-        setFlags: { mediationStyle: 'gentle_truth', claraArthurReconciled: true, lanternsLit: true },
-        unlockMemory: {
-          id: 'mem_reconciliation_truth',
-          title: 'Kept Safe in Blue Linen',
-          summary: 'Hearing that Arthur safeguarded the brass clapper softened Clara’s long silence.',
-          residentId: 'clara',
-        },
-      });
-      extraNodes['clara_truth'] = {
-        id: 'clara_truth',
-        speakerName: def.name,
-        speakerRole: def.role,
-        moodLabel: 'Softened',
-        text: `Wrapped in blue linen? That stubborn old clockmaker… he never stopped caring about this town. I’ll walk over to the gazebo this evening and hear him out.`,
-        choices: [],
-        isEnd: true,
-      };
-    }
-  }
-
-  if (id === 'arthur' && !f.bellRestored) {
-    if (f.foundBrassClapper && f.clearedGazeboIvy) {
-      choices.push({
-        id: 'arthur_restore_bell',
-        label: 'The ivy is cleared and we found the brass clapper—let’s hang it!',
-        tone: 'practical',
-        nextNodeId: 'arthur_restores',
-        trustDelta: 2,
-        isStoryMilestone: true,
-        setEmotion: 'happy',
-        setFlags: {
-          bellRestored: true,
-          claraArthurReconciled: true,
-          lanternsLit: true,
-          mediationStyle: f.mediationStyle === 'none' ? 'festival_ring' : f.mediationStyle,
-        },
-        unlockMemory: {
-          id: 'mem_bell_restored',
-          title: 'First Chime in Three Autumns',
-          summary: 'Arthur climbed Barnaby’s cedar ladder and fitted the brass clapper back inside the Gazebo Bell, filling Little Somewhere with golden sound.',
-          residentId: 'arthur',
-        },
-      });
-      extraNodes['arthur_restores'] = {
-        id: 'arthur_restores',
-        speakerName: def.name,
-        speakerRole: def.role,
-        moodLabel: 'Moved',
-        text: `You cleared the rafters and kept the clapper safe… Come on then, let’s fit the brass pin together. Walk up to the Gazebo anytime and give the bell rope a pull!`,
-        choices: [],
-        isEnd: true,
-      };
-    }
   }
 
   return { choices, extraNodes };
@@ -380,19 +353,15 @@ function buildConcurrentQuestChoices(
 
 export const DIALOGUE_TOPICS: readonly DialogueTopic[] = [
   // ================= MAIN QUEST MILESTONES =================
-  {
-    id: 'quest_pip_intro',
-    residentId: 'pip',
-    category: 'quest_milestone',
-    priority: 50,
-    condition: { flagsFalse: ['heardBellMystery'] },
-    build: (_id, _w, phase) => ({
-      rootId: 'root',
+  makeBranchingTopic(
+    'quest_pip_intro',
+    'pip',
+    'quest_milestone',
+    50,
+    { flagsFalse: ['heardBellMystery'] },
+    (_id, _w, phase) => ({
       nodes: {
         root: {
-          id: 'root',
-          speakerName: 'Pip',
-          speakerRole: RESIDENTS.pip.role,
           moodLabel: 'Curious',
           text: `Hey, new neighbor! ${phaseGreet(phase)} Have you noticed the big brass bell up in the gazebo? Clara says it used to ring every evening, until she and Mr. Arthur stopped speaking three autumns ago.`,
           choices: [
@@ -431,40 +400,26 @@ export const DIALOGUE_TOPICS: readonly DialogueTopic[] = [
           ],
         },
         pip_excited: {
-          id: 'pip_excited',
-          speakerName: 'Pip',
-          speakerRole: RESIDENTS.pip.role,
           moodLabel: 'Eager',
           text: `Really?! Look closely at the gazebo—Mina says thick ivy grew over the beam, and Toby saw something shiny by the hollow oak! Maybe ask Nora at the Book Nook first—she remembers everything.`,
-          choices: [],
-          isEnd: true,
         },
         pip_drawing: {
-          id: 'pip_drawing',
-          speakerName: 'Pip',
-          speakerRole: RESIDENTS.pip.role,
           moodLabel: 'Bright',
           text: `A constellation map to the gazebo bell! Clara promised cinnamon buns to anyone who hears it chime again. Try talking to Nora at the Book Nook or Toby by the pond—they both saw clues.`,
-          choices: [],
-          isEnd: true,
         },
       },
     }),
-  },
+  ),
 
-  {
-    id: 'quest_nora_postcard',
-    residentId: 'nora',
-    category: 'quest_milestone',
-    priority: 45,
-    condition: { flagsFalse: ['foundPostcard'] },
-    build: (_id, _w, phase) => ({
-      rootId: 'root',
+  makeBranchingTopic(
+    'quest_nora_postcard',
+    'nora',
+    'quest_milestone',
+    45,
+    { flagsFalse: ['foundPostcard'] },
+    (_id, _w, phase) => ({
       nodes: {
         root: {
-          id: 'root',
-          speakerName: 'Nora',
-          speakerRole: RESIDENTS.nora.role,
           moodLabel: 'Thoughtful',
           text: `Ah, welcome to Linden Book Nook. ${phaseGreet(phase)} People here carry their stories quietly, like pressed leaves between pages.`,
           choices: [
@@ -486,9 +441,6 @@ export const DIALOGUE_TOPICS: readonly DialogueTopic[] = [
           ],
         },
         nora_story: {
-          id: 'nora_story',
-          speakerName: 'Nora',
-          speakerRole: RESIDENTS.nora.role,
           moodLabel: 'Reflective',
           text: `I do. It wasn’t anger that silenced it—just two proud friends grieving a stormy harvest. Wait—inside this almanac is an unmailed postcard Arthur’s sister sent from the coast, and Jun forgot to deliver it.`,
           choices: [
@@ -527,49 +479,30 @@ export const DIALOGUE_TOPICS: readonly DialogueTopic[] = [
           ],
         },
         nora_given: {
-          id: 'nora_given',
-          speakerName: 'Nora',
-          speakerRole: RESIDENTS.nora.role,
           moodLabel: 'Warm',
           text: `Jun keeps his mail satchel slung tight, though he’s terribly shy about admitting a mistake. Hand this to him gently.`,
-          choices: [],
-          isEnd: true,
         },
         nora_ribbon: {
-          id: 'nora_ribbon',
-          speakerName: 'Nora',
-          speakerRole: RESIDENTS.nora.role,
           moodLabel: 'Fond',
           text: `Silk marigold, saved for the evening the bell chimes again. Take this postcard to Jun too—time moves faster when neighbors share small truths.`,
-          choices: [],
-          isEnd: true,
         },
         nora_almanac: {
-          id: 'nora_almanac',
-          speakerName: 'Nora',
-          speakerRole: RESIDENTS.nora.role,
           moodLabel: 'Amused',
           text: `Our town almanac! Three years ago, Arthur oiled every clock in town except the gazebo spire. If you ask around, Pip knows more than he lets on.`,
-          choices: [],
-          isEnd: true,
         },
       },
     }),
-  },
+  ),
 
-  {
-    id: 'quest_jun_postcard',
-    residentId: 'jun',
-    category: 'quest_milestone',
-    priority: 48,
-    condition: { flagsTrue: ['foundPostcard'], flagsFalse: ['deliveredPostcard'] },
-    build: () => ({
-      rootId: 'root',
+  makeBranchingTopic(
+    'quest_jun_postcard',
+    'jun',
+    'quest_milestone',
+    48,
+    { flagsTrue: ['foundPostcard'], flagsFalse: ['deliveredPostcard'] },
+    () => ({
       nodes: {
         root: {
-          id: 'root',
-          speakerName: 'Jun',
-          speakerRole: RESIDENTS.jun.role,
           moodLabel: 'Flustered',
           text: `Whoa—is that the coastal postcard with the lighthouse stamp?! I swore it slipped out of my satchel last autumn!`,
           choices: [
@@ -611,201 +544,113 @@ export const DIALOGUE_TOPICS: readonly DialogueTopic[] = [
           ],
         },
         jun_relieved: {
-          id: 'jun_relieved',
-          speakerName: 'Jun',
-          speakerRole: RESIDENTS.jun.role,
           moodLabel: 'Grateful',
           text: `Thank you! I’ll slip it right into Arthur’s brass box—if you visit him with kindness, I bet he’ll finally open up about the gazebo bell.`,
-          choices: [],
-          isEnd: true,
         },
         jun_blunt_end: {
-          id: 'jun_blunt_end',
-          speakerName: 'Jun',
-          speakerRole: RESIDENTS.jun.role,
           moodLabel: 'Bashful',
           text: `Fair enough… I’ll double-check every strap tonight. Come back when you want to deliver it together cleanly.`,
-          choices: [],
-          isEnd: true,
         },
       },
     }),
-  },
+  ),
 
-  {
-    id: 'quest_arthur_bell',
-    residentId: 'arthur',
-    category: 'quest_milestone',
-    priority: 44,
-    condition: { flagsFalse: ['bellRestored'] },
-    build: (_id, world, phase) => {
-      const f = world.flags;
-      const ready = f.foundBrassClapper && f.clearedGazeboIvy;
-      const prog = world.residents.arthur;
-      return {
-        rootId: 'root',
-        nodes: {
-          root: {
-            id: 'root',
-            speakerName: 'Arthur',
-            speakerRole: RESIDENTS.arthur.role,
-            moodLabel: 'Guarded',
-            text: `${phaseGreet(phase)} Forgive the clutter—old brass gears take patience, and I’ve been out of practice with visitors.`,
-            choices: [
-              ...(f.deliveredPostcard
-                ? [
-                    {
-                      id: 'arthur_postcard',
-                      label: 'Jun and I found your sister’s coastal postcard.',
-                      tone: 'warm' as const,
-                      nextNodeId: 'arthur_softens',
-                      trustDelta: 1,
-                      setEmotion: 'surprised' as const,
-                    },
-                  ]
-                : []),
-              ...(f.brewedChamomileTea
-                ? [
-                    {
-                      id: 'arthur_tea',
-                      label: 'Sora sent over warm chamomile-pear tea for you.',
-                      tone: 'gentle' as const,
-                      nextNodeId: 'arthur_softens',
-                      trustDelta: 1,
-                      setEmotion: 'relaxed' as const,
-                    },
-                  ]
-                : []),
-              ...(ready
-                ? [
-                    {
-                      id: 'arthur_restore_bell',
-                      label: 'The ivy is cleared and we found the brass clapper—let’s hang it!',
-                      tone: 'practical' as const,
-                      nextNodeId: 'arthur_restores',
-                      trustDelta: 2,
-                      isStoryMilestone: true,
-                      setEmotion: 'happy' as const,
-                      setFlags: {
-                        bellRestored: true,
-                        claraArthurReconciled: true,
-                        lanternsLit: true,
-                        mediationStyle: f.mediationStyle === 'none' ? ('festival_ring' as const) : f.mediationStyle,
-                      },
-                      unlockMemory: {
-                        id: 'mem_bell_restored',
-                        title: 'First Chime in Three Autumns',
-                        summary: 'Arthur climbed Barnaby’s cedar ladder and fitted the brass clapper back inside the Gazebo Bell, filling Little Somewhere with golden sound.',
-                        residentId: 'arthur' as ResidentId,
-                      },
-                    },
-                  ]
-                : []),
-              {
-                id: 'arthur_smalltalk',
-                label: 'What makes a good town chime, Arthur?',
-                tone: 'curious',
-                nextNodeId: 'arthur_craft',
-                trustDelta: prog.met ? 0 : 1,
-              },
-            ],
-          },
-          arthur_softens: {
-            id: 'arthur_softens',
-            speakerName: 'Arthur',
-            speakerRole: RESIDENTS.arthur.role,
-            moodLabel: 'Touched',
-            text: `My word… I thought everyone preferred silence to my tinkering. If someone clears the ivy off the gazebo and finds the clapper I hid by the pond, I’d gladly hang it again.`,
-            choices: [],
-            isEnd: true,
-          },
-          arthur_restores: {
-            id: 'arthur_restores',
-            speakerName: 'Arthur',
-            speakerRole: RESIDENTS.arthur.role,
-            moodLabel: 'Moved',
-            text: `You cleared the rafters and kept the clapper safe… Come on then, let’s fit the brass pin together. Walk up to the Gazebo anytime and give the bell rope a pull!`,
-            choices: [],
-            isEnd: true,
-          },
-          arthur_craft: {
-            id: 'arthur_craft',
-            speakerName: 'Arthur',
-            speakerRole: RESIDENTS.arthur.role,
-            moodLabel: 'Thoughtful',
-            text: `A warm alloy—never shrill. Something that tells folks supper’s nearly ready and nobody has to hurry alone.`,
-            choices: [],
-            isEnd: true,
-          },
+  makeBranchingTopic(
+    'quest_arthur_bell',
+    'arthur',
+    'quest_milestone',
+    44,
+    { flagsFalse: ['bellRestored'] },
+    (_id, world, phase) => ({
+      nodes: {
+        root: {
+          moodLabel: 'Guarded',
+          text: `${phaseGreet(phase)} Forgive the clutter—old brass gears take patience, and I’ve been out of practice with visitors.`,
+          choices: [
+            {
+              id: 'arthur_postcard',
+              label: 'Jun and I found your sister’s coastal postcard.',
+              tone: 'warm',
+              nextNodeId: 'arthur_softens',
+              requiresFlag: 'deliveredPostcard',
+              trustDelta: 1,
+              setEmotion: 'surprised',
+            },
+            {
+              id: 'arthur_tea',
+              label: 'Sora sent over warm chamomile-pear tea for you.',
+              tone: 'gentle',
+              nextNodeId: 'arthur_softens',
+              requiresFlag: 'brewedChamomileTea',
+              trustDelta: 1,
+              setEmotion: 'relaxed',
+            },
+            {
+              id: 'arthur_smalltalk',
+              label: 'What makes a good town chime, Arthur?',
+              tone: 'curious',
+              nextNodeId: 'arthur_craft',
+              trustDelta: world.residents.arthur.met ? 0 : 1,
+            },
+          ],
         },
-      };
-    },
-  },
+        arthur_softens: {
+          moodLabel: 'Touched',
+          text: `My word… I thought everyone preferred silence to my tinkering. If someone clears the ivy off the gazebo and finds the clapper I hid by the pond, I’d gladly hang it again.`,
+        },
+        arthur_craft: {
+          moodLabel: 'Thoughtful',
+          text: `A warm alloy—never shrill. Something that tells folks supper’s nearly ready and nobody has to hurry alone.`,
+        },
+      },
+    }),
+  ),
 
-  {
-    id: 'quest_clara_rift',
-    residentId: 'clara',
-    category: 'quest_milestone',
-    priority: 40,
-    condition: { flagsFalse: ['claraArthurReconciled'], maxSeenCount: 2 },
-    build: (_id, world, phase) => {
-      const f = world.flags;
-      const canMediate = f.deliveredPostcard || f.brewedChamomileTea || f.foundBrassClapper;
-      return {
-        rootId: 'root',
-        nodes: {
-          root: {
-            id: 'root',
-            speakerName: 'Clara',
-            speakerRole: RESIDENTS.clara.role,
-            moodLabel: 'Wistful',
-            text: `${phaseGreet(phase)} I keep baking one loaf too many every afternoon, out of habit. Arthur used to come by when the crust crackled—before the storm that cracked the gazebo bell beam.`,
-            choices: [
-              {
-                id: 'clara_listen',
-                label: 'What really happened between you and Arthur?',
-                tone: 'gentle',
-                nextNodeId: 'clara_story',
-                trustDelta: 1,
-                setEmotion: 'sad',
+  makeBranchingTopic(
+    'quest_clara_rift',
+    'clara',
+    'quest_milestone',
+    40,
+    { flagsFalse: ['claraArthurReconciled'], maxSeenCount: 2 },
+    (_id, _w, phase) => ({
+      nodes: {
+        root: {
+          moodLabel: 'Wistful',
+          text: `${phaseGreet(phase)} I keep baking one loaf too many every afternoon, out of habit. Arthur used to come by when the crust crackled—before the storm that cracked the gazebo bell beam.`,
+          choices: [
+            {
+              id: 'clara_listen',
+              label: 'What really happened between you and Arthur?',
+              tone: 'gentle',
+              nextNodeId: 'clara_story',
+              trustDelta: 1,
+              setEmotion: 'sad',
+            },
+            {
+              id: 'clara_blunt_nudge',
+              label: 'Seems silly staying mad over an old bell after three years.',
+              tone: 'blunt',
+              nextNodeId: 'clara_stung',
+              requiresCondition: {
+                flagsFalse: ['deliveredPostcard', 'brewedChamomileTea', 'foundBrassClapper'],
               },
-              ...(canMediate
-                ? []
-                : [
-                    {
-                      id: 'clara_blunt_nudge',
-                      label: 'Seems silly staying mad over an old bell after three years.',
-                      tone: 'blunt' as const,
-                      nextNodeId: 'clara_stung',
-                      trustDelta: -1,
-                      isNegative: true,
-                      setEmotion: 'frustrated' as const,
-                    },
-                  ]),
-            ],
-          },
-          clara_story: {
-            id: 'clara_story',
-            speakerName: 'Clara',
-            speakerRole: RESIDENTS.clara.role,
-            moodLabel: 'Reflective',
-            text: `I snapped that he cared more about brass gears than bruised neighbors, and he quietly took the bell down the next morning. Truth is, I missed the sound more than I could admit.`,
-            choices: [],
-            isEnd: true,
-          },
-          clara_stung: {
-            id: 'clara_stung',
-            speakerName: 'Clara',
-            speakerRole: RESIDENTS.clara.role,
-            moodLabel: 'Guarded',
-            text: `Easy to say when you didn’t stand in the rain listening to nothing at dusk. Let’s talk loaves instead of old bruises for now.`,
-            choices: [],
-            isEnd: true,
-          },
+              trustDelta: -1,
+              isNegative: true,
+              setEmotion: 'frustrated',
+            },
+          ],
         },
-      };
-    },
-  },
+        clara_story: {
+          moodLabel: 'Reflective',
+          text: `I snapped that he cared more about brass gears than bruised neighbors, and he quietly took the bell down the next morning. Truth is, I missed the sound more than I could admit.`,
+        },
+        clara_stung: {
+          moodLabel: 'Guarded',
+          text: `Easy to say when you didn’t stand in the rain listening to nothing at dusk. Let’s talk loaves instead of old bruises for now.`,
+        },
+      },
+    }),
+  ),
 
   // ================= GENERALIZED CONFLICT MEDIATION =================
   makeSimpleTopic(
@@ -1555,6 +1400,7 @@ export const DIALOGUE_TOPICS: readonly DialogueTopic[] = [
     buildText: () => `Planed four cedar plaza benches three springs ago—sit down on any of them whenever your boots start aching!`,
     choices: [
       { id: 'barnaby_d2', label: 'Your joinery holds up through every season cleanly.', tone: 'warm', nextNodeId: 'b2_e', trustDelta: 1, setEmotion: 'relaxed' },
+      // Preserved across both Barnaby daily topics so anti-repeat rotation never drops barnaby_craft (DUP-02).
       { id: 'barnaby_craft', label: 'Tell me about building the cottage porches here.', tone: 'warm', nextNodeId: 'b2_e', trustDelta: 1, setEmotion: 'happy' },
     ],
     endings: { b2_e: { moodLabel: 'Proud', text: `Hah! Heartwood cedar and oak pegs—built to outlast three generations of storytellers.` } },

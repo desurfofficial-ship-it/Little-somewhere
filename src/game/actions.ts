@@ -43,7 +43,7 @@ export function applyDialogueChoice(
   const residentId: ResidentId = session.residentId;
   const currentRes = world.residents[residentId];
   const sf = world.sideFlags ?? {};
-  if (!isChoiceAvailable(choice, world.flags, currentRes.trust, sf)) {
+  if (!isChoiceAvailable(choice, world, residentId)) {
     return { nextWorld: world, nextSession: session };
   }
 
@@ -165,15 +165,16 @@ export function applyDialogueChoice(
     }
   }
 
-  // Record topic history & lastTopicByResident to prevent monotonous small-talk loops
+  // Record topic history (per-resident for 'any' topics) & lastTopicByResident to prevent monotonous small-talk loops
   const nextTopicHistory = { ...(world.topicHistory ?? {}) };
   const nextLastTopic = { ...(world.lastTopicByResident ?? {}) };
-  if (session.topicId) {
-    const prevHist = nextTopicHistory[session.topicId];
+  const historyKey = session.topicHistoryKey ?? session.topicId;
+  if (session.topicId && historyKey) {
+    const prevHist = nextTopicHistory[historyKey];
     const chosenIds = prevHist?.chosenChoiceIds.includes(choice.id)
       ? prevHist.chosenChoiceIds
       : [...(prevHist?.chosenChoiceIds ?? []), choice.id].slice(-8);
-    nextTopicHistory[session.topicId] = {
+    nextTopicHistory[historyKey] = {
       seenCount: (prevHist?.seenCount ?? 0) + 1,
       lastSeenDay: world.day,
       lastSeenPhase: phase,

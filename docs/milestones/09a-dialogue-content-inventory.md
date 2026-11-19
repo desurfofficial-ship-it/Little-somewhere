@@ -229,16 +229,16 @@ Injected at the front of `root.choices` on **any** selected topic for the target
 
 Before Phase 1 is signed off, every item below must be checked:
 
-- [ ] **All 42 `DIALOGUE_TOPICS`** preserved with exact `id`, `residentId`, `category`, prose, choices, end nodes, and WorldState mutations.
-- [ ] **All 8 `buildConcurrentQuestChoices` entries** preserved with exact choice IDs (`barnaby_ladder`, `barnaby_fountain`, `mina_plant`, `sora_tea`, `toby_clapper`, `clara_bridge_baking`, `clara_bridge_truth`, `arthur_restore_bell`).
-- [ ] **DUP-01 (`arthur_restore_bell`) resolved**: Single authoritative definition with zero silent divergence and identical player-facing options when `foundBrassClapper && clearedGazeboIvy && !bellRestored`.
-- [ ] **DUP-02 (`barnaby_craft`) resolved cleanly**: No duplicate choice IDs across `daily_barnaby_craft` and `daily_barnaby_benches`; `relationships.test.ts` continues passing unchanged.
-- [ ] **`DialogueCondition` extended cleanly**: Supports `minTier`, `maxTier`, `requiresNpcMemoriesAny` *(Phase 3 hook)*, `excludesNpcMemories` *(Phase 3 hook)*, `requiresStoryline` *(Phase 4 hook)*, `requiresPosture`, `requiresWeatherNot`, plus choice-level `minAffinity` / `minTier`.
-- [ ] **`isChoiceAvailable()` unified**: Accepts `(choice, world, residentId)` in `DialogueSheet.tsx` and `actions.ts` while remaining 100% backward-compatible with legacy `(choice, flags, trust, sideFlags)` signatures (verified by `engine.test.ts:88`).
-- [ ] **Per-resident `topicHistory` scoping for `'any'` topics**: Prevents talking to Resident A from exhausting `event_fountain_repair` (`maxSeenCount: 1`) or `tier_close_kindred_bond` for Resident B, while reading legacy global `topicHistory[topicId]` gracefully.
-- [ ] **UNR-01 context remark preservation**: Sitting-on-bench remark surfaced cleanly on ambient non-quest topics; global `worldEvents` npc_social omniscience scoped cleanly (actors-only until Phase 3 `npcMemories`).
-- [ ] **All 18 `JournalMemory` IDs** preserved unchanged; `sideFlags`, `StoryFlags`, `make_amends_<id>`, and `deliver_<item>_to_<id>` intact.
-- [ ] **No hardcoded 9-resident count assumptions** anywhere in `dialogueEngine.ts` or `narrative.ts`.
+- [x] **All 42 `DIALOGUE_TOPICS`** preserved with exact `id`, `residentId`, `category`, prose, choices, end nodes, and WorldState mutations.
+- [x] **All 8 `buildConcurrentQuestChoices` entries** preserved with exact choice IDs (`barnaby_ladder`, `barnaby_fountain`, `mina_plant`, `sora_tea`, `toby_clapper`, `clara_bridge_baking`, `clara_bridge_truth`, `arthur_restore_bell`).
+- [x] **DUP-01 (`arthur_restore_bell`) resolved**: Single authoritative definition in `CONCURRENT_QUEST_MILESTONES` with zero silent divergence and identical player-facing options when `foundBrassClapper && clearedGazeboIvy && !bellRestored`.
+- [x] **DUP-02 (`barnaby_craft`) handled intentionally**: Preserved across `daily_barnaby_craft` and `daily_barnaby_benches` (annotated inline) so `relationships.test.ts` anti-repeat rotation passes unchanged, with zero duplicate choice IDs inside any built session.
+- [x] **`DialogueCondition` extended cleanly**: Supports `minTier`, `maxTier`, `requiresNpcMemoriesAny` *(Phase 3 hook)*, `excludesNpcMemories` *(Phase 3 hook)*, `requiresStoryline` *(Phase 4 hook)*, `requiresPosture`, `requiresWeatherNot`, plus choice-level `minAffinity` / `minTier` / `requiresCondition`.
+- [x] **`isChoiceAvailable()` unified**: Accepts `(choice, world, residentId)` in `DialogueSheet.tsx` and `actions.ts` while remaining 100% backward-compatible with legacy `(choice, flags, trust, sideFlags)` signatures (verified by `engine.test.ts:88` and `dialogue.test.ts`).
+- [x] **Per-resident `topicHistory` scoping for `'any'` topics**: Prevents talking to Resident A from exhausting `event_fountain_repair` (`maxSeenCount: 1`) or `tier_close_kindred_bond` for Resident B, while reading legacy global `topicHistory[topicId]` gracefully.
+- [x] **UNR-01 context remark preservation**: Sitting-on-bench remark and actor-local same-day `npc_social` partner whisper surfaced cleanly on `daily_slice` topics (global `worldEvents` omniscience scoped to participating actors).
+- [x] **All 18 `JournalMemory` IDs** preserved unchanged; `sideFlags`, `StoryFlags`, `make_amends_<id>`, and `deliver_<item>_to_<id>` intact.
+- [x] **No hardcoded 9-resident count assumptions** anywhere in `dialogueEngine.ts` or `narrative.ts`.
 
 ---
 

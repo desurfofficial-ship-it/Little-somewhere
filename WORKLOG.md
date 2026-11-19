@@ -245,8 +245,6 @@ Chronological log of design decisions, implementation milestones, verification r
   - `npm run lint` (`tsc --noEmit`), `compile_applet`, and `npm run build` all pass with **0 errors**.
   - Live Chromium (`1440×900` & `390×844`): **0 console errors, 0 console warnings**; verified Title screen, WASD + Shift sprint, Jun dialogue framing & reply/wave close, carryable `Copper Water Pail` cradle & sage gift ring around Arthur, `Mirror Pond Bench` flush sitting pose, `Pocket Journal` tabs, `390×844` circular `VirtualJoystick` drag with zero horizontal overflow, and `v2 -> v3` Day 3 state migration.
 
-
-
 ---
 
 ## Entry 014 — Bench Back-Clipping Fix & Mirror Pond / Mossy Stone Fountain Full Upgrade
@@ -271,49 +269,25 @@ Chronological log of design decisions, implementation milestones, verification r
 
 ---
 
-## Entry 015 — Botanical Dressing, Reactive Environment Hooks & Pooled Micro-Life (Visual Elevation Pass)
+## Entry 015 — Milestone 2B Phase 1 (1A Inventory & 1B Declarative Dialogue Engine Consolidation)
 - **Date**: 2026-11-19
-- **Status**: Completed & Verified
+- **Status**: Completed & Verified (Phase 1 Regression Checkpoint — Pending Phase 2 Authorization)
 - **Key Deliverables**:
-  - **Instanced Botanical Dressing (`src/scene/builders/botanicalDressing.ts`, new)**:
-    - Deterministic seeded placement of clover cushions, grass tufts, wildflower clumps (2–5 tone palette per VISUAL_IDENTITY botanical rules), and fieldstone pebbles across the open meadow margins (104 tufts / 44 flowers / 32 pebbles on GPU; 64 / 28 / 20 under `isSoftwareGl`).
-    - Placement is collision-aware: every final jittered coordinate is validated against `isPointWalkable(0.34)` + the shared `COBBLE_LANE_RECTS` lane network (padding >= 0.55m) + a calm 4.5m fountain-plaza heart, so zero dressing sits on walkable lanes or inside obstacles (enforced by unit test).
-    - 5 draw calls total (5 `InstancedMesh` layers), `castShadow` off, seeded `±8–15%` asymmetric rotation/scale per storybook handcrafted-imperfection rule.
-  - **Reactive Environment Hooks (`src/scene/builders/reactiveProps.ts`, new)** — the four previously computed-but-unhooked `composeEnvironmentState` outputs now have visual layers:
-    - `claraPastryBasketVisible` -> woven pastry basket with mini loaves + linen cloth on the west Hearth & Crumb café table (revision-gated visibility).
-    - `minaGreenhouseStage` -> moon-petal planter trays on the greenhouse bench (stage 2 = potted buds, stage 3 = glowing pale-lavender blooms + soft cool light pool on the shelf).
-    - `arthurEarlyPorchLamp` -> wall-mounted brass porch lantern beside Copperwheel Cottage's south door (permanent fixture; glass glow + warm halo activate during rain / golden / dusk).
-    - `weather.puddlesActive` -> 7 soft reflective rain-film puddles on plaza/lane cobble tops (y = 0.058, above the 0.05 slab top; minute-sensitive visibility because puddles dry mid-morning without a revision bump).
-  - **Pooled Ambient Micro-Life (`reactiveProps.ts`)**:
-    - Butterflies (2–3 anchored to pond / greenhouse / willow courtyard): instanced wing pairs + capsule bodies flapping at 16 Hz with seeded Lissajous wander; hidden at dusk, rain, and winter.
-    - Dusk fireflies (8–14): instanced ember motes drifting over meadow margins with per-instance twinkle + global glow pulse; dusk/tNorm > 0.84 only.
-    - Mirror Pond sun shimmer (5–8 instanced flecks) drifting slowly on the water surface at all times.
-    - Chimney hearth wisps (12 instanced puffs over bakery / Copperwheel / woodshop) with per-resident work-schedule phase masks (bakery bakes morning/afternoon; Arthur benches afternoon–dusk; Barnaby saws afternoon/golden) — parked far below the scene when inactive.
-  - **Scene Integration (`src/scene/NeighborhoodCanvas.tsx`, `src/scene/environmentRenderer.ts`)**:
-    - `EnvironmentRendererDeps` gained optional `reactiveRigs`; the controller toggles micro-props inside its dirty-flagged static block (revision-gated) and animates micro-life in its continuous zero-GC section (reusable `wispMask`, pre-allocated scratch quaternion/matrix/pose objects; no per-frame allocations).
-    - All reactive rigs mount once at scene build and dispose through `EnvironmentVisualController.dispose()`; meadow dressing disposes its own geometries in the canvas cleanup.
-  - **Material & Texture Polish (`src/scene/textures.ts`, `src/scene/builders/vegetation.ts`)**:
-    - Contact-shadow texture softened (0.42 -> 0.34 core alpha, longer multi-stop falloff) so grounded AO discs no longer read as grey stains on pale cobblestone.
-    - Meadow texture deepened (base `#678E4D` -> `#61884A`, deeper patch tones, faint warm dry-grass streak ellipses) to preserve figure-ground contrast against cream cottages under `ACESFilmicToneMapping`.
-    - Grove `InstancedMesh` trunks now carry 4-tone per-instance bark color variation (previously a single uniform oak brown).
+  - **Phase 1A Content & Migration Inventory (`docs/milestones/09a-dialogue-content-inventory.md`)**:
+    - Cataloged all 42 `DIALOGUE_TOPICS`, 8 `CONCURRENT_QUEST_MILESTONES`, 3 dynamic engine flows (`resolveGreetingPrefix`, `buildDynamicGiftChoice`, `make_amends_<id>`), prop/mailbox text, all 18 `JournalMemory` IDs, 10 `sideFlags`, and 7 audit findings (`DUP-01`, `DUP-02`, `UNR-01`, `CON-01`, `SIG-01`, `ASYM-01`, `HARD-01`).
+  - **Phase 1B Engine & Predicate Scalability (`src/game/types.ts`, `src/game/dialogueEngine.ts`)**:
+    - Extended `DialogueCondition` (`minTier`, `maxTier`, `requiresWeatherNot`, `requiresPosture`, `requiresNpcMemoriesAny`, `excludesNpcMemories`, `requiresStoryline`) and `DialogueChoice` (`minAffinity`, `minTier`, `requiresCondition`).
+    - Added overloaded backward-compatible `isChoiceAvailable()` accepting both `(choice, world, residentId)` and legacy `(choice, flags, trust, sideFlags)` signatures (`SIG-01`).
+    - Added per-resident `topicHistory` keying (`getTopicHistoryKey` / `getTopicHistoryEntry`) for `residentId === 'any'` topics while reading legacy global `topicHistory[topicId]` (`CON-01`).
+    - Exported declarative builders (`phaseGreet`, `makeSimpleTopic`, `makeBranchingTopic`) and surfaced actor-local `resolveContextFlavorRemark()` (bench seat & same-day `npc_social` partner whisper) on `daily_slice` conversations (`UNR-01`).
+  - **Narrative Consolidation & Wiring (`src/game/narrative.ts`, `src/game/actions.ts`, `src/components/DialogueSheet.tsx`, `src/App.tsx`)**:
+    - Replaced imperative concurrent milestone branching with declarative `CONCURRENT_QUEST_MILESTONES` data definitions, removed the duplicate `arthur_restore_bell` copy (`DUP-01`), converted all 5 main quest topics to `makeBranchingTopic()`, and replaced inline array spreads with declarative choice conditions.
+    - Updated `applyDialogueChoice()` (`actions.ts`) and `DialogueSheet.tsx` (`App.tsx` passing `world={worldSnapshot}`) to evaluate `isChoiceAvailable(choice, world, residentId)` and record `topicHistory` under `session.topicHistoryKey ?? session.topicId`.
+    - Schema remains cleanly at `WorldState` `v3` (`CURRENT_SCHEMA_VERSION = 3`).
 - **Verification**:
-  - `npm test`: **50/50 passing** (46 prior + 4 new `src/scene/botanicalDressing.test.ts` suites covering dressing placement legality, software-GL budget scaling, puddle film elevation, pooled rig determinism, and frame-0 reactive hook drives on a rain/dusk/stage-3 world).
-  - `npm run lint` (`tsc --noEmit`) and `npm run build` pass with **0 errors**.
-  - Live headless Chromium captures: desktop `1440×900` morning (dressing visible on margins, lanes clean, softer contact shadows), dusk (festoon + window glow + fireflies confirmed via crop), rain day 3 (grey sky, rain streaks, puddle films on plaza — planted by patching the app's own serialized save), and mobile `390×844` dusk — **0 console errors, 0 warnings**.
-  - Draw-call delta: +12 max (5 dressing layers + 3 butterfly layers + fireflies + sparkles + puddles + wisps, all instanced), keeping the diorama inside the <= 140 budget; software-GL particle caps unchanged.
+  - `npm test`: **55/55 passing** (`0` failures across `src/game/*.test.ts` and `src/scene/*.test.ts`, including 10 tests in `dialogue.test.ts`).
+  - `npm run lint` (`tsc --noEmit`), `compile_applet`, and `npm run build` (`vite build`) verified with **0 errors**.
 
-## Entry 016 — AVD-01 First Assignment: Comprehensive Asset & Visual Quality Audit
-- **Date**: 2026-11-19
-- **Status**: Completed (Audit Report Delivered — implementation awaiting priority approval)
-- **Scope**: Branch review of `feat/botanical-dressing-micro-life` plus a full 5-phase asset & visual quality audit per the AVD-01 charter (discovery -> quality audit -> P0/P1/P2 prioritization -> roadmap -> report). **No asset replacement was performed**, per audit-first instructions.
-- **Deliverable**:
-  - `docs/audits/09-comprehensive-asset-visual-audit.md` — full inventory (buildings, landmarks, props, vegetation, characters, materials, textures, lighting, effects), category quality matrix, prioritization, and a 9-item development roadmap (R-01..R-09) with technical approach, dependencies, integration requirements, and performance considerations per item. Includes the standing Rule-15 evaluation of external ecosystems: Polyfork (live; CC BY 4.0 meshes + Three.js ES-module/GLB; approved as evaluation resource, not a runtime dependency without approval) and Sandflow/Sand3D (research-stage; watch only).
-- **Key Findings**:
-  - **No P0 visual defects remain.** All 10 P0 items from the 2026-11-18 `docs/art-direction/VISUAL_AUDIT.md` are verified fixed in code and live captures.
-  - The scene is 100% procedural in-house (zero imported models/textures), palette-cached, instanced where repeated, zero-GC in the frame loop, software-GL parity maintained.
-  - Remaining priorities: **P1** R-01 golden/dusk lighting drama (phases read under-differentiated), R-02 water materials (pond + fountain are the flattest materials in the scene), R-03 desktop VirtualJoystick visibility; **P2** grass-tuft cone readability, meadow texture tiling, Copperwheel dressing depth, ~370 lines of dead legacy builders in `models.ts` (`buildClayCottage`/`buildGreenhouse` unreferenced; `buildStoneFountain` kept alive only by a legacy test), title overlay framing, three.js bundle code-splitting.
-- **Verification**:
-  - `npm test` **50/50**, `npm run lint` **0 errors**, `npm run build` pass on the audited branch tree (`f2a53f2`).
-  - Live headless Chromium on the audit branch: desktop 1440×900 title / morning / golden 4:24 PM / dusk 9:30 PM and mobile 390×844 — **0 console errors, 0 page errors**; window glow, festoon gating, clapper gating, fireflies, contact shadows, and botanical dressing all confirmed visually.
-  - Post-audit the branch was rebased onto the advanced `main` (which had gained the Entry-014 water-shader/pond/fountain upgrade in parallel). Merge conflicts in `environmentRenderer.ts` / `WORKLOG.md` / `HANDOVER.md` were resolved keeping **both** feature sets; merged tree re-verified: `npm test` **55/55**, lint **0 errors**, build pass, live Chromium re-capture **0 console/page errors**, botanical dressing + micro-life + shader water coexisting.
+
+
 

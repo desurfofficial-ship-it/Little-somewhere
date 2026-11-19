@@ -694,6 +694,7 @@ export default function App() {
         }
         flags={worldSnapshot.flags}
         sideFlags={worldSnapshot.sideFlags}
+        world={worldSnapshot}
         onSelectChoice={handleSelectChoice}
         onClose={() => {
           if (dialogueSession) {

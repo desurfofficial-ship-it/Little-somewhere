@@ -7,6 +7,7 @@ import {
   PlayerNpcRelation,
   ResidentProgress,
   StoryFlags,
+  WorldState,
 } from '../game/types';
 import { isChoiceAvailable } from '../game/narrative';
 import {
@@ -25,6 +26,7 @@ interface DialogueSheetProps {
   emotion?: CharacterEmotion;
   flags: StoryFlags;
   sideFlags?: Record<string, boolean | number | string>;
+  world?: WorldState;
   onSelectChoice: (choice: DialogueChoice) => void;
   onClose: () => void;
   onPropAction: (actionType: 'rest_next_day' | 'ring_bell' | 'fountain_wish' | 'skip_stone') => void;
@@ -38,6 +40,7 @@ export const DialogueSheet: React.FC<DialogueSheetProps> = ({
   emotion,
   flags,
   sideFlags = {},
+  world,
   onSelectChoice,
   onClose,
   onPropAction,
@@ -111,7 +114,9 @@ export const DialogueSheet: React.FC<DialogueSheetProps> = ({
   const emotionLabel = emotion ? getEmotionLabel(emotion) : node.moodLabel;
 
   const availableChoices = node.choices.filter((c) =>
-    isChoiceAvailable(c, flags, trust, sideFlags),
+    world
+      ? isChoiceAvailable(c, world, session.residentId)
+      : isChoiceAvailable(c, flags, trust, sideFlags),
   );
 
   return (

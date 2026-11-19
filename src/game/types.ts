@@ -345,6 +345,14 @@ export type DialogueCategory =
   | 'weather_season'
   | 'daily_slice';
 
+export interface DialogueStorylineCondition {
+  id: string;
+  status?: Array<'locked' | 'available' | 'active' | 'completed'>;
+  minStage?: number;
+  maxStage?: number;
+  outcome?: string;
+}
+
 export interface DialogueCondition {
   flagsTrue?: Array<keyof StoryFlags>;
   flagsFalse?: Array<keyof StoryFlags>;
@@ -353,6 +361,8 @@ export interface DialogueCondition {
   minTrust?: number;
   maxTrust?: number;
   minAffinity?: number;
+  minTier?: RelationshipTier;
+  maxTier?: RelationshipTier;
   minReliability?: number;
   minNpcAffinity?: { a: ResidentId; b: ResidentId; min: number };
   maxNpcAffinity?: { a: ResidentId; b: ResidentId; max: number };
@@ -361,7 +371,9 @@ export interface DialogueCondition {
   excludeEmotions?: CharacterEmotion[];
   phases?: TimePhase[];
   weathers?: WeatherType[];
+  requiresWeatherNot?: WeatherType[];
   seasons?: SeasonType[];
+  requiresPosture?: PlayerPosture[];
   requiresTraits?: {
     minSociability?: number;
     minOutdoorsiness?: number;
@@ -371,6 +383,9 @@ export interface DialogueCondition {
   };
   requiresRecentEventKind?: { kind: WorldEventRecord['kind']; maxDaysAgo: number };
   requiresRecentEventTag?: { tagPrefix: string; maxDaysAgo: number };
+  requiresNpcMemoriesAny?: string[];
+  excludesNpcMemories?: string[];
+  requiresStoryline?: DialogueStorylineCondition;
   notSeenToday?: boolean;
   minDaysSinceSeen?: number;
   maxSeenCount?: number;
@@ -404,6 +419,9 @@ export interface DialogueChoice {
   requiresSideFlag?: string;
   requiresFalseSideFlag?: string;
   minTrust?: number;
+  minAffinity?: number;
+  minTier?: RelationshipTier;
+  requiresCondition?: DialogueCondition;
 }
 
 export interface DialogueNode {
@@ -421,6 +439,7 @@ export interface DialogueTopic {
   residentId: ResidentId | 'any';
   category: DialogueCategory;
   priority?: number;
+  historyScope?: 'resident' | 'global';
   condition?: DialogueCondition;
   build: (
     residentId: ResidentId,
@@ -435,6 +454,7 @@ export interface DialogueTopic {
 export interface DialogueSession {
   residentId: ResidentId;
   topicId?: string;
+  topicHistoryKey?: string;
   category?: DialogueCategory;
   emotion?: CharacterEmotion;
   tier?: RelationshipTier;
