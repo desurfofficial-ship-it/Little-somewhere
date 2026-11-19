@@ -19,7 +19,8 @@ export type PropInteractableId =
   | 'gazebo_bell'
   | 'fountain_plaza'
   | 'hollow_oak'
-  | 'plaza_noticeboard';
+  | 'plaza_noticeboard'
+  | 'mirror_pond';
 
 export type CarryableItemId =
   | 'water_pail'

@@ -12,6 +12,7 @@ import {
   computeFacingAlignment,
   distance2D,
   getGroundHeightAt,
+  getPropInteractionMetrics,
   getSeatById,
   isPointWalkable,
   resolveMovement,
@@ -94,6 +95,7 @@ export interface StepPlayerMovementInput {
   sprintHeld: boolean;
   walkHeld?: boolean;
   carryingItem: boolean;
+  interactionActive?: boolean;
   posture: WorldState['playerPosture'];
   seatId: string | null;
   dt: number;
@@ -169,9 +171,10 @@ export function stepPlayerMovement(input: StepPlayerMovementInput): StepPlayerMo
     dirZ = 0;
   }
 
+  const activeLocomotionInput = hasMoveInput && !input.interactionActive;
   // Carrying items trims top sprint pace slightly for cozy physical believability
   const rawDesiredSpeed = resolveDesiredSpeed(
-    hasMoveInput ? Math.min(1, input.inputMagnitude) : 0,
+    activeLocomotionInput ? Math.min(1, input.inputMagnitude) : 0,
     input.sprintHeld,
     input.walkHeld,
   );
@@ -180,14 +183,18 @@ export function stepPlayerMovement(input: StepPlayerMovementInput): StepPlayerMo
   const targetVx = dirX * desiredSpeed;
   const targetVz = dirZ * desiredSpeed;
 
-  const rate = desiredSpeed > input.motion.speed ? PLAYER_ACCEL_RATE : PLAYER_DECEL_RATE;
+  const rate = input.interactionActive
+    ? PLAYER_DECEL_RATE * 2.5
+    : desiredSpeed > input.motion.speed
+    ? PLAYER_ACCEL_RATE
+    : PLAYER_DECEL_RATE;
   const blend = 1 - Math.exp(-rate * dt);
 
   let vx = input.motion.vx + (targetVx - input.motion.vx) * blend;
   let vz = input.motion.vz + (targetVz - input.motion.vz) * blend;
 
   const currentSpeed = Math.hypot(vx, vz);
-  if (currentSpeed < 0.05 && !hasMoveInput) {
+  if (currentSpeed < 0.05 && !activeLocomotionInput) {
     vx = 0;
     vz = 0;
   }
@@ -208,7 +215,7 @@ export function stepPlayerMovement(input: StepPlayerMovementInput): StepPlayerMo
   }
 
   let turnRateRadPerSec = 0;
-  if (hasMoveInput) {
+  if (activeLocomotionInput) {
     const targetYaw = Math.atan2(dirX, dirZ);
     const deltaYaw = wrapAngleDelta(facing, targetYaw);
     const turnAlpha = 1 - Math.exp(-PLAYER_TURN_RATE * dt);
@@ -351,10 +358,10 @@ export function selectBestInteractiveTarget(
     }
   }
 
-  // 3. Landmark Interactive Props
+  // 3. Landmark Interactive Props (perimeter-aware for Fountain & Mirror Pond)
   for (const prop of PROP_INTERACTABLES) {
-    const d = distance2D(world.playerPos, { x: prop.x, z: prop.z });
-    if (d <= prop.interactRadius) {
+    const metrics = getPropInteractionMetrics(prop.id, world.playerPos);
+    if (metrics.inRange) {
       const actionLabel =
         prop.id === 'gazebo_bell' && world.flags.bellRestored
           ? 'Ring Bell'
@@ -367,8 +374,8 @@ export function selectBestInteractiveTarget(
           id: prop.id,
           label: prop.name,
           actionLabel,
-          distance: d,
-          worldPos: { x: prop.x, z: prop.z },
+          distance: metrics.scoreDistance,
+          worldPos: metrics.focusPos,
         },
         0.05,
       );

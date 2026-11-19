@@ -32,7 +32,7 @@ export interface PropInteractionResult {
   title: string;
   body: string;
   actionLabel?: string;
-  actionType?: 'rest_next_day' | 'ring_bell';
+  actionType?: 'rest_next_day' | 'ring_bell' | 'fountain_wish' | 'skip_stone';
 }
 
 export function applyDialogueChoice(
@@ -517,16 +517,47 @@ export function interactWithProp(
 
   if (propId === 'fountain_plaza') {
     if (env.fountainFlowing) {
+      const wishes = Number(world.sideFlags?.fountainWishesCount ?? 0);
       return {
         nextWorld: world,
         title: 'Sunlit Stone Fountain',
-        body: 'Clear spring water arcs softly over the mossy stone basin, cooling the entire plaza while neighbors pass.',
+        body:
+          wishes > 0
+            ? `Clear spring water arcs through all four bronze spouts over the mossy stone tiers. Beneath the ripples glint ${wishes} lucky copper coin${wishes === 1 ? '' : 's'} you tossed.`
+            : 'Clear spring water arcs from the bronze crown plume down into the scalloped upper catch-bowl and mossy basin below. Toss a lucky copper coin into the sunlit ripples?',
+        actionLabel: 'Toss a Lucky Coin',
+        actionType: 'fountain_wish',
       };
     }
     return {
       nextWorld: world,
       title: 'Dry Mossy Fountain',
-      body: 'Autumn leaves clog the central bronze spout. Barnaby over at Pinecone Woodshop probably knows how to clear the valve.',
+      body: 'Dry autumn leaves and twigs clog the brass valve and weathered stone basin. Barnaby over at Pinecone Woodshop knows how to clear the old spring line.',
+    };
+  }
+
+  if (propId === 'mirror_pond') {
+    const composed = composeEnvironmentState(world);
+    const skips = Number(world.sideFlags?.pondPebblesSkipped ?? 0);
+    const season = composed.season.season;
+    const phase = composed.timeOfDay.phase;
+    const effWeather = composed.weather.effective;
+    const atmosphereNote =
+      season === 'winter'
+        ? 'Thin frost crystals lace the stone shoreline while plump carp glide sluggishly beneath the clear ice-sheen.'
+        : effWeather === 'light_rain'
+        ? 'Gentle raindrop rings polka-dot the turquoise surface while lily pads bob under the cedar footbridge.'
+        : phase === 'dusk' || phase === 'golden'
+        ? 'Warm pier and bridge lanterns shimmer across the gentle stream as calico carp weave beneath the blooming water lilies.'
+        : 'Bright carp circle smoothly beneath the arched cedar footbridge while dragonflies skim above the blooming lily pads.';
+    const countNote =
+      skips > 0 ? ` You have skipped ${skips} smooth pebble${skips === 1 ? '' : 's'} here.` : '';
+    return {
+      nextWorld: world,
+      title: 'Mirror Pond & Brook',
+      body: `${atmosphereNote}${countNote}`,
+      actionLabel: season === 'winter' ? 'Tap the Frosty Edge' : 'Skip a Smooth Pebble',
+      actionType: 'skip_stone',
     };
   }
 
@@ -574,6 +605,89 @@ export function interactWithProp(
     nextWorld: world,
     title: 'Neighborhood Noticeboard',
     body: notes.join('  '),
+  };
+}
+
+export function performFountainWishAction(world: WorldState): {
+  nextWorld: WorldState;
+  toast: string;
+  memoryUnlockedTitle?: string;
+} {
+  const prevCount = Number(world.sideFlags?.fountainWishesCount ?? 0);
+  const nextCount = prevCount + 1;
+  const memId = 'mem_fountain_wish';
+  const hasMem = world.memories.some((m) => m.id === memId);
+  const phase = getTimePhase(world.minuteOfDay);
+  const nextMemories = hasMem
+    ? world.memories
+    : [
+        {
+          id: memId,
+          day: world.day,
+          phase,
+          title: 'A Copper Coin in Sunlit Water',
+          summary:
+            'Dropped a bright copper coin into the restored plaza fountain and watched ripples ring around the stone basin.',
+        },
+        ...world.memories,
+      ];
+  return {
+    nextWorld: {
+      ...world,
+      sideFlags: {
+        ...(world.sideFlags ?? {}),
+        fountainWishesCount: nextCount,
+      },
+      memories: nextMemories,
+    },
+    toast:
+      nextCount === 1
+        ? 'Your copper coin chimes softly beneath the fountain’s sunlit ripples!'
+        : `Tossed lucky coin #${nextCount} into the shimmering fountain basin.`,
+    memoryUnlockedTitle: hasMem ? undefined : 'A Copper Coin in Sunlit Water',
+  };
+}
+
+export function performPondStoneSkipAction(world: WorldState): {
+  nextWorld: WorldState;
+  toast: string;
+  memoryUnlockedTitle?: string;
+  skipsThisThrow: number;
+} {
+  const prevCount = Number(world.sideFlags?.pondPebblesSkipped ?? 0);
+  const nextCount = prevCount + 1;
+  const skipsThisThrow = world.season === 'winter' ? 1 : 2 + ((world.day + nextCount) % 4);
+  const memId = 'mem_pond_skip';
+  const hasMem = world.memories.some((m) => m.id === memId);
+  const phase = getTimePhase(world.minuteOfDay);
+  const nextMemories = hasMem
+    ? world.memories
+    : [
+        {
+          id: memId,
+          day: world.day,
+          phase,
+          title: 'Circles on Mirror Pond',
+          summary:
+            'Skipped a flat river stone across Mirror Pond while bright carp darted beneath the arched cedar bridge.',
+        },
+        ...world.memories,
+      ];
+  return {
+    nextWorld: {
+      ...world,
+      sideFlags: {
+        ...(world.sideFlags ?? {}),
+        pondPebblesSkipped: nextCount,
+      },
+      memories: nextMemories,
+    },
+    skipsThisThrow,
+    toast:
+      world.season === 'winter'
+        ? 'Tink! A pebble skates briskly across Mirror Pond’s frosty sheen.'
+        : `Plip-plip! Your smooth pebble skipped ${skipsThisThrow} times past the lily pads!`,
+    memoryUnlockedTitle: hasMem ? undefined : 'Circles on Mirror Pond',
   };
 }
 

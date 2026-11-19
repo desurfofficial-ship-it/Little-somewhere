@@ -430,6 +430,7 @@ export function animateCharacterRig(
   let targetHeadY = 0;
   let targetHeadZ = 0;
   let targetBodyY = Math.sin(elapsed * 2.1 + phaseSeed) * 0.022;
+  let targetBodyZ = 0;
 
   if (animState === 'idle') {
     const breath = Math.sin(elapsed * 2.1 + phaseSeed);
@@ -487,14 +488,15 @@ export function animateCharacterRig(
     targetRightLegX = -0.16;
     targetTorsoY = Math.sin(elapsed * 5 + phaseSeed) * 0.08;
   } else if (animState === 'sit') {
-    targetLeftLegX = -1.35;
-    targetRightLegX = -1.35;
-    targetLeftArmX = -0.26;
-    targetRightArmX = -0.26;
-    targetLeftArmZ = 0.08;
-    targetRightArmZ = -0.08;
-    targetBodyY = -0.05;
-    targetTorsoX = 0.04 + Math.sin(elapsed * 1.4 + phaseSeed) * 0.025;
+    targetLeftLegX = -1.18;
+    targetRightLegX = -1.18;
+    targetLeftArmX = -0.34;
+    targetRightArmX = -0.34;
+    targetLeftArmZ = 0.11;
+    targetRightArmZ = -0.11;
+    targetBodyY = -0.02;
+    targetBodyZ = 0.19;
+    targetTorsoX = 0.035 + Math.sin(elapsed * 1.4 + phaseSeed) * 0.018;
   } else if (animState === 'rest') {
     targetLeftArmX = -0.1;
     targetRightArmX = -0.1;
@@ -503,11 +505,14 @@ export function animateCharacterRig(
     targetHeadZ = 0.06;
     targetBodyY = Math.sin(elapsed * 1.3 + phaseSeed) * 0.018;
   } else if (animState === 'interact') {
-    const reach = Math.sin(elapsed * 5.0 + phaseSeed) * 0.12;
-    targetLeftArmX = -0.3;
-    targetRightArmX = -0.82 + reach;
-    targetTorsoX = 0.14;
-    targetHeadX = 0.12;
+    const reach = Math.sin(elapsed * 6.0 + phaseSeed) * 0.18;
+    targetLeftArmX = -0.26;
+    targetRightArmX = -0.92 + reach;
+    targetRightArmZ = -0.14;
+    targetTorsoX = 0.08;
+    targetTorsoY = -0.05;
+    targetHeadX = 0.14;
+    targetBodyY = Math.sin(elapsed * 3.0 + phaseSeed) * 0.015;
   } else if (animState === 'talk') {
     const gesture = Math.sin(elapsed * 3.4 + phaseSeed);
     targetLeftArmX = -0.26 + Math.max(0, gesture) * 0.28;
@@ -656,6 +661,7 @@ export function animateCharacterRig(
   rig.headGroup.rotation.y = THREE.MathUtils.lerp(rig.headGroup.rotation.y, targetHeadY, dampSpeed);
   rig.headGroup.rotation.z = THREE.MathUtils.lerp(rig.headGroup.rotation.z, targetHeadZ, dampSpeed);
   rig.bodyGroup.position.y = THREE.MathUtils.lerp(rig.bodyGroup.position.y, targetBodyY, dampSpeed);
+  rig.bodyGroup.position.z = THREE.MathUtils.lerp(rig.bodyGroup.position.z, targetBodyZ, dampSpeed);
 
   if (rig.torsoPivot) {
     rig.torsoPivot.rotation.x = THREE.MathUtils.lerp(rig.torsoPivot.rotation.x, targetTorsoX, dampSpeed);

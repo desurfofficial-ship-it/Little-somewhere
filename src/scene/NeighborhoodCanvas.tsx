@@ -30,6 +30,7 @@ import {
   SEAT_SPOTS,
   distance2D,
   getGroundHeightAt,
+  getPropInteractionMetrics,
   getSeatById,
   isPointWalkable,
 } from '../game/worldMap';
@@ -102,6 +103,7 @@ export interface HudBubbleSnapshot {
 export interface PlayerActionPulse {
   kind: 'wave' | 'interact' | 'talk';
   seq: number;
+  focusPos?: Vec2;
 }
 
 export interface NeighborhoodCanvasProps {
@@ -110,8 +112,11 @@ export interface NeighborhoodCanvasProps {
   joystickVectorRef: React.MutableRefObject<ScreenVec2>;
   zoomRef: React.MutableRefObject<number>;
   bellRingCounter: number;
+  fountainWishCounter?: number;
+  pondSkipCounter?: number;
   isDialogueOpen: boolean;
   activeDialogueResidentId?: ResidentId | null;
+  activePropId?: PropInteractableId | null;
   playerActionPulse?: PlayerActionPulse | null;
   onHudSync: (snapshot: {
     minuteOfDay: number;
@@ -175,8 +180,11 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
   joystickVectorRef,
   zoomRef,
   bellRingCounter,
+  fountainWishCounter = 0,
+  pondSkipCounter = 0,
   isDialogueOpen,
   activeDialogueResidentId = null,
+  activePropId = null,
   playerActionPulse = null,
   onHudSync,
   onSelectTarget,
@@ -185,15 +193,19 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
   const screenStateRef = useRef<GameScreenState>(screenState);
   const dialogueOpenRef = useRef<boolean>(isDialogueOpen);
   const activeDialogueResidentRef = useRef<ResidentId | null>(activeDialogueResidentId);
+  const activePropIdRef = useRef<PropInteractableId | null>(activePropId);
   const playerActionPulseRef = useRef<PlayerActionPulse | null>(playerActionPulse);
   const onHudSyncRef = useRef(onHudSync);
   const onSelectTargetRef = useRef(onSelectTarget);
   const bellSwingVelRef = useRef(0);
   const lastBellCountRef = useRef(bellRingCounter);
+  const lastFountainWishCountRef = useRef(fountainWishCounter);
+  const lastPondSkipCountRef = useRef(pondSkipCounter);
 
   screenStateRef.current = screenState;
   dialogueOpenRef.current = isDialogueOpen;
   activeDialogueResidentRef.current = activeDialogueResidentId;
+  activePropIdRef.current = activePropId;
   playerActionPulseRef.current = playerActionPulse;
   onHudSyncRef.current = onHudSync;
   onSelectTargetRef.current = onSelectTarget;
@@ -205,6 +217,18 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
       cozyAudio.playGazeboBell();
     }
   }, [bellRingCounter]);
+
+  useEffect(() => {
+    if (fountainWishCounter > lastFountainWishCountRef.current) {
+      lastFountainWishCountRef.current = fountainWishCounter;
+    }
+  }, [fountainWishCounter]);
+
+  useEffect(() => {
+    if (pondSkipCounter > lastPondSkipCountRef.current) {
+      lastPondSkipCountRef.current = pondSkipCounter;
+    }
+  }, [pondSkipCounter]);
 
   useEffect(() => {
     const container = mountRef.current;
@@ -407,7 +431,8 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
     scene.add(noticeboardRig.group);
 
     // 10. Mirror Pond, Arched Cedar Bridge & Gnarled Hollow Oak
-    scene.add(buildMirrorPondAndBridge(palette, shadowTex));
+    const pondRig = buildMirrorPondAndBridge(palette, shadowTex, prototypeLanternMats);
+    scene.add(pondRig.group);
     const hollowOakRig = buildHollowOakLandmark(palette, shadowTex);
     scene.add(hollowOakRig.group);
     const oakGlint = hollowOakRig.oakGlint;
@@ -484,6 +509,7 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
       flowerGroups,
       gazeboRig,
       fountainRig,
+      pondRig,
       bakeryTablesGroup,
       festoonGroup,
       noticeboardRig,
@@ -509,7 +535,7 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
     destRing.visible = false;
     scene.add(destRing);
 
-    // Golden chime particle ring buffer (Zero-GC pooled)
+    // Golden chime particle ring buffer (Zero-GC pooled for Gazebo Bell)
     const chimePoolCount = 16;
     const chimeGeo = new THREE.OctahedronGeometry(0.12, 0);
     const chimeMat = new THREE.MeshBasicMaterial({ color: '#FFE082', transparent: true, opacity: 0.9 });
@@ -519,6 +545,28 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
       m.visible = false;
       scene.add(m);
       chimeParticles.push({ mesh: m, vel: new THREE.Vector3(), life: 0 });
+    }
+
+    // Translucent aqua/white splash droplet ring buffer (Zero-GC pooled for Pond skip & Fountain coin wish)
+    const splashPoolCount = 16;
+    const splashGeo = new THREE.SphereGeometry(0.055, 6, 5);
+    const splashMat = new THREE.MeshBasicMaterial({
+      color: '#EAF9FC',
+      transparent: true,
+      opacity: 0.85,
+      depthWrite: false,
+    });
+    const splashParticles: Array<{
+      mesh: THREE.Mesh;
+      vel: THREE.Vector3;
+      life: number;
+      floorY: number;
+    }> = [];
+    for (let i = 0; i < splashPoolCount; i++) {
+      const m = new THREE.Mesh(splashGeo, splashMat);
+      m.visible = false;
+      scene.add(m);
+      splashParticles.push({ mesh: m, vel: new THREE.Vector3(), life: 0, floorY: 0.1 });
     }
 
     // Build Player & 9 Resident Character Rigs (Storybook Diorama standard)
@@ -579,16 +627,34 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
       scene.add(rig.root);
     }
 
-    // Add invisible raycast proxies for interactive landmark props
+    // Add invisible raycast proxies for interactive landmark props (full-perimeter proxies for Fountain & Mirror Pond)
+    const proxyMat = new THREE.MeshBasicMaterial({ visible: false });
     for (const prop of PROP_INTERACTABLES) {
-      const hit = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.95, 0.95, 2.2, 8),
-        new THREE.MeshBasicMaterial({ visible: false }),
-      );
-      hit.position.set(prop.x, 1.1, prop.z);
-      hit.userData = { targetKind: 'prop', targetId: prop.id };
-      scene.add(hit);
-      interactableMeshes.push(hit);
+      if (prop.id === 'fountain_plaza') {
+        const hit = new THREE.Mesh(new THREE.CylinderGeometry(2.45, 2.55, 2.5, 12), proxyMat);
+        hit.position.set(0, 1.25, 1.5);
+        hit.userData = { targetKind: 'prop', targetId: prop.id };
+        scene.add(hit);
+        interactableMeshes.push(hit);
+      } else if (prop.id === 'mirror_pond') {
+        const basinHit = new THREE.Mesh(new THREE.BoxGeometry(7.0, 1.1, 4.9), proxyMat);
+        basinHit.position.set(1.85, 0.55, 14.0);
+        basinHit.userData = { targetKind: 'prop', targetId: prop.id };
+        const ledgeHit = new THREE.Mesh(new THREE.CylinderGeometry(0.95, 0.95, 1.4, 8), proxyMat);
+        ledgeHit.position.set(1.8, 0.7, 11.5);
+        ledgeHit.userData = { targetKind: 'prop', targetId: prop.id };
+        const pierHit = new THREE.Mesh(new THREE.BoxGeometry(1.4, 1.1, 1.5), proxyMat);
+        pierHit.position.set(2.22, 0.55, 15.9);
+        pierHit.userData = { targetKind: 'prop', targetId: prop.id };
+        scene.add(basinHit, ledgeHit, pierHit);
+        interactableMeshes.push(basinHit, ledgeHit, pierHit);
+      } else {
+        const hit = new THREE.Mesh(new THREE.CylinderGeometry(0.95, 0.95, 2.2, 8), proxyMat);
+        hit.position.set(prop.x, 1.1, prop.z);
+        hit.userData = { targetKind: 'prop', targetId: prop.id };
+        scene.add(hit);
+        interactableMeshes.push(hit);
+      }
     }
 
     // 12. Handcrafted Cedar Benches at SEAT_SPOTS + raycast proxies
@@ -642,6 +708,9 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
     let lastPulseSeq = playerActionPulseRef.current?.seq ?? 0;
     let activePulseKind: 'wave' | 'interact' | 'talk' | null = null;
     let activePulseTimer = 0;
+    let activePulseFocusX = 0;
+    let activePulseFocusZ = 0;
+    let hasActivePulseFocus = false;
     let smoothedOcclusionLift = 0;
     let smoothedDialogueZoom = 1.0;
     let smoothedDialogueDropY = 0;
@@ -694,12 +763,16 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
         let label = '';
         let actionLabel = 'Talk';
         let immediateRange = 2.9;
+        let isImmediate = false;
+        let scoreDist = 0;
 
         if (ud.targetKind === 'resident') {
           const rid = ud.targetId as ResidentId;
           tPos = worldRef.current.npcRuntime[rid].position;
           label = RESIDENTS[rid].name;
           actionLabel = `Talk to ${label}`;
+          scoreDist = distance2D(pPos, tPos);
+          isImmediate = scoreDist <= immediateRange;
         } else if (ud.targetKind === 'seat') {
           const seat = getSeatById(ud.targetId);
           if (!seat) return;
@@ -709,6 +782,8 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
           actionLabel =
             worldRef.current.playerPosture === 'sitting' ? 'Stand Up' : `Sit on ${seat.label}`;
           immediateRange = 2.35;
+          scoreDist = distance2D(pPos, tPos);
+          isImmediate = scoreDist <= immediateRange;
         } else if (ud.targetKind === 'carryable') {
           const cid = ud.targetId as CarryableItemId;
           const cProp = worldRef.current.worldProps?.[cid];
@@ -717,28 +792,39 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
           label = cProp.label;
           actionLabel = `Pick Up ${cProp.label}`;
           immediateRange = 2.25;
+          scoreDist = distance2D(pPos, tPos);
+          isImmediate = scoreDist <= immediateRange;
         } else {
-          const prop = PROP_INTERACTABLES.find((p) => p.id === (ud.targetId as PropInteractableId));
+          const pid = ud.targetId as PropInteractableId;
+          const prop = PROP_INTERACTABLES.find((p) => p.id === pid);
           if (prop) {
-            tPos = { x: prop.x, z: prop.z };
+            const metrics = getPropInteractionMetrics(pid, pPos);
+            tPos = metrics.focusPos;
+            walkDest = metrics.approachPos;
             label = prop.name;
-            actionLabel = prop.id === 'player_door' ? 'Rest / Porch' : 'Inspect';
+            actionLabel =
+              pid === 'gazebo_bell' && worldRef.current.flags.bellRestored
+                ? 'Ring Bell'
+                : pid === 'player_door'
+                ? 'Rest / Porch'
+                : `Inspect ${prop.name}`;
+            scoreDist = metrics.scoreDistance;
+            isImmediate = metrics.inRange;
           }
         }
 
-        const dist = distance2D(pPos, tPos);
         const targetObj: InteractiveTarget = {
           kind: ud.targetKind,
           id: ud.targetId,
           label,
           actionLabel,
-          distance: dist,
+          distance: scoreDist,
           worldPos: { ...tPos },
           seatId: ud.targetKind === 'seat' ? ud.targetId : undefined,
           carryableId: ud.targetKind === 'carryable' ? (ud.targetId as CarryableItemId) : undefined,
         };
 
-        if (dist <= immediateRange) {
+        if (isImmediate) {
           cozyAudio.playUiTap(1.05);
           onSelectTargetRef.current(targetObj);
         } else {
@@ -805,6 +891,34 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
       }
     }
 
+    function spawnSplashBurst(
+      originX: number,
+      originY: number,
+      originZ: number,
+      spreadSkip: boolean,
+    ) {
+      const toCenterDx = 1.6 - originX;
+      const toCenterDz = 14.0 - originZ;
+      const toCenterLen = Math.hypot(toCenterDx, toCenterDz) || 1;
+      const dirX = toCenterDx / toCenterLen;
+      const dirZ = toCenterDz / toCenterLen;
+
+      for (let i = 0; i < splashParticles.length; i++) {
+        const p = splashParticles[i];
+        const hopDist = spreadSkip ? (i % 3) * 0.48 : 0;
+        const hopOffsetX = dirX * hopDist;
+        const hopOffsetZ = dirZ * hopDist;
+        p.mesh.position.set(originX + hopOffsetX, originY, originZ + hopOffsetZ);
+        const angle = (i / splashParticles.length) * Math.PI * 2;
+        const speedR = spreadSkip ? 0.85 + (i % 3) * 0.32 : 0.72 + (i % 3) * 0.25;
+        p.vel.set(Math.cos(angle) * speedR, 1.7 + (i % 4) * 0.42, Math.sin(angle) * speedR);
+        p.floorY = originY - 0.04;
+        p.life = 1.0;
+        p.mesh.scale.setScalar(0.8 + (i % 3) * 0.18);
+        p.mesh.visible = true;
+      }
+    }
+
     function afterDraw(cb: () => void) {
       const gl = renderer.getContext() as WebGL2RenderingContext;
       const sync = gl.fenceSync(gl.SYNC_GPU_COMMANDS_COMPLETE, 0);
@@ -823,6 +937,8 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
     }
 
     let prevBellCountLocal = bellRingCounter;
+    let prevFountainWishLocal = fountainWishCounter;
+    let prevPondSkipLocal = pondSkipCounter;
 
     function syncVisualAndHud(
       world: WorldState,
@@ -842,6 +958,21 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
           p.mesh.rotation.y += dt * 4;
           p.mesh.scale.setScalar(Math.max(0.01, p.life));
           if (p.life <= 0) p.mesh.visible = false;
+        }
+      }
+
+      // Update ballistic water splash droplets
+      for (const p of splashParticles) {
+        if (p.life > 0) {
+          p.life -= dt * 1.45;
+          p.vel.y -= 6.8 * dt;
+          p.mesh.position.addScaledVector(p.vel, dt);
+          if (p.mesh.position.y < p.floorY || p.life <= 0) {
+            p.life = 0;
+            p.mesh.visible = false;
+          } else {
+            p.mesh.scale.setScalar(Math.max(0.1, p.life));
+          }
         }
       }
 
@@ -1004,6 +1135,18 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
         prevBellCountLocal = lastBellCountRef.current;
         spawnChimeBurst(0, 3.1, -9.5);
       }
+      if (lastFountainWishCountRef.current !== prevFountainWishLocal) {
+        prevFountainWishLocal = lastFountainWishCountRef.current;
+        const fSplash = getPropInteractionMetrics('fountain_plaza', world.playerPos).splashPos;
+        envController.triggerFountainWishRipple(fSplash.x, fSplash.z);
+        spawnSplashBurst(fSplash.x, 0.68, fSplash.z, false);
+      }
+      if (lastPondSkipCountRef.current !== prevPondSkipLocal) {
+        prevPondSkipLocal = lastPondSkipCountRef.current;
+        const pSplash = getPropInteractionMetrics('mirror_pond', world.playerPos).splashPos;
+        envController.triggerPondRipple(pSplash.x, pSplash.z);
+        spawnSplashBurst(pSplash.x, 0.14, pSplash.z, true);
+      }
 
       // Step headless simulation clock & NPC navigation/runtime state
       stepSimulationInPlace(world, dt, {
@@ -1017,11 +1160,26 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
       if (latestPulse && latestPulse.seq !== lastPulseSeq) {
         lastPulseSeq = latestPulse.seq;
         activePulseKind = latestPulse.kind;
-        activePulseTimer = latestPulse.kind === 'wave' ? 0.9 : 0.65;
+        activePulseTimer =
+          latestPulse.kind === 'wave'
+            ? 0.9
+            : latestPulse.kind === 'interact'
+            ? 0.78
+            : 0.65;
+        if (latestPulse.focusPos) {
+          activePulseFocusX = latestPulse.focusPos.x;
+          activePulseFocusZ = latestPulse.focusPos.z;
+          hasActivePulseFocus = true;
+        } else {
+          hasActivePulseFocus = false;
+        }
       }
       if (activePulseTimer > 0) {
         activePulseTimer = Math.max(0, activePulseTimer - dt);
-        if (activePulseTimer === 0) activePulseKind = null;
+        if (activePulseTimer === 0) {
+          activePulseKind = null;
+          hasActivePulseFocus = false;
+        }
       }
 
       const phase = getTimePhase(world.minuteOfDay);
@@ -1059,6 +1217,7 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
           pendingTargetAfterWalk = null;
           activePulseTimer = 0;
           activePulseKind = null;
+          hasActivePulseFocus = false;
           // Screen-right = (+0.707, -0.707), Screen-down = (+0.707, +0.707)
           moveDirX = screenHoriz * 0.7071 + screenVert * 0.7071;
           moveDirZ = -screenHoriz * 0.7071 + screenVert * 0.7071;
@@ -1079,6 +1238,8 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
           const arriveDist =
             pendingTargetAfterWalk?.kind === 'seat'
               ? 0.55
+              : pendingTargetAfterWalk?.kind === 'prop'
+              ? 0.65
               : pendingTargetAfterWalk?.kind === 'carryable'
               ? 1.45
               : pendingTargetAfterWalk
@@ -1115,6 +1276,16 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
         }
       }
 
+      const currentActiveProp = activePropIdRef.current;
+      const interactionActive =
+        currentActiveProp !== null || (activePulseTimer > 0 && activePulseKind === 'interact');
+      if (interactionActive && tapWalkDest) {
+        tapWalkDest = null;
+        tapWalkWaypoints = [];
+        tapStuckSeconds = 0;
+        pendingTargetAfterWalk = null;
+      }
+
       const moveResult = stepPlayerMovement({
         pos: world.playerPos,
         facing: world.playerFacing,
@@ -1125,6 +1296,7 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
         sprintHeld,
         walkHeld,
         carryingItem: Boolean(world.playerHeldItem),
+        interactionActive,
         posture: world.playerPosture ?? 'standing',
         seatId: world.playerSeatId ?? null,
         dt,
@@ -1169,9 +1341,10 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
         destRing.visible = false;
       }
 
-      // Face speaker & choose contextual player pose (dialogue listen/talk, wave, interact)
+      // Face speaker or water/landmark prop & choose contextual player pose (dialogue listen/talk, wave, interact)
       let playerAnim = playerMotion.animState;
       let playerLookYaw = 0;
+      let playerLookPitch = 0;
       const dialogueResId = activeDialogueResidentRef.current;
       if (dialogueOpenRef.current && dialogueResId && world.npcRuntime?.[dialogueResId]) {
         const speakerPos = world.npcRuntime[dialogueResId].position;
@@ -1186,11 +1359,37 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
         if (world.playerPosture !== 'sitting') {
           playerAnim = activePulseTimer > 0 && activePulseKind === 'talk' ? 'talk' : 'listen';
         }
+      } else if (currentActiveProp !== null || (activePulseTimer > 0 && hasActivePulseFocus)) {
+        let fx = activePulseFocusX;
+        let fz = activePulseFocusZ;
+        if (currentActiveProp !== null) {
+          const propFocus = getPropInteractionMetrics(currentActiveProp, world.playerPos).focusPos;
+          fx = propFocus.x;
+          fz = propFocus.z;
+        }
+        const dx = fx - world.playerPos.x;
+        const dz = fz - world.playerPos.z;
+        if (dx * dx + dz * dz > 0.0025) {
+          const targetYaw = Math.atan2(dx, dz);
+          if (world.playerPosture !== 'sitting') {
+            world.playerFacing += wrapAngleDelta(world.playerFacing, targetYaw) * Math.min(1, dt * 12);
+          }
+          playerLookYaw = wrapAngleDelta(world.playerFacing, targetYaw);
+        }
+        playerLookPitch = 0.16;
+        if (
+          world.playerPosture !== 'sitting' &&
+          activePulseTimer > 0 &&
+          activePulseKind &&
+          playerMotion.speed < 1.35
+        ) {
+          playerAnim = activePulseKind;
+        }
       } else if (
         activePulseTimer > 0 &&
         activePulseKind &&
-        playerMotion.speed < 0.25 &&
-        world.playerPosture !== 'sitting'
+        world.playerPosture !== 'sitting' &&
+        (activePulseKind === 'interact' ? playerMotion.speed < 1.35 : playerMotion.speed < 0.25)
       ) {
         playerAnim = activePulseKind;
       }
@@ -1204,7 +1403,7 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
         ? 'curious'
         : 'relaxed';
       _playerAnimOpts.lookYaw = playerLookYaw;
-      _playerAnimOpts.lookPitch = 0;
+      _playerAnimOpts.lookPitch = playerLookPitch;
       _playerAnimOpts.bankAngle = playerMotion.bankAngle;
       _playerAnimOpts.carrying = Boolean(world.playerHeldItem);
       _playerAnimOpts.isMoving = playerMotion.speed > 0.25;
@@ -1303,6 +1502,8 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
       lanternMat.dispose();
       chimeGeo.dispose();
       chimeMat.dispose();
+      splashGeo.dispose();
+      splashMat.dispose();
       meadowTex.dispose();
       cobbleTex.dispose();
       terracottaRoofTex.dispose();

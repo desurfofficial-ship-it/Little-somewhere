@@ -2,6 +2,10 @@ import * as THREE from 'three';
 import { CarryableItemId } from '../../game/types';
 import { MaterialPalette, STORYBOOK_PALETTE } from '../materials';
 import { FountainRig, GazeboRig } from '../models';
+import {
+  createStorybookFountainWaterMaterial,
+  createStorybookWaterStreamMaterial,
+} from '../waterShaders';
 import { addContactShadow } from './vegetation';
 
 /**
@@ -256,8 +260,12 @@ export function buildStorybookGazebo(
 
 /**
  * Mossy Stone Fountain at (0, 0, 1.5) (CIRCLE_OBSTACLES r=2.35).
- * Features octagonal stepped apron, carved coping ashlar basin, moss tufts,
- * LatheGeometry fluted central column & upper catch-bowl, bronze spouts, shimmering water & droplets.
+ * Full storybook centerpiece featuring:
+ * - Two-step octagonal limestone apron, 8 carved buttress pilasters, and brass spring valve wheel
+ * - LatheGeometry carved double-moulded basin wall & bullnose coping with corner moss tufts
+ * - Weathered dry floor with autumn clog leaves/twigs before repair vs submerged lucky coins & river pebbles after
+ * - Scalloped upper catch-bowl with 4 brass overflow weirs, 4 cardinal lion-spout jets, & top pineapple finial plume
+ * - Custom onBeforeCompile water ripple shaders, TubeGeometry curved stream arcs, 5 splash ripple rings & 20 droplets
  */
 export function buildStorybookFountain(
   palette: MaterialPalette,
@@ -266,56 +274,141 @@ export function buildStorybookFountain(
   const group = new THREE.Group();
   group.position.set(0, 0, 1.5);
 
-  addContactShadow(group, shadowTex, 5.7, 5.7, 0.46, 0.02);
+  addContactShadow(group, shadowTex, 5.8, 5.8, 0.48, 0.02);
 
   const stoneMat = palette.standard(STORYBOOK_PALETTE.limestone, 0.88, 0.02);
   const darkStoneMat = palette.standard(STORYBOOK_PALETTE.fieldstoneDark, 0.91, 0.02);
+  const curbMat = palette.standard(STORYBOOK_PALETTE.limestoneCurb, 0.86, 0.02);
   const mossMat = palette.standard(STORYBOOK_PALETTE.moss, 0.88, 0.0);
-  const bronzeMat = palette.standard('#8C724A', 0.34, 0.78);
+  const bronzeMat = palette.standard('#8E7043', 0.28, 0.82);
+  const brassMat = palette.standard(STORYBOOK_PALETTE.agedBrass, 0.24, 0.86);
+  const copperMat = palette.standard('#C9794E', 0.28, 0.82);
   const basinBedMat = palette.standard('#8E8475', 0.93, 0.0);
+  const leafDryMat = palette.standard('#B86D3B', 0.86, 0.0);
+  const twigMat = palette.standard(STORYBOOK_PALETTE.oakBark, 0.9, 0.0);
 
-  // Octagonal ground apron
-  const apron = new THREE.Mesh(new THREE.CylinderGeometry(2.42, 2.52, 0.14, 8), darkStoneMat);
-  apron.position.y = 0.07;
-  apron.receiveShadow = true;
-  group.add(apron);
+  // 1. Two-tier stepped octagonal stone plinth (staying within r <= 2.35 obstacle)
+  const apronLower = new THREE.Mesh(new THREE.CylinderGeometry(2.44, 2.52, 0.09, 8), darkStoneMat);
+  apronLower.position.y = 0.045;
+  apronLower.receiveShadow = true;
+  const apronUpper = new THREE.Mesh(new THREE.CylinderGeometry(2.30, 2.38, 0.09, 8), curbMat);
+  apronUpper.position.y = 0.13;
+  apronUpper.receiveShadow = true;
+  group.add(apronLower, apronUpper);
 
-  // Hollow carved stone basin wall (recessed floor at y=0.50, inner rim at r=1.90, outer battered wall to r=2.28)
+  // 2. Hollow carved double-moulded stone basin wall (recessed floor y=0.50, inner r=1.90, outer r=2.26)
   const basinProfile = [
     new THREE.Vector2(0.0, 0.14),
     new THREE.Vector2(2.28, 0.14),
-    new THREE.Vector2(2.18, 0.70),
-    new THREE.Vector2(1.90, 0.70),
+    new THREE.Vector2(2.28, 0.24),
+    new THREE.Vector2(2.14, 0.30),
+    new THREE.Vector2(2.15, 0.62),
+    new THREE.Vector2(2.24, 0.68),
+    new THREE.Vector2(2.20, 0.74),
+    new THREE.Vector2(1.90, 0.74),
     new THREE.Vector2(1.88, 0.50),
     new THREE.Vector2(0.0, 0.50),
   ];
-  const outerWall = new THREE.Mesh(new THREE.LatheGeometry(basinProfile, 16), stoneMat);
+  const outerWall = new THREE.Mesh(new THREE.LatheGeometry(basinProfile, 24), stoneMat);
   outerWall.position.y = 0;
   outerWall.castShadow = true;
   outerWall.receiveShadow = true;
   group.add(outerWall);
 
-  const coping = new THREE.Mesh(new THREE.TorusGeometry(2.06, 0.18, 8, 20), stoneMat);
+  // 8 carved radial buttress corbels & bullnose coping ring
+  for (let i = 0; i < 8; i++) {
+    const a = (i / 8) * Math.PI * 2 + Math.PI / 8;
+    const pilaster = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.56, 0.22), curbMat);
+    pilaster.position.set(Math.cos(a) * 2.16, 0.44, Math.sin(a) * 2.16);
+    pilaster.rotation.y = -a + Math.PI / 2;
+    pilaster.castShadow = true;
+    pilaster.receiveShadow = true;
+    group.add(pilaster);
+  }
+
+  const coping = new THREE.Mesh(new THREE.TorusGeometry(2.06, 0.18, 10, 28), stoneMat);
   coping.rotation.x = Math.PI / 2;
-  coping.position.y = 0.72;
+  coping.position.y = 0.73;
   coping.castShadow = true;
   coping.receiveShadow = true;
   group.add(coping);
 
-  // Interior dry basin floor (weathered stone clearly distinct from flowing water before repair)
-  const dryFloor = new THREE.Mesh(new THREE.CircleGeometry(1.90, 20), basinBedMat);
+  // 3. Dry weathered basin floor + clog debris (visible only before repair)
+  const dryFloor = new THREE.Mesh(new THREE.CircleGeometry(1.90, 24), basinBedMat);
   dryFloor.rotation.x = -Math.PI / 2;
   dryFloor.position.y = 0.525;
   dryFloor.receiveShadow = true;
   group.add(dryFloor);
 
+  const clogDebrisGroup = new THREE.Group();
+  const leafSpecs: Array<[number, number, number]> = [
+    [0.62, 0.54, 0.35],
+    [-0.75, 0.54, 0.42],
+    [0.24, 0.54, -0.82],
+    [-0.45, 0.54, -0.58],
+    [0.88, 0.54, -0.34],
+    [-1.12, 0.54, 0.18],
+    [0.12, 0.54, 1.05],
+    [-0.18, 1.98, 0.38], // clogged leaf in upper bowl
+    [0.28, 1.98, -0.26],
+  ];
+  for (let i = 0; i < leafSpecs.length; i++) {
+    const [lx, ly, lz] = leafSpecs[i];
+    const leaf = new THREE.Mesh(new THREE.DodecahedronGeometry(0.11, 0), leafDryMat);
+    leaf.scale.set(1.4, 0.24, 0.9);
+    leaf.position.set(lx, ly, lz);
+    leaf.rotation.y = i * 1.1;
+    clogDebrisGroup.add(leaf);
+  }
+  const twig = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.035, 0.65, 5), twigMat);
+  twig.position.set(-0.55, 0.54, 0.48);
+  twig.rotation.z = Math.PI / 2;
+  twig.rotation.y = 0.65;
+  clogDebrisGroup.add(twig);
+  group.add(clogDebrisGroup);
+
+  // Submerged copper & brass wishing coins + river pebbles (revealed once repaired!)
+  const submergedCoinsGroup = new THREE.Group();
+  const glintCopperMat = palette.standard('#DF894F', 0.18, 0.88);
+  const glintGoldMat = palette.standard('#F2C258', 0.18, 0.9);
+  const pebbleSpots: Array<[number, number, number]> = [
+    [0.72, 0.54, 0.55],
+    [-0.95, 0.54, -0.45],
+    [0.32, 0.54, -1.08],
+    [-0.42, 0.54, 0.92],
+    [1.18, 0.54, -0.25],
+    [0.54, 0.54, 1.24],
+    [-0.78, 0.54, 1.15],
+    [1.26, 0.54, 0.72],
+  ];
+  for (let i = 0; i < pebbleSpots.length; i++) {
+    const [px, py, pz] = pebbleSpots[i];
+    if (i < 5) {
+      const pebble = new THREE.Mesh(new THREE.SphereGeometry(0.08, 7, 5), curbMat);
+      pebble.scale.set(1.25, 0.5, 1.0);
+      pebble.position.set(px, py, pz);
+      submergedCoinsGroup.add(pebble);
+    }
+
+    const coin = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.068, 0.068, 0.022, 10),
+      i % 2 === 0 ? glintCopperMat : glintGoldMat,
+    );
+    coin.position.set(px * 0.84, py + 0.012, pz * 0.84);
+    submergedCoinsGroup.add(coin);
+  }
+  submergedCoinsGroup.visible = false;
+  group.add(submergedCoinsGroup);
+
   // Moss cushions hugging basin base & coping rim
   const mossSpots: Array<[number, number, number, number]> = [
-    [2.12, 0.18, 0.65, 1.0],
-    [-1.95, 0.18, -0.95, 0.9],
-    [0.55, 0.18, -2.18, 0.85],
-    [-1.2, 0.82, 1.68, 0.62],
-    [1.65, 0.82, -1.25, 0.58],
+    [2.12, 0.19, 0.65, 1.0],
+    [-1.95, 0.19, -0.95, 0.9],
+    [0.55, 0.19, -2.14, 0.85],
+    [-1.45, 0.19, 1.62, 0.8],
+    [-1.2, 0.83, 1.68, 0.62],
+    [1.65, 0.83, -1.25, 0.58],
+    [0.4, 0.83, 2.02, 0.52],
   ];
   for (const [mx, my, mz, ms] of mossSpots) {
     const tuft = new THREE.Mesh(new THREE.DodecahedronGeometry(0.24 * ms, 0), mossMat);
@@ -324,82 +417,189 @@ export function buildStorybookFountain(
     group.add(tuft);
   }
 
-  // Fluted sculpted center column + upper catch bowl (LatheGeometry)
+  // 4. Fluted sculpted center column + scalloped upper catch-bowl + top lotus cup (LatheGeometry)
   const colPoints = [
     new THREE.Vector2(0.0, 0.0),
-    new THREE.Vector2(0.62, 0.0),
-    new THREE.Vector2(0.55, 0.25),
-    new THREE.Vector2(0.34, 0.45),
-    new THREE.Vector2(0.3, 1.15),
-    new THREE.Vector2(0.45, 1.32),
-    new THREE.Vector2(0.98, 1.52),
-    new THREE.Vector2(1.02, 1.68),
-    new THREE.Vector2(0.84, 1.7),
-    new THREE.Vector2(0.28, 1.56),
-    new THREE.Vector2(0.22, 1.92),
-    new THREE.Vector2(0.0, 1.98),
+    new THREE.Vector2(0.68, 0.0),
+    new THREE.Vector2(0.60, 0.24),
+    new THREE.Vector2(0.36, 0.44),
+    new THREE.Vector2(0.31, 1.15),
+    new THREE.Vector2(0.48, 1.32),
+    new THREE.Vector2(1.04, 1.54),
+    new THREE.Vector2(1.08, 1.70),
+    new THREE.Vector2(0.88, 1.72),
+    new THREE.Vector2(0.66, 1.60),
+    new THREE.Vector2(0.29, 1.58),
+    new THREE.Vector2(0.24, 1.98),
+    new THREE.Vector2(0.38, 2.06),
+    new THREE.Vector2(0.34, 2.12),
+    new THREE.Vector2(0.0, 2.10),
   ];
-  const fountainCore = new THREE.Mesh(new THREE.LatheGeometry(colPoints, 14), stoneMat);
+  const fountainCore = new THREE.Mesh(new THREE.LatheGeometry(colPoints, 18), stoneMat);
   fountainCore.position.y = 0.36;
   fountainCore.castShadow = true;
   fountainCore.receiveShadow = true;
   group.add(fountainCore);
 
-  // Bronze finial nozzle & 4 cardinal lion-head spouts
-  const finial = new THREE.Mesh(new THREE.ConeGeometry(0.18, 0.44, 8), bronzeMat);
-  finial.position.y = 2.48;
+  // Brass spring valve handwheel on south-west pedestal collar (nod to Barnaby's repair!)
+  const valveStem = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.035, 0.14, 6), bronzeMat);
+  valveStem.position.set(-0.34, 0.85, 0.34);
+  valveStem.rotation.z = Math.PI / 4;
+  valveStem.rotation.x = Math.PI / 4;
+  const valveWheel = new THREE.Mesh(new THREE.TorusGeometry(0.095, 0.02, 6, 12), brassMat);
+  valveWheel.position.set(-0.4, 0.85, 0.4);
+  valveWheel.rotation.y = Math.PI / 4;
+  group.add(valveStem, valveWheel);
+
+  // Bronze pineapple/lotus crown finial + 4 cardinal sculpted lion-head spouts + 4 upper bowl weirs
+  const finialBase = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.22, 0.16, 10), bronzeMat);
+  finialBase.position.y = 2.48;
+  const finial = new THREE.Mesh(new THREE.ConeGeometry(0.15, 0.36, 10), brassMat);
+  finial.position.y = 2.70;
   finial.castShadow = true;
-  group.add(finial);
+  const finialTip = new THREE.Mesh(new THREE.SphereGeometry(0.065, 8, 8), brassMat);
+  finialTip.position.y = 2.86;
+  group.add(finialBase, finial, finialTip);
 
   for (let i = 0; i < 4; i++) {
     const a = (i / 4) * Math.PI * 2;
-    const spout = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.09, 0.26, 6), bronzeMat);
-    spout.position.set(Math.cos(a) * 0.36, 1.5, Math.sin(a) * 0.36);
-    spout.rotation.z = -Math.cos(a) * 1.1;
-    spout.rotation.x = Math.sin(a) * 1.1;
-    group.add(spout);
+    const boss = new THREE.Mesh(new THREE.SphereGeometry(0.105, 8, 8), bronzeMat);
+    boss.position.set(Math.cos(a) * 0.34, 1.50, Math.sin(a) * 0.34);
+    const spout = new THREE.Mesh(new THREE.CylinderGeometry(0.052, 0.082, 0.28, 8), brassMat);
+    spout.position.set(Math.cos(a) * 0.45, 1.47, Math.sin(a) * 0.45);
+    spout.rotation.z = -Math.cos(a) * 1.15;
+    spout.rotation.x = Math.sin(a) * 1.15;
+    const collar = new THREE.Mesh(new THREE.TorusGeometry(0.056, 0.016, 6, 10), brassMat);
+    collar.position.set(Math.cos(a) * 0.54, 1.43, Math.sin(a) * 0.54);
+    collar.rotation.y = -a + Math.PI / 2;
+
+    // Upper bowl overflow weir lip at 45-degree diagonals
+    const wa = a + Math.PI / 4;
+    const weir = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.07, 0.16), bronzeMat);
+    weir.position.set(Math.cos(wa) * 0.99, 2.04, Math.sin(wa) * 0.99);
+    weir.rotation.y = -wa + Math.PI / 2;
+
+    group.add(boss, spout, collar, weir);
   }
 
-  // Water disc + ripple rings + upper catch-bowl pool (visible cleanly inside stone rim once repaired)
-  const waterMat = new THREE.MeshStandardMaterial({
-    color: '#6BB8C8',
-    roughness: 0.12,
-    metalness: 0.18,
-    transparent: true,
-    opacity: 0.86,
-  });
-  const waterMesh = new THREE.Mesh(new THREE.CircleGeometry(1.92, 20), waterMat);
+  // 5. Animated Shader Water Pools (lower basin + upper catch-bowl)
+  const waterMat = createStorybookFountainWaterMaterial();
+  const waterMesh = new THREE.Mesh(new THREE.CircleGeometry(1.92, 28), waterMat);
   waterMesh.rotation.x = -Math.PI / 2;
-  waterMesh.position.y = 0.65;
+  waterMesh.position.y = 0.655;
 
-  const rippleMat = new THREE.MeshBasicMaterial({
-    color: '#D2F3F8',
+  const upperBowlWater = new THREE.Mesh(new THREE.CircleGeometry(0.84, 20), waterMat);
+  upperBowlWater.position.z = 1.385; // World y = 0.655 + 1.385 = 2.04 inside upper catch-bowl
+  waterMesh.add(upperBowlWater);
+
+  // Expanding concentric splash ripple rings + aerated foam collars on lower water surface
+  const splashRings: THREE.Mesh[] = [];
+  const foamCollarMat = new THREE.MeshBasicMaterial({
+    color: '#F2FCFE',
     transparent: true,
-    opacity: 0.56,
+    opacity: 0.52,
     depthWrite: false,
   });
-  const innerRipple = new THREE.Mesh(new THREE.RingGeometry(0.66, 0.72, 24), rippleMat);
-  innerRipple.position.z = 0.012;
-  const outerRipple = new THREE.Mesh(new THREE.RingGeometry(1.24, 1.30, 28), rippleMat);
-  outerRipple.position.z = 0.012;
-  const upperBowlWater = new THREE.Mesh(new THREE.CircleGeometry(0.68, 16), waterMat);
-  upperBowlWater.position.z = 1.37; // World y = 0.65 + 1.37 = 2.02 inside upper catch-bowl
-  waterMesh.add(innerRipple, outerRipple, upperBowlWater);
+  const ringLocations: Array<[number, number]> = [
+    [0, 0],
+    [1.2, 0],
+    [-1.2, 0],
+    [0, 1.2],
+    [0, -1.2],
+  ];
+  for (let i = 0; i < ringLocations.length; i++) {
+    const [rx, rz] = ringLocations[i];
+    const rMat = new THREE.MeshBasicMaterial({
+      color: '#E0F7FC',
+      transparent: true,
+      opacity: 0.6,
+      depthWrite: false,
+    });
+    const ring = new THREE.Mesh(new THREE.RingGeometry(0.22, 0.28, 22), rMat);
+    ring.position.set(rx, -rz, 0.014);
+    ring.userData.phaseOffset = i * 0.23;
+    waterMesh.add(ring);
+    splashRings.push(ring);
+
+    if (i > 0) {
+      const collar = new THREE.Mesh(new THREE.RingGeometry(0.05, 0.13, 14), foamCollarMat);
+      collar.position.set(rx, -rz, 0.012);
+      waterMesh.add(collar);
+    }
+  }
 
   waterMesh.visible = false;
   group.add(waterMesh);
 
+  // 6. Sculpted Cascading Water Jets & Finial Crown Plume (visible when flowing)
+  const cascadeGroup = new THREE.Group();
+  const streamMat = createStorybookWaterStreamMaterial();
+
+  // 4 cardinal spout parabolic water arcs
+  for (let i = 0; i < 4; i++) {
+    const a = (i / 4) * Math.PI * 2;
+    const cx = Math.cos(a);
+    const sz = Math.sin(a);
+    const jetCurve = new THREE.CatmullRomCurve3([
+      new THREE.Vector3(cx * 0.55, 1.43, sz * 0.55),
+      new THREE.Vector3(cx * 0.88, 1.36, sz * 0.88),
+      new THREE.Vector3(cx * 1.12, 1.06, sz * 1.12),
+      new THREE.Vector3(cx * 1.20, 0.64, sz * 1.20),
+    ]);
+    const jetMesh = new THREE.Mesh(new THREE.TubeGeometry(jetCurve, 14, 0.042, 6, false), streamMat);
+    cascadeGroup.add(jetMesh);
+
+    // 4 upper-bowl overflow weir spill ribbons
+    const wa = a + Math.PI / 4;
+    const wcx = Math.cos(wa);
+    const wsz = Math.sin(wa);
+    const weirCurve = new THREE.CatmullRomCurve3([
+      new THREE.Vector3(wcx * 0.98, 2.04, wsz * 0.98),
+      new THREE.Vector3(wcx * 1.12, 1.72, wsz * 1.12),
+      new THREE.Vector3(wcx * 1.14, 1.18, wsz * 1.14),
+      new THREE.Vector3(wcx * 1.12, 0.64, wsz * 1.12),
+    ]);
+    const weirStream = new THREE.Mesh(new THREE.TubeGeometry(weirCurve, 12, 0.032, 5, false), streamMat);
+    cascadeGroup.add(weirStream);
+
+    // Top crown plume arching out of pineapple finial into upper catch-bowl
+    const plumeCurve = new THREE.CatmullRomCurve3([
+      new THREE.Vector3(cx * 0.04, 2.86, sz * 0.04),
+      new THREE.Vector3(cx * 0.24, 3.16, sz * 0.24),
+      new THREE.Vector3(cx * 0.48, 2.74, sz * 0.48),
+      new THREE.Vector3(cx * 0.58, 2.02, sz * 0.58),
+    ]);
+    const plumeStream = new THREE.Mesh(new THREE.TubeGeometry(plumeCurve, 12, 0.026, 5, false), streamMat);
+    cascadeGroup.add(plumeStream);
+  }
+
+  cascadeGroup.visible = false;
+  group.add(cascadeGroup);
+
+  // 7. 20 Pooled Ballistic Splash & Crown Spray Droplets
   const spoutParticles = new THREE.Group();
-  const dropMat = palette.standard('#C6EEF5', 0.14, 0.08);
-  for (let i = 0; i < 8; i++) {
-    const drop = new THREE.Mesh(new THREE.SphereGeometry(0.085, 6, 6), dropMat);
-    drop.userData.phase = (i / 8) * Math.PI * 2;
+  const dropMat = palette.standard('#D7F4FA', 0.1, 0.08);
+  const dropGeo = new THREE.SphereGeometry(0.068, 6, 6);
+  for (let i = 0; i < 20; i++) {
+    const drop = new THREE.Mesh(dropGeo, dropMat);
+    drop.userData.phase = i / 20;
+    drop.userData.kind = i < 8 ? 'crown' : 'basin';
     spoutParticles.add(drop);
   }
   spoutParticles.visible = false;
   group.add(spoutParticles);
 
-  return { group, waterMesh, spoutParticles };
+  return {
+    group,
+    waterMesh,
+    spoutParticles,
+    clogDebrisGroup,
+    submergedCoinsGroup,
+    cascadeGroup,
+    splashRings,
+    waterMat,
+    streamMat,
+  };
 }
 
 /**
@@ -586,73 +786,88 @@ export function buildStorybookNoticeboard(
 
 /**
  * Handcrafted Plaza & Pond Cedar Bench pivoted at y = 0, facing +Z.
- * Seat surface rests cleanly at y = 0.36 to match SEAT_SPOTS[].seatHeight.
+ * Seat surface rests cleanly at y = 0.36 to match SEAT_SPOTS[].seatHeight, with
+ * deepened seat slats and recessed backrest (-0.29..-0.32) so seated characters never clip the backrest.
  */
 export function buildStorybookBench(
   palette: MaterialPalette,
   shadowTex: THREE.Texture,
 ): THREE.Group {
   const group = new THREE.Group();
-  addContactShadow(group, shadowTex, 1.55, 0.92, 0.44, 0.018);
+  addContactShadow(group, shadowTex, 1.6, 1.02, 0.44, 0.018);
 
   const ironMat = palette.standard(STORYBOOK_PALETTE.wroughtIron, 0.38, 0.75);
   const cedarMat = palette.standard(STORYBOOK_PALETTE.cedarWarm, 0.78, 0.03);
   const cedarDarkMat = palette.standard(STORYBOOK_PALETTE.cedarDark, 0.82, 0.03);
   const brassMat = palette.standard(STORYBOOK_PALETTE.agedBrass, 0.24, 0.85);
 
-  // Two scrolled iron leg frames (front/rear legs + armrests + cross stretcher)
-  for (const sx of [-0.52, 0.52]) {
+  // Two scrolled iron leg frames (front legs at z=+0.22, recessed tilted backrest stiles at z=-0.27)
+  for (const sx of [-0.54, 0.54]) {
     const legFront = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.36, 0.06), ironMat);
-    legFront.position.set(sx, 0.18, 0.2);
+    legFront.position.set(sx, 0.18, 0.22);
     legFront.castShadow = true;
 
-    const legBack = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.76, 0.06), ironMat);
-    legBack.position.set(sx, 0.38, -0.2);
-    legBack.rotation.x = -0.14;
-    legBack.castShadow = true;
+    const legRearBase = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.36, 0.06), ironMat);
+    legRearBase.position.set(sx, 0.18, -0.22);
+    legRearBase.castShadow = true;
 
-    const rail = new THREE.Mesh(new THREE.BoxGeometry(0.065, 0.055, 0.44), ironMat);
-    rail.position.set(sx, 0.31, 0);
+    const backrestStile = new THREE.Mesh(new THREE.BoxGeometry(0.055, 0.50, 0.055), ironMat);
+    backrestStile.position.set(sx, 0.57, -0.295);
+    backrestStile.rotation.x = -0.16;
+    backrestStile.castShadow = true;
 
-    const arm = new THREE.Mesh(new THREE.BoxGeometry(0.055, 0.045, 0.36), cedarDarkMat);
-    arm.position.set(sx, 0.5, 0.02);
+    const rail = new THREE.Mesh(new THREE.BoxGeometry(0.065, 0.055, 0.52), ironMat);
+    rail.position.set(sx, 0.31, 0.01);
+
+    const arm = new THREE.Mesh(new THREE.BoxGeometry(0.065, 0.045, 0.44), cedarDarkMat);
+    arm.position.set(sx, 0.51, 0.01);
     arm.castShadow = true;
 
-    const armPost = new THREE.Mesh(new THREE.CylinderGeometry(0.022, 0.026, 0.18, 6), ironMat);
-    armPost.position.set(sx, 0.41, 0.17);
+    const armPost = new THREE.Mesh(new THREE.CylinderGeometry(0.022, 0.026, 0.19, 6), ironMat);
+    armPost.position.set(sx, 0.415, 0.19);
 
-    group.add(legFront, legBack, rail, arm, armPost);
+    group.add(legFront, legRearBase, backrestStile, rail, arm, armPost);
   }
 
-  const stretcher = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 1.04, 6), ironMat);
+  // Decorative center wrought-iron vertical backrest spindle + stretcher
+  const stretcher = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 1.08, 6), ironMat);
   stretcher.rotation.z = Math.PI / 2;
-  stretcher.position.set(0, 0.16, -0.06);
-  group.add(stretcher);
+  stretcher.position.set(0, 0.16, -0.04);
+  const centerSpindle = new THREE.Mesh(new THREE.BoxGeometry(0.045, 0.44, 0.04), ironMat);
+  centerSpindle.position.set(0, 0.56, -0.295);
+  centerSpindle.rotation.x = -0.16;
+  group.add(stretcher, centerSpindle);
 
-  // Three cedar seat slats sitting cleanly at y = 0.36
-  for (const sz of [-0.13, 0, 0.13]) {
-    const slat = new THREE.Mesh(new THREE.BoxGeometry(1.16, 0.045, 0.1), cedarMat);
-    slat.position.set(0, 0.345, sz);
+  // Four contoured cedar seat slats spanning z = -0.215..+0.265, top cleanly at y = 0.365
+  for (const sz of [-0.17, -0.04, 0.09, 0.22]) {
+    const slat = new THREE.Mesh(new THREE.BoxGeometry(1.18, 0.045, 0.095), cedarMat);
+    slat.position.set(0, 0.342, sz);
     slat.castShadow = true;
     slat.receiveShadow = true;
     group.add(slat);
   }
 
-  // Two angled backrest slats with brass carriage bolts
-  for (const by of [0.54, 0.69]) {
-    const backSlat = new THREE.Mesh(new THREE.BoxGeometry(1.14, 0.1, 0.045), cedarMat);
-    backSlat.position.set(0, by, -0.21 - (by - 0.54) * 0.14);
-    backSlat.rotation.x = -0.14;
+  // Two recessed angled backrest slats (front face cleanly behind z = -0.262 so seated characters never pass through)
+  const backSpecs: Array<{ y: number; z: number }> = [
+    { y: 0.54, z: -0.288 },
+    { y: 0.71, z: -0.316 },
+  ];
+  for (const bs of backSpecs) {
+    const backSlat = new THREE.Mesh(new THREE.BoxGeometry(1.16, 0.105, 0.044), cedarMat);
+    backSlat.position.set(0, bs.y, bs.z);
+    backSlat.rotation.x = -0.16;
     backSlat.castShadow = true;
     group.add(backSlat);
 
-    for (const bx of [-0.52, 0.52]) {
+    for (const bx of [-0.54, 0.54]) {
       const bolt = new THREE.Mesh(new THREE.SphereGeometry(0.018, 6, 6), brassMat);
-      bolt.position.set(bx, by, -0.185 - (by - 0.54) * 0.14);
+      bolt.position.set(bx, bs.y, bs.z + 0.024);
       group.add(bolt);
     }
   }
 
+  group.userData.backrestFrontZ = -0.262;
+  group.userData.seatTopY = 0.365;
   return group;
 }
 

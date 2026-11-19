@@ -72,9 +72,19 @@ export const TitleOverlay: React.FC<TitleOverlayProps> = ({
         </div>
       </div>
 
-      {/* Single flat borderless control hint along bottom safe margin */}
-      <div className="bg-[#FAF5EC]/90 border border-[#D4C4AE]/70 rounded-xl px-3.5 py-1.5 text-xs sm:text-sm font-medium text-[#3E3128] shadow-sm">
-        WASD or Tap Ground to Walk · Tap Neighbor or Press E to Talk · Esc Pause
+      {/* Calm bottom control guide with generous breathing room */}
+      <div className="bg-[#FAF5EC]/92 border border-[#D4C4AE]/80 rounded-xl px-4 py-2.5 text-xs sm:text-sm font-medium text-[#3E3128] shadow-sm flex flex-wrap items-center gap-x-3 gap-y-1.5 leading-relaxed pointer-events-auto max-w-full">
+        <span>
+          <kbd className="font-mono-nums font-semibold text-[#2D241E]">WASD</kbd> or Tap Ground to Walk
+        </span>
+        <span className="text-[#B8A590]" aria-hidden="true">·</span>
+        <span>
+          Tap Neighbor or <kbd className="font-mono-nums font-semibold text-[#2D241E]">E</kbd> to Talk
+        </span>
+        <span className="text-[#B8A590]" aria-hidden="true">·</span>
+        <span>
+          <kbd className="font-mono-nums font-semibold text-[#2D241E]">Esc</kbd> Pause
+        </span>
       </div>
     </div>
   );

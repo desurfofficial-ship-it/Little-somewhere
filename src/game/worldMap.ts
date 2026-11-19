@@ -78,11 +78,13 @@ export const BOX_OBSTACLES: BoxObstacle[] = [
   // Pinecone Workshop (Barnaby)
   { id: 'workshop_barnaby', minX: 9.0, maxX: 15.8, minZ: 9.8, maxZ: 16.2 },
   // Pond basin (walk around or cross bridge on west/east)
-  { id: 'pond_water', minX: -2.4, maxX: 5.6, minZ: 11.4, maxZ: 16.6 },
+  { id: 'pond_water', minX: -2.2, maxX: 5.68, minZ: 11.2, maxZ: 16.65 },
+  // Cedar bridge west handrail & culvert mouth barrier (keeps walkers inside bridge deck or west lawn without clipping rails/brook)
+  { id: 'bridge_west_rail', minX: -3.7, maxX: -3.58, minZ: 11.72, maxZ: 16.28 },
 ];
 
 export const CIRCLE_OBSTACLES: CircleObstacle[] = [
-  { id: 'fountain_basin', x: 0, z: 1.5, radius: 2.35 },
+  { id: 'fountain_basin', x: 0, z: 1.5, radius: 2.46 },
   { id: 'gazebo_pillars', x: 0, z: -9.5, radius: 2.3 },
   { id: 'hollow_oak', x: -6.2, z: 15.6, radius: 1.35 },
   { id: 'tea_cart', x: -5.4, z: -3.2, radius: 1.05 },
@@ -214,7 +216,135 @@ export const PROP_INTERACTABLES: PropInteractable[] = [
   { id: 'fountain_plaza', name: 'Mossy Stone Fountain', x: 0, z: 4.1, interactRadius: 2.6 },
   { id: 'hollow_oak', name: 'Hollow Oak Root', x: -6.2, z: 14.0, interactRadius: 2.5 },
   { id: 'plaza_noticeboard', name: 'Neighborhood Noticeboard', x: 4.4, z: -2.2, interactRadius: 2.3 },
+  { id: 'mirror_pond', name: 'Mirror Pond Bank', x: 1.8, z: 10.6, interactRadius: 2.6 },
 ];
+
+export interface PropInteractionMetrics {
+  inRange: boolean;
+  scoreDistance: number;
+  focusPos: Vec2;
+  approachPos: Vec2;
+  splashPos: Vec2;
+}
+
+const FOUNTAIN_CENTER: Vec2 = { x: 0, z: 1.5 };
+const FOUNTAIN_BASIN_RADIUS = 2.46;
+const POND_CENTER: Vec2 = { x: 1.6, z: 14.0 };
+const POND_SHORE_BOX = { minX: -2.0, maxX: 5.62, minZ: 11.24, maxZ: 16.6 };
+
+/**
+ * Computes perimeter-aware interaction reachability, water/feature focus target, walkable approach spot,
+ * and splash impact point for every landmark prop — ensuring multi-sided access for Fountain and Mirror Pond.
+ */
+export function getPropInteractionMetrics(
+  propId: PropInteractableId,
+  fromPos: Vec2,
+  actorRadius = 0.48,
+): PropInteractionMetrics {
+  if (propId === 'fountain_plaza') {
+    const dx = fromPos.x - FOUNTAIN_CENTER.x;
+    const dz = fromPos.z - FOUNTAIN_CENTER.z;
+    const distCenter = Math.hypot(dx, dz);
+    const nx = distCenter > 0.01 ? dx / distCenter : 0;
+    const nz = distCenter > 0.01 ? dz / distCenter : 1;
+    const rimDist = Math.max(0, distCenter - FOUNTAIN_BASIN_RADIUS);
+    const approachRadius = FOUNTAIN_BASIN_RADIUS + actorRadius + 0.34;
+    const candidateApproach: Vec2 = {
+      x: FOUNTAIN_CENTER.x + nx * approachRadius,
+      z: FOUNTAIN_CENTER.z + nz * approachRadius,
+    };
+    const approachPos = isPointWalkable(candidateApproach.x, candidateApproach.z, actorRadius)
+      ? candidateApproach
+      : { x: 0, z: FOUNTAIN_CENTER.z + approachRadius };
+    return {
+      inRange: rimDist <= 1.65,
+      scoreDistance: rimDist + 1.05,
+      focusPos: { ...FOUNTAIN_CENTER },
+      approachPos,
+      splashPos: {
+        x: FOUNTAIN_CENTER.x + nx * 1.18,
+        z: FOUNTAIN_CENTER.z + nz * 1.18,
+      },
+    };
+  }
+
+  if (propId === 'mirror_pond') {
+    const onBridge =
+      fromPos.x >= -3.65 &&
+      fromPos.x <= -2.05 &&
+      fromPos.z >= 11.35 &&
+      fromPos.z <= 16.65;
+
+    const clampedX = Math.max(POND_SHORE_BOX.minX, Math.min(POND_SHORE_BOX.maxX, fromPos.x));
+    const clampedZ = Math.max(POND_SHORE_BOX.minZ, Math.min(POND_SHORE_BOX.maxZ, fromPos.z));
+    const dx = fromPos.x - clampedX;
+    const dz = fromPos.z - clampedZ;
+    const shoreDist = Math.hypot(dx, dz);
+
+    // Exclude west hollow-oak bank (x < -2.1) unless player is standing on the cedar bridge
+    const bankAccessible = fromPos.x >= -2.1 || onBridge;
+    const inRange = onBridge || (bankAccessible && shoreDist <= 1.65);
+
+    // Direction pointing into pond water from player
+    const toCenterDx = POND_CENTER.x - clampedX;
+    const toCenterDz = POND_CENTER.z - clampedZ;
+    const toCenterLen = Math.hypot(toCenterDx, toCenterDz) || 1;
+    const splashPos: Vec2 = onBridge
+      ? { x: -0.4, z: Math.max(12.6, Math.min(15.4, fromPos.z)) }
+      : {
+          x: Math.max(-1.4, Math.min(4.7, clampedX + (toCenterDx / toCenterLen) * 1.45)),
+          z: Math.max(12.3, Math.min(15.7, clampedZ + (toCenterDz / toCenterLen) * 1.45)),
+        };
+
+    // Walkable shore approach spot outside pond obstacle box
+    let outX = dx;
+    let outZ = dz;
+    if (shoreDist < 0.05) {
+      outX = 0;
+      outZ = -1;
+    } else {
+      outX /= shoreDist;
+      outZ /= shoreDist;
+    }
+    const offsetOut = actorRadius + 0.36;
+    let candidateApproach: Vec2 = {
+      x: clampedX + outX * offsetOut,
+      z: clampedZ + outZ * offsetOut,
+    };
+    if (!isPointWalkable(candidateApproach.x, candidateApproach.z, actorRadius)) {
+      candidateApproach = { x: 1.8, z: 10.5 };
+    }
+
+    return {
+      inRange,
+      scoreDistance: (onBridge ? 0.85 : shoreDist) + 0.5,
+      focusPos: splashPos,
+      approachPos: candidateApproach,
+      splashPos,
+    };
+  }
+
+  const def = PROP_INTERACTABLES.find((p) => p.id === propId)!;
+  const dist = distance2D(fromPos, { x: def.x, z: def.z });
+  const focusPos: Vec2 =
+    propId === 'gazebo_bell'
+      ? { x: 0, z: -9.5 }
+      : propId === 'hollow_oak'
+      ? { x: -6.2, z: 15.6 }
+      : propId === 'plaza_noticeboard'
+      ? { x: 4.4, z: -3.2 }
+      : propId === 'player_door'
+      ? { x: -10.8, z: 10.0 }
+      : { x: def.x, z: def.z };
+
+  return {
+    inRange: dist <= def.interactRadius,
+    scoreDistance: dist,
+    focusPos,
+    approachPos: { x: def.x, z: def.z },
+    splashPos: focusPos,
+  };
+}
 
 export function distance2D(a: Vec2, b: Vec2): number {
   const dx = a.x - b.x;
@@ -227,8 +357,8 @@ export function distance2D(a: Vec2, b: Vec2): number {
  * across Mirror Pond's cambered cedar footbridge instead of clipping through its planks.
  */
 export function getGroundHeightAt(x: number, z: number): number {
-  // Mirror Pond Cedar Footbridge at x = -2.9, width ~2.14, z = 11.45..16.55
-  if (x >= -4.02 && x <= -1.78 && z >= 11.4 && z <= 16.6) {
+  // Mirror Pond Cedar Footbridge at x = -2.9, deck width 1.86 (-3.83..-1.97), z = 11.45..16.55
+  if (x >= -3.88 && x <= -1.92 && z >= 11.4 && z <= 16.6) {
     const t = (z - 14.0) / 4.6; // -0.56..+0.56
     const normalized = Math.max(-0.5, Math.min(0.5, t));
     const arch = 0.24 + (1 - 4 * normalized * normalized) * 0.18;

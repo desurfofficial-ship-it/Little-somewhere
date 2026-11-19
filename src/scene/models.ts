@@ -319,6 +319,35 @@ export interface FountainRig {
   group: THREE.Group;
   waterMesh: THREE.Mesh;
   spoutParticles: THREE.Group;
+  clogDebrisGroup?: THREE.Group;
+  submergedCoinsGroup?: THREE.Group;
+  cascadeGroup?: THREE.Group;
+  splashRings?: THREE.Mesh[];
+  waterMat?: THREE.MeshStandardMaterial;
+  streamMat?: THREE.MeshStandardMaterial;
+}
+
+export interface KoiFishRig {
+  group: THREE.Group;
+  tailPivot: THREE.Group;
+  centerX: number;
+  centerZ: number;
+  radiusX: number;
+  radiusZ: number;
+  speed: number;
+  phaseOffset: number;
+}
+
+export interface MirrorPondRig {
+  group: THREE.Group;
+  waterMesh: THREE.Mesh;
+  waterMat: THREE.MeshStandardMaterial;
+  koiFishes: KoiFishRig[];
+  lilyPadGroups: THREE.Group[];
+  lilyBlooms: THREE.Mesh[];
+  reedStalks: THREE.Group[];
+  dragonflies: THREE.Group[];
+  sailboat: THREE.Group;
 }
 
 export function buildStoneFountain(): FountainRig {

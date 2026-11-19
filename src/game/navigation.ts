@@ -19,9 +19,9 @@ export const NAV_NODES: readonly NavNode[] = [
   { id: 'willow_mailbox', pos: { x: -8.8, z: 6.8 } },
   { id: 'willow_porch', pos: { x: -8.5, z: 9.8 } },
   { id: 'pond_west_top', pos: { x: -5.2, z: 9.8 } },
-  { id: 'bridge_north', pos: { x: -3.8, z: 12.2 } },
-  { id: 'pond_bank_sw', pos: { x: -4.2, z: 14.2 } },
-  { id: 'pond_south_w', pos: { x: -3.6, z: 17.8 } },
+  { id: 'bridge_north', pos: { x: -4.35, z: 11.45 } },
+  { id: 'pond_bank_sw', pos: { x: -4.35, z: 14.2 } },
+  { id: 'pond_south_w', pos: { x: -4.0, z: 17.8 } },
 
   // North promenade & Plaza north
   { id: 'gazebo_west', pos: { x: -3.6, z: -6.5 } },
