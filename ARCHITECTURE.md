@@ -45,7 +45,9 @@
 │  • storylines.ts — Multi-stage storyline registry, state & journal views   │
 │  • relationships.ts — Player<->NPC & NPC<->NPC tiers, daily cap, events    │
 │  • dialogueEngine.ts — Declarative selector, non-omniscient memory & gossip│
-│  • narrative.ts  — Story topics, Bell, 4 arcs + conflict, everyday topics  │
+│  • dialogue/     — Content modules: quest, personal, events, interiors,   │
+│                    everyday (aggregated by dialogue/index.ts)              │
+│  • narrative.ts  — DIALOGUE_TOPICS facade re-export, quest cues, env state │
 │  • actions.ts    — Dialogue, home/greenhouse stations, gifting, prop &     │
 │                    next-day reducers                                      │
 │  • environment.ts— 5-layer Environment Composer (time/weather/season/props)│
@@ -134,7 +136,7 @@ computeEnvironmentState(world.flags)
 | `src/game/cottage.ts`, `greenhouse.ts`, `inventory.ts` | Willow Step Cottage cutaway bounds/stations/waypoints, Sunbeam Greenhouse cutaway + 4-pot shared growing-corner registry (crops, stage math, nightly growth), 21 satchel items, hearth recipes, resident gift preferences |
 | `src/game/residents.ts`, `simulation.ts` | 10 founding resident definitions, traits, schedules, needs/emotions, encounters & gossip triggers |
 | `src/game/memories.ts`, `storylines.ts`, `journal.ts`, `relationships.ts` | Bounded per-NPC subjective memories/gossip, multi-stage personal/conflict storylines, player-knowledge Pocket Journal projection, tiers & events |
-| `src/game/narrative.ts` / `dialogueEngine.ts` | Declarative selector, knowledge-based gossip & reactions, Bell, 5 personal arcs (incl. Orchard Gathering) + conflict, everyday life topics, `computeEnvironmentState()` |
+| `src/game/dialogue/` (19 modules + `index.ts`), `narrative.ts` / `dialogueEngine.ts` | Dialogue content modules (77 topics: quest, personal arcs, events, interiors, everyday) aggregated in original order; `narrative.ts` re-exports `DIALOGUE_TOPICS` + quest cues & `computeEnvironmentState()`; `dialogueEngine.ts` = declarative selector, knowledge-based gossip & reactions |
 | `src/game/actions.ts`, `playerController.ts` | Pure state transition reducers (cottage cooking/vase/keepsakes, greenhouse sow/water/harvest/notes, gifting, gathering, water), locomotion & bench logic |
 | `src/game/environment.ts` | Pure 5-Layer Environment Composer (time, seeded weather, season, flags, NPC touches) |
 | `src/game/migrations.ts`, `storage.ts`, `audio.ts` | `v1 -> … -> v7` migrations, `localStorage` autosave + revision hash + greenhouse-aware day rollover, Web Audio SFX |

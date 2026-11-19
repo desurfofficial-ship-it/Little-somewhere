@@ -1,0 +1,1192 @@
+{
+ "count": 77,
+ "topics": [
+  {
+   "index": 0,
+   "id": "quest_pip_intro",
+   "residentId": "pip",
+   "category": "quest_milestone",
+   "priority": 50,
+   "historyScope": null,
+   "condition": {
+    "flagsFalse": [
+     "heardBellMystery"
+    ]
+   }
+  },
+  {
+   "index": 1,
+   "id": "quest_nora_postcard",
+   "residentId": "nora",
+   "category": "quest_milestone",
+   "priority": 45,
+   "historyScope": null,
+   "condition": {
+    "flagsFalse": [
+     "foundPostcard"
+    ]
+   }
+  },
+  {
+   "index": 2,
+   "id": "quest_jun_postcard",
+   "residentId": "jun",
+   "category": "quest_milestone",
+   "priority": 48,
+   "historyScope": null,
+   "condition": {
+    "flagsTrue": [
+     "foundPostcard"
+    ],
+    "flagsFalse": [
+     "deliveredPostcard"
+    ]
+   }
+  },
+  {
+   "index": 3,
+   "id": "quest_arthur_bell",
+   "residentId": "arthur",
+   "category": "quest_milestone",
+   "priority": 44,
+   "historyScope": null,
+   "condition": {
+    "flagsFalse": [
+     "bellRestored"
+    ]
+   }
+  },
+  {
+   "index": 4,
+   "id": "quest_clara_rift",
+   "residentId": "clara",
+   "category": "quest_milestone",
+   "priority": 40,
+   "historyScope": null,
+   "condition": {
+    "flagsFalse": [
+     "claraArthurReconciled"
+    ],
+    "maxSeenCount": 2
+   }
+  },
+  {
+   "index": 5,
+   "id": "conflict_arthur_clara_tension",
+   "residentId": "arthur",
+   "category": "conflict_reconciliation",
+   "priority": 12,
+   "historyScope": null,
+   "condition": {
+    "minNpcTension": {
+     "a": "arthur",
+     "b": "clara",
+     "min": 35
+    },
+    "flagsFalse": [
+     "claraArthurReconciled"
+    ],
+    "notSeenToday": true
+   }
+  },
+  {
+   "index": 6,
+   "id": "conflict_barnaby_arthur_rafters",
+   "residentId": "barnaby",
+   "category": "conflict_reconciliation",
+   "priority": 6,
+   "historyScope": null,
+   "condition": {
+    "flagsTrue": [
+     "borrowedBarnabyLadder"
+    ],
+    "flagsFalse": [
+     "bellRestored"
+    ],
+    "maxNpcAffinity": {
+     "a": "arthur",
+     "b": "barnaby",
+     "max": 62
+    },
+    "notSeenToday": true
+   }
+  },
+  {
+   "index": 7,
+   "id": "side_pip_zine_1",
+   "residentId": "pip",
+   "category": "personal_story",
+   "priority": 15,
+   "historyScope": null,
+   "condition": {
+    "requiresStoryline": {
+     "id": "side_pip_zine",
+     "status": [
+      "available"
+     ],
+     "maxStage": 0
+    },
+    "sideFlagsFalse": [
+     "pipZineStarted"
+    ],
+    "minTrust": 1,
+    "notSeenToday": true
+   }
+  },
+  {
+   "index": 8,
+   "id": "side_toby_zine_art",
+   "residentId": "toby",
+   "category": "personal_story",
+   "priority": 19,
+   "historyScope": null,
+   "condition": {
+    "requiresStoryline": {
+     "id": "side_pip_zine",
+     "status": [
+      "active"
+     ],
+     "minStage": 1,
+     "maxStage": 1
+    },
+    "notSeenToday": true
+   }
+  },
+  {
+   "index": 9,
+   "id": "side_clara_zine_kitchen",
+   "residentId": "clara",
+   "category": "personal_story",
+   "priority": 19,
+   "historyScope": null,
+   "condition": {
+    "requiresStoryline": {
+     "id": "side_pip_zine",
+     "status": [
+      "active"
+     ],
+     "minStage": 1,
+     "maxStage": 1
+    },
+    "notSeenToday": true
+   }
+  },
+  {
+   "index": 10,
+   "id": "side_nora_zine_2",
+   "residentId": "nora",
+   "category": "personal_story",
+   "priority": 18,
+   "historyScope": null,
+   "condition": {
+    "requiresStoryline": {
+     "id": "side_pip_zine",
+     "status": [
+      "active"
+     ],
+     "minStage": 1,
+     "maxStage": 2
+    },
+    "sideFlagsFalse": [
+     "pipZinePrinted"
+    ],
+    "notSeenToday": true
+   }
+  },
+  {
+   "index": 11,
+   "id": "side_mina_herbloaf_1",
+   "residentId": "mina",
+   "category": "personal_story",
+   "priority": 14,
+   "historyScope": null,
+   "condition": {
+    "requiresStoryline": {
+     "id": "side_herb_loaf",
+     "status": [
+      "available"
+     ],
+     "maxStage": 0
+    },
+    "sideFlagsFalse": [
+     "herbLoafStarted"
+    ],
+    "minTrust": 1,
+    "notSeenToday": true
+   }
+  },
+  {
+   "index": 12,
+   "id": "side_sora_herbloaf_tasting",
+   "residentId": "sora",
+   "category": "personal_story",
+   "priority": 19,
+   "historyScope": null,
+   "condition": {
+    "requiresStoryline": {
+     "id": "side_herb_loaf",
+     "status": [
+      "active"
+     ],
+     "minStage": 1,
+     "maxStage": 1
+    },
+    "notSeenToday": true
+   }
+  },
+  {
+   "index": 13,
+   "id": "side_clara_herbloaf_2",
+   "residentId": "clara",
+   "category": "personal_story",
+   "priority": 17,
+   "historyScope": null,
+   "condition": {
+    "requiresStoryline": {
+     "id": "side_herb_loaf",
+     "status": [
+      "active"
+     ],
+     "minStage": 1,
+     "maxStage": 2
+    },
+    "sideFlagsFalse": [
+     "herbLoafShared"
+    ],
+    "notSeenToday": true
+   }
+  },
+  {
+   "index": 14,
+   "id": "side_sora_stand_1",
+   "residentId": "sora",
+   "category": "personal_story",
+   "priority": 14,
+   "historyScope": null,
+   "condition": {
+    "requiresStoryline": {
+     "id": "side_pond_stand",
+     "status": [
+      "available"
+     ],
+     "maxStage": 0
+    },
+    "sideFlagsFalse": [
+     "pondStandStarted"
+    ],
+    "minTrust": 1,
+    "notSeenToday": true
+   }
+  },
+  {
+   "index": 15,
+   "id": "side_toby_stand_sketch",
+   "residentId": "toby",
+   "category": "personal_story",
+   "priority": 19,
+   "historyScope": null,
+   "condition": {
+    "requiresStoryline": {
+     "id": "side_pond_stand",
+     "status": [
+      "active"
+     ],
+     "minStage": 1,
+     "maxStage": 1
+    },
+    "notSeenToday": true
+   }
+  },
+  {
+   "index": 16,
+   "id": "side_barnaby_stand_2",
+   "residentId": "barnaby",
+   "category": "personal_story",
+   "priority": 17,
+   "historyScope": null,
+   "condition": {
+    "requiresStoryline": {
+     "id": "side_pond_stand",
+     "status": [
+      "active"
+     ],
+     "minStage": 1,
+     "maxStage": 2
+    },
+    "sideFlagsFalse": [
+     "pondStandBuilt"
+    ],
+    "notSeenToday": true
+   }
+  },
+  {
+   "index": 17,
+   "id": "side_jun_watch_1",
+   "residentId": "jun",
+   "category": "personal_story",
+   "priority": 13,
+   "historyScope": null,
+   "condition": {
+    "requiresStoryline": {
+     "id": "side_jun_watch",
+     "status": [
+      "available"
+     ],
+     "maxStage": 0
+    },
+    "sideFlagsFalse": [
+     "watchTuneStarted"
+    ],
+    "flagsTrue": [
+     "deliveredPostcard"
+    ],
+    "notSeenToday": true
+   }
+  },
+  {
+   "index": 18,
+   "id": "side_nora_watch_check",
+   "residentId": "nora",
+   "category": "personal_story",
+   "priority": 19,
+   "historyScope": null,
+   "condition": {
+    "requiresStoryline": {
+     "id": "side_jun_watch",
+     "status": [
+      "active"
+     ],
+     "minStage": 1,
+     "maxStage": 1
+    },
+    "notSeenToday": true
+   }
+  },
+  {
+   "index": 19,
+   "id": "side_arthur_watch_2",
+   "residentId": "arthur",
+   "category": "personal_story",
+   "priority": 16,
+   "historyScope": null,
+   "condition": {
+    "requiresStoryline": {
+     "id": "side_jun_watch",
+     "status": [
+      "active"
+     ],
+     "minStage": 1,
+     "maxStage": 2
+    },
+    "sideFlagsFalse": [
+     "watchTuneFinished"
+    ],
+    "notSeenToday": true
+   }
+  },
+  {
+   "index": 20,
+   "id": "conflict_lanterns_1_spark",
+   "residentId": "toby",
+   "category": "conflict_reconciliation",
+   "priority": 7,
+   "historyScope": null,
+   "condition": {
+    "flagsTrue": [
+     "lanternsLit"
+    ],
+    "requiresStoryline": {
+     "id": "conflict_plaza_lanterns",
+     "status": [
+      "available"
+     ],
+     "maxStage": 0
+    },
+    "notSeenToday": true
+   }
+  },
+  {
+   "index": 21,
+   "id": "conflict_lanterns_2_barnaby",
+   "residentId": "barnaby",
+   "category": "conflict_reconciliation",
+   "priority": 7,
+   "historyScope": null,
+   "condition": {
+    "requiresStoryline": {
+     "id": "conflict_plaza_lanterns",
+     "status": [
+      "active"
+     ],
+     "minStage": 1,
+     "maxStage": 1
+    },
+    "notSeenToday": true
+   }
+  },
+  {
+   "index": 22,
+   "id": "conflict_lanterns_3_resolve",
+   "residentId": "nora",
+   "category": "conflict_reconciliation",
+   "priority": 19,
+   "historyScope": null,
+   "condition": {
+    "requiresStoryline": {
+     "id": "conflict_plaza_lanterns",
+     "status": [
+      "active"
+     ],
+     "minStage": 2,
+     "maxStage": 2,
+     "requireCooldownCleared": true
+    }
+   }
+  },
+  {
+   "index": 23,
+   "id": "storyline_epilogue_lanterns",
+   "residentId": "any",
+   "category": "event_reaction",
+   "priority": 9,
+   "historyScope": null,
+   "condition": {
+    "requiresStoryline": {
+     "id": "conflict_plaza_lanterns",
+     "status": [
+      "completed"
+     ]
+    },
+    "requiresNpcMemory": {
+     "tags": [
+      "lanterns_resolved_compromise",
+      "lanterns_resolved_space",
+      "lanterns_resolved_harmony"
+     ],
+     "unmentionedOnly": true
+    },
+    "notSeenToday": true
+   }
+  },
+  {
+   "index": 24,
+   "id": "storyline_epilogue_zine",
+   "residentId": "any",
+   "category": "event_reaction",
+   "priority": 8,
+   "historyScope": null,
+   "condition": {
+    "requiresStoryline": {
+     "id": "side_pip_zine",
+     "status": [
+      "completed"
+     ]
+    },
+    "requiresNpcMemory": {
+     "tags": [
+      "zine_published"
+     ],
+     "unmentionedOnly": true
+    },
+    "notSeenToday": true
+   }
+  },
+  {
+   "index": 25,
+   "id": "side_rowan_orchard_1",
+   "residentId": "rowan",
+   "category": "personal_story",
+   "priority": 8,
+   "historyScope": null,
+   "condition": {
+    "requiresStoryline": {
+     "id": "side_orchard_gathering",
+     "status": [
+      "available"
+     ],
+     "maxStage": 0
+    },
+    "notSeenToday": true
+   }
+  },
+  {
+   "index": 26,
+   "id": "side_clara_orchard_tart",
+   "residentId": "clara",
+   "category": "personal_story",
+   "priority": 16,
+   "historyScope": null,
+   "condition": {
+    "requiresStoryline": {
+     "id": "side_orchard_gathering",
+     "status": [
+      "active"
+     ],
+     "minStage": 1,
+     "maxStage": 1
+    },
+    "notSeenToday": true
+   }
+  },
+  {
+   "index": 27,
+   "id": "side_mina_orchard_tea",
+   "residentId": "mina",
+   "category": "personal_story",
+   "priority": 16,
+   "historyScope": null,
+   "condition": {
+    "requiresStoryline": {
+     "id": "side_orchard_gathering",
+     "status": [
+      "active"
+     ],
+     "minStage": 1,
+     "maxStage": 1
+    },
+    "notSeenToday": true
+   }
+  },
+  {
+   "index": 28,
+   "id": "side_rowan_orchard_2_host",
+   "residentId": "rowan",
+   "category": "personal_story",
+   "priority": 17,
+   "historyScope": null,
+   "condition": {
+    "requiresStoryline": {
+     "id": "side_orchard_gathering",
+     "status": [
+      "active"
+     ],
+     "minStage": 2,
+     "maxStage": 2
+    }
+   }
+  },
+  {
+   "index": 29,
+   "id": "storyline_epilogue_orchard",
+   "residentId": "any",
+   "category": "event_reaction",
+   "priority": 8,
+   "historyScope": null,
+   "condition": {
+    "requiresStoryline": {
+     "id": "side_orchard_gathering",
+     "status": [
+      "completed"
+     ]
+    },
+    "requiresNpcMemory": {
+     "tags": [
+      "orchard_gathering_hosted"
+     ],
+     "unmentionedOnly": true
+    },
+    "notSeenToday": true
+   }
+  },
+  {
+   "index": 30,
+   "id": "event_bell_celebration",
+   "residentId": "any",
+   "category": "event_reaction",
+   "priority": 10,
+   "historyScope": null,
+   "condition": {
+    "requiresNpcMemory": {
+     "tags": [
+      "bell_ring",
+      "bell_chime",
+      "bell_restored"
+     ],
+     "unmentionedOnly": true,
+     "maxDaysOld": 2
+    },
+    "notSeenToday": true
+   }
+  },
+  {
+   "index": 31,
+   "id": "event_fountain_repair",
+   "residentId": "any",
+   "category": "event_reaction",
+   "priority": 8,
+   "historyScope": null,
+   "condition": {
+    "requiresNpcMemory": {
+     "tags": [
+      "fountain_fixed"
+     ],
+     "unmentionedOnly": true
+    },
+    "notSeenToday": true,
+    "maxSeenCount": 1
+   }
+  },
+  {
+   "index": 32,
+   "id": "event_gift_thanks",
+   "residentId": "any",
+   "category": "event_reaction",
+   "priority": 18,
+   "historyScope": null,
+   "condition": {
+    "requiresNpcMemory": {
+     "tags": [
+      "player_gift",
+      "player_help_observed"
+     ],
+     "unmentionedOnly": true,
+     "maxDaysOld": 2
+    },
+    "notSeenToday": true
+   }
+  },
+  {
+   "index": 33,
+   "id": "gossip_clara_mina_loaves",
+   "residentId": "clara",
+   "category": "npc_gossip",
+   "priority": 5,
+   "historyScope": null,
+   "condition": {
+    "minNpcAffinity": {
+     "a": "clara",
+     "b": "mina",
+     "min": 55
+    },
+    "notSeenToday": true
+   }
+  },
+  {
+   "index": 34,
+   "id": "gossip_pip_toby_pond",
+   "residentId": "toby",
+   "category": "npc_gossip",
+   "priority": 5,
+   "historyScope": null,
+   "condition": {
+    "minNpcAffinity": {
+     "a": "pip",
+     "b": "toby",
+     "min": 45
+    },
+    "notSeenToday": true
+   }
+  },
+  {
+   "index": 35,
+   "id": "gossip_jun_clara_bond",
+   "residentId": "jun",
+   "category": "npc_gossip",
+   "priority": 4,
+   "historyScope": null,
+   "condition": {
+    "playerRelationWith": {
+     "residentId": "clara",
+     "minTier": "friendly"
+    },
+    "notSeenToday": true
+   }
+  },
+  {
+   "index": 36,
+   "id": "gossip_sora_mina_bond",
+   "residentId": "sora",
+   "category": "npc_gossip",
+   "priority": 4,
+   "historyScope": null,
+   "condition": {
+    "playerRelationWith": {
+     "residentId": "mina",
+     "minTier": "friendly"
+    },
+    "notSeenToday": true
+   }
+  },
+  {
+   "index": 37,
+   "id": "gossip_nora_arthur_bond",
+   "residentId": "nora",
+   "category": "npc_gossip",
+   "priority": 4,
+   "historyScope": null,
+   "condition": {
+    "playerRelationWith": {
+     "residentId": "arthur",
+     "minTier": "close"
+    },
+    "notSeenToday": true
+   }
+  },
+  {
+   "index": 38,
+   "id": "gossip_barnaby_pip_acquaintance",
+   "residentId": "barnaby",
+   "category": "npc_gossip",
+   "priority": 4,
+   "historyScope": null,
+   "condition": {
+    "playerRelationWith": {
+     "residentId": "pip",
+     "minTier": "acquaintance",
+     "maxTier": "friendly"
+    },
+    "notSeenToday": true
+   }
+  },
+  {
+   "index": 39,
+   "id": "gossip_third_party_relation",
+   "residentId": "any",
+   "category": "npc_gossip",
+   "priority": 3,
+   "historyScope": null,
+   "condition": {
+    "requiresThirdPartyGossip": true,
+    "notSeenToday": true
+   }
+  },
+  {
+   "index": 40,
+   "id": "tier_acquaintance_warmup",
+   "residentId": "any",
+   "category": "relationship_tier",
+   "priority": 7,
+   "historyScope": null,
+   "condition": {
+    "minTier": "acquaintance",
+    "maxTier": "acquaintance",
+    "talkedCountMin": 2,
+    "notSeenToday": true
+   }
+  },
+  {
+   "index": 41,
+   "id": "tier_friendly_confide",
+   "residentId": "any",
+   "category": "relationship_tier",
+   "priority": 7,
+   "historyScope": null,
+   "condition": {
+    "minTier": "friendly",
+    "maxTier": "friendly",
+    "notSeenToday": true
+   }
+  },
+  {
+   "index": 42,
+   "id": "tier_close_kindred_bond",
+   "residentId": "any",
+   "category": "relationship_tier",
+   "priority": 8,
+   "historyScope": null,
+   "condition": {
+    "minAffinity": 60,
+    "maxTier": "close",
+    "notSeenToday": true
+   }
+  },
+  {
+   "index": 43,
+   "id": "tier_kindred_promise",
+   "residentId": "any",
+   "category": "relationship_tier",
+   "priority": 9,
+   "historyScope": null,
+   "condition": {
+    "minTier": "kindred",
+    "notSeenToday": true
+   }
+  },
+  {
+   "index": 44,
+   "id": "emotion_guarded_tension",
+   "residentId": "any",
+   "category": "emotion_reaction",
+   "priority": 7,
+   "historyScope": null,
+   "condition": {
+    "emotions": [
+     "frustrated",
+     "angry"
+    ],
+    "notSeenToday": true
+   }
+  },
+  {
+   "index": 45,
+   "id": "emotion_tired_check",
+   "residentId": "any",
+   "category": "emotion_reaction",
+   "priority": 6,
+   "historyScope": null,
+   "condition": {
+    "emotions": [
+     "tired"
+    ],
+    "notSeenToday": true
+   }
+  },
+  {
+   "index": 46,
+   "id": "weather_rain_reflection",
+   "residentId": "any",
+   "category": "weather_season",
+   "priority": 7,
+   "historyScope": null,
+   "condition": {
+    "weathers": [
+     "light_rain"
+    ],
+    "notSeenToday": true
+   }
+  },
+  {
+   "index": 47,
+   "id": "weather_misty_breezy_note",
+   "residentId": "any",
+   "category": "weather_season",
+   "priority": 4,
+   "historyScope": null,
+   "condition": {
+    "weathers": [
+     "misty_morning",
+     "breezy"
+    ],
+    "notSeenToday": true
+   }
+  },
+  {
+   "index": 48,
+   "id": "daily_clara_crust",
+   "residentId": "clara",
+   "category": "daily_slice",
+   "priority": 2,
+   "historyScope": null,
+   "condition": {}
+  },
+  {
+   "index": 49,
+   "id": "daily_clara_tables",
+   "residentId": "clara",
+   "category": "daily_slice",
+   "priority": 2,
+   "historyScope": null,
+   "condition": {}
+  },
+  {
+   "index": 50,
+   "id": "daily_arthur_springs",
+   "residentId": "arthur",
+   "category": "daily_slice",
+   "priority": 2,
+   "historyScope": null,
+   "condition": {}
+  },
+  {
+   "index": 51,
+   "id": "daily_arthur_peace",
+   "residentId": "arthur",
+   "category": "daily_slice",
+   "priority": 3,
+   "historyScope": null,
+   "condition": {
+    "flagsTrue": [
+     "bellRestored"
+    ]
+   }
+  },
+  {
+   "index": 52,
+   "id": "daily_mina_soil",
+   "residentId": "mina",
+   "category": "daily_slice",
+   "priority": 2,
+   "historyScope": null,
+   "condition": {}
+  },
+  {
+   "index": 53,
+   "id": "daily_mina_chamomile",
+   "residentId": "mina",
+   "category": "daily_slice",
+   "priority": 2,
+   "historyScope": null,
+   "condition": {}
+  },
+  {
+   "index": 54,
+   "id": "daily_jun_route",
+   "residentId": "jun",
+   "category": "daily_slice",
+   "priority": 2,
+   "historyScope": null,
+   "condition": {}
+  },
+  {
+   "index": 55,
+   "id": "daily_jun_stamps",
+   "residentId": "jun",
+   "category": "daily_slice",
+   "priority": 2,
+   "historyScope": null,
+   "condition": {}
+  },
+  {
+   "index": 56,
+   "id": "daily_barnaby_craft",
+   "residentId": "barnaby",
+   "category": "daily_slice",
+   "priority": 2,
+   "historyScope": null,
+   "condition": {}
+  },
+  {
+   "index": 57,
+   "id": "daily_barnaby_benches",
+   "residentId": "barnaby",
+   "category": "daily_slice",
+   "priority": 2,
+   "historyScope": null,
+   "condition": {}
+  },
+  {
+   "index": 58,
+   "id": "daily_sora_chord",
+   "residentId": "sora",
+   "category": "daily_slice",
+   "priority": 2,
+   "historyScope": null,
+   "condition": {}
+  },
+  {
+   "index": 59,
+   "id": "daily_sora_tea",
+   "residentId": "sora",
+   "category": "daily_slice",
+   "priority": 2,
+   "historyScope": null,
+   "condition": {}
+  },
+  {
+   "index": 60,
+   "id": "daily_toby_sketch",
+   "residentId": "toby",
+   "category": "daily_slice",
+   "priority": 2,
+   "historyScope": null,
+   "condition": {}
+  },
+  {
+   "index": 61,
+   "id": "daily_toby_charcoal",
+   "residentId": "toby",
+   "category": "daily_slice",
+   "priority": 2,
+   "historyScope": null,
+   "condition": {}
+  },
+  {
+   "index": 62,
+   "id": "daily_nora_lanterns",
+   "residentId": "nora",
+   "category": "daily_slice",
+   "priority": 2,
+   "historyScope": null,
+   "condition": {
+    "flagsTrue": [
+     "foundPostcard"
+    ]
+   }
+  },
+  {
+   "index": 63,
+   "id": "daily_nora_margins",
+   "residentId": "nora",
+   "category": "daily_slice",
+   "priority": 2,
+   "historyScope": null,
+   "condition": {}
+  },
+  {
+   "index": 64,
+   "id": "daily_pip_carp",
+   "residentId": "pip",
+   "category": "daily_slice",
+   "priority": 2,
+   "historyScope": null,
+   "condition": {
+    "flagsTrue": [
+     "heardBellMystery"
+    ]
+   }
+  },
+  {
+   "index": 65,
+   "id": "daily_pip_cinnamon",
+   "residentId": "pip",
+   "category": "daily_slice",
+   "priority": 2,
+   "historyScope": null,
+   "condition": {
+    "flagsTrue": [
+     "heardBellMystery"
+    ]
+   }
+  },
+  {
+   "index": 66,
+   "id": "everyday_cottage_hearth",
+   "residentId": "any",
+   "category": "daily_slice",
+   "priority": 4,
+   "historyScope": null,
+   "condition": {
+    "notSeenToday": true,
+    "requiresNpcMemory": {
+     "tag": "player_gift",
+     "maxDaysOld": 4
+    }
+   }
+  },
+  {
+   "index": 67,
+   "id": "everyday_hearth_aroma",
+   "residentId": "clara",
+   "category": "daily_slice",
+   "priority": 4,
+   "historyScope": null,
+   "condition": {
+    "notSeenToday": true,
+    "talkedCountMin": 1
+   }
+  },
+  {
+   "index": 68,
+   "id": "everyday_orchard_gathering",
+   "residentId": "mina",
+   "category": "daily_slice",
+   "priority": 4,
+   "historyScope": null,
+   "condition": {
+    "notSeenToday": true,
+    "talkedCountMin": 1
+   }
+  },
+  {
+   "index": 69,
+   "id": "everyday_cottage_keepsakes",
+   "residentId": "nora",
+   "category": "daily_slice",
+   "priority": 4,
+   "historyScope": null,
+   "condition": {
+    "notSeenToday": true,
+    "talkedCountMin": 1
+   }
+  },
+  {
+   "index": 70,
+   "id": "everyday_home_kettle_steam",
+   "residentId": "mina",
+   "category": "daily_slice",
+   "priority": 4,
+   "historyScope": null,
+   "condition": {
+    "notSeenToday": true,
+    "talkedCountMin": 1
+   }
+  },
+  {
+   "index": 71,
+   "id": "side_mina_greenhouse_corner",
+   "residentId": "mina",
+   "category": "personal_story",
+   "priority": 16,
+   "historyScope": null,
+   "condition": {
+    "requiresMet": true,
+    "sideFlagsFalse": [
+     "greenhousePlanted"
+    ]
+   }
+  },
+  {
+   "index": 72,
+   "id": "daily_mina_greenhouse_checkin",
+   "residentId": "mina",
+   "category": "daily_slice",
+   "priority": 15,
+   "historyScope": null,
+   "condition": {
+    "requiresMet": true,
+    "sideFlagsTrue": [
+     "greenhousePlanted"
+    ],
+    "notSeenToday": true
+   }
+  },
+  {
+   "index": 73,
+   "id": "side_clara_bakery_kitchen",
+   "residentId": "clara",
+   "category": "personal_story",
+   "priority": 16,
+   "historyScope": null,
+   "condition": {
+    "requiresMet": true,
+    "sideFlagsFalse": [
+     "bakeryVisited"
+    ]
+   }
+  },
+  {
+   "index": 74,
+   "id": "daily_clara_bakery_checkin",
+   "residentId": "clara",
+   "category": "daily_slice",
+   "priority": 15,
+   "historyScope": null,
+   "condition": {
+    "requiresMet": true,
+    "sideFlagsTrue": [
+     "bakeryVisited"
+    ],
+    "notSeenToday": true
+   }
+  },
+  {
+   "index": 75,
+   "id": "side_nora_reading_corner",
+   "residentId": "nora",
+   "category": "personal_story",
+   "priority": 16,
+   "historyScope": null,
+   "condition": {
+    "requiresMet": true,
+    "sideFlagsFalse": [
+     "nookVisited"
+    ]
+   }
+  },
+  {
+   "index": 76,
+   "id": "daily_nora_nook_checkin",
+   "residentId": "nora",
+   "category": "daily_slice",
+   "priority": 15,
+   "historyScope": null,
+   "condition": {
+    "requiresMet": true,
+    "sideFlagsTrue": [
+     "nookVisited"
+    ],
+    "notSeenToday": true
+   }
+  }
+ ]
+}
