@@ -6,6 +6,8 @@ class CozyAudioEngine {
   // Hearth crackle room-tone state (Pass 7): one noise bed + scheduled crackle pops.
   private hearthBed: { source: AudioBufferSourceNode; gain: GainNode } | null = null;
   private hearthPopTimer: number | null = null;
+  // Rain room-tone state (Pass 9): one looped patter bed, idempotent like the hearth loop.
+  private rainBed: { source: AudioBufferSourceNode; hiss: AudioBufferSourceNode } | null = null;
 
   private ensureContext(): AudioContext | null {
     if (this.muted) return null;
@@ -25,6 +27,7 @@ class CozyAudioEngine {
     this.muted = muted;
     if (muted) {
       this.playHearthAmbience(false);
+      this.playRainAmbience(false);
     }
   }
 
@@ -314,6 +317,78 @@ class CozyAudioEngine {
     tickGain.connect(ctx.destination);
     tick.start(now + 0.18);
     tick.stop(now + 0.26);
+  }
+
+  /**
+   * Soft rain room-tone (Pass 9): a looped low rumble bed plus a faint high patter
+   * hiss, so a rainy day is audible inside the cottage. Idempotent — calling start
+   * twice keeps one bed. Stops immediately when muted, unstarted, or back outdoors.
+   */
+  public playRainAmbience(start: boolean): void {
+    if (!start) {
+      if (this.rainBed) {
+        try {
+          this.rainBed.source.stop();
+        } catch {
+          // already stopped
+        }
+        try {
+          this.rainBed.hiss.stop();
+        } catch {
+          // already stopped
+        }
+        this.rainBed = null;
+      }
+      return;
+    }
+    if (this.rainBed || this.muted) return;
+    const ctx = this.ensureContext();
+    if (!ctx) return;
+    const now = ctx.currentTime;
+    // Layer 1: soft low rumble — the rain's weight on the roof
+    const bedSize = Math.floor(ctx.sampleRate * 2);
+    const bedBuf = ctx.createBuffer(1, bedSize, ctx.sampleRate);
+    const bedData = bedBuf.getChannelData(0);
+    let last = 0;
+    for (let i = 0; i < bedSize; i++) {
+      last = (last + (Math.random() * 2 - 1) * 0.06) * 0.98;
+      bedData[i] = last;
+    }
+    const src = ctx.createBufferSource();
+    src.buffer = bedBuf;
+    src.loop = true;
+    const lowFilter = ctx.createBiquadFilter();
+    lowFilter.type = 'lowpass';
+    lowFilter.frequency.value = 720;
+    const lowGain = ctx.createGain();
+    lowGain.gain.setValueAtTime(0.001, now);
+    lowGain.gain.linearRampToValueAtTime(0.016, now + 1.4);
+    src.connect(lowFilter);
+    lowFilter.connect(lowGain);
+    lowGain.connect(ctx.destination);
+    src.start(now);
+    // Layer 2: faint band-passed patter hiss — droplets on glass and leaves
+    const hissSize = Math.floor(ctx.sampleRate * 1.5);
+    const hissBuf = ctx.createBuffer(1, hissSize, ctx.sampleRate);
+    const hissData = hissBuf.getChannelData(0);
+    for (let i = 0; i < hissSize; i++) {
+      hissData[i] = Math.random() * 2 - 1;
+    }
+    const hiss = ctx.createBufferSource();
+    hiss.buffer = hissBuf;
+    hiss.loop = true;
+    const hissFilter = ctx.createBiquadFilter();
+    hissFilter.type = 'bandpass';
+    hissFilter.frequency.value = 2600;
+    hissFilter.Q.value = 0.8;
+    const hissGain = ctx.createGain();
+    hissGain.gain.setValueAtTime(0.001, now);
+    hissGain.gain.linearRampToValueAtTime(0.007, now + 1.8);
+    hiss.connect(hissFilter);
+    hissFilter.connect(hissGain);
+    hissGain.connect(ctx.destination);
+    hiss.start(now);
+    this.rainBed = { source: src, hiss };
   }
 
   /**

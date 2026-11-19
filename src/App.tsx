@@ -38,7 +38,7 @@ import {
 } from './game/storage';
 import { formatClock, getTimePhase } from './game/residents';
 import { advanceSimulationClock } from './game/time';
-import { buildResidentDialogue } from './game/narrative';
+import { buildMorningWakeLine, buildResidentDialogue } from './game/narrative';
 import {
   composeEnvironmentState,
   getSeasonLabel,
@@ -508,7 +508,14 @@ export default function App() {
           setActivePropId(null);
           setPropCard(null);
           cozyAudio.playMemoryChime();
-          showToast(`Good morning! Day ${nextDayWorld.day} begins in Little Somewhere.`);
+          // Pass 12: the wake toast names the weather & season the new day rolled.
+          const wakeLine = buildMorningWakeLine(
+            nextDayWorld.weather ?? 'sunlit',
+            nextDayWorld.season ?? 'spring',
+          );
+          showToast(
+            `Good morning! Day ${nextDayWorld.day} begins in Little Somewhere. ${wakeLine}`,
+          );
         });
       } else if (actionType === 'enter_cottage') {
         playSceneVeil(() => {

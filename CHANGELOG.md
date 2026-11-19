@@ -2,6 +2,22 @@
 
 All notable changes to **LITTLE SOMEWHERE** are documented in this file.
 
+## [0.5.0] — 2026-11-20
+
+### Added — Milestone 2C Polish Round 3 (Everyday Life Passes 8–12)
+- **A room that knows the weather & the hour** — rain streaks sliding down the west window, a translucent wet-glass veil with dimmed/cooling pane emissive, suppressed sun shafts and hushed dust motes in rain/mist, breezy-only linen curtain sway, winter sill frost wedges, and shelf clock hands that now read the actual in-game time (`cottageInterior.ts`, zero-GC reactive updates).
+- **Rain room-tone** — `playRainAmbience()`: looping low rumble + faint patter hiss, gated to rainy-day interiors on transitions only, layering under the hearth crackle, mute-respecting (`audio.ts`, `NeighborhoodCanvas.tsx`).
+- **The home breathes outside** — pure `computeChimneySmokeStrength()` gates the Willow Step Cottage chimney: clean while the hearth is cold, baseline smoke when lit, visibly harder while the kettle is warm (`cottage.ts`, `willowLaneDiorama.ts`).
+- **The neighborhood notices home rituals** — Mina's new `everyday_home_kettle_steam` daily-slice topic reads the steaming window / tended vase cues; the Pocket Journal home card counts "Quiet tea-table moments" from first-time tea ritual memories (`narrative.ts`, `journal.ts`, `JournalDrawer.tsx`).
+- **Weather-aware morning wake line** — resting now names the world you wake into: four weather lines plus a winter frost accent appended to the wake toast (`buildMorningWakeLine`).
+
+### Changed
+- Interior rig update now derives weather/season/minuteOfDay reactivity from `WorldState` directly (no signature change, no schema bump); `WillowCottageInteriorRig` exposes `rainStreaks`, `wetGlassVeilMat`, `frostDressing`, `clockHands`, `windowShaftMat`, `moteMaterial`, and `curtainPanels` for tests.
+- `updateWillowPrototypeMotion` gains an optional `smokeStrength` parameter (default 1 preserves the old visual for callers without cottage state).
+
+### Tests
+- 8 new suites (126 → **134 passing**): living clock hands, rain/mist/sunlit window states, shaft & mote suppression, curtain sway, winter frost, chimney strength mapping, kettle-steam topic branches + integration, wake lines, journal ritual count, audio room-tone idempotency.
+
 ## [0.4.0] — 2026-11-19
 
 ### Added — Milestone 3 (Build 2: Completing Fern Hollow Orchard)

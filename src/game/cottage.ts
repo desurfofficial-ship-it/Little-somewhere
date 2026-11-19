@@ -404,3 +404,19 @@ export function describePlacedFlower(flowerId: CottageHomeState['placedFlowerId'
   const def = PERSONAL_ITEM_MAP[flowerId as PersonalItemId];
   return def ? `A bright sprig of ${def.label.toLowerCase()} fills the cottage table with quiet color.` : '';
 }
+
+/**
+ * Pass 10 (Everyday Life polish round 3, EL-18): pure mapping from home state to the
+ * exterior chimney's smoke strength. The chimney advertises the hearth — it stays
+ * clean while the fire is out and breathes harder while the kettle is still warm.
+ * Deterministic, allocation-free, unit-testable.
+ */
+export function computeChimneySmokeStrength(
+  world: Pick<WorldState, 'minuteOfDay' | 'cottageState'>,
+): number {
+  const cs = world.cottageState;
+  if (!cs || !cs.hearthLit) return 0;
+  const kettleWarm =
+    (cs.kettleWarmUntilMinute ?? 0) > 0 && world.minuteOfDay <= cs.kettleWarmUntilMinute;
+  return kettleWarm ? 1.3 : 1;
+}

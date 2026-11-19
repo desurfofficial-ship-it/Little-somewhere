@@ -135,6 +135,85 @@
 
 ---
 
+## Pass 8 — A room that knows the weather & the hour (EL-16, EL-17)
+
+**Outcome**: Rain, mist, breeze, season, and the in-game clock all reach inside the cottage; the room is a weather instrument, not a sealed diorama.
+
+**Systems affected / files**: `src/scene/builders/cottageInterior.ts` only (visual layer; zero game-state changes, zero new lights).
+
+**Technical approach** (all meshes shared-palette or one tracked transparent material; every value derived in `rig.update` from `world.weather`/`world.season`/`world.minuteOfDay` with zero allocation):
+- **Rain streaks**: 10 thin elongated quads sliding down the west window glass (one shared geometry + one tracked `MeshBasicMaterial`, additive-free, opacity ~0.42); group visible only when `world.weather === 'light_rain'`.
+- **Wet-glass veil**: one translucent cool plane just inside the glass, opacity 0 → ~0.20 (rain) / ~0.13 (mist); `windowGlassMat.emissiveIntensity` phase values multiplied by rain 0.55 / mist 0.72 / clear 1.0.
+- **Shaft & mote suppression**: morning shaft opacity ×0.22 in rain, ×0.40 in mist; dust motes dimmed ×0.5 in rain (no floating dust in a downpour).
+- **Breezy curtain sway**: the two west curtain panels ease ±0.02 rad sine sway only while weather is `breezy`, returning to their resting tilt otherwise.
+- **Winter frost**: small linen-white sill/glass corner wedges, visible only when `world.season === 'winter'`.
+- **Living clock**: the shelf clock's hour and minute hands are re-parented onto pivot groups at the clock pin; rotations follow `minuteOfDay` (hour = (m/60 % 12)/12·2π, minute = (m % 60)/60·2π, clockwise-negative).
+
+**Dependencies**: none. **Tests**: extend `cottageInterior.test.ts` — clock hands match 1080 (6:00 PM) and 500; streak group visible/veil opacity > 0 in `light_rain` and hidden in `sunlit`; shaft opacity multiplied down in rain vs sunlit at the same phase; curtain rotation differs from rest in `breezy` and equals rest in `sunlit`; frost group visible only in winter; diorama height envelope and hit proxies unchanged.
+**Perf**: ~15 tiny static meshes + 2 pivot groups; streak motion is 10 in-place position writes/frame; no lights, no shaders, no per-frame allocation.
+
+**Acceptance criteria**: rain-dusk and rain-morning screenshots show streaked dimmed glass, no blazing shaft, and a clock matching the HUD; breezy day sways curtains; winter save shows sill frost; all gates green.
+
+---
+
+## Pass 9 — Rain room-tone (EL-19)
+
+**Outcome**: A rainy day is audible inside the cottage — a soft patter bed layered under (or replacing, when the hearth is cold) the crackle loop.
+
+**Systems affected / files**: `src/game/audio.ts` (`playRainAmbience(start)` — looping low-passed noise bed ~0.016 gain + faint band-passed patter hiss ~0.007, idempotent start/stop, immediate stop on mute like the hearth loop), `src/scene/NeighborhoodCanvas.tsx` (transition-only gate: `isIndoors && composed.weather.effective === 'light_rain' && playing && !muted`).
+
+**Dependencies**: none. **Tests**: light unit check — start/stop idempotent and throw-free without an AudioContext (headless/SSR safe); mute-stop covered by browser QA.
+**Perf**: one persistent noise source; negligible.
+
+**Acceptance criteria**: rain patter audible indoors on `light_rain` days, silent outdoors/sunlit/muted; hearth crackle layers cleanly; 0 console errors.
+
+---
+
+## Pass 10 — The home breathes outside: hearth-gated chimney smoke (EL-18)
+
+**Outcome**: The Willow Step Cottage chimney smokes only while the hearth is lit and breathes noticeably harder while the kettle is warm — the exterior advertises the interior state.
+
+**Systems affected / files**:
+- `src/game/cottage.ts`: pure `computeChimneySmokeStrength(world)` → 0 (hearth out) / 1 (lit) / 1.3 (lit + `kettleWarmUntilMinute` active).
+- `src/scene/prototypes/willowLaneDiorama.ts`: `updateWillowPrototypeMotion(cottage, courtyard, elapsed, smokeStrength = 1)` — hides puffs at 0, scales puff size/drift by strength (shared material untouched).
+- `src/scene/NeighborhoodCanvas.tsx`: exterior branch passes `computeChimneySmokeStrength(world)`.
+
+**Dependencies**: none. **Tests**: `cottage.test.ts` — strength mapping for hearth-out / lit / lit+warm / kettle-expired.
+**Perf**: zero allocation; one visibility toggle + scalar multiplication on 4 existing puffs.
+
+**Acceptance criteria**: exterior screenshot with `hearthLit: false` shows a clean chimney; relit hearth smokes again; kettle-warm save reads visibly denser; gates green.
+
+---
+
+## Pass 11 — The neighborhood notices home rituals (pillar-5 integration)
+
+**Outcome**: Neighbors can react to the kettle's steam and the table vase, and the Pocket Journal home card counts quiet tea-table moments — home life becomes talkable and recorded without any new systems.
+
+**Systems affected / files**:
+- `src/game/narrative.ts`: new `makeSimpleTopic('everyday_home_kettle_steam', 'mina', 'daily_slice', 4, { notSeenToday: true, talkedCountMin: 1 })` — text branches on `cottageState.kettleWarmUntilMinute` (steam cue), `placedFlowerId` (vase cue), else a gentle invite; warm/curious choice pair, cozy endings.
+- `src/game/journal.ts`: `JournalHomeSummary` gains derived `homeRitualCount` = `world.memories.filter(id → 'mem_teatable_')`.length (no schema change).
+- `src/components/JournalDrawer.tsx`: home card renders "Quiet tea-table moments: N" when N > 0.
+
+**Dependencies**: none (Pass 5 memories already persist). **Tests**: `journal.test.ts` — ritual count reflects `mem_teatable_*` memories; `dialogue.test.ts` — topic exists, builds the steam branch when the kettle is warm and the invite branch otherwise.
+**Perf**: none.
+
+**Acceptance criteria**: after brewing (kettle warm), Mina's daily slice references the steaming window; after a first sip the home card shows the ritual count; all gates green.
+
+---
+
+## Pass 12 — Weather-aware morning wake line (EL-20)
+
+**Outcome**: Resting names the world you wake into — "soft rain patters on the glass", "pale mist wraps the lane", winter frost, summer breeze.
+
+**Systems affected / files**: `src/game/narrative.ts` (pure `buildMorningWakeLine(weather, season)`), `src/App.tsx` (rest toast appends the line).
+
+**Dependencies**: none (`performNextDayRest` already rolls next-day weather/season). **Tests**: `dialogue.test.ts` — one line per weather + winter accent; line is short and mention-free of unbuilt features.
+**Perf**: none.
+
+**Acceptance criteria**: resting on a rainy evening wakes into the rain line; toast stays within the existing UI width; gates green.
+
+---
+
 ## Reassessment & iteration policy
 
-After each pass: rerun full gates, re-screenshot dusk + morning interiors and one gathering flow, and re-rank remaining findings. Round-2 leftovers tracked: EL-10 (chunk warning — track only). Expected after Pass 7: only micro-findings from visual review (fix inline within the pass that introduced them).
+After each pass: rerun full gates, re-screenshot dusk + morning interiors and one gathering flow, and re-rank remaining findings. Round-2 leftovers tracked: EL-10 (chunk warning — track only). Expected after Pass 12: only micro-findings from visual review (fix inline within the pass that introduced them).

@@ -247,3 +247,105 @@ test('cottage interior hearth-wall life: mantel candle glows at dusk and the rig
   rig.dispose();
   palette.disposeAll();
 });
+
+test('Pass 8: shelf clock hands track the in-game minuteOfDay', () => {
+  const palette = new MaterialPalette();
+  const rig = buildWillowCottageInterior(palette, new THREE.Texture());
+  const base = createFreshWorldState();
+
+  // 18:00 (1080) -> hour hand exactly 6 o'clock (half turn), minute hand upright
+  rig.update({ ...base, minuteOfDay: 1080 }, 'dusk', 0.0);
+  const hourRot1800 = rig.clockHands.hour.rotation.z;
+  const minuteRot1800 = rig.clockHands.minute.rotation.z;
+  assert.ok(
+    Math.abs(hourRot1800 - (-Math.PI)) < 0.01,
+    `Hour hand at 18:00 reads a half turn, got ${hourRot1800.toFixed(3)}`,
+  );
+  assert.ok(
+    Math.abs(minuteRot1800) < 0.01,
+    `Minute hand at 18:00 sits upright, got ${minuteRot1800.toFixed(3)}`,
+  );
+
+  // 8:20 (500) -> minute hand one third around the face
+  rig.update({ ...base, minuteOfDay: 500 }, 'morning', 0.0);
+  const minuteRot0820 = rig.clockHands.minute.rotation.z;
+  assert.ok(
+    Math.abs(minuteRot0820 - (-(Math.PI * 2) / 3)) < 0.01,
+    `Minute hand at 8:20 reads 20 minutes, got ${minuteRot0820.toFixed(3)}`,
+  );
+
+  rig.dispose();
+  palette.disposeAll();
+});
+
+test('Pass 8: rain reaches the room — streaks, wet glass, dimmed pane, suppressed shaft, hushed motes', () => {
+  const palette = new MaterialPalette();
+  const rig = buildWillowCottageInterior(palette, new THREE.Texture());
+  const base = createFreshWorldState();
+
+  const sunlit = { ...base, minuteOfDay: 500, weather: 'sunlit' as const };
+  const rain = { ...base, minuteOfDay: 500, weather: 'light_rain' as const };
+
+  rig.update(sunlit, 'morning', 0.4);
+  assert.equal(rig.rainStreaks.visible, false, 'Streak group hidden in sunlit weather');
+  const sunlitGlass = rig.wetGlassVeilMat.opacity;
+  assert.equal(sunlitGlass, 0, 'Glass veil fully clear in sunlit weather');
+  const sunlitShaft = rig.windowShaftMat.opacity;
+
+  rig.update(rain, 'morning', 0.4);
+  assert.equal(rig.rainStreaks.visible, true, 'Streak group visible in light rain');
+  assert.ok(
+    rig.rainStreaks.children.length >= 8,
+    `Rain streaks dress the west window (got ${rig.rainStreaks.children.length})`,
+  );
+  const streak = rig.rainStreaks.children[0];
+  assert.ok(
+    streak.position.y > 0.9 && streak.position.y < 2.1,
+    'Streaks fall within the glass span',
+  );
+  assert.ok(rig.wetGlassVeilMat.opacity > 0.1, 'Wet-glass veil fogs the pane in rain');
+  const rainShaft = rig.windowShaftMat.opacity;
+  assert.ok(
+    rainShaft < sunlitShaft * 0.5,
+    `Morning sun shaft suppressed in rain (${rainShaft.toFixed(3)} vs ${sunlitShaft.toFixed(3)})`,
+  );
+  assert.ok(rig.moteMaterial.opacity < 0.2, 'Dust motes hush during rain');
+
+  // Mist fogs the glass too, but without falling streaks
+  rig.update({ ...base, minuteOfDay: 500, weather: 'misty_morning' as const }, 'morning', 0.4);
+  assert.equal(rig.rainStreaks.visible, false, 'No falling streaks in mist');
+  assert.ok(rig.wetGlassVeilMat.opacity > 0, 'Mist still fogs the glass softly');
+
+  rig.dispose();
+  palette.disposeAll();
+});
+
+test('Pass 8: breezy days sway the curtains; winter feathers the sill with frost', () => {
+  const palette = new MaterialPalette();
+  const rig = buildWillowCottageInterior(palette, new THREE.Texture());
+  const base = createFreshWorldState();
+
+  rig.update({ ...base, minuteOfDay: 600, weather: 'sunlit' as const }, 'afternoon', 2.0);
+  const restRotN = rig.curtainPanels.north.rotation.z;
+  assert.ok(
+    Math.abs(restRotN - 0.02) < 0.005,
+    `Curtains rest at their dressed tilt in sunlit weather, got ${restRotN.toFixed(4)}`,
+  );
+
+  rig.update({ ...base, minuteOfDay: 600, weather: 'breezy' as const }, 'afternoon', 1.2);
+  const breezyRotN = rig.curtainPanels.north.rotation.z;
+  assert.ok(
+    Math.abs(breezyRotN - 0.02) > 0.004,
+    'Curtains sway away from rest in a breeze',
+  );
+
+  rig.update({ ...base, minuteOfDay: 600, season: 'winter' as const }, 'afternoon', 0.5);
+  assert.equal(rig.frostDressing.visible, true, 'Winter frost dressing appears in winter');
+  assert.ok(rig.frostDressing.children.length >= 4, 'Frost covers sill and glass corners');
+
+  rig.update({ ...base, minuteOfDay: 600, season: 'spring' as const }, 'afternoon', 0.5);
+  assert.equal(rig.frostDressing.visible, false, 'Frost stays hidden outside winter');
+
+  rig.dispose();
+  palette.disposeAll();
+});

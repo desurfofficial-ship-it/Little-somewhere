@@ -1,7 +1,7 @@
 # HANDOVER.md — Agent & Engineer Handover Brief
 
 **Project**: LITTLE SOMEWHERE  
-**Current Phase**: **Milestone 3 Build 2 `COMPLETE` (Completing Fern Hollow Orchard)** atop **Milestone 2A, 2B, 2C (`WorldState v6`)** & **Milestone 3 Builds 1 & 4**: Willow Step Cottage enterable interior cutaway (`7` stations), Personal Satchel (`18` items) & gifting, **Rowan the Orchard Keeper** (10th resident), **`side_orchard_gathering`** 3-stage dual-branch orchard storyline + epilogue, interactive **`orchard_skep`**, permanent **Orchard Tasting Table & Marigold Lantern Garland**, and **Orchard Songbirds + Seasonal Blossom/Leaf Drift**  
+**Current Phase**: **Milestone 2C Polish Round 3 `COMPLETE` (Everyday Life Passes 8–12: weather-aware interior, rain room-tone, hearth-gated chimney, home-ritual dialogue/journal, wake lines)** atop **Milestone 3 Build 2 `COMPLETE` (Completing Fern Hollow Orchard)**, **Milestone 2A, 2B, 2C (`WorldState v6`)** & **Milestone 3 Builds 1 & 4**: Willow Step Cottage enterable interior cutaway (`7` stations), Personal Satchel (`18` items) & gifting, **Rowan the Orchard Keeper** (10th resident), **`side_orchard_gathering`** 3-stage dual-branch orchard storyline + epilogue, interactive **`orchard_skep`**, permanent **Orchard Tasting Table & Marigold Lantern Garland**, and **Orchard Songbirds + Seasonal Blossom/Leaf Drift**  
 **Target Next Milestone**: Milestone 3 Polish / Village Expansion / Community Projects upon explicit user request
 
 6. **Cottage Interior & 2C Polish Contracts (Entries 029-030)**:
@@ -48,7 +48,7 @@ All core simulation, cottage home-life, personal inventory/gifting, dialogue, re
 
 ## 4. Verification Status (2026-11-19, after Milestone 3 Build 2 completion)
 
-- `npm test` (`tsx --test src/game/*.test.ts src/scene/*.test.ts`) — **117/117 passing** (`0` failures across all game engine & 3D scene suites).
+- `npm test` (`tsx --test src/game/*.test.ts src/scene/*.test.ts`) — **134/134 passing** (`0` failures across all game engine & 3D scene suites, incl. the 8 Round-3 everyday-life weather/ritual suites).
 - `npm run lint` (`tsc --noEmit`) — **Passing (0 errors)**.
 - `npm run build` (`vite build`) — **Passing**.
 - Live Headless Chromium QA (`1440×900` & `390×844` via `?autostart=1`): verified `Orchard Bee Skep [E]` proximity prompt & `"Woven Bee Skep & Honey Crock"` inspect modal, glazed honey crock + bees, permanent Orchard Tasting Table (`spiced_tart_table` & `blossom_honey_picnic` outcomes) with lit marigold lanterns at Golden Hour, all 3 perched orchard songbirds + falling spring blossom drift, Pocket Journal `Stories` (`The Fern Hollow Orchard Gathering`) & `Discoveries` (`Fern Hollow Orchard · Honey Picnic Open`), zero mobile horizontal overflow (`scrollW: 390 === innerW: 390`), and **0 console errors / 0 warnings**.
@@ -59,3 +59,8 @@ All core simulation, cottage home-life, personal inventory/gifting, dialogue, re
 - `npm test` — **126/126 passing** (`0` failures; the 121-suite merged orchard + everyday-life baseline + 5 new Round-2 suites: indoor-seat registry contract, sip reducer, player sit/stand + sip-target priority, interior seat proxies (7 cottage + 2 seat), teacup gating, hearth-wall life).
 - `npm run lint` (`tsc --noEmit`) — **Passing (0 errors)**; `npm run build` — **Passing** (chunk-size warning unchanged).
 - Browser QA (headless Chromium 1440×900 & 390×844, dusk `WorldState v6` save): brew tea → click stool → seated pose → `Sip Warm Chamomile Tea` → `Tea at the Oak Table` card (+8m, day-end clamp verified) → teacup visible while seated → tap-to-walk stand-up re-offers the seat → `A Quiet Warm Chamomile Tea Moment` in Pocket Journal → mute/unmute with ambience clean → mobile zero horizontal overflow → **0 console errors / 0 page errors** across all runs.
+## 6. Round-3 Verification Addendum (2026-11-20, Milestone 2C Polish Round 3 — Weather-Aware Home)
+
+- `npm test` — **134/134 passing**; `npx tsc --noEmit` — **0 errors**; `npm run build` — passing (chunk-size warning unchanged).
+- Browser QA (headless Chromium 1440×900 & 390×844, rain/sunlit/winter `WorldState v6` saves): rain interiors show streaked dimmed west-window glass, a fogged pane, suppressed sun shaft, and hushed motes (sunlit renders bit-identical to baseline); the shelf clock reads the HUD time; winter feathers the sill with frost; the exterior chimney is clean when `hearthLit: false` and smokes (denser when the kettle is warm) when lit; rain patter room-tone layers under the hearth crackle indoors and stops on mute/exit; full live loop: sit → sip → "Quiet tea-table moments: 1" in the Journal home card → rest wakes into a weather-named morning toast; mobile zero horizontal overflow; save persists across reload; **0 console errors / 0 page errors** across all runs.
+- **New contracts to respect**: the interior rig's `update()` now derives weather/season/minuteOfDay reactivity from `WorldState` directly — keep effective-weather logic mirrored with `composeEnvironmentState` (mist lifts after 10:30 AM) if either side changes. `computeChimneySmokeStrength` in `cottage.ts` is the single source of chimney truth; never re-smoke the diorama puffs unconditionally. `homeRitualCount` is derived (never persisted). All Pass 8–12 visuals stay inside existing footprints/wall planes — `COTTAGE_INTERIOR_OBSTACLES` and both interior test contracts remain bit-identical.

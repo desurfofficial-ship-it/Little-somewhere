@@ -49,3 +49,17 @@ No exterior art overhaul, no new furniture categories with gameplay claims, no d
 **Hearth-wall life** (Pass 6): mantel objects stay below y 1.9 and in front of the chimney breast plane; candle flame is a single emissive dot (dusk-emissive, sine flicker shared with the ember curve). Counter props read as *use*, not clutter: crock + spoons upright at the wall end, board + slice toward the firebox end, folded cloth centered. Entry boots sit against the east curb inside the door recess; pegs + hat live on the north wall plane. All statics reuse cached `STORYBOOK_PALETTE` materials.
 
 **Sound** (Pass 7): the crackle room-tone is a *floor* (≈0.02 gain), never a feature — if the player notices it as "a sound", it is too loud. It stops immediately on mute, exit, extinguished hearth, or pause. Sit = one soft wooden settle; sip = two tiny breaths + one porcelain tick. Restraint check unchanged: every effect reinforces exactly the action that triggered it.
+
+---
+
+## 7. Round-3 additions — a room that knows the weather (Passes 8–12)
+
+**Weather is an interior material** (Pass 8): the west window is the room's weather gauge. Rain = ten shared-geometry streaks sliding the glass span + a translucent cool veil (~0.2 opacity) + pane emissive dimmed ×0.55; mist fogs softly (~0.13) without streaks and lifts after 10:30; the sun shaft drops to ×0.22 in rain and ×0.40 in mist, and dust motes hush ×0.5 — no floating dust in a downpour. Curtains stir only in a breeze (±0.02 rad sine, easing back to their dressed tilt). Winter feathers the sill and glass corners with linen-white frost. Effective-weather resolution mirrors `composeEnvironmentState` exactly — one rule, two consumers, no drift.
+
+**The clock tells the truth** (Pass 8): the shelf clock is the room's analog HUD — hour and minute hands are pivot groups driven by `minuteOfDay` every frame. If the HUD says 6:40 PM, the clock says 6:40.
+
+**The chimney advertises the hearth** (Pass 10): exterior smoke strength is pure state mapping (0 cold / 1 lit / 1.3 kettle-warm). The puff material is never mutated — visibility and scale only.
+
+**Rain is heard, not seen-only** (Pass 9): a rainy interior gains a low rumble bed (0.016) + faint patter hiss (0.007) — a *floor* like the crackle, layered under it, evaluated on transitions only, stopped on mute/exit.
+
+**Restraint check additions**: weather effects never animate furniture positions or add lights; the frost, streaks, and veil live inside the existing wall/glass planes; every new observable is derived from `WorldState` at update time (zero persisted state, zero schema impact).

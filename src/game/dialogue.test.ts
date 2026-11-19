@@ -16,7 +16,12 @@ import {
   propagateEncounterGossipInPlace,
   recordNpcMemoryInPlace,
 } from './memories';
-import { DIALOGUE_TOPICS, buildResidentDialogue, getResidentAvailableQuestCue } from './narrative';
+import {
+  DIALOGUE_TOPICS,
+  buildMorningWakeLine,
+  buildResidentDialogue,
+  getResidentAvailableQuestCue,
+} from './narrative';
 import { getNpcRelation } from './relationships';
 import { RESIDENT_ORDER } from './residents';
 import { createFreshWorldState } from './storage';
@@ -1109,3 +1114,109 @@ test('Milestone 3 Build 2: orchard_skep reflects weather/season/gathering, notic
 });
 
 
+
+test('Pass 11: the neighborhood notices home rituals — Mina reads the steaming window and the tended vase', () => {
+  const topic = DIALOGUE_TOPICS.find((t) => t.id === 'everyday_home_kettle_steam');
+  assert.ok(topic, 'everyday_home_kettle_steam topic exists');
+  assert.equal(topic!.residentId, 'mina');
+
+  const base = createFreshWorldState();
+  const kettleWarmWorld: WorldState = {
+    ...base,
+    minuteOfDay: 1000,
+    cottageState: {
+      ...base.cottageState,
+      hearthLit: true,
+      kettleWarmUntilMinute: 1200,
+      placedFlowerId: null,
+    },
+  };
+  const warmSession = topic!.build('mina', kettleWarmWorld, 'afternoon');
+  assert.ok(
+    warmSession.nodes.root.text.includes('steam'),
+    'Kettle-warm state surfaces the window-steam line',
+  );
+
+  const vaseWorld: WorldState = {
+    ...base,
+    minuteOfDay: 1300,
+    cottageState: {
+      ...base.cottageState,
+      hearthLit: true,
+      kettleWarmUntilMinute: 0,
+      placedFlowerId: 'lavender_sprig' as never,
+    },
+  };
+  const vaseSession = topic!.build('mina', vaseWorld, 'afternoon');
+  assert.ok(
+    vaseSession.nodes.root.text.includes('vase'),
+    'Placed flower surfaces the tended-vase line',
+  );
+
+  const bareWorld: WorldState = {
+    ...base,
+    minuteOfDay: 1300,
+    cottageState: {
+      ...base.cottageState,
+      hearthLit: true,
+      kettleWarmUntilMinute: 0,
+      placedFlowerId: null,
+    },
+  };
+  const bareSession = topic!.build('mina', bareWorld, 'afternoon');
+  assert.ok(
+    bareSession.nodes.root.text.includes('kettle'),
+    'Bare home state falls back to the gentle invite line',
+  );
+
+  // Integration: with the kettle warm, one prior chat, and Mina's earlier daily
+  // slice already spent today, the kettle-steam topic wins the daily-slice slot.
+  const talkedWorld: WorldState = {
+    ...kettleWarmWorld,
+    playerRelations: {
+      ...kettleWarmWorld.playerRelations,
+      mina: { ...kettleWarmWorld.playerRelations.mina, talkedCount: 1 },
+    },
+    topicHistory: {
+      ...kettleWarmWorld.topicHistory,
+      'mina:everyday_orchard_gathering': {
+        seenCount: 1,
+        lastSeenDay: kettleWarmWorld.day,
+        lastSeenPhase: 'morning',
+        chosenChoiceIds: [],
+      },
+    },
+  };
+  const picked = buildResidentDialogue('mina', talkedWorld, 'afternoon');
+  assert.equal(picked.topicId, 'everyday_home_kettle_steam');
+});
+
+test('Pass 12: the morning wake line names the weather you wake into (plus winter frost)', () => {
+  assert.ok(
+    buildMorningWakeLine('light_rain', 'spring').includes('rain patters'),
+    'Rain wake line names the patter on the glass',
+  );
+  assert.ok(
+    buildMorningWakeLine('misty_morning', 'summer').includes('mist'),
+    'Mist wake line names the pale mist',
+  );
+  assert.ok(
+    buildMorningWakeLine('breezy', 'autumn').includes('breeze'),
+    'Breezy wake line names the stirring curtains',
+  );
+  assert.ok(
+    buildMorningWakeLine('sunlit', 'spring').includes('morning sun'),
+    'Sunlit wake line names the warm spill of sun',
+  );
+  const winterLine = buildMorningWakeLine('sunlit', 'winter');
+  assert.ok(
+    winterLine.includes('Frost feathers the window corners'),
+    'Winter mornings add the frost accent',
+  );
+  for (const line of [
+    buildMorningWakeLine('light_rain', 'spring'),
+    buildMorningWakeLine('sunlit', 'winter'),
+  ]) {
+    assert.ok(line.length < 140, 'Wake lines stay toast-sized');
+  }
+});

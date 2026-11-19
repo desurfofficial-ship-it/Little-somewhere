@@ -556,3 +556,41 @@ test('Milestone 3 Build 2: fern_hollow_orchard discovery transitions to transfor
   assert.ok(formatted.text.includes('Fern Hollow tasting table'));
 });
 
+
+test('Pass 11: home summary counts quiet tea-table moments from mem_teatable_* memories', () => {
+  const world = createFreshWorldState();
+  const before = buildPocketJournalView(world).homeSummary.homeRitualCount;
+  assert.equal(before, 0, 'Fresh home has no recorded tea rituals');
+
+  const afterTea: WorldState = {
+    ...world,
+    memories: [
+      {
+        id: 'mem_teatable_chamomile_pear_tea',
+        day: 2,
+        phase: 'afternoon',
+        title: 'A Quiet Warm Chamomile Tea Moment',
+        summary: 'I sat at the oak table and let the cottage be still.',
+      },
+      ...world.memories,
+    ],
+  };
+  const view = buildPocketJournalView(afterTea);
+  assert.equal(view.homeSummary.homeRitualCount, 1);
+  assert.equal(
+    buildPocketJournalView({ ...afterTea, memories: [
+      { id: 'mem_teatable_lavender_honey_tea', day: 3, phase: 'golden', title: 'x', summary: 'y' },
+      ...afterTea.memories,
+    ] }).homeSummary.homeRitualCount,
+    2,
+    'Each distinct drink ritual is counted once',
+  );
+  // Non-tea memories never leak into the ritual count
+  const unrelated: WorldState = {
+    ...world,
+    memories: [
+      { id: 'mem_gift_first', day: 1, phase: 'morning', title: 'g', summary: 's' },
+    ],
+  };
+  assert.equal(buildPocketJournalView(unrelated).homeSummary.homeRitualCount, 0);
+});

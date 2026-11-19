@@ -8,8 +8,10 @@ import {
   JournalMemory,
   PersonalItemId,
   ResidentId,
+  SeasonType,
   StoryFlags,
   TimePhase,
+  WeatherType,
   WorldState,
 } from './types';
 import { PERSONAL_ITEM_MAP } from './inventory';
@@ -4194,6 +4196,57 @@ export const DIALOGUE_TOPICS: readonly DialogueTopic[] = [
       },
     },
   ),
+
+  makeSimpleTopic(
+    'everyday_home_kettle_steam',
+    'mina',
+    'daily_slice',
+    4,
+    { notSeenToday: true, talkedCountMin: 1 },
+    {
+      moodLabel: 'Delighted',
+      buildText: (_id, w) => {
+        const kettleWarm =
+          (w.cottageState?.kettleWarmUntilMinute ?? 0) > 0 &&
+          w.minuteOfDay <= (w.cottageState?.kettleWarmUntilMinute ?? 0);
+        if (kettleWarm) {
+          return `I passed your gate a while ago and your kitchen window was all fogged with steam—don’t tell me the kettle isn’t humming at Willow Step Cottage right now!`;
+        }
+        if (w.cottageState?.placedFlowerId) {
+          return `Your cottage window caught the light this morning—something fresh is standing in the oak table vase, isn’t there? The whole sill smells green.`;
+        }
+        return `A quiet cottage warms up fast once the kettle does. Steam on the glass, a bloom in the vase—those are the telltales of a home settling in.`;
+      },
+      choices: [
+        {
+          id: 'ev_mina_steam_warm',
+          label: 'Come by for a warm cup when the rain settles, then.',
+          tone: 'warm',
+          nextNodeId: 'ev_mina_steam_warm_end',
+          trustDelta: 1,
+          setEmotion: 'happy',
+        },
+        {
+          id: 'ev_mina_steam_curious',
+          label: 'What telltale signs do neighbors look for most?',
+          tone: 'curious',
+          nextNodeId: 'ev_mina_steam_curious_end',
+          trustDelta: 1,
+          setEmotion: 'relaxed',
+        },
+      ],
+      endings: {
+        ev_mina_steam_warm_end: {
+          moodLabel: 'Gentle',
+          text: `I’ll bring a sprig of lemon thyme for the vase—tea tastes brighter when the table has something growing in it.`,
+        },
+        ev_mina_steam_curious_end: {
+          moodLabel: 'Thoughtful',
+          text: `Window steam means somebody’s home. A tended vase means they’re staying. Both together—that’s a cottage the lane leans on.`,
+        },
+      },
+    },
+  ),
 ];
 
 export function buildResidentDialogue(
@@ -4202,4 +4255,28 @@ export function buildResidentDialogue(
   phase: TimePhase,
 ): DialogueSession {
   return selectDialogueSession(id, world, phase, DIALOGUE_TOPICS, buildConcurrentQuestChoices);
+}
+
+/**
+ * Pass 12 (Everyday Life polish round 3, EL-20): the morning wake beat names the
+ * world the player wakes into. Pure — reads only the freshly rolled next-day weather
+ * and season, so the daily reset acknowledges the scene it just built.
+ */
+export function buildMorningWakeLine(weather: WeatherType, season: SeasonType): string {
+  const base = (() => {
+    switch (weather) {
+      case 'light_rain':
+        return 'Soft rain patters on the cottage glass as the kettle room wakes.';
+      case 'misty_morning':
+        return 'Pale mist wraps the lane while the cottage slowly brightens.';
+      case 'breezy':
+        return 'A soft breeze stirs the linen curtains — the lane hums with moving leaves.';
+      case 'sunlit':
+        return 'Clean morning sun spills warm across the quilt.';
+    }
+  })();
+  if (season === 'winter') {
+    return `${base} Frost feathers the window corners.`;
+  }
+  return base;
 }

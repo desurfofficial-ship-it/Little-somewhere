@@ -46,6 +46,7 @@ import {
 import {
   COTTAGE_BOUNDS,
   COTTAGE_INTERACTABLES,
+  computeChimneySmokeStrength,
   computeInteriorWaypoints,
   isInteriorPointWalkable,
   resolveAnySeatById,
@@ -895,6 +896,7 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
     let lastSyncedLocation: PlayerLocation | null = null;
     let prevWorldLocation: PlayerLocation = worldRef.current.playerLocation ?? 'exterior';
     let hearthAmbienceActive = false; // Pass 7: crackle room-tone evaluated on transitions only
+    let rainAmbienceActive = false; // Pass 9: rain patter room-tone, same transition-only gate
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.code === 'Space' || e.code === 'Enter') {
@@ -1207,7 +1209,14 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
       } else {
         exteriorRoot.visible = true;
         interiorRoot.visible = false;
-        updateWillowPrototypeMotion(willowCottage, willowCourtyard, elapsed);
+        // Pass 10: the chimney advertises the hearth — smoke only while the fire is
+        // lit, breathing harder while the kettle is warm (zero-GC strength value).
+        updateWillowPrototypeMotion(
+          willowCottage,
+          willowCourtyard,
+          elapsed,
+          computeChimneySmokeStrength(world),
+        );
       }
 
       // Pass 7: soft hearth crackle room-tone — started/stopped on state transitions only,
@@ -1220,6 +1229,18 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
       if (hearthAmbienceDesired !== hearthAmbienceActive) {
         hearthAmbienceActive = hearthAmbienceDesired;
         cozyAudio.playHearthAmbience(hearthAmbienceDesired);
+      }
+
+      // Pass 9: soft rain patter room-tone while indoors on rainy days — also
+      // evaluated on transitions only, layered under the hearth crackle.
+      const rainAmbienceDesired =
+        isIndoors &&
+        composed.weather.effective === 'light_rain' &&
+        screenStateRef.current === 'playing' &&
+        !cozyAudio.isMuted();
+      if (rainAmbienceDesired !== rainAmbienceActive) {
+        rainAmbienceActive = rainAmbienceDesired;
+        cozyAudio.playRainAmbience(rainAmbienceDesired);
       }
 
       // Update chime sparkle particles

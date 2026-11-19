@@ -18,6 +18,7 @@ import {
   COTTAGE_INTERIOR_OBSTACLES,
   COTTAGE_SEAT_SPOTS,
   COTTAGE_WAKE_SPAWN,
+  computeChimneySmokeStrength,
   isInteriorPointWalkable,
   resolveAnySeatById,
   resolveInteriorMovement,
@@ -398,4 +399,41 @@ test('tea-table sip ritual consumes a drink, spends minutes, and writes one firs
     'cottage_seat_table_east',
   ).nextWorld;
   assert.equal(sipBeverageAtTableAction(seatedNoTea, 'herb_loaf').ok, false);
+});
+
+test('Pass 10: chimney smoke strength advertises the hearth — cold hearth is clean, kettle-warm breathes harder', () => {
+  const base = createFreshWorldState();
+  const litKettle = {
+    minuteOfDay: 1000,
+    cottageState: { ...base.cottageState, hearthLit: true, kettleWarmUntilMinute: 1200 },
+  };
+  assert.equal(computeChimneySmokeStrength(litKettle), 1.3, 'Kettle-warm hearth breathes harder');
+
+  const litColdKettle = {
+    minuteOfDay: 1000,
+    cottageState: { ...base.cottageState, hearthLit: true, kettleWarmUntilMinute: 0 },
+  };
+  assert.equal(computeChimneySmokeStrength(litColdKettle), 1, 'Lit hearth smokes at baseline');
+
+  const expiredKettle = {
+    minuteOfDay: 1250,
+    cottageState: { ...base.cottageState, hearthLit: true, kettleWarmUntilMinute: 1200 },
+  };
+  assert.equal(
+    computeChimneySmokeStrength(expiredKettle),
+    1,
+    'Expired kettle window falls back to baseline smoke',
+  );
+
+  const coldHearth = {
+    minuteOfDay: 1000,
+    cottageState: { ...base.cottageState, hearthLit: false, kettleWarmUntilMinute: 1200 },
+  };
+  assert.equal(computeChimneySmokeStrength(coldHearth), 0, 'Cold hearth stays clean');
+
+  assert.equal(
+    computeChimneySmokeStrength({ minuteOfDay: 1000, cottageState: undefined as never }),
+    0,
+    'Missing cottage state never smokes',
+  );
 });

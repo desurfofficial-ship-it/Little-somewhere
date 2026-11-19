@@ -122,12 +122,46 @@ Severity scale: **P0** = broken/blocks the loop · **P1** = materially weakens t
 - Passes 1–4 hold: dressing, atmosphere layer, brew overlay, item chips, veil transitions, indoor speed cap all verified live.
 - Save persistence (`WorldState v6`), NPC memory/gossip pipeline, mobile hit targets, 0 console errors — all unchanged.
 
-## 6. Production quality target (round 2 — measurable)
+### Round-3 findings (2026-11-20, after Passes 5–7 shipped, baseline `7c2867e`)
+
+**Method**: fresh headless-Chromium playtest on rain-dusk / rain-morning / sunlit-morning `WorldState v6` saves (1440×900, 0 page errors), plus a line-level re-read of `src/scene/builders/cottageInterior.ts`, `src/scene/prototypes/willowLaneDiorama.ts`, `src/scene/NeighborhoodCanvas.tsx`, `src/game/audio.ts`, `src/game/actions.ts`, `src/game/journal.ts`, and `src/game/narrative.ts`.
+
+### EL-16 · P1 — The interior ignores weather entirely; the room cannot feel the rain
+**Where**: `src/scene/builders/cottageInterior.ts` (`rig.update` reads only `phase`), `src/scene/NeighborhoodCanvas.tsx` indoor branch.
+**Evidence**: With the HUD reading "Light Rain" (dusk 1120 and morning 500 saves), the west window glass shows the identical fair-weather emissive view, the morning sun shaft blazes at full opacity across the bed (baseline shot `05-interior-morning-rain.png`), no streaks or wet-glass cue exist, and the linen curtains never stir — even in `breezy`. Outdoors, rain streaks/puddles render convincingly (shot `04-exterior-dusk-rain.png`), so stepping inside severs the weather.
+**Impact**: The directive's "weather-of-the-day atmosphere" pillar stops at the doorstep; the strongest mood lever in the game is unused indoors.
+
+### EL-17 · P2 — The wall clock is frozen
+**Where**: `cottageInterior.ts` — `clockHandM.rotation.z = 2.1` set once at build; never updated.
+**Evidence**: HUD reads 6:40 PM while the shelf clock reads ~7:10 in every screenshot, at every hour.
+**Impact**: The room's most legible "living clock" prop contradicts the in-game time it sits under.
+
+### EL-18 · P2 — Chimney smoke ignores the hearth state
+**Where**: `src/scene/prototypes/willowLaneDiorama.ts` `updateWillowPrototypeMotion` — smoke puffs animate unconditionally.
+**Evidence**: `cottageState.hearthLit` and `kettleWarmUntilMinute` gate the interior fire, kettle steam, and crackle audio, but the exterior chimney puffs run regardless; a cold hearth still smokes.
+**Impact**: The exterior↔home-state link ("your home breathes") is severed exactly where neighbors could see it.
+
+### EL-19 · P2 — Rain is silent indoors; no rain room-tone
+**Where**: `src/game/audio.ts` (one hearth loop only), `NeighborhoodCanvas.tsx` ambience gating.
+**Evidence**: The ambience layer has exactly one room-tone (`playHearthAmbience`); `light_rain` days produce no patter bed indoors, so the rainy world is a silent film inside the cottage.
+**Impact**: Pass 7's room-tone concept stops at the hearth; rain days feel identical acoustically to sunlit ones.
+
+### EL-20 · P2 — The morning wake beat is weather-blind
+**Where**: `src/App.tsx` `handlePropAction('rest_next_day')` → `performNextDayRest` (which already rolls `weather: rollWeatherForDay(simSeed, nextDay)`).
+**Evidence**: The post-rest toast is always "Good morning! Day N begins in Little Somewhere." even though the new day's weather and season are already computed and drive the whole scene.
+**Impact**: The daily reset — the game's strongest ritual — never acknowledges the world it just built.
+
+### Round-3 healthy checks (do not regress)
+- Passes 1–7 hold: dressed interior, atmosphere layer, staged brew, chips, veil transitions, indoor pace cap, sit & sip ritual, mantel/counter/entry life, crackle room-tone all verified live; 126/126 suites, `tsc` 0 errors, build green at `7c2867e`.
+- Save persistence (`WorldState v6`), NPC memory/gossip pipeline, mobile hit targets, 0 console/page errors — unchanged.
+
+## 6. Production quality target (round 3 — measurable)
 
 "Willow Step Cottage is *lived in* when:
 
-7. The player can sit at the oak table on both stools, and the room reacts (seated pose, tea moment).
-8. A brewed drink can be sipped at the table: staged payoff, time passes, a journal memory exists the first time, and a teacup appears on the table while seated.
-9. The hearth wall carries mantel-life (candle, frame, sprig) and kitchen sign-of-use (crock, board, cloth); the entry carries boots + wall pegs.
-10. Indoors with `hearthLit`, a soft procedural crackle room-tone plays (mute-respecting), and sit/sip get their own gentle SFX.
-11. All 115+ suites, `tsc`, and `vite build` stay green; obstacle/collision contracts bit-identical; no save-schema version bump."
+12. Rain and mist reach the room: streaked, dimmed glass; suppressed light shafts; hushed motes; curtains stir in a breeze; winter feathers the sill with frost — and a soft rain patter joins the room-tone.
+13. The shelf clock reads the actual in-game time.
+14. The exterior chimney smokes only while the hearth is lit, and breathes harder while the kettle is warm.
+15. A neighbor can reference the kettle's steam and the vase, and the Pocket Journal home card counts quiet tea-table moments.
+16. Waking up names the weather you wake into.
+17. All 126+ suites, `tsc`, and `vite build` stay green; obstacle/collision contracts bit-identical; no save-schema version bump."

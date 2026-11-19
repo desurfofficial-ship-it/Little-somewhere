@@ -1332,16 +1332,23 @@ export function buildStorybookJun(
 
 /**
  * Zero-GC per-frame subtle motion for the Willow Lane diorama prototype:
- * - Gentle chimney smoke puff drift
+ * - Chimney smoke puffs, gated by the hearth state (Pass 10): strength 0 hides the
+ *   puffs entirely (cold hearth), 1 is the cozy baseline, 1.3 reads as a kettle-warm
+ *   haze. Shared smoke material is never mutated — visibility and scale only.
  * - Soft breeze sway on courtyard wildflower clusters
  */
 export function updateWillowPrototypeMotion(
   cottage: WillowCottageRig,
   courtyard: WillowCourtyardRig,
   elapsed: number,
+  smokeStrength = 1,
 ): void {
+  const smoking = smokeStrength > 0;
+  const sizeBoost = Math.min(1.35, 0.72 + 0.28 * smokeStrength);
   for (let i = 0; i < cottage.smokePuffs.length; i++) {
     const puff = cottage.smokePuffs[i];
+    puff.visible = smoking;
+    if (!smoking) continue;
     const cyc = (elapsed * 0.28 + (puff.userData.phase as number)) % 1;
     const ox = puff.userData.originX as number;
     const oy = puff.userData.originY as number;
@@ -1351,8 +1358,8 @@ export function updateWillowPrototypeMotion(
       oy + cyc * 1.65,
       oz + cyc * 0.14,
     );
-    const scale = 0.65 + cyc * 0.85;
-    puff.scale.setScalar(scale * (1 - cyc * 0.38));
+    const scale = (0.65 + cyc * 0.85) * sizeBoost * (1 - cyc * 0.38);
+    puff.scale.setScalar(scale);
     puff.rotation.y = elapsed * 0.5 + i;
   }
 

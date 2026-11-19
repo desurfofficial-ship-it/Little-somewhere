@@ -785,6 +785,14 @@ export const JournalDrawer: React.FC<JournalDrawerProps> = ({
                       </strong>
                     </li>
                   )}
+                  {journal.homeSummary.homeRitualCount > 0 && (
+                    <li>
+                      Quiet tea-table moments:{' '}
+                      <strong className="font-mono-nums">
+                        {journal.homeSummary.homeRitualCount}
+                      </strong>
+                    </li>
+                  )}
                 </ul>
               </section>
 

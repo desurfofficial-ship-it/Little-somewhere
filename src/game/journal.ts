@@ -143,6 +143,8 @@ export interface JournalHomeSummary {
   totalItemCatalogCount: number;
   cottageRestCount: number;
   almanacReadToday: boolean;
+  /** Pass 11: count of first-time tea-table ritual memories (`mem_teatable_*`). */
+  homeRitualCount: number;
 }
 
 export interface PocketJournalView {
@@ -950,6 +952,7 @@ export function buildPocketJournalView(
     totalItemCatalogCount: PERSONAL_ITEMS.length,
     cottageRestCount: cottage?.cottageRestCount ?? 0,
     almanacReadToday: Boolean(cottage?.almanacReadToday),
+    homeRitualCount: world.memories.filter((m) => m.id.startsWith('mem_teatable_')).length,
   };
 
   return {

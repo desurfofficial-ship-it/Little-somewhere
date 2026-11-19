@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { COTTAGE_INTERACTABLES, COTTAGE_SEAT_SPOTS } from '../../game/cottage';
+import { getSeasonForDay } from '../../game/time';
 import { CottageHomeState, TimePhase, WorldState } from '../../game/types';
 import { MaterialPalette, STORYBOOK_PALETTE } from '../materials';
 import { addContactShadow } from './vegetation';
@@ -20,6 +21,18 @@ export interface WillowCottageInteriorRig {
   shelfKeepsakes: Record<KeepsakeKey, THREE.Group>;
   kettleSteamPuffs: THREE.Mesh[];
   almanacLampMat: THREE.MeshStandardMaterial;
+  /** Pass 8: weather-reactive window life — streak group visible only in rain. */
+  rainStreaks: THREE.Group;
+  /** Pass 8: translucent wet-glass veil material (opacity follows rain/mist). */
+  wetGlassVeilMat: THREE.MeshBasicMaterial;
+  /** Pass 8: winter-only sill/glass frost wedges. */
+  frostDressing: THREE.Group;
+  /** Pass 8: shelf clock hand pivots — rotations track minuteOfDay. */
+  clockHands: { hour: THREE.Group; minute: THREE.Group };
+  /** Pass 8: observation handles — sun-shaft material, mote material, curtain panels. */
+  windowShaftMat: THREE.MeshBasicMaterial;
+  moteMaterial: THREE.PointsMaterial;
+  curtainPanels: { north: THREE.Mesh; south: THREE.Mesh };
   update(world: WorldState, phase: TimePhase, elapsed: number): void;
   dispose(): void;
 }
@@ -768,20 +781,26 @@ export function buildWillowCottageInterior(
   printFrameB.add(frameB, canvasB);
   group.add(printFrameA, printFrameB);
 
-  // H4. Round wall clock above the keepsake shelf
+  // H4. Round wall clock above the keepsake shelf — hands are pivot groups so
+  // rig.update can drive them from the in-game minuteOfDay (Pass 8, EL-17).
   const clockFace = new THREE.Mesh(trackGeo(new THREE.CylinderGeometry(0.17, 0.17, 0.05, 18)), creamMat);
   clockFace.rotation.x = Math.PI * 0.5;
   const clockRim = new THREE.Mesh(trackGeo(new THREE.TorusGeometry(0.17, 0.02, 6, 18)), brassMat);
   clockRim.position.set(1.3, 2.26, -2.66);
   clockFace.position.set(1.3, 2.26, -2.675);
-  const clockHandH = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(0.016, 0.09, 0.02)), ironMat);
-  clockHandH.position.set(1.3, 2.3, -2.645);
-  const clockHandM = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(0.012, 0.13, 0.02)), ironMat);
-  clockHandM.position.set(1.3, 2.285, -2.645);
-  clockHandM.rotation.z = 2.1;
+  const clockHandHourPivot = new THREE.Group();
+  clockHandHourPivot.position.set(1.3, 2.26, -2.646);
+  const clockHandHour = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(0.016, 0.09, 0.02)), ironMat);
+  clockHandHour.position.y = 0.042;
+  clockHandHourPivot.add(clockHandHour);
+  const clockHandMinutePivot = new THREE.Group();
+  clockHandMinutePivot.position.set(1.3, 2.26, -2.638);
+  const clockHandMinute = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(0.012, 0.13, 0.02)), ironMat);
+  clockHandMinute.position.y = 0.062;
+  clockHandMinutePivot.add(clockHandMinute);
   const clockPin = new THREE.Mesh(trackGeo(new THREE.SphereGeometry(0.02, 6, 6)), brassMat);
-  clockPin.position.set(1.3, 2.26, -2.64);
-  group.add(clockRim, clockFace, clockHandH, clockHandM, clockPin);
+  clockPin.position.set(1.3, 2.26, -2.63);
+  group.add(clockRim, clockFace, clockHandHourPivot, clockHandMinutePivot, clockPin);
 
   // H5. Dried-herb bundle hanging beside the chimney breast
   const herbBundle = new THREE.Group();
@@ -971,6 +990,67 @@ export function buildWillowCottageInterior(
   const dustMotes = new THREE.Points(moteGeo, moteMat);
   group.add(dustMotes);
 
+  // J. Weather-reactive window life (Pass 8 — Everyday Life polish round 3).
+  //    Rain streaks slide down the west glass in `light_rain`; a translucent cool
+  //    veil fogs the pane in rain/mist; winter feathers the sill with frost.
+  //    All zero-allocation, driven entirely inside rig.update().
+  const rainStreaks = new THREE.Group();
+  rainStreaks.visible = false;
+  const streakMat = trackMat(
+    new THREE.MeshBasicMaterial({
+      color: '#D9E9F3',
+      transparent: true,
+      opacity: 0.42,
+      depthWrite: false,
+    }),
+  );
+  const streakGeo = trackGeo(new THREE.BoxGeometry(0.02, 0.34, 0.018));
+  const rainStreakMeshes: THREE.Mesh[] = [];
+  for (let i = 0; i < 10; i++) {
+    const streak = new THREE.Mesh(streakGeo, streakMat);
+    streak.userData.phase = ((i * 17) % 40) / 40;
+    streak.position.set(-3.548, 1.6, -0.58 + (i % 10) * 0.13);
+    streak.scale.y = i % 3 === 0 ? 1.25 : i % 3 === 1 ? 0.8 : 1;
+    rainStreaks.add(streak);
+    rainStreakMeshes.push(streak);
+  }
+  group.add(rainStreaks);
+
+  const wetGlassVeilMat = trackMat(
+    new THREE.MeshBasicMaterial({
+      color: '#9FB6C4',
+      transparent: true,
+      opacity: 0,
+      depthWrite: false,
+    }),
+  );
+  const wetGlassVeil = new THREE.Mesh(trackGeo(new THREE.PlaneGeometry(1.42, 1.16)), wetGlassVeilMat);
+  wetGlassVeil.position.set(-3.546, 1.52, 0);
+  wetGlassVeil.rotation.y = Math.PI * 0.5;
+  group.add(wetGlassVeil);
+
+  const frostDressing = new THREE.Group();
+  frostDressing.visible = false;
+  const frostMat = trackMat(
+    new THREE.MeshStandardMaterial({
+      color: '#F4F8FA',
+      roughness: 0.92,
+      metalness: 0,
+      transparent: true,
+      opacity: 0.85,
+    }),
+  );
+  const sillFrost = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(0.09, 0.022, 1.5)), frostMat);
+  sillFrost.position.set(-3.5, 0.985, 0);
+  const frostWedgeN = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(0.05, 0.17, 0.22)), frostMat);
+  frostWedgeN.position.set(-3.55, 1.04, -0.58);
+  const frostWedgeS = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(0.05, 0.15, 0.18)), frostMat);
+  frostWedgeS.position.set(-3.55, 1.03, 0.56);
+  const frostWedgeMid = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(0.04, 0.1, 0.13)), frostMat);
+  frostWedgeMid.position.set(-3.55, 1.0, 0.12);
+  frostDressing.add(sillFrost, frostWedgeN, frostWedgeS, frostWedgeMid);
+  group.add(frostDressing);
+
   // 4. Raycast Hit Proxies matching every entry in COTTAGE_INTERACTABLES (7 total)
   //    plus the two indoor dining-seat proxies (Pass 5, targetKind 'seat').
   const hitProxies: THREE.Mesh[] = [];
@@ -1001,6 +1081,41 @@ export function buildWillowCottageInterior(
 
   function update(world: WorldState, phase: TimePhase, elapsed: number): void {
     const cs = world.cottageState;
+
+    // Pass 8: weather & season resolution (mirrors composeEnvironmentState's
+    // effective-weather rule — mist lifts cleanly after 10:30 AM).
+    const rawWeather = world.weather ?? 'sunlit';
+    const raining = rawWeather === 'light_rain';
+    const misting = rawWeather === 'misty_morning' && world.minuteOfDay < 630;
+    const breezy = rawWeather === 'breezy';
+    const season = world.season ?? getSeasonForDay(world.day).season;
+
+    // Pass 8: the shelf clock reads the actual in-game time (EL-17)
+    const minuteAngle = ((world.minuteOfDay % 60) / 60) * Math.PI * 2;
+    const hourAngle = (((world.minuteOfDay / 60) % 12) / 12) * Math.PI * 2;
+    clockHandMinutePivot.rotation.z = -minuteAngle;
+    clockHandHourPivot.rotation.z = -hourAngle;
+
+    // Pass 8: rain streaks slide down the glass; the veil fogs in rain/mist
+    rainStreaks.visible = raining;
+    if (raining) {
+      wetGlassVeilMat.opacity = 0.2;
+      for (let i = 0; i < rainStreakMeshes.length; i++) {
+        const streak = rainStreakMeshes[i];
+        const cyc = (elapsed * 0.85 + (streak.userData.phase as number)) % 1;
+        streak.position.y = 2.04 - cyc * 1.08;
+      }
+    } else {
+      wetGlassVeilMat.opacity = misting ? 0.13 : 0;
+    }
+
+    // Pass 8: winter frost feathers the sill and glass corners
+    frostDressing.visible = season === 'winter';
+
+    // Pass 8: linen curtains stir only in a breeze, easing back to rest otherwise
+    const swayAmp = breezy ? 1 : 0;
+    curtainNorth.rotation.z = 0.02 + swayAmp * Math.sin(elapsed * 1.35) * 0.02;
+    curtainSouth.rotation.z = -0.02 - swayAmp * Math.sin(elapsed * 1.35 + 0.9) * 0.02;
 
     // Reactive tea moment (Pass 5): teacup + steam wisp while seated at a cottage seat
     const seatedIndoor =
@@ -1048,25 +1163,28 @@ export function buildWillowCottageInterior(
     }
 
     // Hearth embers flicker + Almanac lamp & sunlit window warmth
+    // (Pass 8: window glass dims & cools in rain/mist so the pane reads wet)
+    const glassWeatherDim = raining ? 0.55 : misting ? 0.72 : 1;
     hearthEmberMat.emissiveIntensity = 1.35 + Math.sin(elapsed * 4.5) * 0.22;
     if (phase === 'dusk') {
       almanacLampMat.emissiveIntensity = 1.65;
-      windowGlassMat.emissiveIntensity = 0.28;
+      windowGlassMat.emissiveIntensity = 0.28 * glassWeatherDim;
       pendantLampMat.emissiveIntensity = 1.45 + Math.sin(elapsed * 3.1) * 0.12;
       mantelFlameMat.emissiveIntensity = 1.7 + Math.sin(elapsed * 6.3) * 0.18;
     } else if (phase === 'golden') {
       almanacLampMat.emissiveIntensity = 0.95;
-      windowGlassMat.emissiveIntensity = 0.75;
+      windowGlassMat.emissiveIntensity = 0.75 * glassWeatherDim;
       pendantLampMat.emissiveIntensity = 0.62;
       mantelFlameMat.emissiveIntensity = 0.95 + Math.sin(elapsed * 6.3) * 0.12;
     } else {
       almanacLampMat.emissiveIntensity = 0.35;
-      windowGlassMat.emissiveIntensity = 0.55;
+      windowGlassMat.emissiveIntensity = 0.55 * glassWeatherDim;
       pendantLampMat.emissiveIntensity = 0.14;
       mantelFlameMat.emissiveIntensity = 0.3;
     }
 
     // Atmosphere: hearth key light, window daylight shaft, drifting dust motes
+    // (Pass 8: the sun shaft is suppressed by rain/mist; motes hush in rain)
     const hearthActive = (cs?.hearthLit ?? true) ? 1 : 0;
     const hearthBase =
       phase === 'dusk' ? 2.7 : phase === 'golden' ? 1.9 : phase === 'afternoon' ? 1.0 : 0.75;
@@ -1076,8 +1194,9 @@ export function buildWillowCottageInterior(
       (1 + Math.sin(elapsed * 7.0) * 0.09 + Math.sin(elapsed * 12.7) * 0.05);
     const shaftBase =
       phase === 'morning' ? 0.33 : phase === 'afternoon' ? 0.21 : phase === 'golden' ? 0.28 : 0.07;
-    shaftMat.opacity = shaftBase * (0.92 + Math.sin(elapsed * 0.7) * 0.08);
-    moteMat.opacity = phase === 'dusk' ? 0.18 : 0.32;
+    const shaftWeatherDim = raining ? 0.22 : misting ? 0.4 : 1;
+    shaftMat.opacity = shaftBase * shaftWeatherDim * (0.92 + Math.sin(elapsed * 0.7) * 0.08);
+    moteMat.opacity = (phase === 'dusk' ? 0.18 : 0.32) * (raining ? 0.5 : 1);
     const moteArr = moteGeo.attributes.position.array as Float32Array;
     for (let i = 0; i < MOTE_COUNT; i++) {
       const i3 = i * 3;
@@ -1105,6 +1224,13 @@ export function buildWillowCottageInterior(
     shelfKeepsakes,
     kettleSteamPuffs,
     almanacLampMat,
+    rainStreaks,
+    wetGlassVeilMat,
+    frostDressing,
+    clockHands: { hour: clockHandHourPivot, minute: clockHandMinutePivot },
+    windowShaftMat: shaftMat,
+    moteMaterial: moteMat,
+    curtainPanels: { north: curtainNorth, south: curtainSouth },
     update,
     dispose,
   };
