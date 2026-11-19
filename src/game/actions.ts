@@ -31,6 +31,11 @@ import {
   recordNpcMemoryInPlace,
 } from './memories';
 import {
+  STORYLINE_MAP,
+  advanceStorylineInPlace,
+  cloneStorylines,
+} from './storylines';
+import {
   CarryableItemId,
   DialogueChoice,
   DialogueSession,
@@ -67,12 +72,30 @@ export function applyDialogueChoice(
 
   const nextSideFlags = choice.setSideFlags
     ? { ...sf, ...choice.setSideFlags }
-    : sf;
+    : { ...sf };
+
+  const nextStorylines = cloneStorylines(world.storylines);
+  const storylineAdvances = choice.advanceStoryline
+    ? Array.isArray(choice.advanceStoryline)
+      ? choice.advanceStoryline
+      : [choice.advanceStoryline]
+    : [];
+  const storylineResults: Array<{ specId: string; completedNow: boolean }> = [];
+  for (const adv of storylineAdvances) {
+    const advRes = advanceStorylineInPlace(nextStorylines, nextSideFlags, adv, world.day);
+    storylineResults.push({ specId: adv.id, completedNow: advRes.completedNow });
+  }
 
   const trustGain = choice.trustDelta ?? 0;
   const isGift = Boolean(choice.deliverHeldItem);
+  const hasPositiveStorylineAdvance = storylineAdvances.length > 0 && !choice.isNegative;
   const isStoryMilestone = Boolean(
-    choice.isStoryMilestone || choice.setFlags || choice.setSideFlags || choice.unlockMemory || trustGain >= 2,
+    choice.isStoryMilestone ||
+      choice.setFlags ||
+      choice.setSideFlags ||
+      hasPositiveStorylineAdvance ||
+      choice.unlockMemory ||
+      trustGain >= 2,
   );
   const phase = getTimePhase(world.minuteOfDay);
 
@@ -159,6 +182,19 @@ export function applyDialogueChoice(
       adj.tag,
     );
   }
+  if (choice.adjustNpcRelations && choice.adjustNpcRelations.length > 0) {
+    for (const adj of choice.adjustNpcRelations) {
+      nextNpcRelations = adjustNpcRelationPair(
+        nextNpcRelations,
+        adj.a,
+        adj.b,
+        world.day,
+        adj.deltaAffinity,
+        adj.deltaTension,
+        adj.tag,
+      );
+    }
+  }
 
   // Handle held carryable delivery cleanly
   let nextHeldItem = world.playerHeldItem ?? null;
@@ -221,24 +257,39 @@ export function applyDialogueChoice(
   const nextHearts = getHeartLevel(nextPlayerRel.affinity);
   const tierAdvanced = !choice.isNegative && TIER_RANK[nextTier] > TIER_RANK[prevTier];
   const heartAdvanced = !choice.isNegative && nextHearts > prevHearts;
+  const completedStorylineNow = storylineResults.some((r) => r.completedNow);
   const significantMilestone =
     !choice.isNegative &&
-    (tierAdvanced || heartAdvanced || Boolean(memoryUnlockedTitle) || Boolean(choice.isStoryMilestone));
+    (tierAdvanced ||
+      heartAdvanced ||
+      Boolean(memoryUnlockedTitle) ||
+      Boolean(choice.isStoryMilestone) ||
+      completedStorylineNow);
 
   const nextEvents = [...(world.worldEvents ?? [])];
   const storyEventId = `story_${world.day}_${choice.id}`;
-  if (choice.setFlags || choice.setSideFlags || isGift) {
+  const isConflictStoryline =
+    storylineAdvances.some((a) => STORYLINE_MAP[a.id]?.category === 'interconnected_conflict') ||
+    (session.category === 'conflict_reconciliation' && storylineAdvances.length > 0);
+  if (choice.setFlags || choice.setSideFlags || storylineAdvances.length > 0 || isGift) {
     const flagSummary = memoryUnlockedTitle
       ? `${RESIDENTS[residentId].name}: ${memoryUnlockedTitle}`
       : isGift
       ? `Shared ${world.worldProps?.[choice.deliverHeldItem!]?.label ?? 'a keepsake'} with ${RESIDENTS[residentId].name}.`
       : `Shared a meaningful step with ${RESIDENTS[residentId].name}.`;
+    const eventKind = isGift
+      ? 'player_help'
+      : isConflictStoryline
+      ? 'conflict_shift'
+      : storylineAdvances.length > 0 && !choice.setFlags
+      ? 'storyline_beat'
+      : 'story_flag';
     pushWorldEventInPlace(nextEvents, {
       id: storyEventId,
       day: world.day,
       phase,
       minuteOfDay: Math.round(world.minuteOfDay),
-      kind: isGift ? 'player_help' : 'story_flag',
+      kind: eventKind,
       actors: [residentId],
       summary: flagSummary,
       summaryTag: choice.id,
@@ -449,7 +500,7 @@ export function applyDialogueChoice(
       }
     }
   } else if (
-    (choice.setSideFlags || choice.isStoryMilestone) &&
+    (choice.setSideFlags || hasPositiveStorylineAdvance || choice.isStoryMilestone) &&
     !isGift &&
     (!choice.recordNpcMemories || choice.recordNpcMemories.length === 0)
   ) {
@@ -606,6 +657,7 @@ export function applyDialogueChoice(
     topicHistory: nextTopicHistory,
     lastTopicByResident: nextLastTopic,
     sideFlags: nextSideFlags,
+    storylines: nextStorylines,
     flags: nextFlags,
     memories: nextMemories,
     npcMemories: nextNpcMemories,
@@ -627,7 +679,7 @@ export function applyDialogueChoice(
     ? 'Friendship deepened!'
     : memoryUnlockedTitle
     ? 'Memory unlocked!'
-    : choice.isStoryMilestone
+    : completedStorylineNow || choice.isStoryMilestone
     ? 'Story milestone!'
     : undefined;
 
