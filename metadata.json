@@ -1,0 +1,6 @@
+{
+  "name": "LITTLE SOMEWHERE",
+  "description": "A cozy isometric 3D low-poly life-simulation game filled with living neighbors, branching stories, and a world that blooms with your kindness.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

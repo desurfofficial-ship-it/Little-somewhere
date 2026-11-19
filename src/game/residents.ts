@@ -1,0 +1,506 @@
+import { ResidentDefinition, ResidentId, ResidentProgress, TimePhase, Vec2 } from './types';
+
+export const RESIDENT_ORDER: ResidentId[] = [
+  'clara',
+  'arthur',
+  'mina',
+  'jun',
+  'barnaby',
+  'sora',
+  'toby',
+  'nora',
+  'pip',
+];
+
+export const RESIDENTS: Record<ResidentId, ResidentDefinition> = {
+  clara: {
+    id: 'clara',
+    name: 'Clara',
+    role: 'Sourdough Baker',
+    homeName: 'Hearth & Crumb Bakery',
+    personality: 'Warm-hearted, proud, secretly misses the old morning bell.',
+    favoriteThing: 'Crusty rosemary loaves and busy café tables',
+    appearance: {
+      coatColor: '#D67B5A',
+      shirtColor: '#F9F3E7',
+      hairColor: '#5B3828',
+      skinColor: '#F1C5A8',
+      accentColor: '#E8B86B',
+      hatStyle: 'bun',
+      propType: 'loaf',
+      heightScale: 1.0,
+    },
+    schedule: {
+      morning: {
+        phase: 'morning',
+        target: { x: -8.0, z: -6.2 },
+        placeName: 'Bakery Porch',
+        activity: 'Cooling fresh rosemary loaves on the sill',
+        facingAngle: 0.5,
+      },
+      afternoon: {
+        phase: 'afternoon',
+        target: { x: -3.2, z: 0.4 },
+        placeName: 'Fountain Plaza',
+        activity: 'Chatting by the dry stone basin',
+        facingAngle: 1.2,
+      },
+      golden: {
+        phase: 'golden',
+        target: { x: -3.5, z: -5.8 },
+        placeName: 'Gazebo Walk',
+        activity: 'Glancing up at the quiet spire',
+        facingAngle: 0.4,
+      },
+      dusk: {
+        phase: 'dusk',
+        target: { x: -9.0, z: -6.4 },
+        placeName: 'Bakery Steps',
+        activity: 'Sweeping flour from the warm doorway',
+        facingAngle: 0.2,
+      },
+    },
+  },
+  arthur: {
+    id: 'arthur',
+    name: 'Arthur',
+    role: 'Clockmaker & Tinker',
+    homeName: 'Copperwheel Cottage',
+    personality: 'Gentle perfectionist who locked away his tools after an old rift.',
+    favoriteThing: 'Brass escapements and chamomile tea',
+    appearance: {
+      coatColor: '#546E7A',
+      shirtColor: '#E5DEC9',
+      hairColor: '#C5C8CE',
+      skinColor: '#E9BE9F',
+      accentColor: '#D49B42',
+      hatStyle: 'none',
+      propType: 'none',
+      heightScale: 1.03,
+    },
+    schedule: {
+      morning: {
+        phase: 'morning',
+        target: { x: 8.6, z: -7.5 },
+        placeName: 'Copperwheel Yard',
+        activity: 'Polishing pocket watch springs in the sun',
+        facingAngle: -1.1,
+      },
+      afternoon: {
+        phase: 'afternoon',
+        target: { x: 6.2, z: 4.5 },
+        placeName: 'East Bench',
+        activity: 'Listening to wind rustle the cedar leaves',
+        facingAngle: -2.2,
+      },
+      golden: {
+        phase: 'golden',
+        target: { x: 3.4, z: -5.8 },
+        placeName: 'Gazebo Steps',
+        activity: 'Measuring the silent bell beam from afar',
+        facingAngle: -0.6,
+      },
+      dusk: {
+        phase: 'dusk',
+        target: { x: 8.8, z: -7.6 },
+        placeName: 'Copperwheel Porch',
+        activity: 'Lighting a brass oil lamp by the window',
+        facingAngle: -1.4,
+      },
+    },
+  },
+  mina: {
+    id: 'mina',
+    name: 'Mina',
+    role: 'Botanist & Florist',
+    homeName: 'Sunbeam Greenhouse',
+    personality: 'Optimistic, patient, reads moods through blooming petals.',
+    favoriteThing: 'Moon-petal seedlings and rain-soaked terracotta',
+    appearance: {
+      coatColor: '#6E9168',
+      shirtColor: '#FAF2DF',
+      hairColor: '#3D2B24',
+      skinColor: '#DCAC8A',
+      accentColor: '#E48397',
+      hatStyle: 'straw',
+      propType: 'watering_can',
+      heightScale: 0.98,
+    },
+    schedule: {
+      morning: {
+        phase: 'morning',
+        target: { x: 9.2, z: 2.0 },
+        placeName: 'Sunbeam Greenhouse',
+        activity: 'Misting terracotta pots in the morning glare',
+        facingAngle: -1.5,
+      },
+      afternoon: {
+        phase: 'afternoon',
+        target: { x: -6.8, z: -5.0 },
+        placeName: 'Bakery Patio',
+        activity: 'Dropping off lavender sprigs for Clara',
+        facingAngle: -0.5,
+      },
+      golden: {
+        phase: 'golden',
+        target: { x: 3.2, z: 1.5 },
+        placeName: 'Fountain Plaza',
+        activity: 'Checking moisture along the mossy stones',
+        facingAngle: -1.6,
+      },
+      dusk: {
+        phase: 'dusk',
+        target: { x: 9.6, z: 2.4 },
+        placeName: 'Greenhouse Door',
+        activity: 'Tucking tender blooms inside for the night',
+        facingAngle: -1.6,
+      },
+    },
+  },
+  jun: {
+    id: 'jun',
+    name: 'Jun',
+    role: 'Letter Carrier',
+    homeName: 'Post Lane',
+    personality: 'Cheerful, observant keeper of postcards and small kindnesses.',
+    favoriteThing: 'Handwritten envelopes and clean morning routes',
+    appearance: {
+      coatColor: '#4E79A7',
+      shirtColor: '#F3EFE4',
+      hairColor: '#24232B',
+      skinColor: '#F0C8AB',
+      accentColor: '#E09F3E',
+      hatStyle: 'cap',
+      propType: 'satchel',
+      heightScale: 0.99,
+    },
+    schedule: {
+      morning: {
+        phase: 'morning',
+        target: { x: -6.8, z: 6.4 },
+        placeName: 'Willow Step Lane',
+        activity: 'Sorting morning postcards by your mailbox',
+        facingAngle: -0.9,
+      },
+      afternoon: {
+        phase: 'afternoon',
+        target: { x: 5.2, z: -2.0 },
+        placeName: 'Noticeboard Corner',
+        activity: 'Pinning neighborhood flyers and chatting',
+        facingAngle: 2.4,
+      },
+      golden: {
+        phase: 'golden',
+        target: { x: -2.4, z: 6.2 },
+        placeName: 'South Cobblestones',
+        activity: 'Taking a breather with his canvas satchel',
+        facingAngle: 0.2,
+      },
+      dusk: {
+        phase: 'dusk',
+        target: { x: 1.4, z: 5.0 },
+        placeName: 'Plaza South Edge',
+        activity: 'Wrapping up the evening post route',
+        facingAngle: 3.1,
+      },
+    },
+  },
+  barnaby: {
+    id: 'barnaby',
+    name: 'Barnaby',
+    role: 'Retired Carpenter',
+    homeName: 'Pinecone Woodshop',
+    personality: 'Gruff-warm craftsman who still checks every beam he built.',
+    favoriteThing: 'Cedar shavings, beeswax polish, and sturdy ladders',
+    appearance: {
+      coatColor: '#9E6240',
+      shirtColor: '#E3D5C0',
+      hairColor: '#8E8880',
+      skinColor: '#DFB192',
+      accentColor: '#6C8464',
+      hatStyle: 'none',
+      propType: 'none',
+      heightScale: 1.08,
+    },
+    schedule: {
+      morning: {
+        phase: 'morning',
+        target: { x: 7.5, z: 11.8 },
+        placeName: 'Pinecone Woodshop',
+        activity: 'Planing cedar slats on his sawhorse',
+        facingAngle: -1.4,
+      },
+      afternoon: {
+        phase: 'afternoon',
+        target: { x: 2.8, z: -7.5 },
+        placeName: 'Old Bell Gazebo',
+        activity: 'Inspecting the ivy-tangled roof rafters',
+        facingAngle: -0.8,
+      },
+      golden: {
+        phase: 'golden',
+        target: { x: 6.8, z: 9.2 },
+        placeName: 'East Bridge Path',
+        activity: 'Testing the bridge rails before sunset',
+        facingAngle: -2.0,
+      },
+      dusk: {
+        phase: 'dusk',
+        target: { x: -6.4, z: 10.6 },
+        placeName: 'Willow Step Lane',
+        activity: 'Checking on his neighbor across the lane',
+        facingAngle: -1.5,
+      },
+    },
+  },
+  sora: {
+    id: 'sora',
+    name: 'Sora',
+    role: 'Violinist & Tea Brewer',
+    homeName: 'South Lantern Caravan',
+    personality: 'Dreamy listener who hears the missing note in the square.',
+    favoriteThing: 'Chamomile-pear tea and soft dusk arpeggios',
+    appearance: {
+      coatColor: '#8C6BB1',
+      shirtColor: '#F7EFE2',
+      hairColor: '#2B2129',
+      skinColor: '#F3CEB4',
+      accentColor: '#E6A85C',
+      hatStyle: 'beret',
+      propType: 'violin',
+      heightScale: 0.97,
+    },
+    schedule: {
+      morning: {
+        phase: 'morning',
+        target: { x: -5.4, z: -1.6 },
+        placeName: 'Tea Cart',
+        activity: 'Steeping chamomile blossoms by the square',
+        facingAngle: 1.1,
+      },
+      afternoon: {
+        phase: 'afternoon',
+        target: { x: -3.2, z: 3.4 },
+        placeName: 'Fountain Plaza',
+        activity: 'Tuning a wooden violin beside the plaza',
+        facingAngle: 0.7,
+      },
+      golden: {
+        phase: 'golden',
+        target: { x: -5.0, z: -1.8 },
+        placeName: 'Tea Cart',
+        activity: 'Pouring golden-hour tea for passersby',
+        facingAngle: 1.4,
+      },
+      dusk: {
+        phase: 'dusk',
+        target: { x: -1.8, z: -4.8 },
+        placeName: 'Plaza Lanterns',
+        activity: 'Humming an old bell melody under the eaves',
+        facingAngle: 0.1,
+      },
+    },
+  },
+  toby: {
+    id: 'toby',
+    name: 'Toby',
+    role: 'Sketchbook Artist',
+    homeName: 'Linden Loft',
+    personality: 'Quiet observer who notices shiny objects and stray cats.',
+    favoriteThing: 'Charcoal sketches and mossy oak roots',
+    appearance: {
+      coatColor: '#C9973E',
+      shirtColor: '#EDE7D9',
+      hairColor: '#543D32',
+      skinColor: '#EBC1A3',
+      accentColor: '#5F847B',
+      hatStyle: 'hood',
+      propType: 'sketchbook',
+      heightScale: 0.94,
+    },
+    schedule: {
+      morning: {
+        phase: 'morning',
+        target: { x: -4.4, z: 13.8 },
+        placeName: 'Mirror Pond Bank',
+        activity: 'Sketching dragonflies near the hollow oak',
+        facingAngle: 2.2,
+      },
+      afternoon: {
+        phase: 'afternoon',
+        target: { x: 8.6, z: 4.8 },
+        placeName: 'Greenhouse Wall',
+        activity: 'Drawing glass reflections on Mina’s wall',
+        facingAngle: -1.8,
+      },
+      golden: {
+        phase: 'golden',
+        target: { x: -4.8, z: 13.4 },
+        placeName: 'Hollow Oak',
+        activity: 'Peering at a glint inside the old oak root',
+        facingAngle: 2.6,
+      },
+      dusk: {
+        phase: 'dusk',
+        target: { x: 2.6, z: 3.6 },
+        placeName: 'Fountain Edge',
+        activity: 'Drawing warm lantern reflections',
+        facingAngle: -2.4,
+      },
+    },
+  },
+  nora: {
+    id: 'nora',
+    name: 'Nora',
+    role: 'Bookshop Keeper',
+    homeName: 'Linden Book Nook',
+    personality: 'Wry, wise chronicler who remembers every festival of the past.',
+    favoriteThing: 'Annotated almanacs and quiet afternoons',
+    appearance: {
+      coatColor: '#7A5463',
+      shirtColor: '#F3E9DB',
+      hairColor: '#DED8CE',
+      skinColor: '#E5BCA0',
+      accentColor: '#98A869',
+      hatStyle: 'bun',
+      propType: 'book',
+      heightScale: 0.96,
+    },
+    schedule: {
+      morning: {
+        phase: 'morning',
+        target: { x: -10.8, z: -0.6 },
+        placeName: 'Linden Book Nook',
+        activity: 'Opening wooden shutters and dusting spines',
+        facingAngle: 1.5,
+      },
+      afternoon: {
+        phase: 'afternoon',
+        target: { x: -7.2, z: 4.0 },
+        placeName: 'West Bench',
+        activity: 'Reading neighborhood chronicles in the shade',
+        facingAngle: 0.6,
+      },
+      golden: {
+        phase: 'golden',
+        target: { x: -10.6, z: -0.8 },
+        placeName: 'Book Nook Porch',
+        activity: 'Sipping broth while watching the square',
+        facingAngle: 1.4,
+      },
+      dusk: {
+        phase: 'dusk',
+        target: { x: -10.8, z: -0.2 },
+        placeName: 'Linden Book Nook',
+        activity: 'Tucking festival ribbons behind the counter',
+        facingAngle: 1.6,
+      },
+    },
+  },
+  pip: {
+    id: 'pip',
+    name: 'Pip',
+    role: 'Chalk-Note Messenger',
+    homeName: 'Bakery Upstairs',
+    personality: 'Bright-eyed kid who has never heard the town bell ring.',
+    favoriteThing: 'Skipping stones, chalk doodles, and warm crusts',
+    appearance: {
+      coatColor: '#D96B6B',
+      shirtColor: '#F9F0DB',
+      hairColor: '#70442B',
+      skinColor: '#F2C7A8',
+      accentColor: '#5693B5',
+      hatStyle: 'cap',
+      propType: 'none',
+      heightScale: 0.78,
+    },
+    schedule: {
+      morning: {
+        phase: 'morning',
+        target: { x: 2.2, z: -1.4 },
+        placeName: 'Fountain Plaza',
+        activity: 'Drawing chalk constellations on the flagstones',
+        facingAngle: -2.0,
+      },
+      afternoon: {
+        phase: 'afternoon',
+        target: { x: -3.2, z: 12.4 },
+        placeName: 'Mirror Pond Bridge',
+        activity: 'Counting tiny carp under the wooden planks',
+        facingAngle: 0.4,
+      },
+      golden: {
+        phase: 'golden',
+        target: { x: -0.4, z: -5.4 },
+        placeName: 'Gazebo Lawn',
+        activity: 'Wondering what the high brass bell sounds like',
+        facingAngle: 3.1,
+      },
+      dusk: {
+        phase: 'dusk',
+        target: { x: -7.2, z: -6.8 },
+        placeName: 'Bakery Stoop',
+        activity: 'Waiting for end-of-day cinnamon buns',
+        facingAngle: -0.7,
+      },
+    },
+  },
+};
+
+export function getTimePhase(minuteOfDay: number): TimePhase {
+  if (minuteOfDay < 690) return 'morning'; // 6:00 AM - 11:30 AM
+  if (minuteOfDay < 960) return 'afternoon'; // 11:30 AM - 4:00 PM
+  if (minuteOfDay < 1110) return 'golden'; // 4:00 PM - 6:30 PM
+  return 'dusk'; // 6:30 PM - 9:00 PM
+}
+
+export function formatClock(minuteOfDay: number): string {
+  const clamped = Math.max(0, Math.min(1439, Math.round(minuteOfDay)));
+  const hours24 = Math.floor(clamped / 60);
+  const mins = clamped % 60;
+  const suffix = hours24 >= 12 ? 'PM' : 'AM';
+  const hours12 = hours24 % 12 === 0 ? 12 : hours24 % 12;
+  return `${hours12}:${mins.toString().padStart(2, '0')} ${suffix}`;
+}
+
+export function getResidentScheduleSlot(
+  id: ResidentId,
+  phase: TimePhase,
+  reconciled: boolean,
+): { target: Vec2; placeName: string; activity: string; facingAngle: number } {
+  // Special heartwarming environmental reactivity:
+  // Once Clara and Arthur reconcile, they meet together at the Gazebo during Golden Hour!
+  if (reconciled && phase === 'golden') {
+    if (id === 'clara') {
+      return {
+        target: { x: -1.1, z: -6.1 },
+        placeName: 'Gazebo Steps',
+        activity: 'Sharing warm sourdough beside Arthur under the bell',
+        facingAngle: 1.1,
+      };
+    }
+    if (id === 'arthur') {
+      return {
+        target: { x: 1.1, z: -6.1 },
+        placeName: 'Gazebo Steps',
+        activity: 'Listening to the brass bell chime alongside Clara',
+        facingAngle: -1.1,
+      };
+    }
+  }
+  return RESIDENTS[id].schedule[phase];
+}
+
+export function createInitialResidentsProgress(): Record<ResidentId, ResidentProgress> {
+  const out = {} as Record<ResidentId, ResidentProgress>;
+  for (const id of RESIDENT_ORDER) {
+    out[id] = {
+      trust: id === 'jun' ? 1 : 0,
+      met: false,
+      talkedToday: false,
+      mood: id === 'clara' || id === 'arthur' ? 'wistful' : 'peaceful',
+      lastDialogueId: null,
+    };
+  }
+  return out;
+}
