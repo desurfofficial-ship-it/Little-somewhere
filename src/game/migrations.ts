@@ -3,9 +3,12 @@ import {
   CarryableItemId,
   CharacterEmotion,
   JournalMemory,
+  NpcMemoryDetail,
+  NpcMemoryEntry,
   NpcNpcRelation,
   NpcRuntimeState,
   PlayerNpcRelation,
+  RelationshipTier,
   ResidentActivityEntry,
   ResidentId,
   ResidentProgress,
@@ -32,6 +35,23 @@ import {
   getHeartLevel,
 } from './relationships';
 import {
+  DURABLE_MEMORY_TTL_DAYS,
+  GOSSIP_MIN_CONFIDENCE,
+  MAX_GOSSIP_HOPS,
+  VALID_MEMORY_CATEGORIES,
+  VALID_MEMORY_DISTORTIONS,
+  VALID_MEMORY_PROVENANCES,
+  VALID_MEMORY_RETENTIONS,
+  VALID_MEMORY_SOURCE_KINDS,
+  VALID_MEMORY_VALENCES,
+  createEmptyNpcMemories,
+  createInitialNpcMemories,
+  createNpcMemoryEntry,
+  enforceResidentMemoryCapInPlace,
+  isMemoryExpired,
+  recordNpcMemoryInPlace,
+} from './memories';
+import {
   DAY_START_MINUTE,
   DEFAULT_START_MINUTE,
   SEASON_ORDER,
@@ -50,7 +70,7 @@ import {
 } from './worldMap';
 import { createInitialNpcRuntime } from './simulation';
 
-export const CURRENT_SCHEMA_VERSION = 3;
+export const CURRENT_SCHEMA_VERSION = 4;
 export const DEFAULT_SIM_SEED = 18042;
 
 export interface MigrationResult {
@@ -178,6 +198,7 @@ export function createDefaultWorldState(): WorldState {
     sideFlags: {},
     flags,
     memories: createStarterMemories(),
+    npcMemories: createInitialNpcMemories(flags.claraArthurReconciled, day, minuteOfDay),
     mailboxUnread: true,
     dailyLettersRead: [],
     bellRungCount: 0,
@@ -520,7 +541,7 @@ function sanitizeNpcRelations(
     const sharedTags = Array.isArray(entry.sharedTags)
       ? entry.sharedTags.filter((t): t is string => typeof t === 'string').slice(-6)
       : fallbackTags;
-    out[key] = {
+    const sanitizedRel: NpcNpcRelation = {
       pair: def ? def.pair : (key as NpcNpcRelation['pair']),
       affinity: key === 'arthur:clara' && reconciled ? Math.max(55, affinity) : affinity,
       tension: key === 'arthur:clara' && reconciled ? Math.min(5, tension) : tension,
@@ -530,6 +551,24 @@ function sanitizeNpcRelations(
           ? Math.floor(entry.lastInteractionDay)
           : null,
     };
+    if (
+      typeof entry.lastGossipDay === 'number' &&
+      Number.isFinite(entry.lastGossipDay) &&
+      entry.lastGossipDay >= 1
+    ) {
+      sanitizedRel.lastGossipDay = Math.floor(entry.lastGossipDay);
+    } else if (entry.lastGossipDay === null) {
+      sanitizedRel.lastGossipDay = null;
+    }
+    if (typeof entry.lastGossipMinute === 'number' && Number.isFinite(entry.lastGossipMinute)) {
+      sanitizedRel.lastGossipMinute = clampMinuteOfDay(entry.lastGossipMinute);
+    } else if (entry.lastGossipMinute === null) {
+      sanitizedRel.lastGossipMinute = null;
+    }
+    if (typeof entry.lastGossipEventId === 'string' && entry.lastGossipEventId.length > 0) {
+      sanitizedRel.lastGossipEventId = entry.lastGossipEventId;
+    }
+    out[key] = sanitizedRel;
   }
   return out;
 }
@@ -741,6 +780,196 @@ function sanitizeSideFlags(raw: unknown): Record<string, boolean | number | stri
   return out;
 }
 
+const VALID_TIERS = new Set<RelationshipTier>([
+  'stranger',
+  'acquaintance',
+  'friendly',
+  'close',
+  'kindred',
+]);
+
+function sanitizeMemoryDetail(raw: unknown): NpcMemoryDetail | undefined {
+  if (!isRecord(raw)) return undefined;
+  const detail: NpcMemoryDetail = {};
+  if (typeof raw.itemId === 'string' && VALID_CARRYABLE_IDS.has(raw.itemId as CarryableItemId)) {
+    detail.itemId = raw.itemId as CarryableItemId;
+  }
+  if (typeof raw.placeName === 'string' && raw.placeName.length > 0) {
+    detail.placeName = raw.placeName;
+  }
+  if (typeof raw.targetTier === 'string' && VALID_TIERS.has(raw.targetTier as RelationshipTier)) {
+    detail.targetTier = raw.targetTier as RelationshipTier;
+  }
+  if (typeof raw.acousticOnly === 'boolean') {
+    detail.acousticOnly = raw.acousticOnly;
+  }
+  return Object.keys(detail).length > 0 ? detail : undefined;
+}
+
+function sanitizeNpcMemories(
+  rawNpcMemories: unknown,
+  reconciled: boolean,
+  currentDay: number,
+  minuteOfDay: number,
+  warnings: string[],
+): Record<ResidentId, NpcMemoryEntry[]> {
+  if (!isRecord(rawNpcMemories)) {
+    return createInitialNpcMemories(reconciled, currentDay, minuteOfDay);
+  }
+
+  const out = createEmptyNpcMemories();
+  for (const rawKey of Object.keys(rawNpcMemories)) {
+    if (!(RESIDENT_ORDER as readonly string[]).includes(rawKey)) {
+      warnings.push(`ignored unknown resident key in npcMemories: ${rawKey}`);
+    }
+  }
+
+  for (const id of RESIDENT_ORDER) {
+    const rawList = rawNpcMemories[id];
+    if (!Array.isArray(rawList)) continue;
+    for (const item of rawList) {
+      if (!isRecord(item)) continue;
+      if (
+        typeof item.id !== 'string' ||
+        item.id.length === 0 ||
+        typeof item.eventId !== 'string' ||
+        item.eventId.length === 0 ||
+        typeof item.tag !== 'string' ||
+        item.tag.length === 0
+      ) {
+        warnings.push(`discarded malformed npcMemory entry on ${id}`);
+        continue;
+      }
+
+      const provenance =
+        typeof item.provenance === 'string' &&
+        VALID_MEMORY_PROVENANCES.has(item.provenance as NpcMemoryEntry['provenance'])
+          ? (item.provenance as NpcMemoryEntry['provenance'])
+          : 'secondhand';
+      const sourceKind =
+        typeof item.sourceKind === 'string' &&
+        VALID_MEMORY_SOURCE_KINDS.has(item.sourceKind as NpcMemoryEntry['sourceKind'])
+          ? (item.sourceKind as NpcMemoryEntry['sourceKind'])
+          : provenance === 'firsthand'
+          ? 'participant'
+          : 'gossip';
+      const category =
+        typeof item.category === 'string' &&
+        VALID_MEMORY_CATEGORIES.has(item.category as NpcMemoryEntry['category'])
+          ? (item.category as NpcMemoryEntry['category'])
+          : 'event';
+      const retention =
+        typeof item.retention === 'string' &&
+        VALID_MEMORY_RETENTIONS.has(item.retention as NpcMemoryEntry['retention'])
+          ? (item.retention as NpcMemoryEntry['retention'])
+          : provenance === 'rumor'
+          ? 'ephemeral'
+          : 'durable';
+      const valence =
+        typeof item.valence === 'string' &&
+        VALID_MEMORY_VALENCES.has(item.valence as NpcMemoryEntry['valence'])
+          ? (item.valence as NpcMemoryEntry['valence'])
+          : 'neutral';
+      const distortionFlavor =
+        typeof item.distortionFlavor === 'string' &&
+        VALID_MEMORY_DISTORTIONS.has(item.distortionFlavor as NpcMemoryEntry['distortionFlavor'])
+          ? (item.distortionFlavor as NpcMemoryEntry['distortionFlavor'])
+          : 'none';
+
+      const createdDay = Math.max(1, Math.floor(asFiniteNumber(item.createdDay, currentDay)));
+      const learnedDay = Math.max(
+        createdDay,
+        Math.floor(asFiniteNumber(item.learnedDay, createdDay)),
+      );
+      const createdMinute = clampMinuteOfDay(asFiniteNumber(item.createdMinute, minuteOfDay));
+      const learnedMinute = clampMinuteOfDay(asFiniteNumber(item.learnedMinute, createdMinute));
+
+      const hopCount =
+        provenance === 'firsthand'
+          ? 0
+          : Math.max(
+              1,
+              Math.min(MAX_GOSSIP_HOPS, Math.floor(asFiniteNumber(item.hopCount, 1))),
+            );
+      const confidence =
+        provenance === 'firsthand'
+          ? 100
+          : Math.max(
+              GOSSIP_MIN_CONFIDENCE,
+              Math.min(95, Math.round(asFiniteNumber(item.confidence, 70))),
+            );
+
+      const fromResidentId =
+        typeof item.fromResidentId === 'string' &&
+        (RESIDENT_ORDER as readonly string[]).includes(item.fromResidentId) &&
+        item.fromResidentId !== id
+          ? (item.fromResidentId as ResidentId)
+          : undefined;
+      const originResidentId =
+        typeof item.originResidentId === 'string' &&
+        (RESIDENT_ORDER as readonly string[]).includes(item.originResidentId)
+          ? (item.originResidentId as ResidentId)
+          : undefined;
+
+      const subjectResidents = Array.isArray(item.subjectResidents)
+        ? item.subjectResidents.filter(
+            (r): r is ResidentId =>
+              typeof r === 'string' && (RESIDENT_ORDER as readonly string[]).includes(r),
+          )
+        : [];
+
+      const rawExpiresDay =
+        retention !== 'permanent' &&
+        typeof item.expiresDay === 'number' &&
+        Number.isFinite(item.expiresDay)
+          ? Math.max(learnedDay, Math.floor(item.expiresDay))
+          : undefined;
+
+      const entry = createNpcMemoryEntry({
+        id: item.id,
+        eventId: item.eventId,
+        tag: item.tag,
+        category,
+        subjectPlayer: asBoolean(item.subjectPlayer, false),
+        subjectResidents,
+        provenance,
+        sourceKind,
+        originResidentId,
+        fromResidentId,
+        hopCount,
+        confidence,
+        distorted: provenance === 'firsthand' ? false : asBoolean(item.distorted, false),
+        distortionFlavor:
+          provenance === 'firsthand' || !asBoolean(item.distorted, false)
+            ? 'none'
+            : distortionFlavor,
+        createdDay,
+        createdMinute,
+        learnedDay,
+        learnedMinute,
+        expiresDay: rawExpiresDay,
+        importance: Math.max(1, Math.min(5, Math.round(asFiniteNumber(item.importance, 3)))),
+        retention,
+        valence,
+        emotionalWeight: Math.max(
+          0,
+          Math.min(100, Math.round(asFiniteNumber(item.emotionalWeight, 50))),
+        ),
+        mentionedToPlayer: asBoolean(item.mentionedToPlayer, false),
+        sharedCount: Math.max(0, Math.floor(asFiniteNumber(item.sharedCount, 0))),
+        detail: sanitizeMemoryDetail(item.detail),
+      });
+
+      if (isMemoryExpired(entry, currentDay)) {
+        continue;
+      }
+      recordNpcMemoryInPlace(out, id, entry, currentDay);
+    }
+    enforceResidentMemoryCapInPlace(out[id], currentDay);
+  }
+  return out;
+}
+
 export function sanitizeWorldState(candidate: unknown, externalWarnings: string[] = []): WorldState {
   if (!isRecord(candidate)) {
     return createDefaultWorldState();
@@ -806,6 +1035,13 @@ export function sanitizeWorldState(candidate: unknown, externalWarnings: string[
   const topicHistory = sanitizeTopicHistory(candidate.topicHistory);
   const lastTopicByResident = sanitizeLastTopicByResident(candidate.lastTopicByResident);
   const sideFlags = sanitizeSideFlags(candidate.sideFlags);
+  const npcMemories = sanitizeNpcMemories(
+    candidate.npcMemories,
+    flags.claraArthurReconciled,
+    day,
+    minuteOfDay,
+    warnings,
+  );
 
   const derivedSeason = getSeasonForDay(day).season;
   const season =
@@ -859,6 +1095,7 @@ export function sanitizeWorldState(candidate: unknown, externalWarnings: string[
     sideFlags,
     flags,
     memories: sanitizeMemories(candidate.memories),
+    npcMemories,
     mailboxUnread: asBoolean(candidate.mailboxUnread, true),
     dailyLettersRead,
     bellRungCount: Math.max(0, Math.floor(asFiniteNumber(candidate.bellRungCount, 0))),
@@ -923,11 +1160,270 @@ export function migrateV2ToV3(v2Raw: Record<string, unknown>): Record<string, un
   };
 }
 
+/**
+ * Pure sequential v3 -> v4 save upgrader adding bounded per-NPC subjective memories.
+ * Strictly avoids manufacturing firsthand memories without save-backed participant/witness evidence.
+ */
+export function migrateV3ToV4(v3Raw: Record<string, unknown>): Record<string, unknown> {
+  const warnings: string[] = [];
+  const day = Math.max(1, Math.floor(asFiniteNumber(v3Raw.day, 1)));
+  const minuteOfDay = clampMinuteOfDay(asFiniteNumber(v3Raw.minuteOfDay, DEFAULT_START_MINUTE));
+  const flags = sanitizeFlags(v3Raw.flags, warnings);
+  const residents = sanitizeResidents(v3Raw.residents, warnings);
+  const memories = sanitizeMemories(v3Raw.memories);
+  const playerRelations = sanitizePlayerRelations(v3Raw.playerRelations, residents);
+  const worldEvents = sanitizeWorldEvents(v3Raw.worldEvents);
+
+  const npcMemories = createInitialNpcMemories(
+    flags.claraArthurReconciled,
+    day,
+    minuteOfDay,
+  );
+
+  // Sole-author canonical story flags (each flag can only be triggered by that specific resident)
+  if (flags.repairedFountain && RESIDENTS_HAS('barnaby')) {
+    recordNpcMemoryInPlace(
+      npcMemories,
+      'barnaby',
+      createNpcMemoryEntry({
+        id: 'ev_fountain_fixed',
+        eventId: 'ev_fountain_fixed',
+        tag: 'fountain_fixed',
+        category: 'event',
+        subjectPlayer: true,
+        subjectResidents: ['barnaby'],
+        provenance: 'firsthand',
+        sourceKind: 'participant',
+        createdDay: day,
+        createdMinute: minuteOfDay,
+        importance: 4,
+        retention: 'durable',
+        valence: 'warm',
+        emotionalWeight: 78,
+        detail: { placeName: 'Fountain Plaza' },
+      }),
+      day,
+    );
+  }
+  if (flags.plantedMoonPetals && RESIDENTS_HAS('mina')) {
+    recordNpcMemoryInPlace(
+      npcMemories,
+      'mina',
+      createNpcMemoryEntry({
+        id: 'ev_moon_petals',
+        eventId: 'ev_moon_petals',
+        tag: 'moon_petals',
+        category: 'event',
+        subjectPlayer: true,
+        subjectResidents: ['mina'],
+        provenance: 'firsthand',
+        sourceKind: 'participant',
+        createdDay: day,
+        createdMinute: minuteOfDay,
+        importance: 4,
+        retention: 'durable',
+        valence: 'warm',
+        emotionalWeight: 78,
+        detail: { placeName: 'Willow Step Planters' },
+      }),
+      day,
+    );
+  }
+  if (flags.deliveredPostcard && RESIDENTS_HAS('jun')) {
+    recordNpcMemoryInPlace(
+      npcMemories,
+      'jun',
+      createNpcMemoryEntry({
+        id: 'ev_postcard_delivered',
+        eventId: 'ev_postcard_delivered',
+        tag: 'postcard_delivered',
+        category: 'interaction',
+        subjectPlayer: true,
+        subjectResidents: ['jun'],
+        provenance: 'firsthand',
+        sourceKind: 'participant',
+        createdDay: day,
+        createdMinute: minuteOfDay,
+        importance: 3,
+        retention: 'durable',
+        valence: 'warm',
+        emotionalWeight: 72,
+      }),
+      day,
+    );
+  }
+  if (flags.brewedChamomileTea && RESIDENTS_HAS('sora')) {
+    recordNpcMemoryInPlace(
+      npcMemories,
+      'sora',
+      createNpcMemoryEntry({
+        id: 'ev_chamomile_tea',
+        eventId: 'ev_chamomile_tea',
+        tag: 'chamomile_tea',
+        category: 'interaction',
+        subjectPlayer: true,
+        subjectResidents: ['sora'],
+        provenance: 'firsthand',
+        sourceKind: 'participant',
+        createdDay: day,
+        createdMinute: minuteOfDay,
+        importance: 3,
+        retention: 'durable',
+        valence: 'warm',
+        emotionalWeight: 70,
+      }),
+      day,
+    );
+  }
+  if (flags.bellRestored && RESIDENTS_HAS('arthur')) {
+    recordNpcMemoryInPlace(
+      npcMemories,
+      'arthur',
+      createNpcMemoryEntry({
+        id: 'ev_bell_restored',
+        eventId: 'ev_bell_restored',
+        tag: 'bell_restored',
+        category: 'event',
+        subjectPlayer: true,
+        subjectResidents: ['arthur'],
+        provenance: 'firsthand',
+        sourceKind: 'participant',
+        createdDay: day,
+        createdMinute: minuteOfDay,
+        importance: 5,
+        retention: 'permanent',
+        valence: 'warm',
+        emotionalWeight: 95,
+        detail: { placeName: 'Old Bell Gazebo' },
+      }),
+      day,
+    );
+  }
+
+  // Player Journal memories with explicit resident attribution provide verified participation evidence
+  for (const jm of memories) {
+    if (!jm.residentId || !RESIDENTS_HAS(jm.residentId)) continue;
+    if (jm.id === 'mem_brass_clapper') {
+      recordNpcMemoryInPlace(
+        npcMemories,
+        jm.residentId,
+        createNpcMemoryEntry({
+          id: 'ev_brass_clapper',
+          eventId: 'ev_brass_clapper',
+          tag: 'brass_clapper',
+          category: 'interaction',
+          subjectPlayer: true,
+          subjectResidents: [jm.residentId],
+          provenance: 'firsthand',
+          sourceKind: 'participant',
+          createdDay: jm.day,
+          createdMinute: minuteOfDay,
+          importance: 4,
+          retention: 'durable',
+          valence: 'warm',
+          emotionalWeight: 75,
+        }),
+        day,
+      );
+    } else if (jm.id === 'mem_bell_mystery') {
+      recordNpcMemoryInPlace(
+        npcMemories,
+        jm.residentId,
+        createNpcMemoryEntry({
+          id: 'ev_bell_mystery',
+          eventId: 'ev_bell_mystery',
+          tag: 'bell_mystery',
+          category: 'interaction',
+          subjectPlayer: true,
+          subjectResidents: [jm.residentId],
+          provenance: 'firsthand',
+          sourceKind: 'participant',
+          createdDay: jm.day,
+          createdMinute: minuteOfDay,
+          importance: 3,
+          retention: 'durable',
+          valence: 'neutral',
+          emotionalWeight: 60,
+        }),
+        day,
+      );
+    }
+  }
+
+  // Recorded player friction per resident
+  for (const id of RESIDENT_ORDER) {
+    const prel = playerRelations[id];
+    if (prel && prel.negativeCount > 0) {
+      const fDay = prel.lastTalkDay ?? day;
+      recordNpcMemoryInPlace(
+        npcMemories,
+        id,
+        createNpcMemoryEntry({
+          id: `ev_player_blunt_${id}`,
+          eventId: `ev_player_blunt_${id}`,
+          tag: 'player_blunt',
+          category: 'friction',
+          subjectPlayer: true,
+          subjectResidents: [id],
+          provenance: 'firsthand',
+          sourceKind: 'participant',
+          createdDay: Math.min(day, fDay),
+          createdMinute: minuteOfDay,
+          importance: 3,
+          retention: 'durable',
+          valence: 'tense',
+          emotionalWeight: 70,
+        }),
+        day,
+      );
+    }
+  }
+
+  // Recent single-actor player_help worldEvents provide verified recipient evidence
+  for (const ev of worldEvents) {
+    if (day - ev.day > DURABLE_MEMORY_TTL_DAYS || ev.day > day) continue;
+    if (ev.kind === 'player_help' && ev.actors.length === 1) {
+      const targetId = ev.actors[0];
+      recordNpcMemoryInPlace(
+        npcMemories,
+        targetId,
+        createNpcMemoryEntry({
+          id: ev.id,
+          eventId: ev.id,
+          tag: 'player_gift',
+          category: 'interaction',
+          subjectPlayer: true,
+          subjectResidents: [targetId],
+          provenance: 'firsthand',
+          sourceKind: 'participant',
+          createdDay: ev.day,
+          createdMinute: ev.minuteOfDay,
+          importance: 3,
+          retention: 'durable',
+          valence: 'warm',
+          emotionalWeight: 70,
+        }),
+        day,
+      );
+    }
+  }
+
+  return {
+    ...v3Raw,
+    schemaVersion: 4,
+    npcMemories,
+  };
+}
+
+function RESIDENTS_HAS(id: ResidentId): boolean {
+  return (RESIDENT_ORDER as readonly string[]).includes(id);
+}
+
 export function migrateWorldState(raw: unknown): MigrationResult {
   const warnings: string[] = [];
   const detected = detectSchemaVersion(raw);
   if (detected === null) {
-    warnings.push('unrecognized or corrupt save payload; created fresh WorldState v3');
+    warnings.push('unrecognized or corrupt save payload; created fresh WorldState v4');
     return {
       state: createDefaultWorldState(),
       migratedFromVersion: null,
@@ -946,6 +1442,11 @@ export function migrateWorldState(raw: unknown): MigrationResult {
   if (version === 2) {
     working = migrateV2ToV3(working);
     version = 3;
+  }
+
+  if (version === 3) {
+    working = migrateV3ToV4(working);
+    version = 4;
   }
 
   if (version > CURRENT_SCHEMA_VERSION) {

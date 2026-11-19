@@ -11,6 +11,7 @@ import {
 import { createFreshWorldState } from './storage';
 import { interruptSocialEncounter, stepSimulation } from './simulation';
 import { getNpcRelation } from './relationships';
+import { createNpcMemoryEntry, recordNpcMemoryInPlace } from './memories';
 import { RESIDENTS, RESIDENT_ORDER } from './residents';
 import { distance2D, getSeatById, isPointWalkable } from './worldMap';
 
@@ -170,3 +171,78 @@ test('activeDialogueResidentId locks and faces speaker while spontaneous greetin
   assert.equal(duringTalk.npcRuntime.clara.animState, 'talk');
   assert.deepEqual(duringTalk.npcRuntime.clara.targetLookPos, duringTalk.playerPos);
 });
+
+test('Step 3.6: discrete social encounters propagate gossip deterministically without mutating stepSimulation inputs', () => {
+  const seedBase = createFreshWorldState();
+  // Seed a fresh memorable event on Clara, Mina, and Pip so encounters spread organic secondhand memories
+  recordNpcMemoryInPlace(
+    seedBase.npcMemories,
+    'pip',
+    createNpcMemoryEntry({
+      id: 'ev_sim_gift_pip',
+      eventId: 'ev_sim_gift_pip',
+      tag: 'player_gift',
+      category: 'interaction',
+      subjectPlayer: true,
+      subjectResidents: ['pip'],
+      provenance: 'firsthand',
+      sourceKind: 'participant',
+      createdDay: 1,
+      createdMinute: 480,
+      importance: 4,
+      retention: 'durable',
+      valence: 'warm',
+    }),
+    1,
+  );
+  recordNpcMemoryInPlace(
+    seedBase.npcMemories,
+    'clara',
+    createNpcMemoryEntry({
+      id: 'ev_sim_gift_clara',
+      eventId: 'ev_sim_gift_clara',
+      tag: 'player_gift',
+      category: 'interaction',
+      subjectPlayer: true,
+      subjectResidents: ['clara'],
+      provenance: 'firsthand',
+      sourceKind: 'participant',
+      createdDay: 1,
+      createdMinute: 480,
+      importance: 4,
+      retention: 'durable',
+      valence: 'warm',
+    }),
+    1,
+  );
+
+  const snapshotBefore = structuredClone(seedBase.npcMemories);
+  let simA = { ...seedBase, playerPos: { x: -10.5, z: 10.5 } };
+  let simB = { ...seedBase, playerPos: { x: -10.5, z: 10.5 } };
+  let simOtherSeed = { ...seedBase, simSeed: seedBase.simSeed + 999, playerPos: { x: -10.5, z: 10.5 } };
+
+  for (let i = 0; i < 360; i++) {
+    simA = stepSimulation(simA, 0.25, { clockRateMinutesPerSec: 8 });
+    simB = stepSimulation(simB, 0.25, { clockRateMinutesPerSec: 8 });
+    simOtherSeed = stepSimulation(simOtherSeed, 0.25, { clockRateMinutesPerSec: 8 });
+  }
+
+  // Input world npcMemories must never be mutated by pure stepSimulation()
+  assert.deepEqual(seedBase.npcMemories, snapshotBefore);
+
+  // Identical seeds yield byte-for-byte identical npcMemories and npcRelations
+  assert.deepEqual(simA.npcMemories, simB.npcMemories);
+  assert.deepEqual(simA.npcRelations, simB.npcRelations);
+
+  // At least one resident learned a secondhand/rumor memory via autonomous encounter gossip
+  const totalGossipLearned = RESIDENT_ORDER.reduce(
+    (sum, id) =>
+      sum + simA.npcMemories[id].filter((m) => m.provenance !== 'firsthand').length,
+    0,
+  );
+  assert.ok(totalGossipLearned >= 1, 'Expected autonomous encounter gossip to spread at least 1 memory over a full day');
+
+  // Different seeds remain independent
+  assert.notDeepEqual(simA.npcRuntime, simOtherSeed.npcRuntime);
+});
+

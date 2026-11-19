@@ -17,6 +17,11 @@ import {
   saveWorldState,
   serializeWorldState,
 } from './storage';
+import {
+  MAX_NPC_MEMORIES_PER_RESIDENT,
+  createNpcMemoryEntry,
+} from './memories';
+import { RESIDENT_ORDER } from './residents';
 import { MAX_WORLD_EVENTS } from './relationships';
 import { stepSimulation } from './simulation';
 import { DAY_END_MINUTE, DAY_START_MINUTE, NEXT_DAY_WAKE_MINUTE } from './time';
@@ -153,10 +158,10 @@ test('per-field sanitization clamps bad day/clock/trust and resets non-walkable 
   assert.equal(early.minuteOfDay, DAY_START_MINUTE);
 });
 
-test('corrupt JSON falls back cleanly and v3 round-trip preserves state', () => {
+test('corrupt JSON falls back cleanly and v4 round-trip preserves state', () => {
   const corrupt = deserializeWorldState('{not valid json!!!');
   assert.equal(corrupt.migratedFromVersion, null);
-  assert.equal(corrupt.state.schemaVersion, 3);
+  assert.equal(corrupt.state.schemaVersion, CURRENT_SCHEMA_VERSION);
   assert.equal(corrupt.state.day, 1);
 
   const nonObject = migrateWorldState('hello');
@@ -164,7 +169,7 @@ test('corrupt JSON falls back cleanly and v3 round-trip preserves state', () => 
 
   const fresh = createFreshWorldState();
   const roundTrip = deserializeWorldState(serializeWorldState(fresh));
-  assert.equal(roundTrip.migratedFromVersion, 3);
+  assert.equal(roundTrip.migratedFromVersion, CURRENT_SCHEMA_VERSION);
   assert.deepEqual(roundTrip.state, fresh);
 });
 
@@ -353,7 +358,7 @@ test('saveWorldState normalizes through serializeWorldState and loadWorldState p
     assert.equal(cleanedLoaded.residents.clara.trust, 5);
     assert.deepEqual(cleanedLoaded.playerPos, PLAYER_SPAWN);
 
-    // 3. Legacy v1 payload creates backup and upgrades STORAGE_KEY to schemaVersion 3
+    // 3. Legacy v1 payload creates backup and upgrades STORAGE_KEY to schemaVersion 4
     const legacyV1 = {
       day: 2,
       minuteOfDay: 540,
@@ -374,14 +379,232 @@ test('saveWorldState normalizes through serializeWorldState and loadWorldState p
     };
     store.set(STORAGE_KEY, JSON.stringify(legacyV1));
     const upgraded = loadWorldState();
-    assert.equal(upgraded.schemaVersion, 3);
+    assert.equal(upgraded.schemaVersion, CURRENT_SCHEMA_VERSION);
     assert.equal(upgraded.day, 2);
     assert.equal(upgraded.flags.heardBellMystery, true);
     assert.equal(upgraded.residents.pip.trust, 2);
     assert.equal(store.get(STORAGE_BACKUP_KEY), JSON.stringify(legacyV1));
     const storedUpgraded = JSON.parse(store.get(STORAGE_KEY) ?? '{}');
-    assert.equal(storedUpgraded.schemaVersion, 3);
+    assert.equal(storedUpgraded.schemaVersion, CURRENT_SCHEMA_VERSION);
   });
 });
+
+test('v3->v4 migration hydrates strictly save-backed evidence without manufacturing firsthand memories for uninvolved residents', () => {
+  const v3Save = {
+    schemaVersion: 3,
+    day: 5,
+    minuteOfDay: 780,
+    residents: {
+      barnaby: { trust: 3, met: true, talkedToday: false, mood: 'warm', lastDialogueId: null },
+      arthur: { trust: 3, met: true, talkedToday: false, mood: 'peaceful', lastDialogueId: null },
+      pip: { trust: 2, met: true, talkedToday: false, mood: 'joyful', lastDialogueId: null },
+      toby: { trust: 1, met: true, talkedToday: false, mood: 'peaceful', lastDialogueId: null },
+    },
+    flags: {
+      repairedFountain: true,
+      bellRestored: true,
+      foundBrassClapper: true,
+      claraArthurReconciled: false,
+    },
+    // No mem_brass_clapper residentId -> must NOT manufacture firsthand clapper memory on Toby
+    memories: [
+      {
+        id: 'mem_arrival',
+        day: 1,
+        phase: 'morning',
+        title: 'Arrival',
+        summary: 'Arrived.',
+      },
+    ],
+    // Buggy v3 bell_ring with hardcoded actors must NOT manufacture bell memories
+    worldEvents: [
+      {
+        id: 'bell_5_1',
+        day: 5,
+        phase: 'afternoon',
+        minuteOfDay: 760,
+        kind: 'bell_ring',
+        actors: ['clara', 'arthur', 'pip'],
+        summary: 'Bell rang',
+        summaryTag: 'bell_chime',
+      },
+    ],
+  };
+
+  const res = deserializeWorldState(JSON.stringify(v3Save));
+  assert.equal(res.migratedFromVersion, 3);
+  assert.equal(res.state.schemaVersion, CURRENT_SCHEMA_VERSION);
+
+  // Sole-author evidence present
+  assert.ok(res.state.npcMemories.barnaby.some((m) => m.tag === 'fountain_fixed' && m.provenance === 'firsthand'));
+  assert.ok(res.state.npcMemories.arthur.some((m) => m.tag === 'bell_restored' && m.provenance === 'firsthand'));
+
+  // Zero manufactured firsthand memories on Pip or Toby without save evidence
+  assert.equal(res.state.npcMemories.pip.length, 0);
+  assert.equal(res.state.npcMemories.toby.length, 0);
+  assert.equal(res.state.npcMemories.clara.some((m) => m.tag === 'bell_chime'), false);
+
+  // Backup also written when loaded through localStorage
+  withMockLocalStorage((store) => {
+    const rawV3 = JSON.stringify(v3Save);
+    store.set(STORAGE_KEY, rawV3);
+    const loaded = loadWorldState();
+    assert.equal(loaded.schemaVersion, 4);
+    assert.equal(store.get(STORAGE_BACKUP_KEY), rawV3);
+  });
+});
+
+test('sanitizeWorldState cleans malformed npcMemories and gossip relation fields safely', () => {
+  const warnings: string[] = [];
+  const sanitized = sanitizeWorldState(
+    {
+      schemaVersion: 4,
+      day: 8,
+      minuteOfDay: 600,
+      npcRelations: {
+        'clara:mina': {
+          pair: 'clara:mina',
+          affinity: 45,
+          tension: 4,
+          sharedTags: [],
+          lastInteractionDay: 7,
+          lastGossipDay: 7,
+          lastGossipMinute: 9999,
+          lastGossipEventId: 'ev_1',
+        },
+      },
+      npcMemories: {
+        unknown_neighbor: [{ id: 'x', eventId: 'x', tag: 'x' }],
+        mina: [
+          { id: '', eventId: 'bad', tag: 'bad' },
+          {
+            id: 'ev_a',
+            eventId: 'ev_a',
+            tag: 'tea',
+            category: 'invalid_cat',
+            provenance: 'secondhand',
+            fromResidentId: 'mina', // self-sender stripped
+            hopCount: 99,
+            confidence: 999,
+            createdDay: 6,
+            createdMinute: 500,
+            learnedDay: 7,
+            retention: 'ephemeral',
+            expiresDay: 20,
+          },
+          {
+            id: 'ev_a', // duplicate id dropped
+            eventId: 'ev_a',
+            tag: 'tea',
+            createdDay: 6,
+            createdMinute: 500,
+          },
+          {
+            id: 'ev_expired',
+            eventId: 'ev_expired',
+            tag: 'old_rumor',
+            provenance: 'rumor',
+            retention: 'ephemeral',
+            createdDay: 1,
+            createdMinute: 500,
+            learnedDay: 1,
+            expiresDay: 5, // current day 8 > 5 -> dropped
+          },
+        ],
+      },
+    },
+    warnings,
+  );
+
+  assert.equal((sanitized.npcMemories as Record<string, unknown>).unknown_neighbor, undefined);
+  assert.equal(sanitized.npcMemories.mina.length, 1);
+  assert.equal(sanitized.npcMemories.mina[0].fromResidentId, undefined);
+  assert.equal(sanitized.npcMemories.mina[0].hopCount, 2);
+  assert.equal(sanitized.npcMemories.mina[0].confidence, 95);
+  assert.equal(sanitized.npcMemories.mina[0].category, 'event');
+  assert.equal(sanitized.npcRelations['clara:mina'].lastGossipDay, 7);
+  assert.equal(sanitized.npcRelations['clara:mina'].lastGossipMinute, DAY_END_MINUTE);
+  assert.ok(warnings.length >= 2);
+});
+
+test('computeWorldSaveRevision tracks npcMemories & gossip cooldowns, and advanceToNextDay prunes strictly by in-game day', () => {
+  const base = createFreshWorldState();
+  const rev0 = computeWorldSaveRevision(base);
+
+  const memAdded = structuredClone(base);
+  memAdded.npcMemories.mina.push(
+    createNpcMemoryEntry({
+      id: 'ev_temp_rumor',
+      eventId: 'ev_temp_rumor',
+      tag: 'temp_rumor',
+      category: 'event',
+      provenance: 'rumor',
+      sourceKind: 'gossip',
+      fromResidentId: 'clara',
+      createdDay: 1,
+      createdMinute: 540,
+      learnedDay: 1,
+      expiresDay: 2,
+      retention: 'ephemeral',
+    }),
+  );
+  const revMem = computeWorldSaveRevision(memAdded);
+  assert.notEqual(revMem, rev0);
+
+  const memMentioned = structuredClone(memAdded);
+  memMentioned.npcMemories.mina[0].mentionedToPlayer = true;
+  assert.notEqual(computeWorldSaveRevision(memMentioned), revMem);
+
+  const relGossiped = structuredClone(base);
+  relGossiped.npcRelations['clara:mina'].lastGossipDay = 1;
+  assert.notEqual(computeWorldSaveRevision(relGossiped), rev0);
+
+  // Advance day 1 -> day 2 (still <= expiresDay 2) keeps rumor; day 2 -> day 3 prunes it, preserves permanent & Journal memories
+  const day2 = advanceToNextDay(memAdded);
+  assert.equal(day2.day, 2);
+  assert.ok(day2.npcMemories.mina.some((m) => m.id === 'ev_temp_rumor'));
+  const day3 = advanceToNextDay(day2);
+  assert.equal(day3.day, 3);
+  assert.equal(day3.npcMemories.mina.some((m) => m.id === 'ev_temp_rumor'), false);
+  assert.ok(day3.npcMemories.clara.some((m) => m.retention === 'permanent'));
+  assert.equal(day3.memories.length, base.memories.length);
+});
+
+test('bounded npcMemories keeps full 9-resident save compact and scales safely to 25 residents', () => {
+  const full = createFreshWorldState();
+  for (const id of RESIDENT_ORDER) {
+    full.npcMemories[id] = [];
+    for (let i = 0; i < MAX_NPC_MEMORIES_PER_RESIDENT; i++) {
+      full.npcMemories[id].push(
+        createNpcMemoryEntry({
+          id: `ev_${id}_${i}`,
+          eventId: `ev_${id}_${i}`,
+          tag: 'player_gift',
+          category: 'interaction',
+          subjectPlayer: true,
+          subjectResidents: [id],
+          provenance: 'secondhand',
+          sourceKind: 'gossip',
+          fromResidentId: id === 'clara' ? 'mina' : 'clara',
+          createdDay: 1 + i,
+          createdMinute: 540 + i * 5,
+          detail: { itemId: 'chalk_bundle', placeName: 'Fountain Plaza' },
+        }),
+      );
+    }
+  }
+
+  const baseBytes = serializeWorldState(createFreshWorldState()).length;
+  const serializedBytes = serializeWorldState(full).length;
+  const memDeltaBytes = serializedBytes - baseBytes;
+  assert.ok(memDeltaBytes < 75_000, `Expected 9-resident npcMemories payload < 75KB, got ${memDeltaBytes}`);
+  assert.ok(serializedBytes < 100_000, `Expected full 9-resident v4 save < 100KB, got ${serializedBytes}`);
+
+  // Synthetic 25-resident extrapolation check (same per-resident memory payload)
+  const memJsonBytes = JSON.stringify(full.npcMemories).length;
+  const scaled25Bytes = serializedBytes + Math.ceil((memJsonBytes / RESIDENT_ORDER.length) * 16);
+  assert.ok(scaled25Bytes < 220_000, `Expected 25-resident extrapolated save < 220KB, got ${scaled25Bytes}`);
+});
+
 
 

@@ -444,7 +444,49 @@ Chronological log of design decisions, implementation milestones, verification r
 
 ---
 
-## Entry 024 — Milestone 3 Build 3: Walkable Cottage Interiors (Willow Step Dollhouse)
+## Entry 024 — Milestone 2B Phase 3 Blueprint: NPC Memory & Gossip Architecture
+- **Date**: 2026-11-19
+- **Status**: Completed — Architecture & Blueprint Only (Zero Code, Test, or Schema Changes)
+- **Scope**: Investigated the `v3` simulation, persistence, relationship, and dialogue systems and authored the complete Milestone 2B Phase 3 design package (`docs/milestones/10`–`15`) for review and approval prior to any implementation.
+- **Key Deliverables**:
+  - **`docs/milestones/10-phase-3-current-system-audit.md`**: Inventoried all 10 memory/event/mood/history mechanisms, separated narrative truth vs. player journal vs. personal NPC memory vs. secondhand rumor vs. short-term affect, and documented confirmed omniscient reads and event hygiene bugs (`OMN-01`, `OMN-02`, `DUP-03`, `BUG-01`, `GAP-01`–`GAP-03`).
+  - **`docs/milestones/11-phase-3-target-architecture.md`**: Designed `src/game/memories.ts`, the structured `NpcMemoryEntry` data model (compatible with `ForwardWorldHooks`), spatial (`8.5 m`) and acoustic (`30 m`) witness rules, provenance upgrade/non-downgrade invariants, priority-based bounded eviction, discrete encounter-creation gossip exchange (`propagateEncounterGossipInPlace`, zero per-frame overhead), and restrained personality-tinted distortion.
+  - **`docs/milestones/12-phase-3-worldstate-migration.md`**: Specified the sequential `WorldState v3 -> v4` migration (`npcMemories` + optional `NpcNpcRelation` gossip cooldown fields), lore/flag/friction hydration, defensive sanitization, next-day expiration, `computeWorldSaveRevision` integration, and save quota budget (`~10–13 KB` typical / `~32 KB` saturated for 9 residents).
+  - **`docs/milestones/13-phase-3-implementation-roadmap.md`**: Laid out 9 dependency-ordered implementation steps (`3.1`–`3.9`) with exact file targets, acceptance criteria, and regression risks.
+  - **`docs/milestones/14-phase-3-test-strategy.md`**: Defined test matrix across memory creation, provenance, gossip propagation, retention/eviction, determinism, migrations/sanitization, and population scalability.
+  - **`docs/milestones/15-phase-3-design-decisions.md`**: Documented fixed architectural constraints, tunable defaults (flagged non-final), and 6 explicit approval gates (`D1`–`D6`) including `v4` scoping (`D1`), non-omniscient third-party gossip transition (`D2`), `BUG-01`/`DUP-03` bundling (`D3`), rumor clarification choices (`D4`), `worldEvents` role (`D5`), and `JournalDrawer` Phase 5 boundary (`D6`).
+- **Verification**:
+  - Preserved `WorldState` `schemaVersion: 3` and left `src/`, `package.json`, `GAME_DESIGN.md`, `ARCHITECTURE.md`, and `HANDOVER.md` untouched; baseline checks remain at `66/66` passing tests and `0` TypeScript errors.
+
+---
+
+## Entry 025 — Milestone 2B Phase 3: NPC Memory & Gossip System (`WorldState v4`)
+- **Date**: 2026-11-19
+- **Status**: Completed & Verified (Phase 3 Only — Phase 4 Storylines & Phase 5 JournalDrawer Not Started)
+- **Key Deliverables**:
+  - **Core NPC Memory & Deterministic Gossip Engine (`src/game/types.ts`, `src/game/memories.ts`, `src/game/relationships.ts`)**:
+    - Added canonical Phase 3 types (`NpcMemoryEntry`, `NpcMemoryProvenance`, `NpcMemorySourceKind`, `NpcMemoryCategory`, `NpcMemoryValence`, `NpcMemoryRetention`, `NpcMemoryDistortionFlavor`, `NpcMemoryDetail`), `DialogueCondition.requiresNpcMemory`, `DialogueChoice.recordNpcMemories` / `markMemoryTagsMentioned` / `markMemoryEventIdsMentioned`, `DialogueSession.surfacedMemoryEventIds`, and `NpcNpcRelation` gossip cooldown fields (`lastGossipDay`, `lastGossipMinute`, `lastGossipEventId`).
+    - Implemented `src/game/memories.ts` (`MAX_NPC_MEMORIES_PER_RESIDENT = 14`, `MAX_PERMANENT_MEMORIES_PER_RESIDENT = 6`, `EPHEMERAL_RUMOR_TTL_DAYS = 5`, `DURABLE_MEMORY_TTL_DAYS = 18`, `LOCAL_WITNESS_RADIUS = 8.5`, `ACOUSTIC_BELL_RADIUS = 30`), spatial/sheltered witness discovery, provenance upgrade/non-downgrade (`firsthand` > `secondhand` > `rumor`), multi-source corroboration, permanent-quota-preserving eviction, and in-game day expiration pruning.
+    - Implemented `propagateEncounterGossipInPlace` (max `1` transfer per encounter, `MAX_GOSSIP_HOPS = 2` / `1` for `friction`, `MAX_SHARES_PER_ENTRY = 3`, `GOSSIP_MIN_AFFINITY = 20`, `GOSSIP_MAX_TENSION = 30`, sensitive gate `affinity >= 38 && tension < 20`, strict 1-per-day pair cooldown via `stampNpcGossipInPlace`, and deterministic `mulberry32` personality-colored `distortionFlavor`).
+  - **`WorldState v3 -> v4` Migration, Sanitization & Persistence (`src/game/migrations.ts`, `src/game/storage.ts`)**:
+    - Bumped `CURRENT_SCHEMA_VERSION = 4` with sequential `v1 -> v2 -> v3 -> v4` migration (`migrateV3ToV4`), strictly hydrating evidence-backed lore/milestone/event/friction entries without manufacturing firsthand memories for uninvolved residents.
+    - Added `sanitizeNpcMemories` and `NpcNpcRelation` gossip cooldown sanitization, wired `pruneExpiredNpcMemoriesInPlace` into `advanceToNextDay` (in-game day rollover), and extended `computeWorldSaveRevision` to hash `npcMemories` and pair gossip fields.
+  - **Event-to-Memory Capture & Event Hygiene Fixes (`src/game/actions.ts`, `src/App.tsx`)**:
+    - Fixed `DUP-03` by deduplicating `deliverHeldItemAction` so gifting emits a single `player_help` `WorldEventRecord`.
+    - Fixed `BUG-01` by making `interactWithProp('gazebo_bell')` read-only and moving `bellRungCount` increment, single `bell_ring` event emission, and dynamic visual (`8.5 m`) vs acoustic (`30 m`, sheltered-inclusive `bell_chime`) witness capture into `performRingBellAction` (removing hardcoded `['clara', 'arthur', 'pip']` attribution).
+    - Recorded immutable firsthand + witness memories across gifts, story flags, side stories, blunt friction, `make_amends_*`, tier breakthroughs (`friendly`/`close`/`kindred`), fountain wishes, pond stone skips, and Hollow Oak clapper discovery, plus `mentionedToPlayer` updates via `surfacedMemoryEventIds` and `markMemory*`.
+  - **Discrete Encounter Gossip & Non-Omniscient Dialogue (`src/game/simulation.ts`, `src/game/dialogueEngine.ts`, `src/game/narrative.ts`)**:
+    - Wired `propagateEncounterGossipInPlace` into discrete encounter creation inside `stepSimulationInPlace` and deep-cloned `npcMemories` in pure `stepSimulation` with zero per-frame gossip scanning.
+    - Removed omniscient global fallbacks in `dialogueEngine.ts`: `selectThirdPartyGossipSubject`, `playerRelationWith`, and `event_*` reaction topics now read strictly from the speaker's `npcMemories`, adapting phrasing by provenance, source neighbor (`fromResidentId`), acoustic vs visual distinction, and descriptive `distortionFlavor` without introducing player clarification choices.
+    - Verified `DialogueSheet.tsx` cleanly evaluates `requiresCondition` against live `worldSnapshot`; left `JournalDrawer.tsx` completely untouched for Phase 5.
+- **Verification**:
+  - `npm test`: **81/81 passing** (`0` failures across `src/game/memories.test.ts`, `dialogue.test.ts`, `relationships.test.ts`, `storage.test.ts`, `simulation.test.ts`, `engine.test.ts`, `environment.test.ts`, `navigation.test.ts`, `player.test.ts`, and `src/scene/*.test.ts`).
+  - `npm run lint` (`tsc --noEmit`), `compile_applet`, `lint_applet`, and `npm run build` (`vite build`): **Passing (`0` errors)**.
+  - Live headless Chromium (`1440×900` & `390×844` via `?autostart=1`): verified playing world, interactive porch dialog sheet, zero horizontal overflow (`1440===1440`, `390===390`), `localStorage` persisting `schemaVersion: 4` with 9 resident `npcMemories` buckets, and **0 console errors / 0 warnings**.
+
+---
+
+## Entry 026 — Milestone 3 Build 3: Walkable Cottage Interiors (Willow Step Dollhouse)
 - **Date**: 2026-11-19
 - **Status**: Completed & Verified
 - **Scope**: The Willow Step Cottage becomes the neighborhood's first *walkable* building: the player (and A*) can stroll up the entry ramp, cross the porch, pass through the swinging porch door, and wander a fully furnished one-room interior with a hearth, bed, table, bookshelf, and kitchenette — with a dollhouse occlusion swap that lifts the roof and near walls the moment the player steps onto the porch.

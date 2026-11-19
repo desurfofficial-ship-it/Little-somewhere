@@ -12,6 +12,7 @@ import { createFreshWorldState, advanceToNextDay, serializeWorldState, deseriali
 import { buildResidentDialogue } from './narrative';
 import { resolveRelationshipGreeting } from './dialogueEngine';
 import { applyDialogueChoice } from './actions';
+import { createNpcMemoryEntry, recordNpcMemoryInPlace } from './memories';
 import { stepSimulation } from './simulation';
 import { RESIDENT_ORDER } from './residents';
 
@@ -211,7 +212,7 @@ test('Phase 2: relationship tiers drive NPC greeting distance, bubble warmth, an
   );
 });
 
-test('gossip dialogue lines mention another resident based on player third-party relationship status', () => {
+test('gossip dialogue lines rely strictly on speaker npcMemories without omniscient global fallback', () => {
   const base = createFreshWorldState();
   // Suppress Arthur/Bell quest priority so Jun and Sora cleanly reach npc_gossip topics
   const calmFlags = {
@@ -229,8 +230,8 @@ test('gossip dialogue lines mention another resident based on player third-party
     bellRestored: true,
   };
 
-  // 1. Handcrafted pair gossip: Jun mentions Clara warmly once player is friendly+ with Clara
-  const friendlyClaraWorld = {
+  // 1. Non-omniscience: raising global affinity for Clara WITHOUT informing Jun must NOT fire gossip_jun_clara_bond
+  const friendlyClaraWorld = structuredClone({
     ...base,
     flags: calmFlags,
     sideFlags: {
@@ -246,13 +247,42 @@ test('gossip dialogue lines mention another resident based on player third-party
       ...base.playerRelations,
       clara: { ...base.playerRelations.clara, affinity: 50 },
     },
-  };
+  });
+  assert.notEqual(
+    buildResidentDialogue('jun', friendlyClaraWorld, 'afternoon').topicId,
+    'gossip_jun_clara_bond',
+    'Jun must not gossip about Clara bond without holding subjective memory',
+  );
+
+  // Once Jun hears about Clara's warm impression from Clara, gossip_jun_clara_bond unlocks
+  recordNpcMemoryInPlace(
+    friendlyClaraWorld.npcMemories,
+    'jun',
+    createNpcMemoryEntry({
+      id: 'ev_tier_clara_friendly',
+      eventId: 'ev_tier_clara_friendly',
+      tag: 'player_bond_friendly',
+      category: 'social_impression',
+      subjectPlayer: true,
+      subjectResidents: ['clara'],
+      provenance: 'secondhand',
+      sourceKind: 'gossip',
+      fromResidentId: 'clara',
+      createdDay: 1,
+      createdMinute: 520,
+      importance: 4,
+      retention: 'durable',
+      valence: 'warm',
+      detail: { targetTier: 'friendly' },
+    }),
+    1,
+  );
   const junSession = buildResidentDialogue('jun', friendlyClaraWorld, 'afternoon');
   assert.equal(junSession.topicId, 'gossip_jun_clara_bond');
   assert.ok(junSession.nodes.root.text.includes('Clara'));
 
-  // 2. Generalized third-party gossip dynamically reacts to kindred, stranger (met), and guarded statuses
-  const kindredSoraWorld = {
+  // 2. Generalized third-party gossip requires Sora to hold memories about Toby, reacting to kindred, stranger, and tense impressions
+  const kindredSoraWorld = structuredClone({
     ...base,
     flags: calmFlags,
     residents: {
@@ -263,13 +293,50 @@ test('gossip dialogue lines mention another resident based on player third-party
       ...base.playerRelations,
       toby: { ...base.playerRelations.toby, affinity: 92 },
     },
-  };
+  });
+  assert.notEqual(
+    buildResidentDialogue('sora', kindredSoraWorld, 'afternoon').topicId,
+    'gossip_third_party_relation',
+    'Sora must not gossip about Toby without subjective memory',
+  );
+
+  recordNpcMemoryInPlace(
+    kindredSoraWorld.npcMemories,
+    'sora',
+    createNpcMemoryEntry({
+      id: 'ev_tier_toby_kindred',
+      eventId: 'ev_tier_toby_kindred',
+      tag: 'player_bond_kindred',
+      category: 'social_impression',
+      subjectPlayer: true,
+      subjectResidents: ['toby'],
+      provenance: 'secondhand',
+      sourceKind: 'gossip',
+      fromResidentId: 'toby',
+      createdDay: 1,
+      createdMinute: 540,
+      importance: 5,
+      retention: 'durable',
+      valence: 'warm',
+      detail: { targetTier: 'kindred' },
+    }),
+    1,
+  );
   const soraAboutTobyKindred = buildResidentDialogue('sora', kindredSoraWorld, 'afternoon');
   assert.equal(soraAboutTobyKindred.topicId, 'gossip_third_party_relation');
   assert.ok(soraAboutTobyKindred.nodes.root.text.includes('Toby'));
   assert.ok(soraAboutTobyKindred.nodes.root.text.includes('kindred'));
+  const afterKindredGossip = applyDialogueChoice(
+    kindredSoraWorld,
+    soraAboutTobyKindred,
+    soraAboutTobyKindred.nodes.root.choices[0],
+  ).nextWorld;
+  assert.equal(
+    afterKindredGossip.npcMemories.sora.find((m) => m.eventId === 'ev_tier_toby_kindred')?.mentionedToPlayer,
+    true,
+  );
 
-  const metStrangerWorld = {
+  const metStrangerWorld = structuredClone({
     ...base,
     flags: calmFlags,
     residents: {
@@ -280,23 +347,56 @@ test('gossip dialogue lines mention another resident based on player third-party
       ...base.playerRelations,
       toby: { ...base.playerRelations.toby, affinity: 5 },
     },
-  };
+  });
+  recordNpcMemoryInPlace(
+    metStrangerWorld.npcMemories,
+    'sora',
+    createNpcMemoryEntry({
+      id: 'ev_met_toby',
+      eventId: 'ev_met_toby',
+      tag: 'player_wave_observed',
+      category: 'interaction',
+      subjectPlayer: true,
+      subjectResidents: ['toby'],
+      provenance: 'firsthand',
+      sourceKind: 'witness',
+      createdDay: 1,
+      createdMinute: 560,
+      importance: 2,
+      retention: 'durable',
+      valence: 'neutral',
+      detail: { targetTier: 'stranger' },
+    }),
+    1,
+  );
   const soraAboutTobyStranger = buildResidentDialogue('sora', metStrangerWorld, 'afternoon');
   assert.equal(soraAboutTobyStranger.topicId, 'gossip_third_party_relation');
   assert.ok(soraAboutTobyStranger.nodes.root.text.includes('Toby'));
   assert.ok(soraAboutTobyStranger.nodes.root.text.includes('mostly strangers'));
 
-  const guardedTobyWorld = {
-    ...metStrangerWorld,
-    playerRelations: {
-      ...metStrangerWorld.playerRelations,
-      toby: { ...metStrangerWorld.playerRelations.toby, affinity: 10, negativeCount: 1, reliability: 18 },
-    },
-    npcRuntime: {
-      ...metStrangerWorld.npcRuntime,
-      toby: { ...metStrangerWorld.npcRuntime.toby, emotion: 'frustrated' as const },
-    },
-  };
+  const guardedTobyWorld = structuredClone(metStrangerWorld);
+  guardedTobyWorld.npcMemories.sora = [];
+  recordNpcMemoryInPlace(
+    guardedTobyWorld.npcMemories,
+    'sora',
+    createNpcMemoryEntry({
+      id: 'ev_blunt_toby',
+      eventId: 'ev_blunt_toby',
+      tag: 'player_blunt',
+      category: 'friction',
+      subjectPlayer: true,
+      subjectResidents: ['toby'],
+      provenance: 'secondhand',
+      sourceKind: 'gossip',
+      fromResidentId: 'toby',
+      createdDay: 1,
+      createdMinute: 580,
+      importance: 4,
+      retention: 'durable',
+      valence: 'tense',
+    }),
+    1,
+  );
   const soraAboutTobyGuarded = buildResidentDialogue('sora', guardedTobyWorld, 'afternoon');
   assert.equal(soraAboutTobyGuarded.topicId, 'gossip_third_party_relation');
   assert.ok(soraAboutTobyGuarded.nodes.root.text.includes('Toby'));

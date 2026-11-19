@@ -273,6 +273,7 @@ export function adjustNpcRelationPair(
   return {
     ...npcRelations,
     [key]: {
+      ...cur,
       pair: key,
       affinity: Math.max(-50, Math.min(100, Math.round(cur.affinity + deltaAffinity))),
       tension: Math.max(0, Math.min(100, Math.round(cur.tension + deltaTension))),
@@ -410,6 +411,7 @@ export function reconcileClaraAndArthurRelation(
   return {
     ...npcRelations,
     'arthur:clara': {
+      ...existing,
       pair: 'arthur:clara',
       affinity: nextAffinity,
       tension: 5,
@@ -434,11 +436,31 @@ export function applyNpcSocialRelationInPlace(
     ? cur.sharedTags
     : [...cur.sharedTags.slice(-5), topicTag];
   npcRelations[key] = {
+    ...cur,
     pair: key,
     affinity: Math.max(-50, Math.min(100, cur.affinity + deltaAffinity)),
     tension: Math.max(0, Math.min(100, cur.tension + deltaTension)),
     sharedTags: tags,
     lastInteractionDay: day,
+  };
+}
+
+export function stampNpcGossipInPlace(
+  npcRelations: Record<string, NpcNpcRelation>,
+  a: ResidentId,
+  b: ResidentId,
+  day: number,
+  minuteOfDay: number,
+  eventId: string,
+): void {
+  const key = getNpcPairKey(a, b);
+  const cur = getNpcRelation(npcRelations, a, b);
+  npcRelations[key] = {
+    ...cur,
+    pair: key,
+    lastGossipDay: day,
+    lastGossipMinute: Math.round(minuteOfDay),
+    lastGossipEventId: eventId,
   };
 }
 

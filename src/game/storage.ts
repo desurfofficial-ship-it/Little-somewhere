@@ -8,6 +8,10 @@ import {
   migrateWorldState,
   sanitizeWorldState,
 } from './migrations';
+import {
+  cloneNpcMemories,
+  pruneExpiredNpcMemoriesInPlace,
+} from './memories';
 import { createInitialNpcRuntime } from './simulation';
 import { WorldState } from './types';
 
@@ -30,7 +34,7 @@ export function deserializeWorldState(rawJson: string): MigrationResult {
     return {
       state: createDefaultWorldState(),
       migratedFromVersion: null,
-      warnings: ['corrupt JSON payload; created fresh WorldState v3'],
+      warnings: ['corrupt JSON payload; created fresh WorldState v4'],
     };
   }
 }
@@ -221,6 +225,21 @@ export function computeWorldSaveRevision(state: WorldState): string {
         pushStr(hist[0].activityId);
       }
     }
+    const nmems = state.npcMemories?.[id];
+    pushNum(nmems ? nmems.length : 0);
+    if (nmems) {
+      for (let mIdx = 0; mIdx < nmems.length; mIdx++) {
+        const nm = nmems[mIdx];
+        pushStr(nm.id);
+        pushStr(nm.eventId);
+        pushStr(nm.provenance);
+        pushNum(nm.confidence);
+        pushNum(nm.hopCount);
+        pushNum(nm.learnedDay);
+        pushBool(nm.mentionedToPlayer);
+        pushNum(nm.sharedCount);
+      }
+    }
   }
 
   const npcRelKeys = Object.keys(state.npcRelations ?? {}).sort();
@@ -232,6 +251,9 @@ export function computeWorldSaveRevision(state: WorldState): string {
     pushNum(r.affinity);
     pushNum(r.tension);
     pushNum(r.lastInteractionDay ?? -1);
+    pushNum(r.lastGossipDay ?? -1);
+    pushNum(Math.round(r.lastGossipMinute ?? -1));
+    pushStr(r.lastGossipEventId ?? '');
     pushNum(r.sharedTags.length);
     for (let t = 0; t < r.sharedTags.length; t++) pushStr(r.sharedTags[t]);
   }
@@ -304,6 +326,9 @@ export function advanceToNextDay(state: WorldState): WorldState {
   }
 
   const nextDay = state.day + 1;
+  const nextNpcMemories = cloneNpcMemories(state.npcMemories);
+  pruneExpiredNpcMemoriesInPlace(nextNpcMemories, nextDay);
+
   return {
     ...state,
     day: nextDay,
@@ -317,6 +342,7 @@ export function advanceToNextDay(state: WorldState): WorldState {
     worldProps: nextWorldProps,
     residents: nextResidents,
     playerRelations: nextPlayerRelations,
+    npcMemories: nextNpcMemories,
     npcRuntime: createInitialNpcRuntime(NEXT_DAY_WAKE_MINUTE, state.flags.claraArthurReconciled),
     activeEncounters: [],
     mailboxUnread: true,

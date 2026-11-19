@@ -256,6 +256,71 @@ export interface NpcNpcRelation {
   tension: number; // 0..100
   sharedTags: string[];
   lastInteractionDay: number | null;
+  lastGossipDay?: number | null;
+  lastGossipMinute?: number | null;
+  lastGossipEventId?: string;
+}
+
+export type NpcMemoryProvenance = 'firsthand' | 'secondhand' | 'rumor';
+
+export type NpcMemorySourceKind =
+  | 'participant'
+  | 'witness'
+  | 'player_told'
+  | 'gossip';
+
+export type NpcMemoryCategory =
+  | 'event'
+  | 'interaction'
+  | 'friction'
+  | 'social_impression'
+  | 'town_lore';
+
+export type NpcMemoryValence = 'warm' | 'neutral' | 'tense';
+
+export type NpcMemoryRetention = 'permanent' | 'durable' | 'ephemeral';
+
+export type NpcMemoryDistortionFlavor =
+  | 'none'
+  | 'uncertain'
+  | 'exaggerated'
+  | 'softened'
+  | 'misattributed_motive';
+
+export interface NpcMemoryDetail {
+  itemId?: CarryableItemId;
+  placeName?: string;
+  targetTier?: RelationshipTier;
+  acousticOnly?: boolean;
+}
+
+export interface NpcMemoryEntry {
+  id: string;
+  eventId: string;
+  tag: string;
+  category: NpcMemoryCategory;
+  subjectPlayer: boolean;
+  subjectResidents: ResidentId[];
+  provenance: NpcMemoryProvenance;
+  sourceKind: NpcMemorySourceKind;
+  originResidentId?: ResidentId;
+  fromResidentId?: ResidentId;
+  hopCount: number;
+  confidence: number; // 0..100
+  distorted: boolean;
+  distortionFlavor: NpcMemoryDistortionFlavor;
+  createdDay: number;
+  createdMinute: number;
+  learnedDay: number;
+  learnedMinute: number;
+  expiresDay?: number;
+  importance: number; // 1..5
+  retention: NpcMemoryRetention;
+  valence: NpcMemoryValence;
+  emotionalWeight: number; // 0..100
+  mentionedToPlayer: boolean;
+  sharedCount: number;
+  detail?: NpcMemoryDetail;
 }
 
 export interface WorldEventRecord {
@@ -340,6 +405,7 @@ export interface WorldState {
   sideFlags: Record<string, boolean | number | string>;
   flags: StoryFlags;
   memories: JournalMemory[];
+  npcMemories: Record<ResidentId, NpcMemoryEntry[]>;
   mailboxUnread: boolean;
   dailyLettersRead: number[];
   bellRungCount: number;
@@ -408,6 +474,16 @@ export interface DialogueCondition {
   requiresRecentEventTag?: { tagPrefix: string; maxDaysAgo: number };
   requiresNpcMemoriesAny?: string[];
   excludesNpcMemories?: string[];
+  requiresNpcMemory?: {
+    tag?: string;
+    tags?: string[];
+    id?: string;
+    provenance?: NpcMemoryProvenance[];
+    maxDaysOld?: number;
+    unmentionedOnly?: boolean;
+    subjectPlayer?: boolean;
+    subjectResidentId?: ResidentId;
+  };
   requiresStoryline?: DialogueStorylineCondition;
   notSeenToday?: boolean;
   minDaysSinceSeen?: number;
@@ -445,6 +521,22 @@ export interface DialogueChoice {
   minAffinity?: number;
   minTier?: RelationshipTier;
   requiresCondition?: DialogueCondition;
+  recordNpcMemories?: Array<{
+    target: 'speaker' | ResidentId;
+    id: string;
+    eventId?: string;
+    tag: string;
+    category: NpcMemoryCategory;
+    valence: NpcMemoryValence;
+    importance: number;
+    retention: NpcMemoryRetention;
+    sourceKind?: NpcMemorySourceKind;
+    subjectPlayer?: boolean;
+    subjectResidents?: ResidentId[];
+    emotionalWeight?: number;
+  }>;
+  markMemoryTagsMentioned?: string[];
+  markMemoryEventIdsMentioned?: string[];
 }
 
 export interface DialogueNode {
@@ -486,6 +578,7 @@ export interface DialogueSession {
   recentToast?: string;
   milestonePulseSeq?: number;
   milestoneLabel?: string;
+  surfacedMemoryEventIds?: Array<{ residentId: ResidentId; eventId: string }>;
 }
 
 export interface InteractiveTarget {

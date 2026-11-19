@@ -1,7 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { applyDialogueChoice, interactWithProp, pickupWorldPropAction } from './actions';
+import { applyDialogueChoice, interactWithProp, performRingBellAction, pickupWorldPropAction } from './actions';
 import { evaluateDialogueCondition, isChoiceAvailable } from './dialogueEngine';
+import { createNpcMemoryEntry, propagateEncounterGossipInPlace, recordNpcMemoryInPlace } from './memories';
 import { DIALOGUE_TOPICS, buildResidentDialogue, getResidentAvailableQuestCue } from './narrative';
 import { getNpcRelation } from './relationships';
 import { RESIDENT_ORDER } from './residents';
@@ -193,12 +194,30 @@ test('holding a carryable item injects a live gift choice into dialogue and deli
   assert.equal(res.nextWorld.playerRelations.pip.giftsGiven, 1);
   assert.ok(res.nextSession.recentToast?.includes('Shared'));
 
-  // Recent player_help worldEvent enables event_gift_thanks reaction topic cleanly
-  const claraThanks = buildResidentDialogue('clara', {
+  // Non-omniscience: distant Clara has no knowledge of Pip's gift yet
+  const gossipReadyWorld: WorldState = {
     ...res.nextWorld,
     flags: { ...res.nextWorld.flags, heardBellMystery: true, claraArthurReconciled: true },
-  }, 'afternoon');
+  };
+  const claraUninformed = buildResidentDialogue('clara', gossipReadyWorld, 'afternoon');
+  assert.notEqual(
+    claraUninformed.topicId,
+    'event_gift_thanks',
+    'Distant resident without witness or gossip knowledge must not react to Pip gift',
+  );
+
+  // Once Pip shares the gift with Clara via encounter gossip, Clara reacts cleanly with source attribution
+  let transferredToClara = false;
+  for (let s = 0; s < 16 && !transferredToClara; s++) {
+    const out = propagateEncounterGossipInPlace(gossipReadyWorld, ['pip', 'clara'], `enc_gift_share_${s}`);
+    if (out && out.listenerId === 'clara') {
+      transferredToClara = true;
+    }
+  }
+  assert.equal(transferredToClara, true, 'Expected Pip->Clara gossip transfer within deterministic encounters');
+  const claraThanks = buildResidentDialogue('clara', gossipReadyWorld, 'afternoon');
   assert.equal(claraThanks.topicId, 'event_gift_thanks');
+  assert.ok(claraThanks.nodes.root.text.includes('Pip'));
 });
 
 test('negative encounter unlocks sincere amends choice and Barnaby-Arthur craft conflict mediates cleanly', () => {
@@ -394,8 +413,8 @@ test('Phase 1 migration regression: quest_clara_rift gating, conflict negative p
       getNpcRelation(barnabyConflictWorld.npcRelations, 'arthur', 'barnaby').tension,
   );
 
-  // Per-resident topicHistory scoping for 'any' topics (event_fountain_repair & tier_close_kindred_bond)
-  const fountainWorld: WorldState = {
+  // Per-resident topicHistory scoping & non-omniscience for 'any' topics (event_fountain_repair)
+  const bareFountainWorld: WorldState = {
     ...createFreshWorldState(),
     flags: {
       ...createFreshWorldState().flags,
@@ -404,30 +423,81 @@ test('Phase 1 migration regression: quest_clara_rift gating, conflict negative p
       claraArthurReconciled: true,
     },
   };
+  assert.notEqual(
+    buildResidentDialogue('clara', bareFountainWorld, 'afternoon').topicId,
+    'event_fountain_repair',
+    'Bare repairedFountain flag without npcMemories must not trigger reaction',
+  );
+
+  const fountainWorld = structuredClone(bareFountainWorld);
+  recordNpcMemoryInPlace(
+    fountainWorld.npcMemories,
+    'clara',
+    createNpcMemoryEntry({
+      id: 'ev_fountain_fixed',
+      eventId: 'ev_fountain_fixed',
+      tag: 'fountain_fixed',
+      category: 'event',
+      subjectPlayer: true,
+      subjectResidents: ['barnaby'],
+      provenance: 'secondhand',
+      sourceKind: 'gossip',
+      fromResidentId: 'barnaby',
+      createdDay: 1,
+      createdMinute: 540,
+      importance: 4,
+      retention: 'durable',
+      valence: 'warm',
+    }),
+    1,
+  );
+  recordNpcMemoryInPlace(
+    fountainWorld.npcMemories,
+    'pip',
+    createNpcMemoryEntry({
+      id: 'ev_fountain_fixed',
+      eventId: 'ev_fountain_fixed',
+      tag: 'fountain_fixed',
+      category: 'event',
+      subjectPlayer: true,
+      subjectResidents: ['barnaby'],
+      provenance: 'firsthand',
+      sourceKind: 'witness',
+      createdDay: 1,
+      createdMinute: 540,
+      importance: 4,
+      retention: 'durable',
+      valence: 'warm',
+    }),
+    1,
+  );
+
   const claraFountain = buildResidentDialogue('clara', fountainWorld, 'afternoon');
   assert.equal(claraFountain.topicId, 'event_fountain_repair');
+  assert.ok(claraFountain.nodes.root.text.includes('Barnaby'));
   const afterClaraFountain = applyDialogueChoice(
     fountainWorld,
     claraFountain,
     claraFountain.nodes.root.choices.find((c) => c.id === 'ev_fountain_cheer')!,
   ).nextWorld;
+  assert.equal(
+    afterClaraFountain.npcMemories.clara.find((m) => m.tag === 'fountain_fixed')?.mentionedToPlayer,
+    true,
+  );
 
   // Pip must STILL be able to see event_fountain_repair (not starved by Clara!)
   const pipFountain = buildResidentDialogue('pip', afterClaraFountain, 'afternoon');
   assert.equal(pipFountain.topicId, 'event_fountain_repair');
 
-  // Jun lantern milestone in daily_jun_route sets lanternsLit
+  // Jun lantern milestone in daily_jun_route sets lanternsLit (with fountain_fixed memory absent -> goes straight or after reaction)
   const junDailyWorld: WorldState = {
     ...createFreshWorldState(),
     flags: { ...createFreshWorldState().flags, heardBellMystery: true, repairedFountain: true },
   };
   const junDaily = buildResidentDialogue('jun', junDailyWorld, 'afternoon');
-  // If event_fountain_repair triggers first, pick it then talk again to reach daily_jun_route
-  let jw = applyDialogueChoice(junDailyWorld, junDaily, junDaily.nodes.root.choices[0]).nextWorld;
-  const junDaily2 = buildResidentDialogue('jun', jw, 'afternoon');
-  assert.equal(junDaily2.topicId, 'daily_jun_route');
-  const lanternsChoice = junDaily2.nodes.root.choices.find((c) => c.id === 'jun_lanterns')!;
-  jw = applyDialogueChoice(jw, junDaily2, lanternsChoice).nextWorld;
+  assert.equal(junDaily.topicId, 'daily_jun_route');
+  const lanternsChoice = junDaily.nodes.root.choices.find((c) => c.id === 'jun_lanterns')!;
+  const jw = applyDialogueChoice(junDailyWorld, junDaily, lanternsChoice).nextWorld;
   assert.equal(jw.flags.lanternsLit, true);
 });
 
@@ -698,4 +768,155 @@ test('both direct Hollow Oak discovery and Toby-assisted recovery unlock mem_bra
     1,
   );
 });
+
+test('Step 3.7: bell reaction phrasing adapts to visual vs acoustic vs exaggerated gossip and flips mentionedToPlayer', () => {
+  let world = createFreshWorldState();
+  world = {
+    ...world,
+    weather: 'light_rain',
+    flags: { ...world.flags, heardBellMystery: true, bellRestored: true, claraArthurReconciled: true },
+    npcRuntime: {
+      ...world.npcRuntime,
+      // Pip outdoors right beside Gazebo -> visual firsthand bell_ring
+      pip: {
+        ...world.npcRuntime.pip,
+        position: { x: 0.5, z: -7.5 },
+        currentActivityId: 'afternoon_gazebo',
+        currentPlaceName: 'Old Bell Gazebo',
+      },
+      // Clara sheltered on Bakery Porch -> acoustic firsthand bell_chime
+      clara: {
+        ...world.npcRuntime.clara,
+        position: { x: -11.0, z: -6.8 },
+        currentActivityId: 'clara_rain_oven',
+        currentPlaceName: 'Bakery Porch',
+      },
+      // Toby far away beyond ACOUSTIC_BELL_RADIUS
+      toby: {
+        ...world.npcRuntime.toby,
+        position: { x: 24.0, z: 24.0 },
+        currentActivityId: 'toby_rain_shelter',
+        currentPlaceName: 'Far Orchard Edge',
+      },
+    },
+  };
+
+  const afterRing = performRingBellAction(world).nextWorld;
+
+  const pipSession = buildResidentDialogue('pip', afterRing, 'afternoon');
+  assert.equal(pipSession.topicId, 'event_bell_celebration');
+  assert.ok(pipSession.nodes.root.text.includes('cedar eaves'));
+
+  const claraSession = buildResidentDialogue('clara', afterRing, 'afternoon');
+  assert.equal(claraSession.topicId, 'event_bell_celebration');
+  assert.ok(claraSession.nodes.root.text.includes('where I was working'));
+
+  // Toby missed it initially -> does not trigger bell celebration
+  assert.notEqual(
+    buildResidentDialogue('toby', afterRing, 'afternoon').topicId,
+    'event_bell_celebration',
+  );
+
+  // Give Toby an exaggerated secondhand rumor from Pip -> descriptive exaggerated phrasing + mentionedToPlayer cleanup
+  recordNpcMemoryInPlace(
+    afterRing.npcMemories,
+    'toby',
+    createNpcMemoryEntry({
+      id: 'ev_bell_rumor_toby',
+      eventId: 'ev_bell_rumor_toby',
+      tag: 'bell_ring',
+      category: 'event',
+      subjectPlayer: false,
+      subjectResidents: ['pip'],
+      provenance: 'rumor',
+      sourceKind: 'gossip',
+      fromResidentId: 'pip',
+      hopCount: 2,
+      confidence: 50,
+      distorted: true,
+      distortionFlavor: 'exaggerated',
+      createdDay: afterRing.day,
+      createdMinute: afterRing.minuteOfDay,
+      importance: 4,
+      retention: 'ephemeral',
+      valence: 'warm',
+    }),
+    afterRing.day,
+  );
+  const tobyRumorSession = buildResidentDialogue('toby', afterRing, 'afternoon');
+  assert.equal(tobyRumorSession.topicId, 'event_bell_celebration');
+  assert.ok(tobyRumorSession.nodes.root.text.includes('Pip'));
+  assert.ok(tobyRumorSession.nodes.root.text.includes('the way it’s told'));
+  assert.equal(tobyRumorSession.surfacedMemoryEventIds?.[0]?.eventId, 'ev_bell_rumor_toby');
+
+  const bellChoice = tobyRumorSession.nodes.root.choices.find((c) => c.id === 'ev_bell_warm')!;
+  const afterTobyMentioned = applyDialogueChoice(afterRing, tobyRumorSession, bellChoice).nextWorld;
+  assert.equal(
+    afterTobyMentioned.npcMemories.toby.find((m) => m.eventId === 'ev_bell_rumor_toby')?.mentionedToPlayer,
+    true,
+  );
+
+  // Advancing to next day must NOT re-trigger event_bell_celebration for Toby once mentioned
+  const nextDayToby = { ...afterTobyMentioned, day: afterTobyMentioned.day + 1 };
+  assert.notEqual(
+    buildResidentDialogue('toby', nextDayToby, 'afternoon').topicId,
+    'event_bell_celebration',
+  );
+});
+
+test('Step 3.7: descriptive rumor distortion appears in third-party gossip with zero clarification choices', () => {
+  const base = createFreshWorldState();
+  const rumorWorld: WorldState = {
+    ...base,
+    flags: {
+      ...base.flags,
+      heardBellMystery: true,
+      foundPostcard: true,
+      deliveredPostcard: true,
+      brewedChamomileTea: true,
+      foundBrassClapper: true,
+      borrowedBarnabyLadder: true,
+      clearedGazeboIvy: true,
+      plantedMoonPetals: true,
+      claraArthurReconciled: true,
+      bellRestored: true,
+    },
+  };
+
+  recordNpcMemoryInPlace(
+    rumorWorld.npcMemories,
+    'sora',
+    createNpcMemoryEntry({
+      id: 'ev_rumor_toby_kindred',
+      eventId: 'ev_rumor_toby_kindred',
+      tag: 'player_bond_kindred',
+      category: 'social_impression',
+      subjectPlayer: true,
+      subjectResidents: ['toby'],
+      provenance: 'rumor',
+      sourceKind: 'gossip',
+      fromResidentId: 'pip',
+      hopCount: 2,
+      confidence: 52,
+      distorted: true,
+      distortionFlavor: 'exaggerated',
+      createdDay: 1,
+      createdMinute: 540,
+      importance: 4,
+      retention: 'ephemeral',
+      valence: 'warm',
+      detail: { targetTier: 'kindred' },
+    }),
+    1,
+  );
+
+  const session = buildResidentDialogue('sora', rumorWorld, 'afternoon');
+  assert.equal(session.topicId, 'gossip_third_party_relation');
+  assert.ok(session.nodes.root.text.includes('Heard from Pip'));
+  assert.ok(session.nodes.root.text.includes('stories swell along the lane'));
+  // Strictly descriptive — no player clarification / correction choices injected
+  assert.equal(session.nodes.root.choices.length, 1);
+  assert.equal(session.nodes.root.choices[0].id, 'gossip_tp_kindred_warm');
+});
+
 

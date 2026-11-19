@@ -6,6 +6,10 @@ import {
   DialogueNode,
   DialogueSession,
   DialogueTopic,
+  NpcMemoryDistortionFlavor,
+  NpcMemoryEntry,
+  NpcMemoryProvenance,
+  NpcMemorySourceKind,
   RelationshipTier,
   ResidentId,
   StoryFlags,
@@ -13,7 +17,7 @@ import {
   TopicHistoryEntry,
   WorldState,
 } from './types';
-import { RESIDENTS, RESIDENT_ORDER } from './residents';
+import { RESIDENTS } from './residents';
 import {
   TIER_RANK,
   getEmotionLabel,
@@ -22,6 +26,10 @@ import {
   isResidentGuarded,
   moodToEmotion,
 } from './relationships';
+import {
+  getProvenanceRank,
+  isMemoryExpired,
+} from './memories';
 import { getTimePhase } from './time';
 import { getSeatById } from './worldMap';
 
@@ -37,8 +45,7 @@ const CATEGORY_PRIORITY: Record<DialogueCategory, number> = {
   daily_slice: 34,
 };
 
-interface ForwardWorldHooks {
-  npcMemories?: Record<string, Array<{ id: string; tag: string }>>;
+interface ForwardStorylineHooks {
   storylines?: Record<string, { id: string; stage: number; status: string; outcome?: string }>;
 }
 
@@ -66,57 +73,156 @@ export interface ThirdPartyGossipSubject {
   targetId: ResidentId;
   tier: RelationshipTier;
   guarded: boolean;
-  affinity: number;
-  met: boolean;
+  provenance: NpcMemoryProvenance;
+  sourceKind: NpcMemorySourceKind;
+  fromResidentId?: ResidentId;
+  distorted: boolean;
+  distortionFlavor: NpcMemoryDistortionFlavor;
+  eventId: string;
+  createdDay: number;
+  tag: string;
 }
 
+function deriveSubjectiveRelationFromMemory(entry: NpcMemoryEntry): {
+  tier: RelationshipTier;
+  guarded: boolean;
+  affinity: number;
+} {
+  const guarded = entry.category === 'friction' || entry.valence === 'tense';
+  let tier: RelationshipTier = entry.detail?.targetTier ?? 'stranger';
+  if (!entry.detail?.targetTier) {
+    if (guarded) {
+      tier = 'stranger';
+    } else if (entry.tag === 'player_bond_kindred') {
+      tier = 'kindred';
+    } else if (entry.tag === 'player_bond_close') {
+      tier = 'close';
+    } else if (entry.tag === 'player_bond_friendly') {
+      tier = 'friendly';
+    } else if (entry.valence === 'warm' && entry.importance >= 4) {
+      tier = 'friendly';
+    } else if (entry.valence === 'warm' && entry.importance >= 2) {
+      tier = 'acquaintance';
+    } else {
+      tier = 'stranger';
+    }
+  }
+  const affinity =
+    guarded
+      ? 10
+      : tier === 'kindred'
+      ? 92
+      : tier === 'close'
+      ? 72
+      : tier === 'friendly'
+      ? 48
+      : tier === 'acquaintance'
+      ? 26
+      : 10;
+  return { tier, guarded, affinity };
+}
+
+export function findSpeakerMemory(
+  residentId: ResidentId,
+  world: WorldState,
+  opts: {
+    tags?: readonly string[];
+    id?: string;
+    provenance?: readonly NpcMemoryProvenance[];
+    maxDaysOld?: number;
+    unmentionedOnly?: boolean;
+    subjectPlayer?: boolean;
+    subjectResidentId?: ResidentId;
+  },
+): NpcMemoryEntry | null {
+  const mems = world.npcMemories?.[residentId] ?? [];
+  let best: { entry: NpcMemoryEntry; score: number } | null = null;
+
+  for (const m of mems) {
+    if (isMemoryExpired(m, world.day)) continue;
+    if (opts.id && m.id !== opts.id) continue;
+    if (opts.tags && opts.tags.length > 0 && !opts.tags.includes(m.tag) && !opts.tags.includes(m.id)) {
+      continue;
+    }
+    if (opts.provenance && !opts.provenance.includes(m.provenance)) continue;
+    if (opts.maxDaysOld !== undefined && world.day - m.createdDay > opts.maxDaysOld) continue;
+    if (opts.unmentionedOnly && m.mentionedToPlayer) continue;
+    if (opts.subjectPlayer !== undefined && m.subjectPlayer !== opts.subjectPlayer) continue;
+    if (opts.subjectResidentId && !m.subjectResidents.includes(opts.subjectResidentId)) continue;
+
+    const score =
+      (m.mentionedToPlayer ? 0 : 40) +
+      getProvenanceRank(m.provenance) * 10 +
+      (m.detail?.acousticOnly ? 0 : 4) +
+      m.importance * 5 +
+      m.learnedDay * 2;
+    if (!best || score > best.score) {
+      best = { entry: m, score };
+    }
+  }
+
+  return best?.entry ?? null;
+}
+
+/**
+ * Selects a third-party gossip subject STRICTLY from the speaker's own subjective `npcMemories`.
+ * Never reads global `world.playerRelations[otherId]` omnisciently.
+ */
 export function selectThirdPartyGossipSubject(
   speakerId: ResidentId,
   world: WorldState,
 ): ThirdPartyGossipSubject | null {
-  const speakerIdx = RESIDENT_ORDER.indexOf(speakerId);
+  const speakerMems = world.npcMemories?.[speakerId] ?? [];
+  if (speakerMems.length === 0) return null;
+
   let best: { subject: ThirdPartyGossipSubject; score: number } | null = null;
 
-  for (let i = 0; i < RESIDENT_ORDER.length; i++) {
-    const otherId = RESIDENT_ORDER[i];
-    if (otherId === speakerId) continue;
-    const prog = world.residents[otherId];
-    if (!prog) continue;
-    const rel = world.playerRelations?.[otherId];
-    const rt = world.npcRuntime?.[otherId];
-    const affinity = rel?.affinity ?? prog.trust * 20;
-    const tier = getRelationshipTier(affinity);
-    const emotion: CharacterEmotion =
-      rt?.emotion ?? rel?.lastEmotion ?? moodToEmotion(prog.mood);
-    const guarded = isResidentGuarded(rel, emotion);
+  for (const m of speakerMems) {
+    if (isMemoryExpired(m, world.day)) continue;
+    if (!m.subjectPlayer) continue;
+    if (m.mentionedToPlayer) continue;
 
-    // Avoid firing premature third-party gossip before the player has met or bonded/clashed with the neighbor
-    if (!guarded && !prog.met && affinity < 40) continue;
+    const targetId = m.subjectResidents.find((id) => id !== speakerId);
+    if (!targetId) continue;
 
-    let score = guarded
-      ? 120
-      : tier === 'kindred'
-      ? 100
-      : tier === 'close'
-      ? 85
-      : tier === 'friendly'
-      ? 70
-      : tier === 'acquaintance'
-      ? 50
-      : 30;
+    const subjRel = deriveSubjectiveRelationFromMemory(m);
+    const tierScore =
+      subjRel.guarded
+        ? 120
+        : subjRel.tier === 'kindred'
+        ? 100
+        : subjRel.tier === 'close'
+        ? 85
+        : subjRel.tier === 'friendly'
+        ? 70
+        : subjRel.tier === 'acquaintance'
+        ? 50
+        : 30;
 
-    const npcRel = getNpcRelation(world.npcRelations ?? {}, speakerId, otherId);
-    if (npcRel.affinity >= 45) score += 12;
-    score += ((i + world.day + Math.max(0, speakerIdx)) % RESIDENT_ORDER.length) * 0.25;
+    let score =
+      tierScore +
+      m.importance * 6 +
+      getProvenanceRank(m.provenance) * 4 -
+      Math.max(0, world.day - m.learnedDay) * 3;
+    if (m.detail?.targetTier) score += 14;
+
+    const npcRel = getNpcRelation(world.npcRelations ?? {}, speakerId, targetId);
+    if (npcRel.affinity >= 45) score += 8;
 
     if (!best || score > best.score) {
       best = {
         subject: {
-          targetId: otherId,
-          tier,
-          guarded,
-          affinity,
-          met: prog.met,
+          targetId,
+          tier: subjRel.tier,
+          guarded: subjRel.guarded,
+          provenance: m.provenance,
+          sourceKind: m.sourceKind,
+          ...(m.fromResidentId ? { fromResidentId: m.fromResidentId } : {}),
+          distorted: m.distorted,
+          distortionFlavor: m.distortionFlavor,
+          eventId: m.eventId,
+          createdDay: m.createdDay,
+          tag: m.tag,
         },
         score,
       };
@@ -234,21 +340,19 @@ export function evaluateDialogueCondition(
   if (cond.playerRelationWith) {
     const req = cond.playerRelationWith;
     if (req.residentId === residentId) return false;
-    const tProg = world.residents[req.residentId];
-    const tRel = world.playerRelations?.[req.residentId];
-    const tRt = world.npcRuntime?.[req.residentId];
-    if (!tProg) return false;
-    const tAffinity = tRel?.affinity ?? tProg.trust * 20;
-    const tTier = getRelationshipTier(tAffinity);
-    const tEmotion: CharacterEmotion =
-      tRt?.emotion ?? tRel?.lastEmotion ?? moodToEmotion(tProg.mood);
-    const tGuarded = isResidentGuarded(tRel, tEmotion);
-    if (req.minAffinity !== undefined && tAffinity < req.minAffinity) return false;
-    if (req.maxAffinity !== undefined && tAffinity > req.maxAffinity) return false;
-    if (req.minTier && TIER_RANK[tTier] < TIER_RANK[req.minTier]) return false;
-    if (req.maxTier && TIER_RANK[tTier] > TIER_RANK[req.maxTier]) return false;
-    if (req.requiresMet !== undefined && tProg.met !== req.requiresMet) return false;
-    if (req.requiresGuarded !== undefined && tGuarded !== req.requiresGuarded) return false;
+    // Strictly knowledge-based: speaker must actually hold a non-expired memory involving player + req.residentId
+    const subjMem = findSpeakerMemory(residentId, world, {
+      subjectPlayer: true,
+      subjectResidentId: req.residentId,
+    });
+    if (!subjMem) return false;
+    const { tier: sTier, guarded: sGuarded, affinity: sAffinity } =
+      deriveSubjectiveRelationFromMemory(subjMem);
+    if (req.minAffinity !== undefined && sAffinity < req.minAffinity) return false;
+    if (req.maxAffinity !== undefined && sAffinity > req.maxAffinity) return false;
+    if (req.minTier && TIER_RANK[sTier] < TIER_RANK[req.minTier]) return false;
+    if (req.maxTier && TIER_RANK[sTier] > TIER_RANK[req.maxTier]) return false;
+    if (req.requiresGuarded !== undefined && sGuarded !== req.requiresGuarded) return false;
   }
 
   if (cond.requiresThirdPartyGossip && !selectThirdPartyGossipSubject(residentId, world)) {
@@ -318,25 +422,40 @@ export function evaluateDialogueCondition(
     if (!found) return false;
   }
 
-  const hooks = world as WorldState & ForwardWorldHooks;
   if (cond.requiresNpcMemoriesAny && cond.requiresNpcMemoriesAny.length > 0) {
-    const mems = hooks.npcMemories?.[residentId] ?? [];
+    const mems = world.npcMemories?.[residentId] ?? [];
     const matched = mems.some(
       (m) =>
-        cond.requiresNpcMemoriesAny!.includes(m.tag) ||
-        cond.requiresNpcMemoriesAny!.includes(m.id),
+        !isMemoryExpired(m, world.day) &&
+        (cond.requiresNpcMemoriesAny!.includes(m.tag) ||
+          cond.requiresNpcMemoriesAny!.includes(m.id)),
     );
     if (!matched) return false;
   }
   if (cond.excludesNpcMemories && cond.excludesNpcMemories.length > 0) {
-    const mems = hooks.npcMemories?.[residentId] ?? [];
+    const mems = world.npcMemories?.[residentId] ?? [];
     const blocked = mems.some(
       (m) =>
-        cond.excludesNpcMemories!.includes(m.tag) ||
-        cond.excludesNpcMemories!.includes(m.id),
+        !isMemoryExpired(m, world.day) &&
+        (cond.excludesNpcMemories!.includes(m.tag) ||
+          cond.excludesNpcMemories!.includes(m.id)),
     );
     if (blocked) return false;
   }
+  if (cond.requiresNpcMemory) {
+    const reqMem = cond.requiresNpcMemory;
+    const matched = findSpeakerMemory(residentId, world, {
+      id: reqMem.id,
+      tags: reqMem.tags ?? (reqMem.tag ? [reqMem.tag] : undefined),
+      provenance: reqMem.provenance,
+      maxDaysOld: reqMem.maxDaysOld,
+      unmentionedOnly: reqMem.unmentionedOnly,
+      subjectPlayer: reqMem.subjectPlayer,
+      subjectResidentId: reqMem.subjectResidentId,
+    });
+    if (!matched) return false;
+  }
+  const hooks = world as WorldState & ForwardStorylineHooks;
   if (cond.requiresStoryline) {
     const req = cond.requiresStoryline;
     const progStory = hooks.storylines?.[req.id];
@@ -840,6 +959,39 @@ export function selectDialogueSession(
     choices: rootChoices,
   };
 
+  const surfacedMemoryEventIds: Array<{ residentId: ResidentId; eventId: string }> = [];
+  const chosenId = chosenEntry.topic.id;
+  if (chosenId === 'event_bell_celebration') {
+    const mem = findSpeakerMemory(residentId, world, {
+      tags: ['bell_ring', 'bell_chime', 'bell_restored'],
+      unmentionedOnly: true,
+      maxDaysOld: 2,
+    });
+    if (mem) surfacedMemoryEventIds.push({ residentId, eventId: mem.eventId });
+  } else if (chosenId === 'event_fountain_repair') {
+    const mem = findSpeakerMemory(residentId, world, {
+      tags: ['fountain_fixed'],
+      unmentionedOnly: true,
+    });
+    if (mem) surfacedMemoryEventIds.push({ residentId, eventId: mem.eventId });
+  } else if (chosenId === 'event_gift_thanks') {
+    const mem = findSpeakerMemory(residentId, world, {
+      tags: ['player_gift', 'player_help_observed'],
+      unmentionedOnly: true,
+      maxDaysOld: 2,
+    });
+    if (mem) surfacedMemoryEventIds.push({ residentId, eventId: mem.eventId });
+  } else if (chosenId === 'gossip_third_party_relation') {
+    const subj = selectThirdPartyGossipSubject(residentId, world);
+    if (subj) surfacedMemoryEventIds.push({ residentId, eventId: subj.eventId });
+  } else if (chosenEntry.topic.condition?.playerRelationWith) {
+    const subjMem = findSpeakerMemory(residentId, world, {
+      subjectPlayer: true,
+      subjectResidentId: chosenEntry.topic.condition.playerRelationWith.residentId,
+    });
+    if (subjMem) surfacedMemoryEventIds.push({ residentId, eventId: subjMem.eventId });
+  }
+
   return {
     residentId,
     topicId: chosenEntry.topic.id,
@@ -849,6 +1001,7 @@ export function selectDialogueSession(
     tier,
     currentNodeId: 'root',
     nodes,
+    ...(surfacedMemoryEventIds.length > 0 ? { surfacedMemoryEventIds } : {}),
   };
 }
 
