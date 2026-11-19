@@ -44,6 +44,7 @@
 - **Sunbeam Greenhouse** *(E)*: Glass-roofed flower house where Mina tends moon-petal seedlings.
 - **Pinecone Woodshop** *(SE)*: Barnaby's cedar workshop.
 - **Mirror Pond & Hollow Oak** *(S)*: Cerulean pond, wooden handrail footbridge, and the mossy oak root hiding a brass secret.
+- **Fern Hollow Orchard** *(N, beyond the gazebo promenade)*: Six crabapple trees behind a stone-and-cedar gate lane, with a harvest ladder, crate corner, bee skep, and a quiet orchard bench — Milestone 3's first expansion district.
 
 ---
 

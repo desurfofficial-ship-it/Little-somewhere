@@ -374,3 +374,24 @@ Chronological log of design decisions, implementation milestones, verification r
   - `npm test`: **61/61 passing** (`0` failures; includes 2 new Phase 2 regression tests in `src/game/relationships.test.ts`).
   - `npm run lint` (`tsc --noEmit`): **0 errors**; `compile_applet`: **Build succeeded**.
   - Live headless Chromium (`1440×900` & `390×844`): verified Stranger Pip (`UserRound`), milestone click (`pip_promise` -> `Sprout` Acquaintance + 1 heart + `.animate-avatar-milestone` / `data-milestone-seq="1"`), Kindred Clara (`Sparkles`, personalized greeting referencing `Hearth & Crumb Bakery`), `390×844` zero horizontal overflow (`scrollWidth: 390`), and **0 console errors / 0 warnings**.
+
+---
+
+## Entry 021 — Milestone 3 Build 1: Fern Hollow Orchard (North District Landmark)
+- **Date**: 2026-11-19
+- **Status**: Completed & Verified
+- **Scope**: First Milestone 3 expansion district — a fully handcrafted crabapple orchard landmark on the open meadow north of the gazebo promenade (inside existing `WORLD_BOUNDS`; no region-bounds change). Game-layer additions keep residents, schedules, dialogue, and persistence untouched.
+- **Key Deliverables**:
+  - **Orchard asset builder (`src/scene/builders/orchard.ts`, new)**:
+    - Six instanced crabapple trees as 4 draw calls: gnarled merged lathe-and-bough trunks, wider/flatter two-lobe canopies that **share the grove's cached `grove_crown_base` / `grove_crown_top` materials** (season tint applies to the orchard for free), and 72 instanced apples (merged body+stem geometry, per-instance red/amber-green tints) hung in canopy rings plus upper lobes.
+    - Stone-and-cedar gate at the promenade edge: twin stacked fieldstone piers + limestone caps (merged), arched cedar lintel with woven lattice sticks, and a hanging framed sign carrying a new seeded `createOrchardSignTexture` ("Fern Hollow Orchard" with fern sprig flourishes).
+    - Harvest dressing: merged cedar ladder leaning into the west tree, crate stack with iron bands + wicker gathering basket + five loose red crabapples (dedicated red material), bee skep (lathe dome + torus rings) on a three-leg cedar stool, and a 7-stone stepping-stone path from the promenade through the gate.
+    - Instanced contact-shadow discs under all six trees; every prop pivoted at y = 0, palette-cached materials, software-GL shadow gating respected. ~20 new draw calls, scene chunk +8.7 kB (719.62 -> 728.36 kB).
+  - **Game layer (`src/game/worldMap.ts`, `src/game/navigation.ts`)**:
+    - 12 new circle obstacles (6 tree trunks, 2 gate piers, ladder, crates, skep, bench) mirroring the builder's exported `ORCHARD_TREES` / `ORCHARD_GATE` constants exactly.
+    - New landmark zone `orchard` ("Fern Hollow Orchard — Crabapples, bee skeps & dappled shade"), 5th seat spot `seat_orchard_bench` (the canvas bench loop places the cedar bench automatically), and 5 nav nodes + 5 edges linking gazebo_north -> orchard_gate -> orchard interior so tap-to-walk and A* reach the district.
+  - **Tests (`src/scene/orchard.test.ts`, new)**:
+    - Tree/gate positions must mirror their worldMap obstacles; gate opening admits a 0.84-wide actor; fruit instances stay within canopy bands with hand-tuned scales; crown meshes must reuse the season-tinted grove materials (identity assertion); seat approach walkable + LOS from the orchard nav node; full A* reachability from plaza_east to the orchard bench with every leg LOS-clear.
+- **Verification**:
+  - `npm test`: **62/62 passing on the build tree** (59 prior + 3 new orchard suites); **64/64 on the merged tree** together with Entry 020's Phase 2 regression tests. `npm run lint`: **0 errors**, `npm run build`: pass (shell 409.20 kB + scene chunk 728.36 kB).
+  - Live headless Chromium desktop `1440×900` + mobile `390×844` with injected `WorldState v3` saves (`scripts/make_orchard_save.ts`): HUD location chip reads "Fern Hollow Orchard" inside the district; gate piers/arch/sign, ladder, crates, skep, bench and red loose apples all confirmed across morning / Golden Hour 4:55 PM / Lantern Dusk 9:25 PM; bench interaction prompt "Sit on Fern Hollow Orchard Bench [F]" live; **0 console errors, 0 page errors** on both viewports.

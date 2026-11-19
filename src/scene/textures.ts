@@ -214,3 +214,70 @@ export function createContactShadowTexture(): THREE.CanvasTexture {
   tex.colorSpace = THREE.SRGBColorSpace;
   return tex;
 }
+
+/**
+ * Fern Hollow Orchard gate sign: hand-lettered cream board with a fern sprig
+ * motif, hanging beneath the orchard arch. Seeded so the grain stays stable.
+ */
+export function createOrchardSignTexture(): THREE.CanvasTexture {
+  const canvas = document.createElement('canvas');
+  canvas.width = 256;
+  canvas.height = 128;
+  const ctx = canvas.getContext('2d')!;
+  const rand = makeSeededRandom(206);
+
+  // Warm cedar board with visible edge grain
+  ctx.fillStyle = '#EAD9BC';
+  ctx.fillRect(0, 0, 256, 128);
+  ctx.globalAlpha = 0.16;
+  for (let i = 0; i < 9; i++) {
+    ctx.fillStyle = i % 2 === 0 ? '#D9C29E' : '#F3E6CC';
+    const y = 6 + i * 14 + rand() * 3;
+    ctx.fillRect(0, y, 256, 7 + rand() * 4);
+  }
+  ctx.globalAlpha = 1;
+  // Inked border frame
+  ctx.strokeStyle = '#8A6B4A';
+  ctx.lineWidth = 5;
+  ctx.strokeRect(7, 7, 242, 114);
+  ctx.lineWidth = 2;
+  ctx.strokeRect(15, 15, 226, 98);
+
+  // Title lettering (serif stack; procedural CanvasTexture, no external font)
+  ctx.fillStyle = '#3E3026';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.font = '700 34px Georgia, "Times New Roman", serif';
+  ctx.fillText('Fern Hollow', 128, 52);
+  ctx.font = '600 27px Georgia, "Times New Roman", serif';
+  ctx.fillText('Orchard', 128, 88);
+
+  // Fern sprig flourishes (mirrored fronds on the side margins)
+  const drawFrond = (cx: number, cy: number, dir: number) => {
+    ctx.strokeStyle = '#5E8062';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(cx, cy + 18);
+    ctx.quadraticCurveTo(cx + dir * 8, cy + 2, cx + dir * 2, cy - 16);
+    ctx.stroke();
+    ctx.lineWidth = 2;
+    for (let i = 0; i < 5; i++) {
+      const t = 0.2 + i * 0.16;
+      const px = cx + dir * 8 * (1 - t) * t * 2;
+      const py = cy + 18 - 34 * t;
+      ctx.beginPath();
+      ctx.moveTo(px, py);
+      ctx.lineTo(px - dir * 7, py - 3);
+      ctx.moveTo(px, py);
+      ctx.lineTo(px + dir * 7, py - 3);
+      ctx.stroke();
+    }
+  };
+  drawFrond(38, 64, -1);
+  drawFrond(218, 64, 1);
+
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.anisotropy = 4;
+  return tex;
+}

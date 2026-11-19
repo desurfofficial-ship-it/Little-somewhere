@@ -56,6 +56,7 @@ import {
   createContactShadowTexture,
   createMeadowMacroTexture,
   createMeadowTexture,
+  createOrchardSignTexture,
   createRoofShingleTexture,
 } from './textures';
 import { MaterialPalette, STORYBOOK_PALETTE } from './materials';
@@ -74,6 +75,7 @@ import {
   buildPerimeterBorder,
 } from './builders/vegetation';
 import { buildMeadowDressing } from './builders/botanicalDressing';
+import { buildFernHollowOrchard } from './builders/orchard';
 import { buildAllReactiveRigs } from './builders/reactiveProps';
 import {
   buildCarryablePropMesh,
@@ -322,6 +324,7 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
     const sageRoofTex = createRoofShingleTexture('#5F8267', '#759B7D', maxAniso);
     const slateRoofTex = createRoofShingleTexture('#5D7082', '#73889C', maxAniso);
     const shadowTex = createContactShadowTexture();
+    const orchardSignTex = createOrchardSignTexture();
 
     // Extended natural meadow floor (no boxed void)
     const groundMat = new THREE.MeshStandardMaterial({
@@ -380,6 +383,17 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
     // collision-aware seeded placement)
     const meadowDressing = buildMeadowDressing(palette, isSoftwareGl);
     scene.add(meadowDressing.group);
+
+    // Fern Hollow Orchard — Milestone 3 north district landmark (instanced
+    // crabapple trees sharing the grove season-tint materials, gate, ladder,
+    // harvest corner, bee skep, stepping stones)
+    const orchardRig = buildFernHollowOrchard({
+      palette,
+      shadowTex,
+      signTex: orchardSignTex,
+      isSoftwareGl,
+    });
+    scene.add(orchardRig.group);
 
     const willowProtoCtx = {
       palette,
@@ -1534,6 +1548,7 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
       renderer.domElement.removeEventListener('wheel', handleWheel);
       envController.dispose();
       meadowDressing.dispose();
+      orchardRig.dispose();
       groundMat.dispose();
       groundGeo.dispose();
       cobbleMat.dispose();
@@ -1549,6 +1564,7 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
       sageRoofTex.dispose();
       slateRoofTex.dispose();
       shadowTex.dispose();
+      orchardSignTex.dispose();
       palette.disposeAll();
       timer.dispose();
       renderer.dispose();

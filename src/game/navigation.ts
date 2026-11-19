@@ -32,6 +32,13 @@ export const NAV_NODES: readonly NavNode[] = [
   { id: 'plaza_nw', pos: { x: -3.4, z: -2.6 } },
   { id: 'plaza_ne', pos: { x: 3.0, z: -2.6 } },
 
+  // Fern Hollow Orchard (north district)
+  { id: 'orchard_gate', pos: { x: -2.4, z: -13.9 } },
+  { id: 'orchard_south', pos: { x: -2.3, z: -17.1 } },
+  { id: 'orchard_west', pos: { x: -6.2, z: -17.6 } },
+  { id: 'orchard_bench', pos: { x: -9.2, z: -20.0 } },
+  { id: 'orchard_east', pos: { x: 3.8, z: -18.6 } },
+
   // Plaza flanks & South promenade
   { id: 'plaza_west', pos: { x: -3.6, z: 1.5 } },
   { id: 'plaza_east', pos: { x: 3.6, z: 1.5 } },
@@ -75,6 +82,13 @@ export const NAV_EDGES: ReadonlyArray<readonly [string, string]> = [
   ['gazebo_nw', 'gazebo_north'],
   ['gazebo_north', 'gazebo_ne'],
   ['gazebo_ne', 'gazebo_east'],
+
+  // Fern Hollow Orchard links
+  ['gazebo_north', 'orchard_gate'],
+  ['orchard_gate', 'orchard_south'],
+  ['orchard_south', 'orchard_west'],
+  ['orchard_south', 'orchard_east'],
+  ['orchard_west', 'orchard_bench'],
 
   // Plaza perimeter around Fountain
   ['plaza_nw', 'plaza_ne'],

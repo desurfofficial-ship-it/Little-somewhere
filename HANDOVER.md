@@ -33,18 +33,19 @@ The **Player & Character Excellence Upgrade** (Phases 1–12) plus the **Bench S
    - `puddlesActive`, `claraPastryBasketVisible`, `minaGreenhouseStage`, and `arthurEarlyPorchLamp` all have 3D visual layers in `src/scene/builders/reactiveProps.ts` (built once in `NeighborhoodCanvas.tsx`, toggled/animated by `environmentRenderer.ts`).
    - Meadow margins additionally carry instanced botanical dressing (`src/scene/builders/botanicalDressing.ts`); when adding lanes or obstacles, keep `COBBLE_LANE_RECTS` in sync with the cobble strips and the dressing placement tests will guard walkability.
    - **Visual backlog**: `docs/audits/09-comprehensive-asset-visual-audit.md` (2026-11-19) supersedes `docs/art-direction/VISUAL_AUDIT.md`; it confirms zero P0 defects. **All roadmap items R-01..R-09 are now implemented** (WORKLOG Entries 017-019): R-01 golden/dusk lighting drama, R-02 water elevation (Entry 014), R-03 touch-only VirtualJoystick (`(pointer: coarse)` OR `maxTouchPoints > 0`), R-04 sculpted 3-blade tufts, R-05 meadow macro lightMap, R-06 legacy builder removal, R-07 Copperwheel signature props, R-08 title orbit gaze bias + slimmed card, R-09 lazy scene chunk (408 kB shell / 720 kB deferred).
+  - **Milestone 3 groundwork started (Entry 020)**: **Fern Hollow Orchard** north district landmark is live (`src/scene/builders/orchard.ts`). Contract: the builder's exported `ORCHARD_TREES` / `ORCHARD_GATE` must stay in exact sync with their `CIRCLE_OBSTACLES` entries (enforced by `src/scene/orchard.test.ts`); orchard crowns reuse the cached `grove_crown_base` / `grove_crown_top` materials so the season tint colors them — do not clone those materials. Nav access flows through `orchard_gate` / `orchard_south` / `orchard_west` / `orchard_bench` / `orchard_east` nodes; `seat_orchard_bench` is the 5th `SEAT_SPOTS` entry (bench auto-placed by the canvas seat loop).
    - **VirtualJoystick rule update**: the thumbstick renders only when `hasTouchInput` (`pointer: coarse` media query or `navigator.maxTouchPoints > 0`); it is hidden on mouse-first desktops with an inert spacer preserving the bottom-bar flex layout.
    - **Ground material rule**: the meadow ground uses `map` (512², 9x9) + `lightMap` macro variation (256², 2x2) over a cloned `uv1` channel; season tint multiplies on top. Keep both when touching `groundMat`.
-   - Remaining Milestone 3 work: multi-region map expansion, walkable interiors, and additional residents.
+   - Remaining Milestone 3 work: walkable interiors, additional residents, and further region dressing building on the Fern Hollow Orchard pattern (obstacle-synced builder + nav nodes + landmark zone + seat).
 
 ---
 
-## 4. Verification Status (2026-11-19, Milestone 2B Phase 2 Checkpoint)
+## 4. Verification Status (2026-11-19, after Milestone 2B Phase 2 + Milestone 3 Build 1)
 
-- `npm test` (`tsx --test src/game/*.test.ts src/scene/*.test.ts`) — **61/61 passing** (`0` failures; includes 2 Phase 2 simulation/dialogue/persistence tests in `src/game/relationships.test.ts`)
+- `npm test` (`tsx --test src/game/*.test.ts src/scene/*.test.ts`) — **64/64 passing** (`0` failures; includes 2 Phase 2 relationship regression tests from Entry 020 and the 3 new orchard obstacle-sync / season-tint / reachability suites from Entry 021)
 - `npm run lint` (`tsc --noEmit`) — **Passing (0 errors)**
-- `npm run build` (`vite build`) — **Passing**
-- Browser QA (headless Chromium `1440×900` & `390×844`): verified `DialogueSheet` relationship tier icons (`stranger` -> `acquaintance` -> `kindred`), fluctuating relationship greetings, milestone avatar bounce (`data-milestone-seq="1"` + `.animate-avatar-milestone`), `390×844` zero horizontal overflow, and **0 console errors / 0 warnings**
+- `npm run build` (`vite build`) — **Passing**; chunks: `index` ~409 kB (shell) + `NeighborhoodCanvas` ~728 kB (deferred via React.lazy; orchard added ~8.7 kB)
+- Browser QA (headless Chromium `1440×900` & `390×844`): Entry 020 verified `DialogueSheet` relationship-tier icons (`stranger` -> `kindred`), fluctuating relationship greetings, milestone avatar bounce, zero horizontal overflow; Entry 021 (injected `WorldState v3` saves via `scripts/make_orchard_save.ts`) verified the Fern Hollow Orchard zone chip, gate arch + lettered sign, ladder, crates, skep, and bench sit prompt across morning / Golden Hour / Lantern Dusk; **0 console errors, 0 page errors** on both viewports
 
 
 

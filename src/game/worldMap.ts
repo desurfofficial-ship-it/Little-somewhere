@@ -99,6 +99,19 @@ export const CIRCLE_OBSTACLES: CircleObstacle[] = [
   { id: 'willow_tree_south', x: -15.5, z: 15.0, radius: 0.65 },
   { id: 'willow_tree_nw', x: -16.8, z: 5.2, radius: 0.62 },
   { id: 'willow_signpost', x: -12.5, z: 5.7, radius: 0.42 },
+  // Fern Hollow Orchard (north district landmark)
+  { id: 'orchard_tree_nw', x: -9.6, z: -17.2, radius: 0.52 },
+  { id: 'orchard_tree_w', x: -6.6, z: -20.1, radius: 0.52 },
+  { id: 'orchard_tree_mid', x: -3.2, z: -18.2, radius: 0.52 },
+  { id: 'orchard_tree_n', x: -0.2, z: -20.3, radius: 0.52 },
+  { id: 'orchard_tree_e', x: 2.6, z: -17.0, radius: 0.52 },
+  { id: 'orchard_tree_ne', x: 5.4, z: -19.6, radius: 0.52 },
+  { id: 'orchard_gate_w', x: -4.3, z: -14.9, radius: 0.42 },
+  { id: 'orchard_gate_e', x: -0.9, z: -14.9, radius: 0.42 },
+  { id: 'orchard_ladder', x: -5.85, z: -20.35, radius: 0.35 },
+  { id: 'orchard_crates', x: -3.7, z: -20.3, radius: 0.55 },
+  { id: 'orchard_skep', x: 4.9, z: -16.3, radius: 0.4 },
+  { id: 'orchard_bench', x: -11.0, z: -20.6, radius: 0.42 },
 ];
 
 export const SEAT_SPOTS: readonly SeatSpot[] = [
@@ -137,6 +150,15 @@ export const SEAT_SPOTS: readonly SeatSpot[] = [
     facingAngle: Math.PI,
     seatHeight: 0.36,
     zoneId: 'pond',
+  },
+  {
+    id: 'seat_orchard_bench',
+    label: 'Fern Hollow Orchard Bench',
+    seatPos: { x: -11.0, z: -20.6 },
+    approachPos: { x: -10.0, z: -20.6 },
+    facingAngle: Math.PI / 2,
+    seatHeight: 0.36,
+    zoneId: 'orchard',
   },
 ];
 
@@ -207,6 +229,7 @@ export const LANDMARK_ZONES: LandmarkZone[] = [
   { id: 'book_nook', name: 'Linden Book Nook', subtitle: 'Nora’s paperbacks & tea', x: -12, z: -1, radius: 5.5 },
   { id: 'barnaby', name: 'Pinecone Woodshop', subtitle: 'Barnaby’s cedar shavings', x: 9, z: 12, radius: 5.5 },
   { id: 'pond', name: 'Mirror Pond & Hollow Oak', subtitle: 'Dragonflies and old secrets', x: -1, z: 14.5, radius: 6.5 },
+  { id: 'orchard', name: 'Fern Hollow Orchard', subtitle: 'Crabapples, bee skeps & dappled shade', x: -2.6, z: -18.2, radius: 6.5 },
 ];
 
 export const PROP_INTERACTABLES: PropInteractable[] = [
