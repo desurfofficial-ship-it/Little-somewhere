@@ -151,6 +151,7 @@ export type PersonalItemId =
   | 'lavender_seeds'
   | 'thyme_seeds'
   | 'chamomile_pear_tea'
+  | 'lavender_chamomile_tea'
   | 'herb_loaf'
   | 'crabapple_tart'
   | 'lavender_shortbread'

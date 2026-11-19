@@ -165,3 +165,36 @@ Severity scale: **P0** = broken/blocks the loop · **P1** = materially weakens t
 15. A neighbor can reference the kettle's steam and the vase, and the Pocket Journal home card counts quiet tea-table moments.
 16. Waking up names the weather you wake into.
 17. All 126+ suites, `tsc`, and `vite build` stay green; obstacle/collision contracts bit-identical; no save-schema version bump."
+
+## 7. Round-4 findings (2026-11-20, after Milestone 3 Build 8)
+
+**Method**: fresh headless-Chromium playtest (1440×900) on a purpose-built *veteran* `WorldState` save (`scripts/make_round4_veteran_save.ts`: orchard storyline completed, 2 greenhouse harvests, 2 bakery kneading mornings + 1 loaf shared, 2 nook books, tea-table moment recorded) plus the decorated dusk save — before/after screenshots under `download/asset-qa/round4/` — and a line-level re-read of `src/scene/builders/cottageInterior.ts`, `src/game/cottage.ts`, `src/game/inventory.ts`, `src/game/types.ts` (read-only). Baseline at `7154962`: 206/206 suites, `tsc` 0 errors, build green.
+
+### EL-21 · P1 — The home does not remember the life lived around it
+**Where**: `src/scene/builders/cottageInterior.ts` (`rig.update` reads only cottage-local state).
+**Evidence**: The veteran world renders a room pixel-identical to a fresh world (`veteran-morning-before.png`): orchard honey never reaches the sideboard, Clara's kitchen leaves no recipe card, Nora's books never rest on the quilt, the greenhouse harvests never put a cutting on the sill. Five milestones of lived story are invisible in the one room the player owns.
+**Impact**: Environmental storytelling (pillar 5) stops at the keepsake shelf; the "home grows more personal over time" promise is unmet.
+
+### EL-22 · P2 — Only winter exists indoors
+**Where**: `cottageInterior.ts` — `frostDressing` is the only season-aware interior dressing.
+**Evidence**: Spring/summer/autumn interiors are identical; the west window glass emissive is weather-reactive but season-blind; the door lintel carries no seasonal life.
+**Impact**: The 40-day seasonal calendar (4 × 10 days) is the game's strongest rhythm lever and the room never acknowledges it.
+
+### EL-23 · P2 — The tea ritual has only one flavor
+**Where**: `src/game/inventory.ts` — exactly one `sipable` item (`chamomile_pear_tea`).
+**Evidence**: `homeRitualCount` counts `mem_teatable_*` memories, one per item id — with one sipable drink the "quiet tea-table moments" counter caps at 1 forever, and the hearth offers four recipes of which only one can be enjoyed at the table.
+**Impact**: The Pass-5 ritual deepens only in prose; the kettle cannot make a second quiet cup.
+
+### Round-4 healthy checks (do not regress)
+- Passes 1–12 hold: dressed interior, atmosphere, staged brew, chips, veil, indoor pace, sit & sip, mantel/counter/entry life, crackle, weather-aware room, living clock, chimney truth, kettle-steam dialogue, wake lines — all verified live on the veteran save.
+- Season is calendar-locked (`migrations.ts` derives season from day; both branches intentional) — treated as a protected persistence contract, not a bug.
+- Save persistence, NPC memory/gossip pipeline, mobile hit targets, 0 console/page errors — unchanged.
+
+## 8. Production quality target (round 4 — measurable)
+
+"Willow Step Cottage is *your* home when:
+
+18. A veteran world's room is visibly different from a fresh world's room: the sill holds a greenhouse cutting, the sideboard an orchard honey crock, the mantel Clara's recipe card, the quilt Nora's borrowed book, the table an everyday tea tin — each gated on progress that already persists, each disappearing again if the signal is absent.
+19. All four seasons reach the room: a seasonal sill posy (spring chamomile / summer lavender / autumn leaves), a door-lintel swag whose accent follows the season, season-tinted window glass, and spring petals / autumn leaves by the doorstep.
+20. The kettle brews a second sipable cup (Lavender Chamomile Tea), the tea table offers it while seated, and the Pocket Journal home card can count more than one quiet tea-table moment.
+21. All suites, `tsc`, and `vite build` stay green; obstacle/collision contracts bit-identical; no save-schema version bump; season remains calendar-locked."

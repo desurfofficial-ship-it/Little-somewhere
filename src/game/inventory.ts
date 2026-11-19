@@ -90,6 +90,14 @@ export const PERSONAL_ITEMS: readonly PersonalItemDef[] = [
     sipable: true,
   },
   {
+    id: 'lavender_chamomile_tea',
+    label: 'Lavender Chamomile Tea',
+    category: 'baked_treat',
+    description: 'Chamomile blossoms and a lavender sprig steeped together into a quiet evening cup.',
+    giftable: true,
+    sipable: true,
+  },
+  {
     id: 'herb_loaf',
     label: 'Herb & Honey Loaf',
     category: 'baked_treat',
@@ -248,6 +256,18 @@ export const HEARTH_RECIPES: readonly RecipeDef[] = [
     ],
   },
   {
+    id: 'recipe_lavender_tea',
+    outputItemId: 'lavender_chamomile_tea',
+    outputCount: 1,
+    label: 'Steep Lavender Chamomile Tea',
+    description: 'Pair dried lavender with chamomile blossoms for a slow evening cup (+15m).',
+    minutesRequired: 15,
+    ingredients: [
+      { itemId: 'lavender_sprig', count: 1 },
+      { itemId: 'chamomile_blossom', count: 1 },
+    ],
+  },
+  {
     id: 'recipe_lavender_shortbread',
     outputItemId: 'lavender_shortbread',
     outputCount: 1,
@@ -286,6 +306,11 @@ export const RECIPE_ACTIVITY_STEPS: Record<string, readonly [string, string, str
     'Creaming butter with sweet lavender…',
     'Folding in crisp orchard apple glaze…',
     'Laying biscuits on the baking stone…',
+  ],
+  recipe_lavender_tea: [
+    'Filling the copper kettle from the rain barrel…',
+    'Tucking dried lavender beside the chamomile blossoms…',
+    'Covering the cup to let the steam steep…',
   ],
 };
 
@@ -327,7 +352,7 @@ export const RESIDENT_GIFT_PREFS: Record<
   },
   nora: {
     loved: ['pressed_fern', 'chamomile_pear_tea', 'lavender_shortbread'],
-    liked: ['lavender_sprig', 'smooth_river_glass', 'crabapple_tart'],
+    liked: ['lavender_sprig', 'smooth_river_glass', 'crabapple_tart', 'lavender_chamomile_tea'],
   },
   pip: {
     loved: ['crabapple_tart', 'wild_honey', 'smooth_river_glass'],

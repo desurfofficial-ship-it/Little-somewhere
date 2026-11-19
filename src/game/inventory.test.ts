@@ -16,6 +16,7 @@ import {
   getItemCount,
   getOwnedGiftableItems,
   getOwnedKeepsakeItems,
+  getFirstSipableItem,
   getOwnedVaseFlowerItems,
   getRecipeActivitySteps,
   getTotalItemCount,
@@ -24,7 +25,7 @@ import { RESIDENT_ORDER } from './residents';
 import { PersonalItemId } from './types';
 
 test('personal item catalog, starter inventory, and stack clamping enforce invariants', () => {
-  assert.equal(PERSONAL_ITEMS.length, 21);
+  assert.equal(PERSONAL_ITEMS.length, 22);
   const uniqueIds = new Set(PERSONAL_ITEMS.map((item) => item.id));
   assert.equal(uniqueIds.size, PERSONAL_ITEMS.length);
 
@@ -57,7 +58,7 @@ test('personal item catalog, starter inventory, and stack clamping enforce invar
 });
 
 test('hearth recipes, gift preferences, keepsake rewards, and category filters validate cleanly', () => {
-  assert.equal(HEARTH_RECIPES.length, 4);
+  assert.equal(HEARTH_RECIPES.length, 5);
   for (const recipe of HEARTH_RECIPES) {
     assert.ok(PERSONAL_ITEM_MAP[recipe.outputItemId], `Missing output ${recipe.outputItemId}`);
     for (const ing of recipe.ingredients) {
@@ -128,4 +129,41 @@ test('hearth activity steps cover every recipe with three sensory stages', () =>
   }
   // Unknown recipe ids still receive a graceful fallback so the modal never blanks
   assert.equal(getRecipeActivitySteps('recipe_unknown').length, 3);
+});
+
+test('Pass 15: the kettle offers a second sipable ritual — lavender chamomile tea', () => {
+  const def = PERSONAL_ITEM_MAP['lavender_chamomile_tea'];
+  assert.ok(def, 'Lavender chamomile tea item def exists');
+  assert.equal(def.sipable, true, 'The new tea is sipable at the oak table');
+  assert.equal(def.giftable, true, 'The new tea can still be shared with a neighbor');
+
+  // Its recipe brews from lavender + chamomile and has a unique id
+  const recipe = HEARTH_RECIPES.find((r) => r.id === 'recipe_lavender_tea');
+  assert.ok(recipe, 'Lavender tea recipe exists at the hearth');
+  assert.equal(recipe.outputItemId, 'lavender_chamomile_tea');
+  const ids = new Set(HEARTH_RECIPES.map((r) => r.id));
+  assert.equal(ids.size, HEARTH_RECIPES.length, 'Recipe ids stay unique');
+  assert.deepEqual(
+    recipe.ingredients.map((i) => i.itemId),
+    ['lavender_sprig', 'chamomile_blossom'],
+  );
+
+  // The first-sipable helper derives from defs: both teas resolve, oldest def first
+  const both: Partial<Record<PersonalItemId, number>> = {
+    chamomile_pear_tea: 1,
+    lavender_chamomile_tea: 1,
+  };
+  assert.equal(getFirstSipableItem(both)?.itemId, 'chamomile_pear_tea');
+  assert.equal(getFirstSipableItem({ lavender_chamomile_tea: 1 })?.itemId, 'lavender_chamomile_tea');
+
+  // With two teas in the world, the tea-table ritual can now record a second memory
+  const recipeIds = HEARTH_RECIPES.map((r) => r.outputItemId);
+  const sipableDefs = PERSONAL_ITEMS.filter((i) => i.sipable).map((i) => i.id);
+  for (const sipableId of sipableDefs) {
+    assert.ok(
+      recipeIds.includes(sipableId),
+      `Sipable drink ${sipableId} must be brewable at the hearth`,
+    );
+  }
+  assert.ok(sipableDefs.length >= 2, 'The tea table offers more than one quiet cup');
 });

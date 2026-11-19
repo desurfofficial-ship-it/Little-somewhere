@@ -217,3 +217,61 @@
 ## Reassessment & iteration policy
 
 After each pass: rerun full gates, re-screenshot dusk + morning interiors and one gathering flow, and re-rank remaining findings. Round-2 leftovers tracked: EL-10 (chunk warning — track only). Expected after Pass 12: only micro-findings from visual review (fix inline within the pass that introduced them).
+
+---
+
+## Pass 13 — The home remembers (EL-21)
+
+**Outcome**: A veteran world's cottage is visibly different from a fresh world's — five progress-derived mementos, all read-only from already-persisted state.
+
+**Systems affected / files**: `src/scene/builders/cottageInterior.ts` + `src/scene/cottageInterior.test.ts` (visual layer; zero game-state changes; `COTTAGE_INTERIOR_OBSTACLES` bit-identical; walk band untouched).
+
+**Technical approach** (all statics inside existing footprints/wall planes; visibility gated in `rig.update` via allocation-free memory lookups):
+- **Greenhouse cutting jar** on the west sill end when `greenhouseState.totalHarvests > 0` (glass jar, water, sprig, bloom).
+- **Orchard honey crock** on the sideboard when memories include `mem_orchard_harvest`.
+- **Clara's recipe card** leaning on the mantel flue when `bakeryState.kneadingSessions > 0`.
+- **Nora's borrowed book** on the quilt with a linen bookmark when `nookState.booksRead > 0`.
+- **Everyday tea tin** on the oak table beside the honey pot when any `mem_teatable_*` memory exists.
+
+**Dependencies**: none. **Tests**: fresh-world hides all five; lived world reveals all five with per-footprint world-position bounds; derived (not sticky) — signals off ⇒ hidden; diorama envelope holds.
+**Perf**: ~25 shared-material meshes + 1 tracked glass material; zero per-frame allocation.
+
+**Acceptance criteria**: `veteran-morning-before.png` vs `veteran-morning-after-pass13.png` differ in exactly the five mementos; gates green; 0 console errors.
+
+---
+
+## Pass 14 — Seasons of home (EL-22)
+
+**Outcome**: Spring, summer, autumn and winter each dress the room; the calendar is legible indoors.
+
+**Systems affected / files**: `src/scene/builders/cottageInterior.ts` + `src/scene/cottageInterior.test.ts` (visual-only; season stays calendar-locked in `migrations.ts` — untouched).
+
+**Technical approach**:
+- **Seasonal sill posy** (glass bottle, north sill end): chamomile heads in spring, lavender spikes in summer, marigold/red leaves in autumn; hidden in winter so frost owns the sill.
+- **Door-lintel swag** (evergreen sprigs + 3 accents + linen cords): accent color swaps per season — spring blossoms, summer lavender, autumn berries, winter brass bell.
+- **Season-tinted window glass**: precomputed `THREE.Color` per season copied into the glass emissive (winter cool `#E8F1F7` → summer warm `#FFE9B0`), composing with the existing weather dim.
+- **Floor scatter**: three petals by the west window in spring, three leaves by the door in autumn.
+
+**Dependencies**: none. **Tests**: per-season posy/scatter visibility matrix, swag accent hex differs across all four seasons, winter glass tint differs from spring, envelope ≤ 3.6.
+**Perf**: ~30 meshes, 1 tracked accent material; all season colors precomputed and `copy()`-assigned — zero allocation.
+
+**Acceptance criteria**: summer/autumn/winter day-offset saves render visibly distinct rooms (screenshots under `download/asset-qa/round4/`); gates green; 0 console errors.
+
+---
+
+## Pass 15 — A second quiet cup (EL-23)
+
+**Outcome**: The hearth brews **Lavender Chamomile Tea** (`lavender_chamomile_tea`, sipable), the tea table offers it while seated, and the home card can count more than one tea-table moment.
+
+**Systems affected / files**: `src/game/types.ts` (one `PersonalItemId` union append), `src/game/inventory.ts` (item def, `recipe_lavender_tea` — lavender sprig + chamomile blossom, +15m — and staged `RECIPE_ACTIVITY_STEPS`), `src/game/inventory.test.ts`. No reducer, UI, or schema changes: `sipBeverageAtTableAction`, the station modal, and the journal ritual count all derive from item/recipe defs automatically. Nora's liked list gains the new tea (existing entries preserved).
+
+**Dependencies**: none. **Tests**: def exists with `sipable`/`giftable`; recipe unique + correct ingredients; staged steps auto-covered; `getFirstSipableItem` resolves both teas; every sipable drink must be hearth-brewable; catalog count 21 → 22.
+**Perf**: none.
+
+**Acceptance criteria**: seated with both teas brewed, the button offers chamomile first, then lavender after the first sip; "Memory saved: A Quiet Lavender Chamomile Tea Moment"; two distinct `mem_teatable_*` memories persist; 0 console errors.
+
+---
+
+## Reassessment & iteration policy (round 4)
+
+Round 4 targeted personal-history and seasonality only — deliberately avoiding the Copperwheel Cottage build lane (types schema extension, new interior rig, dialogue/narrative additions). Remaining known items: EL-10 (chunk-size warning, track-only). Next everyday-life candidates: a shared-plate tea for a visiting neighbor (needs NPC interior visits — out of 2C scope), autumn herb-drying over the hearth (visual + one reducer), winter hearth-sock mantel dressing. Re-verify all gates and re-screenshot after any future pass.
