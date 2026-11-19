@@ -20,7 +20,16 @@ import {
 import { RESIDENTS, getTimePhase } from './residents';
 import { advanceToNextDay } from './storage';
 import { isSeatOccupiedByNpc } from './playerController';
-import { getSeatById, isPointWalkable, resolveMovement } from './worldMap';
+import { getLandmarkAt, getSeatById, isPointWalkable, resolveMovement } from './worldMap';
+import {
+  ACOUSTIC_BELL_RADIUS,
+  LOCAL_WITNESS_RADIUS,
+  cloneNpcMemories,
+  collectWitnessesForPosition,
+  createNpcMemoryEntry,
+  markNpcMemoriesMentionedInPlace,
+  recordNpcMemoryInPlace,
+} from './memories';
 import {
   CarryableItemId,
   DialogueChoice,
@@ -206,7 +215,18 @@ export function applyDialogueChoice(
     }
   }
 
+  const prevTier = getRelationshipTier(existingPlayerRel.affinity);
+  const prevHearts = getHeartLevel(existingPlayerRel.affinity);
+  const nextTier = getRelationshipTier(nextPlayerRel.affinity);
+  const nextHearts = getHeartLevel(nextPlayerRel.affinity);
+  const tierAdvanced = !choice.isNegative && TIER_RANK[nextTier] > TIER_RANK[prevTier];
+  const heartAdvanced = !choice.isNegative && nextHearts > prevHearts;
+  const significantMilestone =
+    !choice.isNegative &&
+    (tierAdvanced || heartAdvanced || Boolean(memoryUnlockedTitle) || Boolean(choice.isStoryMilestone));
+
   const nextEvents = [...(world.worldEvents ?? [])];
+  const storyEventId = `story_${world.day}_${choice.id}`;
   if (choice.setFlags || choice.setSideFlags || isGift) {
     const flagSummary = memoryUnlockedTitle
       ? `${RESIDENTS[residentId].name}: ${memoryUnlockedTitle}`
@@ -214,7 +234,7 @@ export function applyDialogueChoice(
       ? `Shared ${world.worldProps?.[choice.deliverHeldItem!]?.label ?? 'a keepsake'} with ${RESIDENTS[residentId].name}.`
       : `Shared a meaningful step with ${RESIDENTS[residentId].name}.`;
     pushWorldEventInPlace(nextEvents, {
-      id: `story_${world.day}_${choice.id}`,
+      id: storyEventId,
       day: world.day,
       phase,
       minuteOfDay: Math.round(world.minuteOfDay),
@@ -222,6 +242,355 @@ export function applyDialogueChoice(
       actors: [residentId],
       summary: flagSummary,
       summaryTag: choice.id,
+    });
+  }
+
+  // Capture bounded per-NPC subjective memories (immutable clone so world.npcMemories is untouched)
+  const nextNpcMemories = cloneNpcMemories(world.npcMemories);
+  const roundedMinute = Math.round(world.minuteOfDay);
+  const eventPos = nextNpcRuntime?.[residentId]?.position ?? world.playerPos;
+  const placeName = getLandmarkAt(eventPos).name;
+
+  if (choice.recordNpcMemories && choice.recordNpcMemories.length > 0) {
+    for (const spec of choice.recordNpcMemories) {
+      const targetId = spec.target === 'speaker' ? residentId : spec.target;
+      const specEventId = spec.eventId ?? spec.id;
+      recordNpcMemoryInPlace(
+        nextNpcMemories,
+        targetId,
+        createNpcMemoryEntry({
+          id: spec.id,
+          eventId: specEventId,
+          tag: spec.tag,
+          category: spec.category,
+          subjectPlayer: spec.subjectPlayer ?? true,
+          subjectResidents: spec.subjectResidents ?? [targetId],
+          provenance: 'firsthand',
+          sourceKind: spec.sourceKind ?? 'participant',
+          createdDay: world.day,
+          createdMinute: roundedMinute,
+          importance: spec.importance,
+          retention: spec.retention,
+          valence: spec.valence,
+          emotionalWeight: spec.emotionalWeight ?? 72,
+          detail: { placeName },
+        }),
+        world.day,
+      );
+    }
+  }
+
+  if (isGift && choice.deliverHeldItem) {
+    const giftEventId = storyEventId;
+    recordNpcMemoryInPlace(
+      nextNpcMemories,
+      residentId,
+      createNpcMemoryEntry({
+        id: giftEventId,
+        eventId: giftEventId,
+        tag: 'player_gift',
+        category: 'interaction',
+        subjectPlayer: true,
+        subjectResidents: [residentId],
+        provenance: 'firsthand',
+        sourceKind: 'participant',
+        createdDay: world.day,
+        createdMinute: roundedMinute,
+        importance: 3,
+        retention: 'durable',
+        valence: 'warm',
+        emotionalWeight: 74,
+        detail: { itemId: choice.deliverHeldItem, placeName },
+      }),
+      world.day,
+    );
+    const witnesses = collectWitnessesForPosition(world, eventPos, LOCAL_WITNESS_RADIUS, {
+      excludeIds: [residentId],
+    });
+    for (const wid of witnesses) {
+      recordNpcMemoryInPlace(
+        nextNpcMemories,
+        wid,
+        createNpcMemoryEntry({
+          id: giftEventId,
+          eventId: giftEventId,
+          tag: 'player_help_observed',
+          category: 'interaction',
+          subjectPlayer: true,
+          subjectResidents: [residentId],
+          provenance: 'firsthand',
+          sourceKind: 'witness',
+          createdDay: world.day,
+          createdMinute: roundedMinute,
+          importance: 2,
+          retention: 'durable',
+          valence: 'warm',
+          emotionalWeight: 58,
+          detail: { itemId: choice.deliverHeldItem, placeName },
+        }),
+        world.day,
+      );
+    }
+  }
+
+  if (choice.setFlags) {
+    const recordFlagWithWitnesses = (
+      eventId: string,
+      tag: string,
+      category: 'event' | 'interaction' | 'town_lore',
+      importance: number,
+      retention: 'durable' | 'permanent',
+      emotionalWeight: number,
+      targetPlace: string,
+      withWitnesses: boolean,
+    ) => {
+      recordNpcMemoryInPlace(
+        nextNpcMemories,
+        residentId,
+        createNpcMemoryEntry({
+          id: eventId,
+          eventId,
+          tag,
+          category,
+          subjectPlayer: true,
+          subjectResidents: [residentId],
+          provenance: 'firsthand',
+          sourceKind: 'participant',
+          createdDay: world.day,
+          createdMinute: roundedMinute,
+          importance,
+          retention,
+          valence: tag === 'bell_mystery' ? 'neutral' : 'warm',
+          emotionalWeight,
+          detail: { placeName: targetPlace },
+        }),
+        world.day,
+      );
+      if (withWitnesses) {
+        const witnesses = collectWitnessesForPosition(world, eventPos, LOCAL_WITNESS_RADIUS, {
+          excludeIds: [residentId],
+        });
+        for (const wid of witnesses) {
+          recordNpcMemoryInPlace(
+            nextNpcMemories,
+            wid,
+            createNpcMemoryEntry({
+              id: eventId,
+              eventId,
+              tag,
+              category,
+              subjectPlayer: true,
+              subjectResidents: [residentId],
+              provenance: 'firsthand',
+              sourceKind: 'witness',
+              createdDay: world.day,
+              createdMinute: roundedMinute,
+              importance: Math.max(2, importance - 1),
+              retention: retention === 'permanent' ? 'durable' : retention,
+              valence: 'warm',
+              emotionalWeight: Math.max(45, emotionalWeight - 15),
+              detail: { placeName: targetPlace },
+            }),
+            world.day,
+          );
+        }
+      }
+    };
+
+    if (nextFlags.heardBellMystery && !world.flags.heardBellMystery) {
+      recordFlagWithWitnesses('ev_bell_mystery', 'bell_mystery', 'interaction', 3, 'durable', 62, placeName, false);
+    }
+    if (nextFlags.clearedGazeboIvy && !world.flags.clearedGazeboIvy) {
+      recordFlagWithWitnesses('ev_gazebo_ivy', 'gazebo_ivy', 'event', 3, 'durable', 72, 'Old Bell Gazebo', true);
+    }
+    if (nextFlags.repairedFountain && !world.flags.repairedFountain) {
+      recordFlagWithWitnesses('ev_fountain_fixed', 'fountain_fixed', 'event', 4, 'durable', 80, 'Sunlit Fountain Plaza', true);
+    }
+    if (nextFlags.plantedMoonPetals && !world.flags.plantedMoonPetals) {
+      recordFlagWithWitnesses('ev_moon_petals', 'moon_petals', 'event', 4, 'durable', 78, 'Willow Step Planters', true);
+    }
+    if (nextFlags.deliveredPostcard && !world.flags.deliveredPostcard) {
+      recordFlagWithWitnesses('ev_postcard_delivered', 'postcard_delivered', 'interaction', 3, 'durable', 72, placeName, false);
+    }
+    if (nextFlags.brewedChamomileTea && !world.flags.brewedChamomileTea) {
+      recordFlagWithWitnesses('ev_chamomile_tea', 'chamomile_tea', 'interaction', 3, 'durable', 70, placeName, false);
+    }
+    if (nextFlags.foundBrassClapper && !world.flags.foundBrassClapper) {
+      recordFlagWithWitnesses('ev_brass_clapper', 'brass_clapper', 'interaction', 4, 'durable', 75, placeName, false);
+    }
+    if (nextFlags.bellRestored && !world.flags.bellRestored) {
+      recordFlagWithWitnesses('ev_bell_restored', 'bell_restored', 'event', 5, 'permanent', 95, 'Old Bell Gazebo', true);
+    }
+    if (nextFlags.claraArthurReconciled && !world.flags.claraArthurReconciled) {
+      const recActors: ResidentId[] = ['arthur', 'clara'];
+      for (const actor of recActors) {
+        recordNpcMemoryInPlace(
+          nextNpcMemories,
+          actor,
+          createNpcMemoryEntry({
+            id: 'ev_clara_arthur_reconciled',
+            eventId: 'ev_clara_arthur_reconciled',
+            tag: 'clara_arthur_reconciled',
+            category: 'town_lore',
+            subjectPlayer: true,
+            subjectResidents: ['arthur', 'clara'],
+            provenance: 'firsthand',
+            sourceKind: 'participant',
+            createdDay: world.day,
+            createdMinute: roundedMinute,
+            importance: 5,
+            retention: 'permanent',
+            valence: 'warm',
+            emotionalWeight: 92,
+            detail: { placeName: 'Old Bell Gazebo' },
+          }),
+          world.day,
+        );
+      }
+    }
+  } else if (
+    (choice.setSideFlags || choice.isStoryMilestone) &&
+    !isGift &&
+    (!choice.recordNpcMemories || choice.recordNpcMemories.length === 0)
+  ) {
+    recordNpcMemoryInPlace(
+      nextNpcMemories,
+      residentId,
+      createNpcMemoryEntry({
+        id: storyEventId,
+        eventId: storyEventId,
+        tag: choice.id,
+        category: 'interaction',
+        subjectPlayer: true,
+        subjectResidents: [residentId],
+        provenance: 'firsthand',
+        sourceKind: 'participant',
+        createdDay: world.day,
+        createdMinute: roundedMinute,
+        importance: 3,
+        retention: 'durable',
+        valence: choice.isNegative ? 'tense' : 'warm',
+        emotionalWeight: 68,
+        detail: { placeName },
+      }),
+      world.day,
+    );
+  }
+
+  if (choice.isNegative) {
+    const frictionId = `ev_blunt_${world.day}_${roundedMinute}_${residentId}`;
+    recordNpcMemoryInPlace(
+      nextNpcMemories,
+      residentId,
+      createNpcMemoryEntry({
+        id: frictionId,
+        eventId: frictionId,
+        tag: 'player_blunt',
+        category: 'friction',
+        subjectPlayer: true,
+        subjectResidents: [residentId],
+        provenance: 'firsthand',
+        sourceKind: 'participant',
+        createdDay: world.day,
+        createdMinute: roundedMinute,
+        importance: 3,
+        retention: 'durable',
+        valence: 'tense',
+        emotionalWeight: 72,
+        detail: { placeName },
+      }),
+      world.day,
+    );
+    const witnesses = collectWitnessesForPosition(world, eventPos, LOCAL_WITNESS_RADIUS, {
+      excludeIds: [residentId],
+    });
+    for (const wid of witnesses) {
+      recordNpcMemoryInPlace(
+        nextNpcMemories,
+        wid,
+        createNpcMemoryEntry({
+          id: frictionId,
+          eventId: frictionId,
+          tag: 'player_blunt_observed',
+          category: 'friction',
+          subjectPlayer: true,
+          subjectResidents: [residentId],
+          provenance: 'firsthand',
+          sourceKind: 'witness',
+          createdDay: world.day,
+          createdMinute: roundedMinute,
+          importance: 2,
+          retention: 'durable',
+          valence: 'tense',
+          emotionalWeight: 56,
+          detail: { placeName },
+        }),
+        world.day,
+      );
+    }
+  } else if (choice.id.startsWith('make_amends_')) {
+    const amendsId = `ev_amends_${world.day}_${roundedMinute}_${residentId}`;
+    recordNpcMemoryInPlace(
+      nextNpcMemories,
+      residentId,
+      createNpcMemoryEntry({
+        id: amendsId,
+        eventId: amendsId,
+        tag: 'player_amends',
+        category: 'interaction',
+        subjectPlayer: true,
+        subjectResidents: [residentId],
+        provenance: 'firsthand',
+        sourceKind: 'participant',
+        createdDay: world.day,
+        createdMinute: roundedMinute,
+        importance: 3,
+        retention: 'durable',
+        valence: 'warm',
+        emotionalWeight: 76,
+        detail: { placeName },
+      }),
+      world.day,
+    );
+  }
+
+  if (tierAdvanced && (nextTier === 'friendly' || nextTier === 'close' || nextTier === 'kindred')) {
+    const tierEvId = `ev_tier_${residentId}_${nextTier}`;
+    recordNpcMemoryInPlace(
+      nextNpcMemories,
+      residentId,
+      createNpcMemoryEntry({
+        id: tierEvId,
+        eventId: tierEvId,
+        tag: `player_bond_${nextTier}`,
+        category: 'social_impression',
+        subjectPlayer: true,
+        subjectResidents: [residentId],
+        provenance: 'firsthand',
+        sourceKind: 'participant',
+        createdDay: world.day,
+        createdMinute: roundedMinute,
+        importance: nextTier === 'kindred' ? 4 : 3,
+        retention: 'durable',
+        valence: 'warm',
+        emotionalWeight: nextTier === 'kindred' ? 86 : 70,
+        detail: { targetTier: nextTier, placeName },
+      }),
+      world.day,
+    );
+  }
+
+  if (session.surfacedMemoryEventIds?.length) {
+    for (const item of session.surfacedMemoryEventIds) {
+      markNpcMemoriesMentionedInPlace(nextNpcMemories, item.residentId, {
+        eventIds: [item.eventId],
+      });
+    }
+  }
+  if (choice.markMemoryTagsMentioned?.length || choice.markMemoryEventIdsMentioned?.length) {
+    markNpcMemoriesMentionedInPlace(nextNpcMemories, residentId, {
+      eventIds: choice.markMemoryEventIdsMentioned,
+      tags: choice.markMemoryTagsMentioned,
     });
   }
 
@@ -239,17 +608,8 @@ export function applyDialogueChoice(
     sideFlags: nextSideFlags,
     flags: nextFlags,
     memories: nextMemories,
+    npcMemories: nextNpcMemories,
   };
-
-  const prevTier = getRelationshipTier(existingPlayerRel.affinity);
-  const prevHearts = getHeartLevel(existingPlayerRel.affinity);
-  const nextTier = getRelationshipTier(nextPlayerRel.affinity);
-  const nextHearts = getHeartLevel(nextPlayerRel.affinity);
-  const tierAdvanced = !choice.isNegative && TIER_RANK[nextTier] > TIER_RANK[prevTier];
-  const heartAdvanced = !choice.isNegative && nextHearts > prevHearts;
-  const significantMilestone =
-    !choice.isNegative &&
-    (tierAdvanced || heartAdvanced || Boolean(memoryUnlockedTitle) || Boolean(choice.isStoryMilestone));
 
   const giftToast = isGift
     ? `Shared ${world.worldProps?.[choice.deliverHeldItem!]?.label ?? 'item'} with ${RESIDENTS[residentId].name}!`
@@ -406,7 +766,6 @@ export function deliverHeldItemAction(
   }
   const prop = world.worldProps[heldId];
   const likesIt = prop.likedBy.includes(residentId);
-  const phase = getTimePhase(world.minuteOfDay);
 
   const syntheticSession: DialogueSession = {
     residentId,
@@ -423,22 +782,12 @@ export function deliverHeldItemAction(
     deliverHeldItem: heldId,
   };
 
+  // applyDialogueChoice emits the single canonical player_help WorldEventRecord and captures recipient + witness npcMemories
   const res = applyDialogueChoice(world, syntheticSession, syntheticChoice);
-  // Keep direct delivery compatible with non-quest progress expectations
   const nextWorld = {
     ...res.nextWorld,
     lastTopicByResident: world.lastTopicByResident,
   };
-  pushWorldEventInPlace(nextWorld.worldEvents, {
-    id: `help_${world.day}_${heldId}_${residentId}`,
-    day: world.day,
-    phase,
-    minuteOfDay: Math.round(world.minuteOfDay),
-    kind: 'player_help',
-    actors: [residentId],
-    summary: `Brought ${prop.label} to ${RESIDENTS[residentId].name}.`,
-    summaryTag: `deliver_${heldId}`,
-  });
 
   return {
     nextWorld,
@@ -520,20 +869,8 @@ export function interactWithProp(
 
   if (propId === 'gazebo_bell') {
     if (env.bellGleaming) {
-      const nextEvents = [...(world.worldEvents ?? [])];
-      const phase = getTimePhase(world.minuteOfDay);
-      pushWorldEventInPlace(nextEvents, {
-        id: `bell_${world.day}_${world.bellRungCount + 1}`,
-        day: world.day,
-        phase,
-        minuteOfDay: Math.round(world.minuteOfDay),
-        kind: 'bell_ring',
-        actors: ['clara', 'arthur', 'pip'],
-        summary: 'The restored brass Gazebo Bell rang softly across Little Somewhere.',
-        summaryTag: 'gazebo_bell_chime',
-      });
       return {
-        nextWorld: { ...world, bellRungCount: world.bellRungCount + 1, worldEvents: nextEvents },
+        nextWorld: world,
         title: 'The Restored Gazebo Bell',
         body: 'The polished brass bell gleams under the cedar rafters, its clapper ready. Pull the braided linen rope to chime across Little Somewhere?',
         actionLabel: 'Ring the Brass Bell',
@@ -630,11 +967,43 @@ export function interactWithProp(
             },
             ...world.memories,
           ];
+      const nextNpcMemories = cloneNpcMemories(world.npcMemories);
+      const oakWitnesses = collectWitnessesForPosition(
+        world,
+        { x: -6.2, z: 15.6 },
+        LOCAL_WITNESS_RADIUS,
+      );
+      const roundedMinute = Math.round(world.minuteOfDay);
+      for (const wid of oakWitnesses) {
+        recordNpcMemoryInPlace(
+          nextNpcMemories,
+          wid,
+          createNpcMemoryEntry({
+            id: 'ev_brass_clapper',
+            eventId: 'ev_brass_clapper',
+            tag: 'brass_clapper',
+            category: 'interaction',
+            subjectPlayer: true,
+            subjectResidents: [wid],
+            provenance: 'firsthand',
+            sourceKind: 'witness',
+            createdDay: world.day,
+            createdMinute: roundedMinute,
+            importance: 3,
+            retention: 'durable',
+            valence: 'warm',
+            emotionalWeight: 68,
+            detail: { placeName: 'Hollow Oak Root' },
+          }),
+          world.day,
+        );
+      }
       return {
         nextWorld: {
           ...world,
           flags: { ...world.flags, foundBrassClapper: true },
           memories: nextMemories,
+          npcMemories: nextNpcMemories,
         },
         title: 'A Glint in the Hollow Oak!',
         body: 'Tucked neatly inside a fold of blue linen lies the gazebo bell’s polished brass clapper! Arthur at Copperwheel Cottage will know how to pin it back in place.',
@@ -670,6 +1039,98 @@ export function interactWithProp(
   };
 }
 
+export function performRingBellAction(world: WorldState): {
+  nextWorld: WorldState;
+  toast: string;
+  actors: ResidentId[];
+} {
+  const nextCount = world.bellRungCount + 1;
+  const bellPos = { x: 0, z: -9.5 };
+  const phase = getTimePhase(world.minuteOfDay);
+  const roundedMinute = Math.round(world.minuteOfDay);
+  const bellEventId = `bell_${world.day}_${nextCount}`;
+
+  const visualWitnesses = collectWitnessesForPosition(world, bellPos, LOCAL_WITNESS_RADIUS);
+  const acousticListeners = collectWitnessesForPosition(world, bellPos, ACOUSTIC_BELL_RADIUS, {
+    allowSheltered: true,
+    excludeIds: visualWitnesses,
+  });
+  const actors = [...visualWitnesses, ...acousticListeners];
+
+  const nextEvents = [...(world.worldEvents ?? [])];
+  pushWorldEventInPlace(nextEvents, {
+    id: bellEventId,
+    day: world.day,
+    phase,
+    minuteOfDay: roundedMinute,
+    kind: 'bell_ring',
+    actors,
+    summary: 'The restored brass Gazebo Bell rang softly across Little Somewhere.',
+    summaryTag: 'gazebo_bell_chime',
+  });
+
+  const nextNpcMemories = cloneNpcMemories(world.npcMemories);
+  for (const wid of visualWitnesses) {
+    recordNpcMemoryInPlace(
+      nextNpcMemories,
+      wid,
+      createNpcMemoryEntry({
+        id: bellEventId,
+        eventId: bellEventId,
+        tag: 'bell_ring',
+        category: 'event',
+        subjectPlayer: true,
+        subjectResidents: [wid],
+        provenance: 'firsthand',
+        sourceKind: 'witness',
+        createdDay: world.day,
+        createdMinute: roundedMinute,
+        importance: 4,
+        retention: 'durable',
+        valence: 'warm',
+        emotionalWeight: 82,
+        detail: { placeName: 'Old Bell Gazebo', acousticOnly: false },
+      }),
+      world.day,
+    );
+  }
+  for (const aid of acousticListeners) {
+    recordNpcMemoryInPlace(
+      nextNpcMemories,
+      aid,
+      createNpcMemoryEntry({
+        id: bellEventId,
+        eventId: bellEventId,
+        tag: 'bell_chime',
+        category: 'event',
+        subjectPlayer: false,
+        subjectResidents: [aid],
+        provenance: 'firsthand',
+        sourceKind: 'witness',
+        createdDay: world.day,
+        createdMinute: roundedMinute,
+        importance: 3,
+        retention: 'durable',
+        valence: 'warm',
+        emotionalWeight: 68,
+        detail: { placeName: 'Old Bell Gazebo', acousticOnly: true },
+      }),
+      world.day,
+    );
+  }
+
+  return {
+    nextWorld: {
+      ...world,
+      bellRungCount: nextCount,
+      worldEvents: nextEvents,
+      npcMemories: nextNpcMemories,
+    },
+    toast: 'The brass bell rings out over the sunlit plaza!',
+    actors,
+  };
+}
+
 export function performFountainWishAction(world: WorldState): {
   nextWorld: WorldState;
   toast: string;
@@ -680,6 +1141,7 @@ export function performFountainWishAction(world: WorldState): {
   const memId = 'mem_fountain_wish';
   const hasMem = world.memories.some((m) => m.id === memId);
   const phase = getTimePhase(world.minuteOfDay);
+  const roundedMinute = Math.round(world.minuteOfDay);
   const nextMemories = hasMem
     ? world.memories
     : [
@@ -693,6 +1155,35 @@ export function performFountainWishAction(world: WorldState): {
         },
         ...world.memories,
       ];
+
+  const nextNpcMemories = cloneNpcMemories(world.npcMemories);
+  const witnesses = collectWitnessesForPosition(world, { x: 0, z: 1.5 }, LOCAL_WITNESS_RADIUS);
+  const wishEvId = `ev_fountain_wish_${world.day}_${nextCount}`;
+  for (const wid of witnesses) {
+    recordNpcMemoryInPlace(
+      nextNpcMemories,
+      wid,
+      createNpcMemoryEntry({
+        id: wishEvId,
+        eventId: wishEvId,
+        tag: 'fountain_wish',
+        category: 'event',
+        subjectPlayer: true,
+        subjectResidents: [wid],
+        provenance: 'firsthand',
+        sourceKind: 'witness',
+        createdDay: world.day,
+        createdMinute: roundedMinute,
+        importance: 2,
+        retention: 'ephemeral',
+        valence: 'warm',
+        emotionalWeight: 54,
+        detail: { placeName: 'Sunlit Fountain Plaza' },
+      }),
+      world.day,
+    );
+  }
+
   return {
     nextWorld: {
       ...world,
@@ -701,6 +1192,7 @@ export function performFountainWishAction(world: WorldState): {
         fountainWishesCount: nextCount,
       },
       memories: nextMemories,
+      npcMemories: nextNpcMemories,
     },
     toast:
       nextCount === 1
@@ -722,6 +1214,7 @@ export function performPondStoneSkipAction(world: WorldState): {
   const memId = 'mem_pond_skip';
   const hasMem = world.memories.some((m) => m.id === memId);
   const phase = getTimePhase(world.minuteOfDay);
+  const roundedMinute = Math.round(world.minuteOfDay);
   const nextMemories = hasMem
     ? world.memories
     : [
@@ -735,6 +1228,35 @@ export function performPondStoneSkipAction(world: WorldState): {
         },
         ...world.memories,
       ];
+
+  const nextNpcMemories = cloneNpcMemories(world.npcMemories);
+  const witnesses = collectWitnessesForPosition(world, { x: 1.6, z: 14.0 }, LOCAL_WITNESS_RADIUS);
+  const skipEvId = `ev_pond_skip_${world.day}_${nextCount}`;
+  for (const wid of witnesses) {
+    recordNpcMemoryInPlace(
+      nextNpcMemories,
+      wid,
+      createNpcMemoryEntry({
+        id: skipEvId,
+        eventId: skipEvId,
+        tag: 'pond_skip',
+        category: 'event',
+        subjectPlayer: true,
+        subjectResidents: [wid],
+        provenance: 'firsthand',
+        sourceKind: 'witness',
+        createdDay: world.day,
+        createdMinute: roundedMinute,
+        importance: 2,
+        retention: 'ephemeral',
+        valence: 'warm',
+        emotionalWeight: 52,
+        detail: { placeName: 'Mirror Pond & Hollow Oak' },
+      }),
+      world.day,
+    );
+  }
+
   return {
     nextWorld: {
       ...world,
@@ -743,6 +1265,7 @@ export function performPondStoneSkipAction(world: WorldState): {
         pondPebblesSkipped: nextCount,
       },
       memories: nextMemories,
+      npcMemories: nextNpcMemories,
     },
     skipsThisThrow,
     toast:

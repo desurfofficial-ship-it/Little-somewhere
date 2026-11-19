@@ -38,6 +38,10 @@ import {
   computeWaypointPath,
   stepAlongWaypoints,
 } from './navigation';
+import {
+  cloneNpcMemories,
+  propagateEncounterGossipInPlace,
+} from './memories';
 import { distance2D, getSeatById, isPointWalkable } from './worldMap';
 
 export interface SimulationStepOptions {
@@ -967,6 +971,8 @@ export function stepSimulationInPlace(
           summary: `${summaryActors} paused near ${rtA.currentPlaceName} — ${topic.label.toLowerCase()}.`,
           summaryTag: `chat_${getNpcPairKey(a, b)}`,
         });
+
+        propagateEncounterGossipInPlace(world, participants, encId);
         break;
       }
     }
@@ -1000,6 +1006,7 @@ export function stepSimulation(
     topicHistory: { ...(world.topicHistory ?? {}) },
     lastTopicByResident: { ...(world.lastTopicByResident ?? {}) },
     sideFlags: { ...(world.sideFlags ?? {}) },
+    npcMemories: cloneNpcMemories(world.npcMemories),
   };
   stepSimulationInPlace(next, dtSeconds, options);
   return next;

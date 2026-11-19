@@ -418,26 +418,44 @@ Chronological log of design decisions, implementation milestones, verification r
 
 ---
 
-## Entry 023 — Player Full-Capability Polish (Bespoke Rig, Dusk Lantern, Emotes, Feel)
+## Entry 023 — Milestone 2B Phase 3 Blueprint: NPC Memory & Gossip Architecture
 - **Date**: 2026-11-19
-- **Status**: Completed & Verified
-- **Scope**: A dedicated player-excellence pass building on Entry 013 — the player becomes the second bespoke rig in the cast (after Jun), gains a signature dusk pocket lantern, idle life gestures, a wave-hello emote with neighbor wave-back, footstep dust puffs with tiered audio, pinch-to-zoom on touch, and sprint camera micro-juice.
+- **Status**: Completed — Architecture & Blueprint Only (Zero Code, Test, or Schema Changes)
+- **Scope**: Investigated the `v3` simulation, persistence, relationship, and dialogue systems and authored the complete Milestone 2B Phase 3 design package (`docs/milestones/10`–`15`) for review and approval prior to any implementation.
 - **Key Deliverables**:
-  - **Bespoke player rig (`src/scene/builders/characters.ts` `buildStorybookPlayer`, new)**:
-    - Layers onto the shared storybook body: moss knit scarf (collar + tail + knot), oat-canvas cross-body satchel on the right hip (brass buckle + peeking stamped postcard), leather strap, left elbow patch, and a brass pin on the sage beret — the beloved rust-coat/beret look now reads as its own character, distinct from every resident.
-    - `StorybookPlayerRig extends CharacterRig` with a `PlayerLanternRig`; `PLAYER_LANTERN_GLOW` constants (day 0.08 / golden 0.7 / dusk 1.45) follow the world's existing emissive lantern language (no extra scene light).
-    - `updatePlayerLantern()` damps glow toward the time-phase target, flickers the flame (dual-sine), hides the flame below 0.2 glow, and sways the lantern with stride speed (zero allocations).
-  - **Two new animation states (`NpcAnimationState` + `animateCharacterRig`)**: `adjust_hat` (fond beret pat — arm to head, head tilt, torso settle) and `look_around` (curious lane scan — head sweep + torso follow). 19 total states.
-  - **Idle flourish scheduler (`src/game/playerController.ts`, pure & tested)**: after 6.5–10 randomized quiet seconds the player plays a non-repeating flourish (`adjust_hat` / `look_around` / `admire`), held 1.5 s; movement, sitting, dialogue, and gesture pulses all reset the timer.
-  - **Wave hello emote + neighbor wave-back**: `H` key (edge-triggered) and a HUD `Wave [H]` button (desktop + touch) trigger a `wave` pulse with a two-note "hello" chime (`playWaveHello`); `selectWaveBackResidents()` picks residents within 7 m with A* line-of-sight (skipping mid-conversation partners), who damp-turn toward the player and wave back for 1.75 s with a soft reply chime. Wave pulses from dialogue close reuse the same greeting path.
-  - **Footstep feel**: `playFootstep('walk' | 'run' | 'sprint')` tiers frequency/volume so speed is audible; a 10-pooled cream dust-puff ring buffer (per-puff fading materials) blooms at each foot plant, doubles at sprint, and is disposed with the scene.
-  - **Pinch-to-zoom (touch)**: two-pointer tracking on the canvas (`activeTouchPointers` map) clamps the same 0.72–1.45 zoom range as the wheel/buttons; starting a pinch cleanly cancels pending tap-walk, and pointer listeners are fully torn down.
-  - **Sprint camera micro-juice**: `smoothedSprintZoom` damps to ×1.045 while sprinting for a breath of extra pull-back, multiplied into the dialogue/zoom chain.
-- **Tests**:
-  - `src/game/player.test.ts` (+2): idle flourish lifecycle (threshold fire, fresh timer, full suppression matrix, no back-to-back repeats, re-randomized bounds) and wave-back selection (LOS probe near Clara, radius gating, social-partner skip).
-  - `src/scene/playerRig.test.ts` (new, 3 suites): bespoke kit presence (scarf/satchel/postcard materials, lantern parentage, dark start), lantern glow convergence/dimming + walk sway + flame visibility, and `adjust_hat` / `look_around` / shared-state animation on the bespoke rig.
-  - `src/scene/environmentRenderer.test.ts`: bench back-clearance suite extended with the `player-bespoke` case (seated satchel + lantern clear the backrest).
-- **Verification** (build tree before merge; merged-tree numbers in HANDOVER §4):
-  - `npm test`: **69/69 passing** (64 prior + 5 new). `npm run lint`: **0 errors**. `npm run build`: pass (shell 422.03 kB + scene chunk 733.76 kB, +5.4 kB).
-  - Live headless Chromium desktop `1440×900` (injected dusk `WorldState v3`, zoomed camera): moss scarf + oat satchel + postcard read on the player; brass pocket lantern glows warm orange at Lantern Dusk and sways with the stride; H-key wave captured mid-gesture at 300 ms and lowering at 900 ms; HUD `Wave [H]` button live next to the interact CTA; **Barnaby waves back** (raised arm + turn toward player) within ~500 ms of the player's wave; footstep puff system active.
-  - Mobile `390×844` with injected dusk save: joystick bottom-left + `Wave` and `Sit` CTAs bottom-right render cleanly with zero horizontal overflow; simulated two-finger pinch-out zooms the camera in (~10–15% closer, player 70→85 px); **0 console errors, 0 page errors** on both viewports.
+  - **`docs/milestones/10-phase-3-current-system-audit.md`**: Inventoried all 10 memory/event/mood/history mechanisms, separated narrative truth vs. player journal vs. personal NPC memory vs. secondhand rumor vs. short-term affect, and documented confirmed omniscient reads and event hygiene bugs (`OMN-01`, `OMN-02`, `DUP-03`, `BUG-01`, `GAP-01`–`GAP-03`).
+  - **`docs/milestones/11-phase-3-target-architecture.md`**: Designed `src/game/memories.ts`, the structured `NpcMemoryEntry` data model (compatible with `ForwardWorldHooks`), spatial (`8.5 m`) and acoustic (`30 m`) witness rules, provenance upgrade/non-downgrade invariants, priority-based bounded eviction, discrete encounter-creation gossip exchange (`propagateEncounterGossipInPlace`, zero per-frame overhead), and restrained personality-tinted distortion.
+  - **`docs/milestones/12-phase-3-worldstate-migration.md`**: Specified the sequential `WorldState v3 -> v4` migration (`npcMemories` + optional `NpcNpcRelation` gossip cooldown fields), lore/flag/friction hydration, defensive sanitization, next-day expiration, `computeWorldSaveRevision` integration, and save quota budget (`~10–13 KB` typical / `~32 KB` saturated for 9 residents).
+  - **`docs/milestones/13-phase-3-implementation-roadmap.md`**: Laid out 9 dependency-ordered implementation steps (`3.1`–`3.9`) with exact file targets, acceptance criteria, and regression risks.
+  - **`docs/milestones/14-phase-3-test-strategy.md`**: Defined test matrix across memory creation, provenance, gossip propagation, retention/eviction, determinism, migrations/sanitization, and population scalability.
+  - **`docs/milestones/15-phase-3-design-decisions.md`**: Documented fixed architectural constraints, tunable defaults (flagged non-final), and 6 explicit approval gates (`D1`–`D6`) including `v4` scoping (`D1`), non-omniscient third-party gossip transition (`D2`), `BUG-01`/`DUP-03` bundling (`D3`), rumor clarification choices (`D4`), `worldEvents` role (`D5`), and `JournalDrawer` Phase 5 boundary (`D6`).
+- **Verification**:
+  - Preserved `WorldState` `schemaVersion: 3` and left `src/`, `package.json`, `GAME_DESIGN.md`, `ARCHITECTURE.md`, and `HANDOVER.md` untouched; baseline checks remain at `66/66` passing tests and `0` TypeScript errors.
+
+---
+
+## Entry 024 — Milestone 2B Phase 3: NPC Memory & Gossip System (`WorldState v4`)
+- **Date**: 2026-11-19
+- **Status**: Completed & Verified (Phase 3 Only — Phase 4 Storylines & Phase 5 JournalDrawer Not Started)
+- **Key Deliverables**:
+  - **Core NPC Memory & Deterministic Gossip Engine (`src/game/types.ts`, `src/game/memories.ts`, `src/game/relationships.ts`)**:
+    - Added canonical Phase 3 types (`NpcMemoryEntry`, `NpcMemoryProvenance`, `NpcMemorySourceKind`, `NpcMemoryCategory`, `NpcMemoryValence`, `NpcMemoryRetention`, `NpcMemoryDistortionFlavor`, `NpcMemoryDetail`), `DialogueCondition.requiresNpcMemory`, `DialogueChoice.recordNpcMemories` / `markMemoryTagsMentioned` / `markMemoryEventIdsMentioned`, `DialogueSession.surfacedMemoryEventIds`, and `NpcNpcRelation` gossip cooldown fields (`lastGossipDay`, `lastGossipMinute`, `lastGossipEventId`).
+    - Implemented `src/game/memories.ts` (`MAX_NPC_MEMORIES_PER_RESIDENT = 14`, `MAX_PERMANENT_MEMORIES_PER_RESIDENT = 6`, `EPHEMERAL_RUMOR_TTL_DAYS = 5`, `DURABLE_MEMORY_TTL_DAYS = 18`, `LOCAL_WITNESS_RADIUS = 8.5`, `ACOUSTIC_BELL_RADIUS = 30`), spatial/sheltered witness discovery, provenance upgrade/non-downgrade (`firsthand` > `secondhand` > `rumor`), multi-source corroboration, permanent-quota-preserving eviction, and in-game day expiration pruning.
+    - Implemented `propagateEncounterGossipInPlace` (max `1` transfer per encounter, `MAX_GOSSIP_HOPS = 2` / `1` for `friction`, `MAX_SHARES_PER_ENTRY = 3`, `GOSSIP_MIN_AFFINITY = 20`, `GOSSIP_MAX_TENSION = 30`, sensitive gate `affinity >= 38 && tension < 20`, strict 1-per-day pair cooldown via `stampNpcGossipInPlace`, and deterministic `mulberry32` personality-colored `distortionFlavor`).
+  - **`WorldState v3 -> v4` Migration, Sanitization & Persistence (`src/game/migrations.ts`, `src/game/storage.ts`)**:
+    - Bumped `CURRENT_SCHEMA_VERSION = 4` with sequential `v1 -> v2 -> v3 -> v4` migration (`migrateV3ToV4`), strictly hydrating evidence-backed lore/milestone/event/friction entries without manufacturing firsthand memories for uninvolved residents.
+    - Added `sanitizeNpcMemories` and `NpcNpcRelation` gossip cooldown sanitization, wired `pruneExpiredNpcMemoriesInPlace` into `advanceToNextDay` (in-game day rollover), and extended `computeWorldSaveRevision` to hash `npcMemories` and pair gossip fields.
+  - **Event-to-Memory Capture & Event Hygiene Fixes (`src/game/actions.ts`, `src/App.tsx`)**:
+    - Fixed `DUP-03` by deduplicating `deliverHeldItemAction` so gifting emits a single `player_help` `WorldEventRecord`.
+    - Fixed `BUG-01` by making `interactWithProp('gazebo_bell')` read-only and moving `bellRungCount` increment, single `bell_ring` event emission, and dynamic visual (`8.5 m`) vs acoustic (`30 m`, sheltered-inclusive `bell_chime`) witness capture into `performRingBellAction` (removing hardcoded `['clara', 'arthur', 'pip']` attribution).
+    - Recorded immutable firsthand + witness memories across gifts, story flags, side stories, blunt friction, `make_amends_*`, tier breakthroughs (`friendly`/`close`/`kindred`), fountain wishes, pond stone skips, and Hollow Oak clapper discovery, plus `mentionedToPlayer` updates via `surfacedMemoryEventIds` and `markMemory*`.
+  - **Discrete Encounter Gossip & Non-Omniscient Dialogue (`src/game/simulation.ts`, `src/game/dialogueEngine.ts`, `src/game/narrative.ts`)**:
+    - Wired `propagateEncounterGossipInPlace` into discrete encounter creation inside `stepSimulationInPlace` and deep-cloned `npcMemories` in pure `stepSimulation` with zero per-frame gossip scanning.
+    - Removed omniscient global fallbacks in `dialogueEngine.ts`: `selectThirdPartyGossipSubject`, `playerRelationWith`, and `event_*` reaction topics now read strictly from the speaker's `npcMemories`, adapting phrasing by provenance, source neighbor (`fromResidentId`), acoustic vs visual distinction, and descriptive `distortionFlavor` without introducing player clarification choices.
+    - Verified `DialogueSheet.tsx` cleanly evaluates `requiresCondition` against live `worldSnapshot`; left `JournalDrawer.tsx` completely untouched for Phase 5.
+- **Verification**:
+  - `npm test`: **81/81 passing** (`0` failures across `src/game/memories.test.ts`, `dialogue.test.ts`, `relationships.test.ts`, `storage.test.ts`, `simulation.test.ts`, `engine.test.ts`, `environment.test.ts`, `navigation.test.ts`, `player.test.ts`, and `src/scene/*.test.ts`).
+  - `npm run lint` (`tsc --noEmit`), `compile_applet`, `lint_applet`, and `npm run build` (`vite build`): **Passing (`0` errors)**.
+  - Live headless Chromium (`1440×900` & `390×844` via `?autostart=1`): verified playing world, interactive porch dialog sheet, zero horizontal overflow (`1440===1440`, `390===390`), `localStorage` persisting `schemaVersion: 4` with 9 resident `npcMemories` buckets, and **0 console errors / 0 warnings**.
+
+

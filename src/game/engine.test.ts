@@ -7,7 +7,11 @@ import {
   getResidentAvailableQuestCue,
   isChoiceAvailable,
 } from './narrative';
-import { applyDialogueChoice, interactWithProp } from './actions';
+import {
+  applyDialogueChoice,
+  interactWithProp,
+  performRingBellAction,
+} from './actions';
 import {
   PLAYER_SPAWN,
   getLandmarkAt,
@@ -127,13 +131,15 @@ test('branching storyline progresses from Pip mystery to restored bell and envir
   assert.equal(claraGolden.placeName, 'Gazebo Steps');
   assert.equal(arthurGolden.placeName, 'Gazebo Steps');
 
-  // Ringing the restored bell increments bellRungCount
-  const bellRes = interactWithProp(world, 'gazebo_bell');
-  assert.equal(bellRes.actionType, 'ring_bell');
-  assert.equal(bellRes.nextWorld.bellRungCount, 1);
+  // Inspecting the restored bell opens the prompt cleanly without prematurely ringing it; performRingBellAction rings it
+  const bellInspect = interactWithProp(world, 'gazebo_bell');
+  assert.equal(bellInspect.actionType, 'ring_bell');
+  assert.equal(bellInspect.nextWorld.bellRungCount, 0);
+  const bellRang = performRingBellAction(bellInspect.nextWorld);
+  assert.equal(bellRang.nextWorld.bellRungCount, 1);
 
   // Advancing to next day preserves flags & memories while resetting talkedToday
-  const day2 = advanceToNextDay(bellRes.nextWorld);
+  const day2 = advanceToNextDay(bellRang.nextWorld);
   assert.equal(day2.day, 2);
   assert.equal(day2.flags.bellRestored, true);
   assert.equal(day2.residents.arthur.talkedToday, false);

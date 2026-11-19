@@ -14,6 +14,7 @@ import {
 import { RESIDENTS } from './residents';
 import {
   type DeclarativeNodeSpec,
+  findSpeakerMemory,
   isChoiceAvailable,
   makeBranchingTopic,
   makeSimpleTopic,
@@ -1040,11 +1041,46 @@ export const DIALOGUE_TOPICS: readonly DialogueTopic[] = [
     'any',
     'event_reaction',
     10,
-    { requiresRecentEventKind: { kind: 'bell_ring', maxDaysAgo: 2 }, notSeenToday: true },
+    {
+      requiresNpcMemory: {
+        tags: ['bell_ring', 'bell_chime', 'bell_restored'],
+        unmentionedOnly: true,
+        maxDaysOld: 2,
+      },
+      notSeenToday: true,
+    },
     {
       moodLabel: 'Bright',
-      buildText: (id) =>
-        `Did you hear the brass bell echo past the cedar eaves, ${RESIDENTS[id].traits.temperament === 'spirited' ? 'neighbor' : 'friend'}? Even the sparrows settled down to listen.`,
+      buildText: (id, world) => {
+        const mem =
+          findSpeakerMemory(id, world, {
+            tags: ['bell_ring', 'bell_chime', 'bell_restored'],
+            unmentionedOnly: true,
+            maxDaysOld: 2,
+          }) ??
+          findSpeakerMemory(id, world, {
+            tags: ['bell_ring', 'bell_chime', 'bell_restored'],
+            maxDaysOld: 2,
+          });
+        const listenerTag = RESIDENTS[id].traits.temperament === 'spirited' ? 'neighbor' : 'friend';
+        if (mem && mem.provenance !== 'firsthand') {
+          const fromName = mem.fromResidentId ? RESIDENTS[mem.fromResidentId]?.name : undefined;
+          const lead = fromName
+            ? `${fromName} was just telling me how the restored brass bell chimed over the square`
+            : `Word around the cobbles is the restored brass bell echoed past the cedar eaves`;
+          if (mem.distortionFlavor === 'exaggerated') {
+            return `${lead}—the way it’s told, you could practically hear it clear down to Mirror Pond! Even the sparrows settled down to listen.`;
+          }
+          if (mem.distortionFlavor === 'uncertain') {
+            return `${lead}, though I wasn’t standing close enough to catch who pulled the rope, ${listenerTag}.`;
+          }
+          return `${lead}, ${listenerTag}—made the whole lane pause for a heartbeat.`;
+        }
+        if (mem?.detail?.acousticOnly || mem?.tag === 'bell_chime') {
+          return `I heard that clear brass bell chime roll right over the rooftops from where I was working, ${listenerTag}! Even the sparrows settled down to listen.`;
+        }
+        return `Did you hear the brass bell echo right beneath the cedar eaves, ${listenerTag}? Seeing it swing over the square made every sparrow hush to listen.`;
+      },
       choices: [
         {
           id: 'ev_bell_warm',
@@ -1053,6 +1089,7 @@ export const DIALOGUE_TOPICS: readonly DialogueTopic[] = [
           nextNodeId: 'ev_bell_end',
           trustDelta: 1,
           setEmotion: 'happy',
+          markMemoryTagsMentioned: ['bell_ring', 'bell_chime', 'bell_restored'],
         },
       ],
       endings: {
@@ -1069,11 +1106,37 @@ export const DIALOGUE_TOPICS: readonly DialogueTopic[] = [
     'any',
     'event_reaction',
     8,
-    { flagsTrue: ['repairedFountain'], notSeenToday: true, maxSeenCount: 1 },
+    {
+      requiresNpcMemory: {
+        tags: ['fountain_fixed'],
+        unmentionedOnly: true,
+      },
+      notSeenToday: true,
+      maxSeenCount: 1,
+    },
     {
       moodLabel: 'Refreshing',
-      buildText: () =>
-        `Listen to the plaza fountain pouring cleanly again—cool mist makes the entire square feel alive!`,
+      buildText: (id, world) => {
+        const mem =
+          findSpeakerMemory(id, world, {
+            tags: ['fountain_fixed'],
+            unmentionedOnly: true,
+          }) ?? findSpeakerMemory(id, world, { tags: ['fountain_fixed'] });
+        if (mem && mem.provenance !== 'firsthand') {
+          const fromName = mem.fromResidentId ? RESIDENTS[mem.fromResidentId]?.name : undefined;
+          const prefix = fromName
+            ? `${fromName} told me the old plaza fountain is pouring clear spring water again`
+            : `I heard word that the plaza fountain is pouring cleanly again`;
+          if (mem.distortionFlavor === 'exaggerated') {
+            return `${prefix}—supposedly spraying bright enough to cool half the lane!`;
+          }
+          if (mem.distortionFlavor === 'uncertain') {
+            return `${prefix}, though I haven’t wandered over to see the basin myself yet.`;
+          }
+          return `${prefix}—I can’t wait to pass the square and hear it!`;
+        }
+        return `Listen to the plaza fountain pouring cleanly again—cool mist makes the entire square feel alive!`;
+      },
       choices: [
         {
           id: 'ev_fountain_cheer',
@@ -1082,6 +1145,7 @@ export const DIALOGUE_TOPICS: readonly DialogueTopic[] = [
           nextNodeId: 'ev_fountain_end',
           trustDelta: 1,
           setEmotion: 'happy',
+          markMemoryTagsMentioned: ['fountain_fixed'],
         },
       ],
       endings: {
@@ -1098,11 +1162,49 @@ export const DIALOGUE_TOPICS: readonly DialogueTopic[] = [
     'any',
     'event_reaction',
     9,
-    { requiresRecentEventKind: { kind: 'player_help', maxDaysAgo: 1 }, notSeenToday: true },
+    {
+      requiresNpcMemory: {
+        tags: ['player_gift', 'player_help_observed'],
+        unmentionedOnly: true,
+        maxDaysOld: 2,
+      },
+      notSeenToday: true,
+    },
     {
       moodLabel: 'Appreciative',
-      buildText: (id) =>
-        `Word travels fast along Willow Step Lane—folks noticed you carrying helpful bundles across the square ${RESIDENTS[id].traits.temperament === 'whimsical' ? 'like a true lane sprite!' : 'for your neighbors.'}`,
+      buildText: (id, world) => {
+        const mem =
+          findSpeakerMemory(id, world, {
+            tags: ['player_gift', 'player_help_observed'],
+            unmentionedOnly: true,
+            maxDaysOld: 2,
+          }) ??
+          findSpeakerMemory(id, world, {
+            tags: ['player_gift', 'player_help_observed'],
+            maxDaysOld: 2,
+          });
+        const recipientId = mem?.subjectResidents[0];
+        const recipientName = recipientId ? RESIDENTS[recipientId]?.name : undefined;
+        const itemText = mem?.detail?.itemId
+          ? mem.detail.itemId.replace(/_/g, ' ')
+          : 'thoughtful bundle';
+
+        if (mem && mem.tag === 'player_gift' && mem.provenance === 'firsthand') {
+          return `Still thinking about that ${itemText} you carried right over to me—${RESIDENTS[id].traits.temperament === 'whimsical' ? 'you’re a real lane sprite!' : 'that kind of thoughtfulness sticks with a neighbor.'}`;
+        }
+        if (mem && mem.provenance === 'firsthand') {
+          return `I saw you carrying that ${itemText} across the square${recipientName ? ` for ${recipientName}` : ''} earlier—neighbors notice steady kindness like that.`;
+        }
+        const fromName = mem?.fromResidentId ? RESIDENTS[mem.fromResidentId]?.name : undefined;
+        const sourceLead = fromName ? `${fromName} mentioned` : 'Folks mentioned';
+        if (mem?.distortionFlavor === 'exaggerated') {
+          return `${sourceLead} you’ve been hauling armfuls of favors clear up and down Willow Step Lane${recipientName ? `—especially for ${recipientName}` : ''}!`;
+        }
+        if (mem?.distortionFlavor === 'uncertain') {
+          return `${sourceLead} you’d dropped something thoughtful by ${recipientName ? `${recipientName}’s porch` : 'the lane'}, though the details got tumbled on the way.`;
+        }
+        return `${sourceLead} how kindly you helped ${recipientName ?? 'your neighbors'} with ${recipientName ? `a ${itemText}` : 'helpful bundles'} across the square.`;
+      },
       choices: [
         {
           id: 'ev_help_reply',
@@ -1112,6 +1214,7 @@ export const DIALOGUE_TOPICS: readonly DialogueTopic[] = [
           trustDelta: 1,
           reliabilityDelta: 4,
           setEmotion: 'happy',
+          markMemoryTagsMentioned: ['player_gift', 'player_help_observed'],
         },
       ],
       endings: {
@@ -1314,13 +1417,32 @@ export const DIALOGUE_TOPICS: readonly DialogueTopic[] = [
       const targetId: ResidentId = subject?.targetId ?? (id === 'clara' ? 'mina' : 'clara');
       const target = RESIDENTS[targetId];
       const favoriteSnippet = target.favoriteThing.split(',')[0].toLowerCase();
+      const fromName = subject?.fromResidentId ? RESIDENTS[subject.fromResidentId]?.name : undefined;
+      const sourcePrefix =
+        subject?.provenance === 'firsthand'
+          ? 'From what I saw myself'
+          : fromName
+          ? `Heard from ${fromName}`
+          : 'Word along the cobbles is';
+      const distortionNote =
+        subject?.provenance === 'rumor' && subject.distorted
+          ? subject.distortionFlavor === 'exaggerated'
+            ? '—though you know how stories swell along the lane—'
+            : subject.distortionFlavor === 'uncertain'
+            ? '—assuming I remembered it straight—'
+            : subject.distortionFlavor === 'softened'
+            ? '—or at least gently put—'
+            : subject.distortionFlavor === 'misattributed_motive'
+            ? '—not sure what sparked it, only that folks took notice—'
+            : ''
+          : '';
 
       if (subject?.guarded) {
         return {
           nodes: {
             root: {
               moodLabel: 'Gentle',
-              text: `Word along the cobbles is that things felt a little tense between you and ${target.name} recently. Folktalk fades fast here—a gentle check-in near ${target.homeName} goes a long way.`,
+              text: `${sourcePrefix}${distortionNote || ', '}things felt a little tense between you and ${target.name} recently. Folktalk fades fast here—a gentle check-in near ${target.homeName} goes a long way.`,
               choices: [
                 {
                   id: 'gossip_tp_mend',
@@ -1358,7 +1480,7 @@ export const DIALOGUE_TOPICS: readonly DialogueTopic[] = [
           nodes: {
             root: {
               moodLabel: 'Delighted',
-              text: `Everyone on the lane can see how kindred you and ${target.name} have become—${target.name} lights right up talking about you over ${favoriteSnippet}!`,
+              text: `${sourcePrefix}${distortionNote || ', '}you and ${target.name} have become real kindred friends—${target.name} lights right up talking about you over ${favoriteSnippet}!`,
               choices: [
                 {
                   id: 'gossip_tp_kindred_warm',
@@ -1384,7 +1506,7 @@ export const DIALOGUE_TOPICS: readonly DialogueTopic[] = [
           nodes: {
             root: {
               moodLabel: 'Warm',
-              text: `I caught ${target.name} smiling down near ${target.homeName} earlier—sounds like having a close friend like you around really steadied their week.`,
+              text: `${sourcePrefix}${distortionNote || ', '}${target.name} has been smiling down near ${target.homeName} lately—having a close friend like you around really steadied their week.`,
               choices: [
                 {
                   id: 'gossip_tp_close_warm',
@@ -1410,7 +1532,7 @@ export const DIALOGUE_TOPICS: readonly DialogueTopic[] = [
           nodes: {
             root: {
               moodLabel: 'Cheerful',
-              text: `${target.name} mentioned bumping into you lately! Seems like you two have grown into easy friends—nothing puts ${target.name} in a better mood than ${favoriteSnippet}.`,
+              text: `${fromName ? `${fromName} mentioned` : `${target.name} must have crossed paths with you—`}${distortionNote || ' '}sounds like you and ${target.name} have grown into easy friends! Nothing puts ${target.name} in a better mood than ${favoriteSnippet}.`,
               choices: [
                 {
                   id: 'gossip_tp_friend_warm',
@@ -1435,7 +1557,7 @@ export const DIALOGUE_TOPICS: readonly DialogueTopic[] = [
           nodes: {
             root: {
               moodLabel: 'Observant',
-              text: `Saw you and ${target.name} trading more than quick waves lately—you’re warming right up to each other! Ask ${target.name} about ${favoriteSnippet} if you visit ${target.homeName}.`,
+              text: `${sourcePrefix}${distortionNote || ', '}you and ${target.name} have been trading more than quick waves lately—ask ${target.name} about ${favoriteSnippet} if you visit ${target.homeName}.`,
               choices: [
                 {
                   id: 'gossip_tp_acq_warm',
@@ -1459,7 +1581,7 @@ export const DIALOGUE_TOPICS: readonly DialogueTopic[] = [
         nodes: {
           root: {
             moodLabel: 'Neighborly',
-            text: `I noticed you said hello to ${target.name}, though you two are still mostly strangers—swing by ${target.homeName} when you’ve got a spare minute, especially if ${favoriteSnippet} catches your eye.`,
+            text: `${sourcePrefix}${distortionNote || ', '}you crossed paths with ${target.name}, though you two are still mostly strangers—swing by ${target.homeName} when you’ve got a spare minute, especially if ${favoriteSnippet} catches your eye.`,
             choices: [
               {
                 id: 'gossip_tp_stranger_warm',
