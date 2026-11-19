@@ -406,12 +406,15 @@ test('v6 -> v7 migration hydrates greenhouseState and preserves v6 interior loca
     inventory: { chamomile_blossom: 2 },
   };
   const res = migrateWorldState(v6Save);
-  assert.equal(res.state.schemaVersion, 7);
+  // Build 7 bumps the runtime schema to v8: the v6 save now chains v6→v7→v8,
+  // keeping every v7 greenhouse invariant plus the fresh v8 bakeryState.
+  assert.equal(res.state.schemaVersion, 8);
   assert.equal(res.migratedFromVersion, 6);
   assert.equal(res.state.playerLocation, 'cottage_interior');
   assert.equal(res.state.greenhouseState.noteReadDay, 0);
   assert.equal(res.state.greenhouseState.plots.length, GREENHOUSE_PLOT_COUNT);
   assert.ok(res.state.greenhouseState.plots.every((p: GreenhousePlotState) => p.cropId === null));
+  assert.ok(res.state.bakeryState, 'v8 chain hydrates the fresh bakeryState');
   assert.deepEqual(res.state.cottageState.placedFlowerId, 'crabapple');
 });
 

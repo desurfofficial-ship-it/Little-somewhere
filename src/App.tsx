@@ -17,6 +17,7 @@ import {
   DialogueChoice,
   DialogueSession,
   GameScreenState,
+  BakeryInteractableId,
   GreenhouseInteractableId,
   InteractiveTarget,
   PersonalItemId,
@@ -51,11 +52,14 @@ import {
   cookRecipeAction,
   enterCottageAction,
   exitCottageAction,
+  enterBakeryAction,
   enterGreenhouseAction,
+  exitBakeryAction,
   exitGreenhouseAction,
   giveInventoryItemAction,
   harvestPlotAction,
   interactWithCottageProp,
+  interactWithBakeryProp,
   interactWithGreenhouseProp,
   interactWithProp,
   markResidentMet,
@@ -396,6 +400,29 @@ export default function App() {
         setDialogueSession(null);
         setActivePropId(null);
         setPropCard(res);
+      } else if (target.kind === 'bakery_prop') {
+        const bid = target.bakeryPropId ?? (target.id as BakeryInteractableId);
+        const res = interactWithBakeryProp(current, bid);
+        if (res.actionType === 'exit_bakery') {
+          playSceneVeil(() => {
+            commitWorld(res.nextWorld);
+            cozyAudio.playUiTap(0.98);
+            showToast('Stepped out beside Hearth & Crumb Bakery.');
+          });
+          return;
+        }
+        if (res.nextWorld !== current) {
+          commitWorld(res.nextWorld);
+        }
+        triggerPlayerPulse('interact', target.worldPos);
+        cozyAudio.playUiTap(1.04);
+        setDialogueSession(null);
+        setActivePropId(null);
+        setPropCard(res);
+        if (res.memoryUnlockedTitle) {
+          cozyAudio.playMemoryChime();
+          showToast(`Memory saved: ${res.memoryUnlockedTitle}`);
+        }
       } else {
         const pid = target.id as PropInteractableId;
         if (pid === 'player_door') {
@@ -412,6 +439,17 @@ export default function App() {
         if (pid === 'greenhouse_door') {
           playSceneVeil(() => {
             const enteredNow = enterGreenhouseAction(worldRef.current);
+            commitWorld(enteredNow.nextWorld);
+            cozyAudio.playUiTap(1.06);
+            if (enteredNow.toast) {
+              showToast(enteredNow.toast);
+            }
+          });
+          return;
+        }
+        if (pid === 'bakery_door') {
+          playSceneVeil(() => {
+            const enteredNow = enterBakeryAction(worldRef.current);
             commitWorld(enteredNow.nextWorld);
             cozyAudio.playUiTap(1.06);
             if (enteredNow.toast) {
@@ -664,6 +702,24 @@ export default function App() {
           setPropCard(null);
           cozyAudio.playUiTap(1.06);
           showToast(entered.toast);
+        });
+      } else if (actionType === 'enter_bakery') {
+        playSceneVeil(() => {
+          const entered = enterBakeryAction(worldRef.current);
+          commitWorld(entered.nextWorld);
+          setActivePropId(null);
+          setPropCard(null);
+          cozyAudio.playUiTap(1.06);
+          showToast(entered.toast);
+        });
+      } else if (actionType === 'exit_bakery') {
+        playSceneVeil(() => {
+          const exited = exitBakeryAction(worldRef.current);
+          commitWorld(exited.nextWorld);
+          setActivePropId(null);
+          setPropCard(null);
+          cozyAudio.playUiTap(0.98);
+          showToast(exited.toast);
         });
       } else if (actionType === 'exit_greenhouse') {
         playSceneVeil(() => {
@@ -937,6 +993,8 @@ export default function App() {
       ? 'Willow Step Cottage'
       : playerLocation === 'greenhouse_interior'
       ? 'Sunbeam Greenhouse'
+      : playerLocation === 'bakery_interior'
+      ? 'Hearth & Crumb Bakery'
       : landmark.name;
   const isSheetOpen = Boolean(dialogueSession || propCard);
   const anyModalOpen =

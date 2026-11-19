@@ -7,6 +7,7 @@ import {
   GreenhouseCropId,
   GreenhouseGrowthStage,
   GreenhousePlotState,
+  BakeryState,
   GreenhouseState,
   JournalMemory,
   NpcMemoryDetail,
@@ -103,8 +104,9 @@ import {
   createInitialGreenhouseState,
   isGreenhouseInteriorWalkable,
 } from './greenhouse';
+import { BAKERY_DOOR_SPAWN, createInitialBakeryState, isBakeryInteriorWalkable } from './bakery';
 
-export const CURRENT_SCHEMA_VERSION = 7;
+export const CURRENT_SCHEMA_VERSION = 8;
 export const DEFAULT_SIM_SEED = 18042;
 
 export interface MigrationResult {
@@ -248,6 +250,7 @@ export function createDefaultWorldState(): WorldState {
     dailyActivities: createInitialDailyActivities(),
     neighborGiftsReceived: [],
     greenhouseState: createInitialGreenhouseState(),
+    bakeryState: createInitialBakeryState(),
   };
 }
 
@@ -1040,7 +1043,9 @@ export function sanitizeWorldState(candidate: unknown, externalWarnings: string[
   const simSeed = (Math.floor(rawSeed) >>> 0) || DEFAULT_SIM_SEED;
 
   const playerLocation: PlayerLocation =
-    candidate.playerLocation === 'cottage_interior' || candidate.playerLocation === 'greenhouse_interior'
+    candidate.playerLocation === 'cottage_interior' ||
+    candidate.playerLocation === 'greenhouse_interior' ||
+    candidate.playerLocation === 'bakery_interior'
       ? (candidate.playerLocation as PlayerLocation)
       : 'exterior';
   const isInteriorLocation = playerLocation !== 'exterior';
@@ -1062,12 +1067,16 @@ export function sanitizeWorldState(candidate: unknown, externalWarnings: string[
       ? COTTAGE_DOOR_SPAWN.x
       : playerLocation === 'greenhouse_interior'
       ? GREENHOUSE_DOOR_SPAWN.x
+      : playerLocation === 'bakery_interior'
+      ? BAKERY_DOOR_SPAWN.x
       : PLAYER_SPAWN.x;
   let playerZ =
     playerLocation === 'cottage_interior'
       ? COTTAGE_DOOR_SPAWN.z
       : playerLocation === 'greenhouse_interior'
       ? GREENHOUSE_DOOR_SPAWN.z
+      : playerLocation === 'bakery_interior'
+      ? BAKERY_DOOR_SPAWN.z
       : PLAYER_SPAWN.z;
   let playerFacing = asFiniteNumber(candidate.playerFacing, PLAYER_DEFAULT_FACING);
   if (playerPosture === 'sitting' && playerSeatId) {
@@ -1083,6 +1092,8 @@ export function sanitizeWorldState(candidate: unknown, externalWarnings: string[
         ? isInteriorPointWalkable(cx, cz, 0.42)
         : playerLocation === 'greenhouse_interior'
         ? isGreenhouseInteriorWalkable(cx, cz, 0.42)
+        : playerLocation === 'bakery_interior'
+        ? isBakeryInteriorWalkable(cx, cz, 0.42)
         : isPointWalkable(cx, cz, 0.48);
     if (walkable) {
       playerX = cx;
@@ -1252,6 +1263,7 @@ export function sanitizeWorldState(candidate: unknown, externalWarnings: string[
     : [];
 
   const greenhouseState = sanitizeGreenhouseState(candidate.greenhouseState, warnings);
+  const bakeryState = sanitizeBakeryState(candidate.bakeryState, warnings);
 
   return {
     schemaVersion: CURRENT_SCHEMA_VERSION,
@@ -1293,7 +1305,39 @@ export function sanitizeWorldState(candidate: unknown, externalWarnings: string[
     dailyActivities,
     neighborGiftsReceived,
     greenhouseState,
+    bakeryState,
   };
+}
+
+/**
+ * Defensive sanitizer for the Hearth & Crumb Bakery interior state (WorldState v8).
+ * Day stamps stay >= 0; lifetime counters never go negative; unknown fields fall back to defaults.
+ */
+function sanitizeBakeryState(raw: unknown, warnings: string[]): BakeryState {
+  const defaults = createInitialBakeryState();
+  if (!isRecord(raw)) {
+    return defaults;
+  }
+  const stamp = (value: unknown, fallback: number): number =>
+    Math.max(0, Math.floor(asFiniteNumber(value, fallback)));
+  const sanitized: BakeryState = {
+    bakeCheckedDay: stamp(raw.bakeCheckedDay, defaults.bakeCheckedDay),
+    kneadedDay: stamp(raw.kneadedDay, defaults.kneadedDay),
+    loafSharedDay: stamp(raw.loafSharedDay, defaults.loafSharedDay),
+    notesReadDay: stamp(raw.notesReadDay, defaults.notesReadDay),
+    starterNotesDay: stamp(raw.starterNotesDay, defaults.starterNotesDay),
+    kneadingSessions: Math.max(
+      0,
+      Math.floor(asFiniteNumber(raw.kneadingSessions, defaults.kneadingSessions)),
+    ),
+    loavesShared: Math.max(0, Math.floor(asFiniteNumber(raw.loavesShared, defaults.loavesShared))),
+  };
+  // Cross-consistency: the starter-loaf day can never precede the notes day it came with.
+  if (sanitized.starterNotesDay > 0 && sanitized.notesReadDay === 0) {
+    warnings.push('bakeryState starter day repaired against missing notes day');
+    sanitized.notesReadDay = sanitized.starterNotesDay;
+  }
+  return sanitized;
 }
 
 /**
@@ -1728,6 +1772,18 @@ export function migrateV6ToV7(v6Raw: Record<string, unknown>): Record<string, un
   };
 }
 
+/**
+ * Pure sequential v7 -> v8 save upgrader adding Milestone 3 Build 7 fields:
+ * the Hearth & Crumb Bakery visitable-interior state. Existing interior locations are preserved.
+ */
+export function migrateV7ToV8(v7Raw: Record<string, unknown>): Record<string, unknown> {
+  return {
+    ...v7Raw,
+    schemaVersion: 8,
+    bakeryState: createInitialBakeryState(),
+  };
+}
+
 export function migrateWorldState(raw: unknown): MigrationResult {
   const warnings: string[] = [];
   const detected = detectSchemaVersion(raw);
@@ -1771,6 +1827,11 @@ export function migrateWorldState(raw: unknown): MigrationResult {
   if (version === 6) {
     working = migrateV6ToV7(working);
     version = 7;
+  }
+
+  if (version === 7) {
+    working = migrateV7ToV8(working);
+    version = 8;
   }
 
   if (version > CURRENT_SCHEMA_VERSION) {

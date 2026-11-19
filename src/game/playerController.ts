@@ -19,6 +19,11 @@ import {
   selectBestGreenhouseTarget,
 } from './greenhouse';
 import {
+  isBakeryInteriorWalkable,
+  resolveBakeryInteriorMovement,
+  selectBestBakeryTarget,
+} from './bakery';
+import {
   PROP_INTERACTABLES,
   SEAT_SPOTS,
   computeFacingAlignment,
@@ -193,7 +198,10 @@ export function stepPlayerMovement(input: StepPlayerMovementInput): StepPlayerMo
   }
 
   const activeLocomotionInput = hasMoveInput && !input.interactionActive;
-  const isInterior = input.location === 'cottage_interior' || input.location === 'greenhouse_interior';
+  const isInterior =
+    input.location === 'cottage_interior' ||
+    input.location === 'greenhouse_interior' ||
+    input.location === 'bakery_interior';
   // Carrying items trims top sprint pace slightly for cozy physical believability;
   // the small cottage room also caps sprinting so approach points never get overshot.
   const rawDesiredSpeed = resolveDesiredSpeed(
@@ -236,6 +244,8 @@ export function stepPlayerMovement(input: StepPlayerMovementInput): StepPlayerMo
     ? resolveMovement(pos, nextPosCandidate, 0.48)
     : input.location === 'greenhouse_interior'
     ? resolveGreenhouseInteriorMovement(pos, nextPosCandidate, 0.42)
+    : input.location === 'bakery_interior'
+    ? resolveBakeryInteriorMovement(pos, nextPosCandidate, 0.42)
     : resolveInteriorMovement(pos, nextPosCandidate, 0.42);
 
   // Measure actual traveled velocity after sliding collision (damps into wall cleanly without sticky rebound)
@@ -358,6 +368,39 @@ export function selectBestInteractiveTarget(
     return selectBestGreenhouseTarget(world);
   }
 
+  if (world.playerLocation === 'bakery_interior') {
+    // M3 Build 7: Hearth & Crumb stations; seated at the café chair offers the same
+    // sit-and-sip ritual as the cottage table (drinks travel in the same satchel).
+    if (world.playerPosture === 'sitting') {
+      const seat = resolveAnySeatById(world.playerSeatId);
+      if (seat?.indoor) {
+        const sip = getFirstSipableItem(world.inventory);
+        if (sip) {
+          return {
+            kind: 'seat',
+            id: seat.id,
+            seatId: seat.id,
+            label: seat.label,
+            actionLabel: `Sip ${sip.def.label}`,
+            distance: 0,
+            worldPos: { ...world.playerPos },
+            sipItemId: sip.itemId,
+          };
+        }
+        return {
+          kind: 'seat',
+          id: seat.id,
+          seatId: seat.id,
+          label: seat.label,
+          actionLabel: 'Stand Up',
+          distance: 0,
+          worldPos: { ...world.playerPos },
+        };
+      }
+    }
+    return selectBestBakeryTarget(world);
+  }
+
   if (world.playerPosture === 'sitting') {
     const seat = resolveAnySeatById(world.playerSeatId);
     return {
@@ -439,6 +482,8 @@ export function selectBestInteractiveTarget(
           : prop.id === 'player_door'
           ? 'Enter Cottage'
           : prop.id === 'greenhouse_door'
+          ? 'Step Inside'
+          : prop.id === 'bakery_door'
           ? 'Step Inside'
           : prop.id === 'cottage_window_box' ||
             prop.id === 'greenhouse_planters' ||

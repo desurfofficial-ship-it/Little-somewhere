@@ -652,3 +652,51 @@ test('Milestone 3 Build 6: sunbeam_greenhouse discovery tracks the shared growin
   assert.equal(harvestedGh.statusKind, 'transformed');
   assert.equal(harvestedGh.statusLabel, 'Resting between sowings');
 });
+
+test('Milestone 3 Build 7: claras_kitchen discovery tracks the bakery ritual lifecycle', () => {
+  const base = createFreshWorldState();
+  const initialView = buildPocketJournalView(base);
+  const initialBk = initialView.landmarks.find((l) => l.id === 'claras_kitchen')!;
+  assert.ok(initialBk, 'Bakery kitchen discovery row exists');
+  assert.equal(initialBk.statusKind, 'quiet');
+  assert.equal(initialBk.statusLabel, 'Clara’s warm kitchen');
+
+  // Checking today's bake surfaces the deterministic daily bake (day 1 = Sunflower Sourdough)
+  const bakedWorld: WorldState = {
+    ...base,
+    day: 1,
+    bakeryState: { ...base.bakeryState, bakeCheckedDay: 1 },
+  };
+  const bakedView = buildPocketJournalView(bakedWorld);
+  const bakedBk = bakedView.landmarks.find((l) => l.id === 'claras_kitchen')!;
+  assert.equal(bakedBk.statusKind, 'active');
+  assert.equal(bakedBk.statusLabel, 'Morning bake: Sunflower Sourdough');
+
+  // Lifetime shares change the label once the bake check ages out of today
+  const sharedWorld: WorldState = {
+    ...base,
+    bakeryState: { ...base.bakeryState, loavesShared: 2 },
+  };
+  const sharedView = buildPocketJournalView(sharedWorld);
+  const sharedBk = sharedView.landmarks.find((l) => l.id === 'claras_kitchen')!;
+  assert.equal(sharedBk.statusLabel, '2 loaves shared');
+
+  // Kneading alone reads as a Clara-bonded label
+  const kneadedWorld: WorldState = {
+    ...base,
+    bakeryState: { ...base.bakeryState, kneadingSessions: 1 },
+  };
+  const kneadedView = buildPocketJournalView(kneadedWorld);
+  const kneadedBk = kneadedView.landmarks.find((l) => l.id === 'claras_kitchen')!;
+  assert.equal(kneadedBk.statusLabel, 'Kneaded with Clara');
+
+  // Rest day checked (day 4) reads as the resting-oven label
+  const restWorld: WorldState = {
+    ...base,
+    day: 4,
+    bakeryState: { ...base.bakeryState, bakeCheckedDay: 4 },
+  };
+  const restView = buildPocketJournalView(restWorld);
+  const restBk = restView.landmarks.find((l) => l.id === 'claras_kitchen')!;
+  assert.equal(restBk.statusLabel, 'Oven resting today');
+});

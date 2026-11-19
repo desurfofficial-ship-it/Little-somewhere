@@ -1295,3 +1295,75 @@ test('Milestone 3 Build 6: Mina greenhouse topics gate on the shared-corner side
   assert.ok(builtReady.nodes[builtReady.rootId]);
   assert.ok(builtThirsty.nodes[builtThirsty.rootId]);
 });
+
+test('Milestone 3 Build 7: Clara bakery topics gate on the kitchen side flag and react to bakery state', () => {
+  const base = createFreshWorldState();
+  const cornerTopic = DIALOGUE_TOPICS.find((t) => t.id === 'side_clara_bakery_kitchen')!;
+  const checkinTopic = DIALOGUE_TOPICS.find((t) => t.id === 'daily_clara_bakery_checkin')!;
+
+  // Intro topic offered once Clara is met and before the kitchen was visited
+  const unmet = { ...base, residents: { ...base.residents, clara: { ...base.residents.clara, met: false } } };
+  assert.equal(
+    evaluateDialogueCondition(cornerTopic.condition, 'clara', unmet, 'morning', cornerTopic.id),
+    false,
+    'Kitchen topic requires the resident to be met',
+  );
+  const metBase: WorldState = {
+    ...base,
+    residents: { ...base.residents, clara: { ...base.residents.clara, met: true } },
+  };
+  assert.equal(
+    evaluateDialogueCondition(cornerTopic.condition, 'clara', metBase, 'morning', cornerTopic.id),
+    true,
+  );
+
+  // Intro disappears once the kitchen is visited; check-in takes over
+  const visitedWorld: WorldState = {
+    ...metBase,
+    sideFlags: { ...metBase.sideFlags, bakeryVisited: true },
+  };
+  assert.equal(
+    evaluateDialogueCondition(cornerTopic.condition, 'clara', visitedWorld, 'morning', cornerTopic.id),
+    false,
+  );
+  assert.equal(
+    evaluateDialogueCondition(checkinTopic.condition, 'clara', visitedWorld, 'morning', checkinTopic.id),
+    true,
+  );
+
+  // Knowledge boundary: without bakeryVisited, Clara never runs the check-in topic
+  assert.equal(
+    evaluateDialogueCondition(checkinTopic.condition, 'clara', base, 'morning', checkinTopic.id),
+    false,
+  );
+
+  // Check-in build reacts only to Clara's own observable bakery state
+  const kneadedWorld: WorldState = {
+    ...visitedWorld,
+    day: 1,
+    bakeryState: { ...visitedWorld.bakeryState, kneadedDay: 1 },
+  };
+  const builtKneaded = checkinTopic.build('clara', kneadedWorld, 'morning');
+  assert.ok(builtKneaded.nodes.root.text.includes('fold dough like you mean it'));
+
+  const sharedWorld: WorldState = {
+    ...visitedWorld,
+    day: 1,
+    bakeryState: { ...visitedWorld.bakeryState, loafSharedDay: 1 },
+  };
+  const builtShared = checkinTopic.build('clara', sharedWorld, 'morning');
+  assert.ok(builtShared.nodes.root.text.includes('treat you well'));
+
+  // Day 4 = oven rest day reads as embers-only, never leaking player-private events
+  const restWorld: WorldState = { ...visitedWorld, day: 4 };
+  const builtRest = checkinTopic.build('clara', restWorld, 'morning');
+  assert.ok(builtRest.nodes.root.text.includes('rest its bones'));
+
+  const bakeWorld: WorldState = { ...visitedWorld, day: 1 };
+  const builtBake = checkinTopic.build('clara', bakeWorld, 'morning');
+  assert.ok(builtBake.nodes.root.text.includes('share with your name'));
+
+  // The topic graphs link cleanly (roots resolve)
+  assert.ok(builtKneaded.nodes[builtKneaded.rootId]);
+  assert.ok(builtRest.nodes[builtRest.rootId]);
+});

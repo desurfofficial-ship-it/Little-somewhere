@@ -10,6 +10,7 @@ import {
   WorldState,
 } from './types';
 import { PERSONAL_ITEM_MAP } from './inventory';
+import { BAKERY_SEAT_SPOTS } from './bakery';
 import { computeFacingAlignment, distance2D, getSeatById } from './worldMap';
 
 export const COTTAGE_BOUNDS = {
@@ -189,10 +190,14 @@ export const COTTAGE_SEAT_SPOTS: readonly SeatSpot[] = [
   },
 ];
 
-/** Resolve a seat by id across both registries — indoor cottage seats first, outdoor benches fallback. */
+/** Resolve a seat by id across all registries — indoor cottage seats, indoor bakery café seats, then outdoor benches. */
 export function resolveAnySeatById(seatId: string | null | undefined): SeatSpot | undefined {
   if (!seatId) return undefined;
-  return COTTAGE_SEAT_SPOTS.find((s) => s.id === seatId) ?? getSeatById(seatId);
+  return (
+    COTTAGE_SEAT_SPOTS.find((s) => s.id === seatId) ??
+    BAKERY_SEAT_SPOTS.find((s) => s.id === seatId) ??
+    getSeatById(seatId)
+  );
 }
 
 export function isInteriorPointWalkable(x: number, z: number, actorRadius = 0.42): boolean {

@@ -27,9 +27,10 @@ export type PropInteractableId =
   | 'orchard_harvest'
   | 'orchard_skep'
   | 'pond_driftwood'
-  | 'greenhouse_door';
+  | 'greenhouse_door'
+  | 'bakery_door';
 
-export type PlayerLocation = 'exterior' | 'cottage_interior' | 'greenhouse_interior';
+export type PlayerLocation = 'exterior' | 'cottage_interior' | 'greenhouse_interior' | 'bakery_interior';
 
 export type CottageInteractableId =
   | 'interior_door'
@@ -70,6 +71,39 @@ export interface GreenhouseState {
   noteReadDay: number;
   totalHarvests: number;
   totalPlanted: number;
+}
+
+export type BakeryInteractableId =
+  | 'bakery_door'
+  | 'bakery_oven'
+  | 'bakery_counter'
+  | 'bakery_prep'
+  | 'bakery_notes'
+  | 'bakery_table';
+
+export type BakeryBakeId = 'sunflower_sourdough' | 'crabapple_galette' | 'lavender_butter_batch' | 'oven_rest';
+
+/**
+ * Hearth & Crumb Bakery interior state (Milestone 3 Build 7, WorldState v8).
+ * All `*Day` stamps hold the last in-game day the matching ritual was performed;
+ * 0 means never. Day stamps compare against `world.day`, so nothing needs resetting
+ * in `advanceToNextDay` — a new day simply differs from the stamp.
+ */
+export interface BakeryState {
+  /** Last day the morning bake was checked at the oven. */
+  bakeCheckedDay: number;
+  /** Last day dough kneading was helped at the prep table. */
+  kneadedDay: number;
+  /** Last day a bake share was taken at the counter. */
+  loafSharedDay: number;
+  /** Last day Clara's recipe notes were read. */
+  notesReadDay: number;
+  /** In-game day the one-time starter loaf came with the recipe notes (0 = not yet). */
+  starterNotesDay: number;
+  /** Lifetime count of kneading mornings shared with Clara. */
+  kneadingSessions: number;
+  /** Lifetime count of bake shares taken home. */
+  loavesShared: number;
 }
 
 export type PersonalItemCategory =
@@ -572,6 +606,8 @@ export interface WorldState {
   schemaVersion: number;
   // Milestone 3 Build 6 — Sunbeam Greenhouse shared growing corner (WorldState v7)
   greenhouseState: GreenhouseState;
+  // Milestone 3 Build 7 — Hearth & Crumb Bakery visitable interior (WorldState v8)
+  bakeryState: BakeryState;
   simSeed: number;
   regionId: string;
   day: number;
@@ -781,7 +817,14 @@ export interface DialogueSession {
 }
 
 export interface InteractiveTarget {
-  kind: 'resident' | 'prop' | 'seat' | 'carryable' | 'cottage_prop' | 'greenhouse_prop';
+  kind:
+    | 'resident'
+    | 'prop'
+    | 'seat'
+    | 'carryable'
+    | 'cottage_prop'
+    | 'greenhouse_prop'
+    | 'bakery_prop';
   id: string;
   label: string;
   actionLabel: string;
@@ -791,6 +834,7 @@ export interface InteractiveTarget {
   carryableId?: CarryableItemId;
   cottagePropId?: CottageInteractableId;
   greenhousePropId?: GreenhouseInteractableId;
+  bakeryPropId?: BakeryInteractableId;
   /** Set on seated cottage-seat targets when a sipable drink is in the satchel: primary action becomes the sip ritual. */
   sipItemId?: PersonalItemId;
 }

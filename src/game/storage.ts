@@ -25,6 +25,7 @@ import {
   advanceGreenhouseNightlyGrowthInPlace,
   createInitialGreenhouseState,
 } from './greenhouse';
+import { BAKERY_PORCH_EXIT_FACING, BAKERY_PORCH_EXIT_POS, createInitialBakeryState } from './bakery';
 import { WorldState } from './types';
 
 export const STORAGE_KEY = 'little_somewhere_world_v1';
@@ -370,6 +371,18 @@ export function computeWorldSaveRevision(state: WorldState): string {
     }
   }
 
+  // Milestone 3 Build 7 — Hearth & Crumb Bakery visitable interior (WorldState v8)
+  const bk = state.bakeryState;
+  if (bk) {
+    pushNum(bk.bakeCheckedDay);
+    pushNum(bk.kneadedDay);
+    pushNum(bk.loafSharedDay);
+    pushNum(bk.notesReadDay);
+    pushNum(bk.starterNotesDay);
+    pushNum(bk.kneadingSessions);
+    pushNum(bk.loavesShared);
+  }
+
   return `${h1.toString(36)}-${h2.toString(36)}`;
 }
 
@@ -430,8 +443,10 @@ export function advanceToNextDay(state: WorldState): WorldState {
   const nextSeason = getSeasonForDay(nextDay).season;
   const wokeInsideCottage = state.playerLocation === 'cottage_interior';
   const wokeInsideGreenhouse = state.playerLocation === 'greenhouse_interior';
+  const wokeInsideBakery = state.playerLocation === 'bakery_interior';
   const prevCottage = state.cottageState ?? createInitialCottageState();
   const prevGreenhouse = state.greenhouseState ?? createInitialGreenhouseState();
+  const prevBakery = state.bakeryState ?? createInitialBakeryState();
 
   // Sunbeam Greenhouse nightly growth (M3 Build 6): watered pots advance one stage-step;
   // unwatered pots simply wait, and winter freezes all growth until spring. Nothing withers.
@@ -449,6 +464,13 @@ export function advanceToNextDay(state: WorldState): WorldState {
     ? greenhouseExitPos
     : { ...GREENHOUSE_PORCH_EXIT_POS };
 
+  // M3 Build 7: waking inside the bakery steps the neighbor back out onto the warm porch
+  // (the bakery has no bed — the cottage quilt remains the one true rest spot).
+  const bakeryExitPos = state.exteriorPlayerPos ?? BAKERY_PORCH_EXIT_POS;
+  const safeBakeryExit = isPointWalkable(bakeryExitPos.x, bakeryExitPos.z, 0.48)
+    ? bakeryExitPos
+    : { ...BAKERY_PORCH_EXIT_POS };
+
   return {
     ...state,
     day: nextDay,
@@ -460,15 +482,25 @@ export function advanceToNextDay(state: WorldState): WorldState {
       ? { ...COTTAGE_WAKE_SPAWN }
       : wokeInsideGreenhouse
       ? safeGreenhouseExit
+      : wokeInsideBakery
+      ? safeBakeryExit
       : { ...PLAYER_SPAWN },
     playerFacing: wokeInsideCottage
       ? COTTAGE_WAKE_FACING
       : wokeInsideGreenhouse
       ? GREENHOUSE_PORCH_EXIT_FACING
+      : wokeInsideBakery
+      ? BAKERY_PORCH_EXIT_FACING
       : PLAYER_DEFAULT_FACING,
-    exteriorPlayerPos: wokeInsideGreenhouse ? safeGreenhouseExit : { ...PLAYER_SPAWN },
+    exteriorPlayerPos: wokeInsideGreenhouse
+      ? safeGreenhouseExit
+      : wokeInsideBakery
+      ? safeBakeryExit
+      : { ...PLAYER_SPAWN },
     exteriorPlayerFacing: wokeInsideGreenhouse
       ? GREENHOUSE_PORCH_EXIT_FACING
+      : wokeInsideBakery
+      ? BAKERY_PORCH_EXIT_FACING
       : PLAYER_DEFAULT_FACING,
     playerPosture: 'standing',
     playerSeatId: null,
@@ -487,5 +519,6 @@ export function advanceToNextDay(state: WorldState): WorldState {
     },
     dailyActivities: createInitialDailyActivities(),
     greenhouseState: nextGreenhouseState,
+    bakeryState: prevBakery,
   };
 }

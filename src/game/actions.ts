@@ -55,6 +55,19 @@ import {
   summarizeGreenhousePlots,
 } from './greenhouse';
 import {
+  BAKERY_BAKES,
+  BAKERY_CHECK_MINUTES,
+  BAKERY_DOOR_DEFAULT_FACING,
+  BAKERY_DOOR_SPAWN,
+  BAKERY_KNEAD_MINUTES,
+  BAKERY_NOTES_MINUTES,
+  BAKERY_PORCH_EXIT_FACING,
+  BAKERY_PORCH_EXIT_POS,
+  BAKERY_SHARE_MINUTES,
+  createInitialBakeryState,
+  getBakeForDay,
+} from './bakery';
+import {
   HEARTH_RECIPES,
   NEIGHBOR_KEEPSAKE_REWARDS,
   PERSONAL_ITEM_MAP,
@@ -81,6 +94,7 @@ import {
   cloneStorylines,
 } from './storylines';
 import {
+  BakeryInteractableId,
   CarryableItemId,
   CottageInteractableId,
   DialogueChoice,
@@ -116,6 +130,8 @@ export interface PropInteractionResult {
     | 'shelf_panel'
     | 'enter_greenhouse'
     | 'exit_greenhouse'
+    | 'enter_bakery'
+    | 'exit_bakery'
     | 'greenhouse_planting_panel'
     | 'greenhouse_harvest_panel';
   memoryUnlockedTitle?: string;
@@ -1120,6 +1136,16 @@ export function interactWithProp(
       body: 'Warm glass panels glow with afternoon light. Mina’s seed drawers, rain barrel, and the shared growing shelf wait inside.',
       actionLabel: 'Step Inside',
       actionType: 'enter_greenhouse',
+    };
+  }
+
+  if (propId === 'bakery_door') {
+    return {
+      nextWorld: world,
+      title: 'Hearth & Crumb Bakery Door',
+      body: 'Warm flour-scented air drifts under the cedar door. Clara’s brick bake oven, service counter, and a quiet café table wait inside.',
+      actionLabel: 'Step Inside',
+      actionType: 'enter_bakery',
     };
   }
 
@@ -2240,6 +2266,302 @@ export function readGreenhouseNotesAction(world: WorldState): PropInteractionRes
       { itemId: 'chamomile_seeds', count: 1 },
       { itemId: 'thyme_seeds', count: 1 },
     ],
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Hearth & Crumb Bakery interior stations (M3 Build 7, WorldState v8)
+// ---------------------------------------------------------------------------
+
+function getBakeryStateSafe(world: WorldState) {
+  return world.bakeryState ?? createInitialBakeryState();
+}
+
+function addBakeryMemory(
+  world: WorldState,
+  memId: string,
+  title: string,
+  summary: string,
+): { memories: WorldState['memories']; unlocked: boolean } {
+  const phase = getTimePhase(world.minuteOfDay);
+  if (world.memories.some((m) => m.id === memId)) {
+    return { memories: world.memories, unlocked: false };
+  }
+  return {
+    memories: [{ id: memId, day: world.day, phase, title, summary }, ...world.memories],
+    unlocked: true,
+  };
+}
+
+export function enterBakeryAction(world: WorldState): { nextWorld: WorldState; toast: string } {
+  if (world.playerLocation === 'bakery_interior') {
+    return { nextWorld: world, toast: '' };
+  }
+  let working = world;
+  if (working.playerHeldItem && working.worldProps?.[working.playerHeldItem]) {
+    working = placeWorldPropAction(working).nextWorld;
+  }
+  const safeExteriorPos = isPointWalkable(working.playerPos.x, working.playerPos.z, 0.48)
+    ? { ...working.playerPos }
+    : { ...BAKERY_PORCH_EXIT_POS };
+  return {
+    nextWorld: {
+      ...working,
+      playerLocation: 'bakery_interior',
+      exteriorPlayerPos: safeExteriorPos,
+      exteriorPlayerFacing: working.playerFacing,
+      playerPos: { ...BAKERY_DOOR_SPAWN },
+      playerFacing: BAKERY_DOOR_DEFAULT_FACING,
+      playerPosture: 'standing',
+      playerSeatId: null,
+    },
+    toast: 'Stepped inside Hearth & Crumb Bakery.',
+  };
+}
+
+export function exitBakeryAction(world: WorldState): { nextWorld: WorldState; toast: string } {
+  if (world.playerLocation !== 'bakery_interior') {
+    return { nextWorld: world, toast: '' };
+  }
+  const exPos = world.exteriorPlayerPos ?? BAKERY_PORCH_EXIT_POS;
+  const safePos = isPointWalkable(exPos.x, exPos.z, 0.48) ? { ...exPos } : { ...PLAYER_SPAWN };
+  return {
+    nextWorld: {
+      ...world,
+      playerLocation: 'exterior',
+      playerPos: safePos,
+      playerFacing: world.exteriorPlayerFacing ?? PLAYER_DEFAULT_FACING,
+      playerPosture: 'standing',
+      playerSeatId: null,
+    },
+    toast: 'Stepped out beside Hearth & Crumb Bakery.',
+  };
+}
+
+export function interactWithBakeryProp(
+  world: WorldState,
+  bakeryPropId: BakeryInteractableId,
+): PropInteractionResult {
+  if (bakeryPropId === 'bakery_door') {
+    const exited = exitBakeryAction(world);
+    return {
+      nextWorld: exited.nextWorld,
+      title: 'Bakery Porch Door',
+      body: 'Warm flour-scented air follows you out onto the bakery porch.',
+      actionType: 'exit_bakery',
+    };
+  }
+
+  if (bakeryPropId === 'bakery_oven') {
+    return checkMorningBakeAction(world);
+  }
+
+  if (bakeryPropId === 'bakery_counter') {
+    return shareMorningLoafAction(world);
+  }
+
+  if (bakeryPropId === 'bakery_prep') {
+    return helpKneadDoughAction(world);
+  }
+
+  // bakery_notes
+  return readBakeryNotesAction(world);
+}
+
+/** Deterministic daily reveal at the brick dome oven — once per day, +8m. */
+export function checkMorningBakeAction(world: WorldState): PropInteractionResult {
+  const bk = getBakeryStateSafe(world);
+  const bake = getBakeForDay(world.day);
+  const alreadyChecked = bk.bakeCheckedDay === world.day;
+
+  const ovenLead =
+    world.season === 'winter'
+      ? 'Frost ferns the kitchen window while the old brick dome holds its heat like a patient friend.'
+      : 'Morning light falls across the hearthstone while the brick dome breathes gentle warmth into the room.';
+
+  if (alreadyChecked) {
+    return {
+      nextWorld: world,
+      title: 'Brick Dome Bake Oven',
+      body: `Today’s bake: ${bake.label}. ${bake.blurb} ${ovenLead}`,
+    };
+  }
+
+  const nextMin = Math.min(DAY_END_MINUTE, world.minuteOfDay + BAKERY_CHECK_MINUTES);
+  const { memories: nextMemories, unlocked } = addBakeryMemory(
+    { ...world, minuteOfDay: nextMin },
+    'mem_bakery_first_bake',
+    'The Morning Bake Reveal',
+    'Peeked into Clara’s brick dome oven at Hearth & Crumb — the first look at whatever warm thing the day would be about.',
+  );
+
+  return {
+    nextWorld: {
+      ...world,
+      minuteOfDay: nextMin,
+      bakeryState: { ...bk, bakeCheckedDay: world.day },
+      memories: nextMemories,
+    },
+    title: 'Brick Dome Bake Oven',
+    body: `Today’s bake: ${bake.label}. ${bake.blurb} (+${BAKERY_CHECK_MINUTES}m)`,
+    memoryUnlockedTitle: unlocked ? 'The Morning Bake Reveal' : undefined,
+  };
+}
+
+/**
+ * Help Clara knead at the flour-dusted prep table — once per day, +12m.
+ * A kneaded morning doubles that day's counter share (Clara splits the batch).
+ */
+export function helpKneadDoughAction(world: WorldState): PropInteractionResult {
+  const bk = getBakeryStateSafe(world);
+  const alreadyKneaded = bk.kneadedDay === world.day;
+  const bake = getBakeForDay(world.day);
+
+  if (alreadyKneaded) {
+    return {
+      nextWorld: world,
+      title: 'Flour-Dusted Prep Table',
+      body:
+        bake.id === 'oven_rest'
+          ? 'The dough troughs are already scraped clean and resting under linen — tomorrow’s batch waits in the cool pantry.'
+          : 'The morning’s dough has been folded, turned, and tucked under linen to proof. Clara slides a thimble of honey across the table for the helper.',
+    };
+  }
+
+  const nextMin = Math.min(DAY_END_MINUTE, world.minuteOfDay + BAKERY_KNEAD_MINUTES);
+  const { memories: nextMemories, unlocked } = addBakeryMemory(
+    { ...world, minuteOfDay: nextMin },
+    'mem_bakery_first_knead',
+    'Flour on My Sleeves',
+    'Helped Clara knead the morning dough at Hearth & Crumb — warm oven air, soft shoulders, and flour that got everywhere happily.',
+  );
+
+  return {
+    nextWorld: {
+      ...world,
+      minuteOfDay: nextMin,
+      bakeryState: {
+        ...bk,
+        kneadedDay: world.day,
+        kneadingSessions: bk.kneadingSessions + 1,
+      },
+      memories: nextMemories,
+    },
+    title: 'Flour-Dusted Prep Table',
+    body: `You spent a slow stretch folding and turning Clara’s ${bake.id === 'oven_rest' ? 'tomorrow’s' : bake.label.toLowerCase()} dough while the oven hummed (+${BAKERY_KNEAD_MINUTES}m).${bake.shareItemId ? ' Clara smiles — she’ll split today’s batch with you at the counter.' : ''}`,
+    memoryUnlockedTitle: unlocked ? 'Flour on My Sleeves' : undefined,
+  };
+}
+
+/**
+ * Take the morning bake share at the counter — once per day, +6m. Nothing to take on
+ * oven-rest days. Helping knead first doubles the share (the batch is split).
+ */
+export function shareMorningLoafAction(world: WorldState): PropInteractionResult {
+  const bk = getBakeryStateSafe(world);
+  const bake = getBakeForDay(world.day);
+
+  if (!bake.shareItemId) {
+    return {
+      nextWorld: world,
+      title: 'Service Counter & Loaf Shelf',
+      body: 'The loaf shelf is swept clean today — Clara rests the old dome on day four. She leaves a pot of honey butter out anyway, for whoever wanders in.',
+    };
+  }
+
+  const alreadyShared = bk.loafSharedDay === world.day;
+  if (alreadyShared) {
+    return {
+      nextWorld: world,
+      title: 'Service Counter & Loaf Shelf',
+      body: `Today’s ${PERSONAL_ITEM_MAP[bake.shareItemId].label.toLowerCase()} is already wrapped in your satchel. Clara waves — “come back tomorrow, the dome’s already talking about it.”`,
+    };
+  }
+
+  const kneaded = bk.kneadedDay === world.day;
+  const shareCount = kneaded ? 2 : 1;
+  const invRes = addItemToInventory(
+    world.inventory,
+    world.discoveredItemIds,
+    bake.shareItemId,
+    shareCount,
+  );
+  const nextMin = Math.min(DAY_END_MINUTE, world.minuteOfDay + BAKERY_SHARE_MINUTES);
+  const { memories: nextMemories, unlocked } = addBakeryMemory(
+    { ...world, minuteOfDay: nextMin },
+    'mem_bakery_first_loaf',
+    'A Warm Loaf, Offered',
+    'Clara set aside the morning bake for me at Hearth & Crumb — warm paper wrapping, butter-gold crust, and a neighbor’s “see you tomorrow.”',
+  );
+
+  const shareDef = PERSONAL_ITEM_MAP[bake.shareItemId];
+  const gainedItems: GainedItemChip[] = [{ itemId: bake.shareItemId, count: shareCount }];
+  return {
+    nextWorld: {
+      ...world,
+      minuteOfDay: nextMin,
+      inventory: invRes.inventory,
+      discoveredItemIds: invRes.discoveredItemIds,
+      bakeryState: {
+        ...bk,
+        loafSharedDay: world.day,
+        loavesShared: bk.loavesShared + 1,
+      },
+      memories: nextMemories,
+    },
+    title: 'Service Counter & Loaf Shelf',
+    body: `Clara wraps today’s ${shareDef.label.toLowerCase()} in butter paper${kneaded ? ' and splits the batch you kneaded — two, warm side to warm side' : ''} and slides it across the counter with a nod (+${BAKERY_SHARE_MINUTES}m).`,
+    memoryUnlockedTitle: unlocked ? 'A Warm Loaf, Offered' : undefined,
+    gainedItems,
+  };
+}
+
+/** Clara's recipe notes on the east shelf — one-time starter loaf + seasonal rereads, +8m. */
+export function readBakeryNotesAction(world: WorldState): PropInteractionResult {
+  const bk = getBakeryStateSafe(world);
+
+  if (bk.starterNotesDay > 0) {
+    const reread =
+      world.season === 'winter'
+        ? '“Feed the dome even when it rests — embers remember.” Clara’s winter page smells of cinnamon and woodsmoke.'
+        : world.season === 'summer'
+        ? '“Cool the stone with the west window open; summer dough rises fast and bright.”'
+        : world.season === 'autumn'
+        ? '“Crabapple weeks — glaze thick, oven one notch lower, patience doubled.”'
+        : '“First warm weeks — split and fold gently; the dough wakes as fast as the primroses.”';
+    return {
+      nextWorld: world,
+      title: 'Clara’s Recipe Notes Shelf',
+      body: `${reread} The margins are full of small floury fingerprints.`,
+    };
+  }
+
+  const invRes = addItemToInventory(world.inventory, world.discoveredItemIds, 'herb_loaf', 1);
+  const nextMin = Math.min(DAY_END_MINUTE, world.minuteOfDay + BAKERY_NOTES_MINUTES);
+  const { memories: nextMemories, unlocked } = addBakeryMemory(
+    { ...world, minuteOfDay: nextMin },
+    'mem_bakery_notes',
+    'Clara’s Kitchen Margins',
+    'Read the flour-fingered recipe notes on Clara’s bakery shelf — she left a starter herb loaf tucked beside them “for the first curious neighbor.”',
+  );
+
+  return {
+    nextWorld: {
+      ...world,
+      minuteOfDay: nextMin,
+      inventory: invRes.inventory,
+      discoveredItemIds: invRes.discoveredItemIds,
+      bakeryState: {
+        ...bk,
+        notesReadDay: world.day,
+        starterNotesDay: world.day,
+      },
+      memories: nextMemories,
+    },
+    title: 'Clara’s Recipe Notes Shelf',
+    body: `Small oilcloth-bound notebooks, margins dusted with flour. “Warm hands make soft bread — take this one for the road.” A starter Herb & Honey Loaf is tucked beside the shelf (+${BAKERY_NOTES_MINUTES}m).`,
+    memoryUnlockedTitle: unlocked ? 'Clara’s Kitchen Margins' : undefined,
+    gainedItems: [{ itemId: 'herb_loaf', count: 1 }],
   };
 }
 

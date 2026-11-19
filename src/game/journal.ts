@@ -19,6 +19,7 @@ import { getResidentAvailableQuestCue } from './narrative';
 import { PERSONAL_ITEMS, PERSONAL_ITEM_MAP } from './inventory';
 import { describePlacedFlower } from './cottage';
 import { createInitialGreenhouseState, summarizeGreenhousePlots } from './greenhouse';
+import { createInitialBakeryState, getBakeForDay } from './bakery';
 import {
   STORYLINES,
   getActiveStorylineCue,
@@ -791,6 +792,9 @@ function buildDiscoveriesSection(
   // (the player has seen it); no NPC-knowledge surfaces here.
   const gh = world.greenhouseState ?? createInitialGreenhouseState();
   const greenhouseSummary = summarizeGreenhousePlots(gh);
+  // M3 Build 7: the bakery kitchen row reads only the player-observed bakery state.
+  const bkToday = world.bakeryState ?? createInitialBakeryState();
+  const todayBake = getBakeForDay(world.day);
 
   const landmarksRaw: Array<Omit<JournalDiscoveryLandmark, 'entryKey' | 'isNew'>> = [
     {
@@ -895,6 +899,32 @@ function buildDiscoveriesSection(
           : gh.totalHarvests > 0
           ? 'The shared pots rest between sowings — seeds folded and ready for the next planting.'
           : 'A warm glasshouse of herbs and blooms; Mina keeps a shared corner for tending neighbors.',
+    },
+    {
+      id: 'claras_kitchen',
+      name: 'Hearth & Crumb Kitchen',
+      statusKind:
+        bkToday.bakeCheckedDay > 0 || bkToday.loavesShared > 0 || bkToday.kneadingSessions > 0
+          ? 'active'
+          : 'quiet',
+      statusLabel:
+        bkToday.bakeCheckedDay === world.day && todayBake.id !== 'oven_rest'
+          ? `Morning bake: ${todayBake.label}`
+          : bkToday.bakeCheckedDay === world.day
+          ? 'Oven resting today'
+          : bkToday.loavesShared > 0
+          ? `${bkToday.loavesShared} ${bkToday.loavesShared === 1 ? 'loaf' : 'loaves'} shared`
+          : bkToday.kneadingSessions > 0
+          ? 'Kneaded with Clara'
+          : 'Clara’s warm kitchen',
+      summary:
+        bkToday.bakeCheckedDay === world.day
+          ? todayBake.id === 'oven_rest'
+            ? 'The brick dome rests on embers today — Clara says the sourdough whispers back tomorrow.'
+            : `${todayBake.blurb}`
+          : bkToday.loavesShared > 0
+          ? 'Clara keeps a warm share wrapped in butter paper at the counter whenever a neighbor wanders in.'
+          : 'A flour-warm kitchen behind the bakery porch — check the dome, help knead, take a loaf home.',
     },
   ];
 
