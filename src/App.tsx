@@ -45,13 +45,15 @@ import {
   applyDialogueChoice,
   interactWithProp,
   markResidentMet,
+  performFountainWishAction,
   performNextDayRest,
+  performPondStoneSkipAction,
   pickupWorldPropAction,
   placeWorldPropAction,
   togglePlayerSitAction,
 } from './game/actions';
 import { interruptSocialEncounter } from './game/simulation';
-import { getLandmarkAt } from './game/worldMap';
+import { getLandmarkAt, getPropInteractionMetrics } from './game/worldMap';
 import { cozyAudio } from './game/audio';
 import { HudBubbleSnapshot, NeighborhoodCanvas, PlayerActionPulse } from './scene/NeighborhoodCanvas';
 import { TitleOverlay } from './components/TitleOverlay';
@@ -92,16 +94,19 @@ export default function App() {
   const [nearbyBubble, setNearbyBubble] = useState<HudBubbleSnapshot | null>(null);
   const [dialogueSession, setDialogueSession] = useState<DialogueSession | null>(null);
   const [propCard, setPropCard] = useState<PropInteractionResult | null>(null);
+  const [activePropId, setActivePropId] = useState<PropInteractableId | null>(null);
   const [journalOpen, setJournalOpen] = useState<boolean>(false);
   const [muted, setMuted] = useState<boolean>(false);
   const [bellRingCounter, setBellRingCounter] = useState<number>(0);
+  const [fountainWishCounter, setFountainWishCounter] = useState<number>(0);
+  const [pondSkipCounter, setPondSkipCounter] = useState<number>(0);
   const [toastText, setToastText] = useState<string | null>(null);
   const [playerActionPulse, setPlayerActionPulse] = useState<PlayerActionPulse | null>(null);
   const pulseSeqRef = useRef(0);
 
-  const triggerPlayerPulse = useCallback((kind: PlayerActionPulse['kind']) => {
+  const triggerPlayerPulse = useCallback((kind: PlayerActionPulse['kind'], focusPos?: Vec2) => {
     pulseSeqRef.current += 1;
-    setPlayerActionPulse({ kind, seq: pulseSeqRef.current });
+    setPlayerActionPulse({ kind, seq: pulseSeqRef.current, focusPos });
   }, []);
 
   const hasSavedProgress =
@@ -167,6 +172,7 @@ export default function App() {
     setNearbyBubble(null);
     lastSavedStampRef.current = getSaveStamp(fresh);
     setDialogueSession(null);
+    setActivePropId(null);
     setPropCard(null);
     setJournalOpen(false);
     if (document.activeElement instanceof HTMLElement) {
@@ -190,6 +196,7 @@ export default function App() {
         const phase = getTimePhase(metWorld.minuteOfDay);
         const session = buildResidentDialogue(rid, metWorld, phase);
         cozyAudio.playDialogueVoice(rid.charCodeAt(0));
+        setActivePropId(null);
         setPropCard(null);
         setDialogueSession(session);
       } else if (target.kind === 'seat') {
@@ -206,7 +213,7 @@ export default function App() {
         const res = pickupWorldPropAction(current, cid);
         if (res.nextWorld !== current) {
           commitWorld(res.nextWorld);
-          triggerPlayerPulse('interact');
+          triggerPlayerPulse('interact', target.worldPos);
         }
         cozyAudio.playUiTap(1.12);
         if (res.toast) {
@@ -218,12 +225,14 @@ export default function App() {
         if (res.nextWorld !== current) {
           commitWorld(res.nextWorld);
         }
-        triggerPlayerPulse('interact');
+        const metrics = getPropInteractionMetrics(pid, current.playerPos);
+        triggerPlayerPulse('interact', metrics.focusPos);
         if (res.actionType === 'ring_bell') {
           setBellRingCounter((c) => c + 1);
           showToast('The restored brass bell echoes across Little Somewhere!');
         }
         setDialogueSession(null);
+        setActivePropId(pid);
         setPropCard(res);
       }
     },
@@ -267,10 +276,11 @@ export default function App() {
   );
 
   const handlePropAction = useCallback(
-    (actionType: 'rest_next_day' | 'ring_bell') => {
+    (actionType: 'rest_next_day' | 'ring_bell' | 'fountain_wish' | 'skip_stone') => {
       if (actionType === 'rest_next_day') {
         const nextDayWorld = performNextDayRest(worldRef.current);
         commitWorld(nextDayWorld);
+        setActivePropId(null);
         setPropCard(null);
         cozyAudio.playMemoryChime();
         showToast(`Good morning! Day ${nextDayWorld.day} begins in Little Somewhere.`);
@@ -281,11 +291,40 @@ export default function App() {
         };
         commitWorld(next);
         setBellRingCounter((c) => c + 1);
+        const bellMetrics = getPropInteractionMetrics('gazebo_bell', next.playerPos);
+        triggerPlayerPulse('interact', bellMetrics.focusPos);
+        setActivePropId(null);
         setPropCard(null);
         showToast('The brass bell rings out over the sunlit plaza!');
+      } else if (actionType === 'fountain_wish') {
+        const res = performFountainWishAction(worldRef.current);
+        commitWorld(res.nextWorld);
+        setFountainWishCounter((c) => c + 1);
+        const wishMetrics = getPropInteractionMetrics('fountain_plaza', res.nextWorld.playerPos);
+        triggerPlayerPulse('interact', wishMetrics.focusPos);
+        cozyAudio.playWaterSplash();
+        if (res.memoryUnlockedTitle) {
+          cozyAudio.playMemoryChime();
+        }
+        setActivePropId(null);
+        setPropCard(null);
+        showToast(res.toast);
+      } else if (actionType === 'skip_stone') {
+        const res = performPondStoneSkipAction(worldRef.current);
+        commitWorld(res.nextWorld);
+        setPondSkipCounter((c) => c + 1);
+        const skipMetrics = getPropInteractionMetrics('mirror_pond', res.nextWorld.playerPos);
+        triggerPlayerPulse('interact', skipMetrics.focusPos);
+        cozyAudio.playWaterSplash();
+        if (res.memoryUnlockedTitle) {
+          cozyAudio.playMemoryChime();
+        }
+        setActivePropId(null);
+        setPropCard(null);
+        showToast(res.toast);
       }
     },
-    [commitWorld, showToast],
+    [commitWorld, showToast, triggerPlayerPulse],
   );
 
   const handleAdvanceTwoHours = useCallback(() => {
@@ -324,6 +363,7 @@ export default function App() {
         e.preventDefault();
         if (dialogueSession || propCard) {
           setDialogueSession(null);
+          setActivePropId(null);
           setPropCard(null);
           return;
         }
@@ -452,8 +492,11 @@ export default function App() {
         joystickVectorRef={joystickVectorRef}
         zoomRef={zoomRef}
         bellRingCounter={bellRingCounter}
+        fountainWishCounter={fountainWishCounter}
+        pondSkipCounter={pondSkipCounter}
         isDialogueOpen={isSheetOpen || journalOpen}
         activeDialogueResidentId={dialogueSession?.residentId ?? null}
+        activePropId={propCard ? activePropId : null}
         playerActionPulse={playerActionPulse}
         onHudSync={handleHudSync}
         onSelectTarget={openTargetInteraction}
@@ -614,7 +657,7 @@ export default function App() {
                     <span className="hidden sm:inline text-xs opacity-80 font-mono-nums shrink-0">[E]</span>
                   </button>
                 ) : (
-                  <div className="bg-[#FAF5EC]/90 border border-[#D4C4AE] rounded-xl px-3 sm:px-3.5 py-2 text-[11px] sm:text-xs text-[#5E5046] shadow-sm text-right leading-snug">
+                  <div className="bg-[#FAF5EC]/90 border border-[#D4C4AE] rounded-xl px-3.5 py-2.5 text-[11px] sm:text-xs text-[#5E5046] shadow-sm text-right leading-relaxed">
                     {playerPosture === 'sitting'
                       ? 'Resting on bench — move or tap Stand Up'
                       : hudClock >= 1260
@@ -657,6 +700,7 @@ export default function App() {
             triggerPlayerPulse('wave');
           }
           setDialogueSession(null);
+          setActivePropId(null);
           setPropCard(null);
         }}
         onPropAction={handlePropAction}
@@ -678,6 +722,7 @@ export default function App() {
         onResetWorld={handleResetAndStart}
         onReturnToTitle={() => {
           setDialogueSession(null);
+          setActivePropId(null);
           setPropCard(null);
           setJournalOpen(false);
           setScreenState('title');

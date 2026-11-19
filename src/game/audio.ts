@@ -125,6 +125,32 @@ class CozyAudioEngine {
       osc.stop(now + p.dur + 0.05);
     }
   }
+
+  public playWaterSplash(): void {
+    const ctx = this.ensureContext();
+    if (!ctx) return;
+    const now = ctx.currentTime;
+    const droplets = [
+      { delay: 0.0, f0: 380, f1: 690, amp: 0.075, dur: 0.14 },
+      { delay: 0.09, f0: 490, f1: 860, amp: 0.055, dur: 0.13 },
+      { delay: 0.19, f0: 620, f1: 1040, amp: 0.04, dur: 0.14 },
+    ];
+    for (const d of droplets) {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      const t = now + d.delay;
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(d.f0, t);
+      osc.frequency.exponentialRampToValueAtTime(d.f1, t + d.dur * 0.75);
+      gain.gain.setValueAtTime(0.001, t);
+      gain.gain.linearRampToValueAtTime(d.amp, t + 0.014);
+      gain.gain.exponentialRampToValueAtTime(0.0008, t + d.dur);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(t);
+      osc.stop(t + d.dur + 0.03);
+    }
+  }
 }
 
 export const cozyAudio = new CozyAudioEngine();

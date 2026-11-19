@@ -12,6 +12,9 @@ import {
 import { computeWaypointPath, hasLineOfSight } from './navigation';
 import {
   deliverHeldItemAction,
+  interactWithProp,
+  performFountainWishAction,
+  performPondStoneSkipAction,
   pickupWorldPropAction,
   placeWorldPropAction,
   togglePlayerSitAction,
@@ -20,8 +23,10 @@ import { RESIDENTS } from './residents';
 import { createFreshWorldState } from './storage';
 import {
   PLAYER_SPAWN,
+  PROP_INTERACTABLES,
   SEAT_SPOTS,
   getGroundHeightAt,
+  getPropInteractionMetrics,
   getSeatById,
   isPointWalkable,
 } from './worldMap';
@@ -477,3 +482,115 @@ test('diagonal player movement normalizes speed, Alt modifier enforces walk spee
     prev = wp;
   }
 });
+
+test('Mirror Pond bank is walkable and fountain coin wishing + stone skipping persist memories', () => {
+  const pondProp = PROP_INTERACTABLES.find((p) => p.id === 'mirror_pond');
+  assert.ok(pondProp);
+  assert.equal(isPointWalkable(pondProp.x, pondProp.z, 0.48), true);
+
+  const base = createFreshWorldState();
+  const dryFountain = interactWithProp(base, 'fountain_plaza');
+  assert.equal(dryFountain.actionType, undefined);
+
+  const repaired = { ...base, flags: { ...base.flags, repairedFountain: true } };
+  const flowingFountain = interactWithProp(repaired, 'fountain_plaza');
+  assert.equal(flowingFountain.actionType, 'fountain_wish');
+
+  const wished = performFountainWishAction(repaired);
+  assert.equal(wished.nextWorld.sideFlags?.fountainWishesCount, 1);
+  assert.equal(wished.memoryUnlockedTitle, 'A Copper Coin in Sunlit Water');
+
+  const pondInspect = interactWithProp(wished.nextWorld, 'mirror_pond');
+  assert.equal(pondInspect.actionType, 'skip_stone');
+
+  const skipped = performPondStoneSkipAction(wished.nextWorld);
+  assert.equal(skipped.nextWorld.sideFlags?.pondPebblesSkipped, 1);
+  assert.equal(skipped.memoryUnlockedTitle, 'Circles on Mirror Pond');
+  assert.ok(skipped.skipsThisThrow >= 2);
+});
+
+test('fountain and mirror pond support multi-sided perimeter interaction, water splash localization, rail clearance, and interactionActive damping', () => {
+  // 1. Fountain is reachable and focus-locked from North, South, East, and West sides
+  const fountainPositions = [
+    { x: 0, z: -1.55 }, // North rim
+    { x: 0, z: 4.55 }, // South rim
+    { x: 3.05, z: 1.5 }, // East rim
+    { x: -3.05, z: 1.5 }, // West rim
+  ];
+  for (const pos of fountainPositions) {
+    assert.equal(isPointWalkable(pos.x, pos.z, 0.48), true);
+    const m = getPropInteractionMetrics('fountain_plaza', pos);
+    assert.equal(m.inRange, true);
+    assert.deepEqual(m.focusPos, { x: 0, z: 1.5 });
+    assert.equal(isPointWalkable(m.approachPos.x, m.approachPos.z, 0.48), true);
+    assert.ok(Math.hypot(m.splashPos.x, m.splashPos.z - 1.5) < 1.9);
+  }
+
+  // Rim boundary collision keeps player boots clear of stepped limestone apron (r=2.52)
+  assert.equal(isPointWalkable(2.93, 1.5, 0.48), false);
+  assert.equal(isPointWalkable(2.96, 1.5, 0.48), true);
+
+  // East-rim player triggers selectBestInteractiveTarget -> fountain_plaza
+  const base = createFreshWorldState();
+  const eastFountainWorld = {
+    ...base,
+    playerPos: { x: 3.05, z: 1.5 },
+    playerFacing: -Math.PI / 2,
+    npcRuntime: {
+      ...base.npcRuntime,
+      clara: { ...base.npcRuntime.clara, position: { x: -12, z: -12 } },
+      arthur: { ...base.npcRuntime.arthur, position: { x: 14, z: -12 } },
+      mina: { ...base.npcRuntime.mina, position: { x: 14, z: 2 } },
+      jun: { ...base.npcRuntime.jun, position: { x: -12, z: 12 } },
+      barnaby: { ...base.npcRuntime.barnaby, position: { x: 12, z: 14 } },
+      sora: { ...base.npcRuntime.sora, position: { x: -8, z: -4 } },
+      toby: { ...base.npcRuntime.toby, position: { x: -6, z: 16 } },
+      nora: { ...base.npcRuntime.nora, position: { x: -14, z: -2 } },
+      pip: { ...base.npcRuntime.pip, position: { x: -10, z: -10 } },
+    },
+  };
+  const eastTarget = selectBestInteractiveTarget(eastFountainWorld, RESIDENTS);
+  assert.equal(eastTarget?.id, 'fountain_plaza');
+
+  // 2. Mirror Pond works on North ledge, East shore, South pier, and Cedar bridge, while excluding west oak lawn
+  const pondPositions = [
+    { x: 1.8, z: 10.6 }, // North skipping ledge
+    { x: 6.2, z: 14.0 }, // East bank
+    { x: 2.22, z: 17.2 }, // South viewing pier shore step
+    { x: -2.88, z: 14.0 }, // Cedar bridge deck
+  ];
+  for (const pos of pondPositions) {
+    assert.equal(isPointWalkable(pos.x, pos.z, 0.48), true);
+    const m = getPropInteractionMetrics('mirror_pond', pos);
+    assert.equal(m.inRange, true);
+    assert.ok(m.splashPos.x >= -1.4 && m.splashPos.x <= 4.7);
+    assert.ok(m.splashPos.z >= 12.3 && m.splashPos.z <= 15.7);
+    assert.equal(isPointWalkable(m.approachPos.x, m.approachPos.z, 0.48), true);
+  }
+
+  // Hollow oak west lawn (-4.35, 14.2) is walkable and does NOT shadow Hollow Oak with Mirror Pond
+  assert.equal(isPointWalkable(-4.35, 14.2, 0.48), true);
+  assert.equal(getPropInteractionMetrics('mirror_pond', { x: -4.35, z: 14.2 }).inRange, false);
+  // Cedar bridge west rail blocks sideways clipping off bridge into brook culvert
+  assert.equal(isPointWalkable(-3.55, 14.0, 0.48), false);
+
+  // 3. interactionActive settles velocity rapidly even if directional keys are still pressed
+  let movingMotion = createInitialPlayerMotion(PLAYER_SPAWN);
+  movingMotion = { ...movingMotion, vx: 3.6, vz: 0, speed: 3.6, mode: 'walk', animState: 'walk' };
+  const lockedStep = stepPlayerMovement({
+    pos: { ...PLAYER_SPAWN },
+    facing: Math.PI / 2,
+    motion: movingMotion,
+    moveDirX: 1,
+    moveDirZ: 0,
+    inputMagnitude: 1.0,
+    sprintHeld: false,
+    carryingItem: false,
+    interactionActive: true,
+    posture: 'standing',
+    seatId: null,
+    dt: 0.04,
+  });
+  assert.ok(lockedStep.motion.speed < 1.25, `Expected rapid interaction settle (<1.25), got ${lockedStep.motion.speed}`);
+});
+

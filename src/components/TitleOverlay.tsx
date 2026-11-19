@@ -47,7 +47,7 @@ export const TitleOverlay: React.FC<TitleOverlayProps> = ({
           LITTLE SOMEWHERE
         </h1>
         <p className="mt-3 text-sm sm:text-base text-[#3E3128] leading-relaxed">
-          A little world filled with thousands of little stories. Meet your neighbors, discover their stories, build friendships, and help a little world bloom.
+          Meet your neighbors, discover their stories, build friendships, and help a little world bloom.
         </p>
 
         <div className="mt-6 flex flex-wrap items-center gap-3">
@@ -72,9 +72,29 @@ export const TitleOverlay: React.FC<TitleOverlayProps> = ({
         </div>
       </div>
 
-      {/* Single flat borderless control hint along bottom safe margin */}
-      <div className="bg-[#FAF5EC]/90 border border-[#D4C4AE]/70 rounded-xl px-3.5 py-1.5 text-xs sm:text-sm font-medium text-[#3E3128] shadow-sm">
-        WASD or Tap Ground to Walk · Tap Neighbor or Press E to Talk · Esc Pause
+      {/* Calm bottom control guide with generous breathing room */}
+      <div className="bg-[#FAF5EC]/94 border border-[#D4C4AE]/85 rounded-xl px-4 sm:px-5 py-2.5 sm:py-3 text-xs sm:text-sm font-medium text-[#3E3128] shadow-sm flex flex-wrap items-center gap-x-4 gap-y-2 leading-relaxed pointer-events-auto max-w-full">
+        <span className="inline-flex items-center gap-1.5">
+          <kbd className="font-mono-nums font-semibold text-[#2D241E] bg-[#F2E9DA] border border-[#D4C4AE] rounded px-1.5 py-0.5 text-[11px] sm:text-xs">
+            WASD
+          </kbd>
+          <span>or Tap Ground to Walk</span>
+        </span>
+        <span className="hidden sm:inline text-[#B8A590]" aria-hidden="true">·</span>
+        <span className="inline-flex items-center gap-1.5">
+          <span>Tap Neighbor or</span>
+          <kbd className="font-mono-nums font-semibold text-[#2D241E] bg-[#F2E9DA] border border-[#D4C4AE] rounded px-1.5 py-0.5 text-[11px] sm:text-xs">
+            E
+          </kbd>
+          <span>to Talk</span>
+        </span>
+        <span className="hidden sm:inline text-[#B8A590]" aria-hidden="true">·</span>
+        <span className="inline-flex items-center gap-1.5">
+          <kbd className="font-mono-nums font-semibold text-[#2D241E] bg-[#F2E9DA] border border-[#D4C4AE] rounded px-1.5 py-0.5 text-[11px] sm:text-xs">
+            Esc
+          </kbd>
+          <span>Pause</span>
+        </span>
       </div>
     </div>
   );

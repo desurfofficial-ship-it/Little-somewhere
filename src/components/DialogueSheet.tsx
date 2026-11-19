@@ -27,7 +27,7 @@ interface DialogueSheetProps {
   sideFlags?: Record<string, boolean | number | string>;
   onSelectChoice: (choice: DialogueChoice) => void;
   onClose: () => void;
-  onPropAction: (actionType: 'rest_next_day' | 'ring_bell') => void;
+  onPropAction: (actionType: 'rest_next_day' | 'ring_bell' | 'fountain_wish' | 'skip_stone') => void;
 }
 
 export const DialogueSheet: React.FC<DialogueSheetProps> = ({

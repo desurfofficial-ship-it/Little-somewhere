@@ -246,9 +246,32 @@ Chronological log of design decisions, implementation milestones, verification r
   - Live Chromium (`1440×900` & `390×844`): **0 console errors, 0 console warnings**; verified Title screen, WASD + Shift sprint, Jun dialogue framing & reply/wave close, carryable `Copper Water Pail` cradle & sage gift ring around Arthur, `Mirror Pond Bench` flush sitting pose, `Pocket Journal` tabs, `390×844` circular `VirtualJoystick` drag with zero horizontal overflow, and `v2 -> v3` Day 3 state migration.
 
 
+
 ---
 
-## Entry 014 — Botanical Dressing, Reactive Environment Hooks & Pooled Micro-Life (Visual Elevation Pass)
+## Entry 014 — Bench Back-Clipping Fix & Mirror Pond / Mossy Stone Fountain Full Upgrade
+- **Date**: 2026-11-19
+- **Status**: Completed & Verified
+- **Key Deliverables**:
+  - **Bench Sitting Back-Clearance Fix (`src/scene/builders/landmarks.ts`, `src/scene/builders/characters.ts`, `src/scene/environmentRenderer.test.ts`)**:
+    - Recessed the cedar bench backrest slats and tilted iron stiles/spindle (`backrestFrontZ = -0.262`, seat slats deepened forward `z = -0.17..+0.22`) in `buildStorybookBench()`.
+    - Adjusted seated hip/skirt offset (`targetBodyZ = 0.19`, thigh pitch `-1.18`) in `animateCharacterRig('sit')` so coats, hair buns/hoods, backpacks, and props clear the backrest cleanly across all character proportions (`player`, `clara`, `toby`, `barnaby`, `sora`, `jun` verified via `THREE.Box3` clearance regression test).
+  - **Water Shader Foundation (`src/scene/waterShaders.ts`)**:
+    - Added custom PBR `onBeforeCompile` shaders (`createStorybookPondWaterMaterial`, `createStorybookFountainWaterMaterial`, `createStorybookWaterStreamMaterial`) with deterministic `userData.waterUniforms` driving flowing caustics, depth gradation, lapping shoreline foam, raindrop rings, expanding coin-wish/pebble-skip concentric waves, winter crystalline frost/ice, and warm dusk lantern reflections.
+  - **Mirror Pond & West Culvert Brook Upgrade (`src/scene/builders/vegetation.ts`, `src/scene/environmentRenderer.ts`, `src/game/actions.ts`, `src/game/worldMap.ts`)**:
+    - Replaced the flat pond ellipse with a smooth `SplineCurve`/`ShapeGeometry` shoreline and west brook culvert passing under and past the cedar footbridge between mossy boulders, layered sandy shoal, 18 submerged pebbles, 3 articulated figure-8 swimming koi fish (`KoiFishRig`), 6 notched lily pads with marigold blooms, wind-swaying cattails and blue-flag iris, 2 skimming dragonflies, a north skipping-stone ledge, and a limestone-anchored south-east viewing pier with moored walnut sailboat (cabin trim + coral masthead pennant) and brass pier lantern.
+    - Added `'mirror_pond'` (`Mirror Pond Bank`) prop interaction allowing stone skipping (`performPondStoneSkipAction`, `mem_pond_skip` memory, `cozyAudio.playWaterSplash()`).
+  - **Mossy Stone Fountain Upgrade (`src/scene/builders/landmarks.ts`, `src/game/actions.ts`, `src/scene/NeighborhoodCanvas.tsx`)**:
+    - Upgraded `buildStorybookFountain` with a 2-step octagonal apron, carved double-moulded `LatheGeometry` basin + 8 pilasters, moss cushions, brass spring valve wheel, pre-repair dry autumn leaves/twig (`clogDebrisGroup`) vs post-repair 8 glistening submerged wishing coins (`submergedCoinsGroup`), 4 bronze spouts + collars + upper overflow weirs, curved aerated `TubeGeometry` cascades (`cascadeGroup`), splash rings + foam collars, and 20 pooled ballistic droplets.
+    - Replaced golden chime octahedrons on water actions with a zero-GC pooled aqua/white `splashParticles` droplet burst in `NeighborhoodCanvas.tsx`, keeping golden chimes exclusively on the Gazebo Bell; wired `'fountain_wish'` (`Toss a Lucky Coin`, `performFountainWishAction`, `mem_fountain_wish`).
+- **Verification**:
+  - `npm test`: **49/49 passing** (`0` failures across `src/game/*.test.ts` and `src/scene/*.test.ts`).
+  - `npm run lint` (`tsc --noEmit`), `compile_applet`, and `npm run build` all pass with **0 errors**.
+  - Live Chromium (`1440×900` & `390×844`): **0 console errors, 0 console warnings**; verified unobstructed West Plaza Bench sitting clearance (`r2-bench-sit-clear.png`), repaired Fountain coin-wish ripple & cascades (`r2-fountain-wish.png`), Mirror Pond Lantern Dusk stone-skip ripple + emerging west brook + anchored pier & sailboat (`r2-pond-skip-dusk.png`), and zero-overflow `390×844` mobile Mirror Pond bottom sheet (`r2-mobile.png`).
+
+---
+
+## Entry 015 — Botanical Dressing, Reactive Environment Hooks & Pooled Micro-Life (Visual Elevation Pass)
 - **Date**: 2026-11-19
 - **Status**: Completed & Verified
 - **Key Deliverables**:
@@ -279,7 +302,7 @@ Chronological log of design decisions, implementation milestones, verification r
   - Live headless Chromium captures: desktop `1440×900` morning (dressing visible on margins, lanes clean, softer contact shadows), dusk (festoon + window glow + fireflies confirmed via crop), rain day 3 (grey sky, rain streaks, puddle films on plaza — planted by patching the app's own serialized save), and mobile `390×844` dusk — **0 console errors, 0 warnings**.
   - Draw-call delta: +12 max (5 dressing layers + 3 butterfly layers + fireflies + sparkles + puddles + wisps, all instanced), keeping the diorama inside the <= 140 budget; software-GL particle caps unchanged.
 
-## Entry 015 — AVD-01 First Assignment: Comprehensive Asset & Visual Quality Audit
+## Entry 016 — AVD-01 First Assignment: Comprehensive Asset & Visual Quality Audit
 - **Date**: 2026-11-19
 - **Status**: Completed (Audit Report Delivered — implementation awaiting priority approval)
 - **Scope**: Branch review of `feat/botanical-dressing-micro-life` plus a full 5-phase asset & visual quality audit per the AVD-01 charter (discovery -> quality audit -> P0/P1/P2 prioritization -> roadmap -> report). **No asset replacement was performed**, per audit-first instructions.
@@ -292,3 +315,4 @@ Chronological log of design decisions, implementation milestones, verification r
 - **Verification**:
   - `npm test` **50/50**, `npm run lint` **0 errors**, `npm run build` pass.
   - Live headless Chromium on the audit branch: desktop 1440×900 title / morning / golden 4:24 PM / dusk 9:30 PM and mobile 390×844 — **0 console errors, 0 page errors**; window glow, festoon gating, clapper gating, fireflies, contact shadows, and botanical dressing all confirmed visually.
+

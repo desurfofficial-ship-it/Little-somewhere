@@ -1,10 +1,11 @@
 import * as THREE from 'three';
 import { ComposedEnvironmentState } from '../game/environment';
 import { SeasonType, Vec2, WorldState } from '../game/types';
-import { GazeboRig, FountainRig } from './models';
+import { GazeboRig, FountainRig, MirrorPondRig } from './models';
 import { NoticeboardRig } from './builders/landmarks';
 import { GroveTreesRig } from './builders/vegetation';
 import { ReactiveVisualRigs } from './builders/reactiveProps';
+import { getWaterShaderUniforms } from './waterShaders';
 
 // Pre-allocated scratch helpers (zero per-frame heap allocations)
 const _skyMorning = new THREE.Color('#DCEBF2');
@@ -42,6 +43,7 @@ export interface EnvironmentRendererDeps {
   flowerGroups: THREE.Group[];
   gazeboRig: GazeboRig;
   fountainRig: FountainRig;
+  pondRig?: MirrorPondRig;
   bakeryTablesGroup: THREE.Group;
   festoonGroup: THREE.Group;
   noticeboardRig: NoticeboardRig;
@@ -58,6 +60,10 @@ export class EnvironmentVisualController {
   private lastMailboxUnread: boolean | null = null;
   private lastSeason: SeasonType | null = null;
   private lastGreenhouseStage = -1;
+  private fountainSplashAge = 99;
+  private readonly fountainSplashPos = new THREE.Vector3(0, 0, 1.1);
+  private pondSplashAge = 99;
+  private readonly pondSplashPos = new THREE.Vector3(0.2, 0, -0.4);
 
   private readonly rainCount: number;
   private readonly petalCount: number;
@@ -183,6 +189,15 @@ export class EnvironmentVisualController {
       mbFlag.rotation.z = world.mailboxUnread ? 0 : -1.2;
       fountainRig.waterMesh.visible = env.fountainFlowing;
       fountainRig.spoutParticles.visible = env.fountainFlowing;
+      if (fountainRig.clogDebrisGroup) {
+        fountainRig.clogDebrisGroup.visible = !env.fountainFlowing;
+      }
+      if (fountainRig.submergedCoinsGroup) {
+        fountainRig.submergedCoinsGroup.visible = env.fountainFlowing;
+      }
+      if (fountainRig.cascadeGroup) {
+        fountainRig.cascadeGroup.visible = env.fountainFlowing;
+      }
 
       const flyers = noticeboardRig.flyers;
       for (let i = 0; i < flyers.length; i++) {
@@ -286,21 +301,140 @@ export class EnvironmentVisualController {
     const sunAngle = THREE.MathUtils.lerp(0.5, 2.4, tNorm);
     sunLight.position.set(Math.cos(sunAngle) * 26, 26 - Math.abs(tNorm - 0.5) * 10, 16);
 
-    // 4. Continuous Ambient Motion (Oak Glint, Fountain Droplets, Bell Swing, Pooled Weather)
+    // 4. Continuous Ambient Motion (Oak Glint, Fountain Cascades & Droplets, Mirror Pond Life, Bell Swing, Weather)
+    this.fountainSplashAge = Math.min(99, this.fountainSplashAge + dt);
+    this.pondSplashAge = Math.min(99, this.pondSplashAge + dt);
+
+    const isWinter = composed.season.season === 'winter' ? 1 : 0;
+    const isRain = effWeather === 'light_rain' ? 1 : 0;
+    const windStrength = effWeather === 'breezy' ? 1 : effWeather === 'light_rain' ? 0.65 : 0.25;
+
     if (oakGlint.visible) {
       oakGlint.position.y = 0.36 + Math.sin(elapsed * 3.0) * 0.05;
       oakGlint.rotation.y = elapsed * 1.4;
     }
 
     if (composed.playerChanges.fountainFlowing) {
+      const fWaterUniforms = getWaterShaderUniforms(fountainRig.waterMat);
+      if (fWaterUniforms) {
+        fWaterUniforms.uTime.value = elapsed;
+        fWaterUniforms.uWinter.value = isWinter;
+        fWaterUniforms.uDusk.value = duskFactor;
+        fWaterUniforms.uSplashPos.value.copy(this.fountainSplashPos);
+        fWaterUniforms.uSplashAge.value = this.fountainSplashAge;
+      }
+      const fStreamUniforms = getWaterShaderUniforms(fountainRig.streamMat);
+      if (fStreamUniforms) {
+        fStreamUniforms.uTime.value = elapsed;
+        fStreamUniforms.uDusk.value = duskFactor;
+      }
+
+      if (fountainRig.splashRings) {
+        for (let i = 0; i < fountainRig.splashRings.length; i++) {
+          const ring = fountainRig.splashRings[i];
+          const offset = Number(ring.userData.phaseOffset ?? i * 0.2);
+          const ph = (elapsed * 0.9 + offset) % 1;
+          const sc = 0.55 + ph * 1.35;
+          ring.scale.set(sc, sc, 1);
+          const rMat = ring.material as THREE.MeshBasicMaterial;
+          rMat.opacity = (1 - ph) * 0.56;
+        }
+      }
+
       const drops = fountainRig.spoutParticles.children;
       for (let idx = 0; idx < drops.length; idx++) {
-        const ph = (elapsed * 1.8 + idx / 8) % 1;
-        const angle = (idx / 8) * Math.PI * 2;
-        const r = ph * 0.95;
-        const arcY = 2.15 + Math.sin(ph * Math.PI) * 0.65 - ph * 1.5;
-        drops[idx].position.set(Math.cos(angle) * r, arcY, Math.sin(angle) * r);
+        const drop = drops[idx];
+        const kind = drop.userData.kind;
+        if (kind === 'crown') {
+          const ph = (elapsed * 1.65 + idx / 8) % 1;
+          const angle = (idx / 8) * Math.PI * 2;
+          const r = ph * 0.58;
+          const arcY = 2.86 + Math.sin(ph * Math.PI) * 0.4 - ph * 0.84;
+          drop.position.set(Math.cos(angle) * r, arcY, Math.sin(angle) * r);
+        } else if (kind === 'basin') {
+          const bIdx = idx - 8;
+          const cardinalIdx = bIdx % 4;
+          const subIdx = Math.floor(bIdx / 4);
+          const ph = (elapsed * 2.1 + subIdx * 0.33 + cardinalIdx * 0.17) % 1;
+          const angle = (cardinalIdx / 4) * Math.PI * 2 + (subIdx - 1) * 0.18;
+          const r = 1.2 + (ph - 0.25) * 0.28;
+          const arcY = 0.66 + Math.sin(ph * Math.PI) * 0.26;
+          drop.position.set(Math.cos(angle) * r, arcY, Math.sin(angle) * r);
+        } else {
+          const ph = (elapsed * 1.8 + idx / 8) % 1;
+          const angle = (idx / 8) * Math.PI * 2;
+          const r = ph * 0.95;
+          const arcY = 2.15 + Math.sin(ph * Math.PI) * 0.65 - ph * 1.5;
+          drop.position.set(Math.cos(angle) * r, arcY, Math.sin(angle) * r);
+        }
       }
+    }
+
+    const pondRig = this.deps.pondRig;
+    if (pondRig) {
+      const pWaterUniforms = getWaterShaderUniforms(pondRig.waterMat);
+      if (pWaterUniforms) {
+        pWaterUniforms.uTime.value = elapsed;
+        pWaterUniforms.uRain.value = isRain;
+        pWaterUniforms.uWinter.value = isWinter;
+        pWaterUniforms.uWind.value = windStrength;
+        pWaterUniforms.uDusk.value = duskFactor;
+        pWaterUniforms.uSplashPos.value.copy(this.pondSplashPos);
+        pWaterUniforms.uSplashAge.value = this.pondSplashAge;
+      }
+
+      // Swimming koi fish along smooth figure-8 loops inside basin
+      for (let i = 0; i < pondRig.koiFishes.length; i++) {
+        const koi = pondRig.koiFishes[i];
+        const spd = koi.speed * (isWinter ? 0.24 : 1.0);
+        const theta = elapsed * spd + koi.phaseOffset;
+        const kx = koi.centerX + Math.cos(theta) * koi.radiusX;
+        const kz = koi.centerZ + Math.sin(theta * 2) * koi.radiusZ * 0.52;
+        const vx = -Math.sin(theta) * koi.radiusX * spd;
+        const vz = Math.cos(theta * 2) * koi.radiusZ * 1.04 * spd;
+        koi.group.position.set(kx, 0.064 + Math.sin(elapsed * 2.1 + koi.phaseOffset) * 0.006, kz);
+        koi.group.rotation.y = Math.atan2(vx, vz);
+        koi.tailPivot.rotation.y =
+          Math.sin(elapsed * (isWinter ? 3.2 : 8.4) + koi.phaseOffset) * 0.36;
+      }
+
+      // Gentle bobbing lily pads & seasonal blooms
+      for (let i = 0; i < pondRig.lilyPadGroups.length; i++) {
+        const pad = pondRig.lilyPadGroups[i];
+        pad.position.y = 0.128 + Math.sin(elapsed * 1.5 + i * 1.1) * 0.005 * (1 - isWinter);
+        pad.rotation.z = Math.sin(elapsed * 1.2 + i) * 0.025 * (1 - isWinter);
+      }
+      for (let i = 0; i < pondRig.lilyBlooms.length; i++) {
+        pondRig.lilyBlooms[i].visible = isWinter < 0.5;
+      }
+
+      // Wind-driven cattail & iris reed sway
+      for (let i = 0; i < pondRig.reedStalks.length; i++) {
+        const clump = pondRig.reedStalks[i];
+        clump.rotation.z =
+          Math.sin(elapsed * (1.35 + windStrength * 1.5) + i * 1.7) * (0.03 + windStrength * 0.055);
+      }
+
+      // Dragonflies skimming above the lilies in warm/clear weather
+      const showDragonflies = effWeather !== 'light_rain' && isWinter < 0.5;
+      for (let i = 0; i < pondRig.dragonflies.length; i++) {
+        const df = pondRig.dragonflies[i];
+        df.visible = showDragonflies;
+        if (showDragonflies) {
+          const t = elapsed * (0.95 + i * 0.25) + i * 2.4;
+          const cx = i === 0 ? -1.1 : 1.35;
+          const cz = i === 0 ? -0.3 : 0.45;
+          const dx = Math.sin(t) * 0.85;
+          const dz = Math.sin(t * 2) * 0.42;
+          df.position.set(cx + dx, 0.48 + Math.sin(elapsed * 3.4 + i) * 0.12, cz + dz);
+          df.rotation.y = Math.atan2(Math.cos(t) * 0.85, Math.cos(t * 2) * 0.84);
+        }
+      }
+
+      // Moored walnut toy sailboat gently rolling beside the pier
+      pondRig.sailboat.position.y = 0.125 + Math.sin(elapsed * 1.8) * 0.012 * (1 - isWinter);
+      pondRig.sailboat.rotation.z = Math.sin(elapsed * 1.35) * 0.07 * (1 - isWinter);
+      pondRig.sailboat.rotation.x = Math.cos(elapsed * 1.1) * 0.04 * (1 - isWinter);
     }
 
     if (
@@ -402,6 +536,18 @@ export class EnvironmentVisualController {
       rigs.chimneyWisps.update(elapsed, this.wispMask);
       rigs.chimneyWisps.mesh.visible = true;
     }
+  }
+
+  triggerFountainWishRipple(worldX = 0, worldZ = 2.6): void {
+    // Convert world XZ into fountainGroup-local XZ (fountain centered at 0, 0, 1.5)
+    this.fountainSplashPos.set(worldX, 0, worldZ - 1.5);
+    this.fountainSplashAge = 0;
+  }
+
+  triggerPondRipple(worldX: number, worldZ: number): void {
+    // Convert world XZ into pondGroup-local XZ (pond centered at 1.6, 0, 14.0)
+    this.pondSplashPos.set(worldX - 1.6, 0, worldZ - 14.0);
+    this.pondSplashAge = 0;
   }
 
   dispose(): void {
