@@ -32,6 +32,7 @@ The **Player & Character Excellence Upgrade** (Phases 1–12) on top of Mileston
 2. **Environmental Hooks Now Wired (Milestone 3 polish foundation)**:
    - `puddlesActive`, `claraPastryBasketVisible`, `minaGreenhouseStage`, and `arthurEarlyPorchLamp` all have 3D visual layers in `src/scene/builders/reactiveProps.ts` (built once in `NeighborhoodCanvas.tsx`, toggled/animated by `environmentRenderer.ts`).
    - Meadow margins additionally carry instanced botanical dressing (`src/scene/builders/botanicalDressing.ts`); when adding lanes or obstacles, keep `COBBLE_LANE_RECTS` in sync with the cobble strips and the dressing placement tests will guard walkability.
+   - **Visual backlog**: `docs/audits/09-comprehensive-asset-visual-audit.md` (2026-11-19) supersedes `docs/art-direction/VISUAL_AUDIT.md`; it confirms zero P0 defects and defines the approved-roadmap-pending priorities R-01 golden/dusk lighting drama, R-02 water material elevation, R-03 touch-only VirtualJoystick, plus P2 polish items R-04..R-09.
    - Remaining Milestone 3 work: multi-region map expansion, walkable interiors, and additional residents.
 
 ---

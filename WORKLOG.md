@@ -278,3 +278,17 @@ Chronological log of design decisions, implementation milestones, verification r
   - `npm run lint` (`tsc --noEmit`) and `npm run build` pass with **0 errors**.
   - Live headless Chromium captures: desktop `1440×900` morning (dressing visible on margins, lanes clean, softer contact shadows), dusk (festoon + window glow + fireflies confirmed via crop), rain day 3 (grey sky, rain streaks, puddle films on plaza — planted by patching the app's own serialized save), and mobile `390×844` dusk — **0 console errors, 0 warnings**.
   - Draw-call delta: +12 max (5 dressing layers + 3 butterfly layers + fireflies + sparkles + puddles + wisps, all instanced), keeping the diorama inside the <= 140 budget; software-GL particle caps unchanged.
+
+## Entry 015 — AVD-01 First Assignment: Comprehensive Asset & Visual Quality Audit
+- **Date**: 2026-11-19
+- **Status**: Completed (Audit Report Delivered — implementation awaiting priority approval)
+- **Scope**: Branch review of `feat/botanical-dressing-micro-life` plus a full 5-phase asset & visual quality audit per the AVD-01 charter (discovery -> quality audit -> P0/P1/P2 prioritization -> roadmap -> report). **No asset replacement was performed**, per audit-first instructions.
+- **Deliverable**:
+  - `docs/audits/09-comprehensive-asset-visual-audit.md` — full inventory (buildings, landmarks, props, vegetation, characters, materials, textures, lighting, effects), category quality matrix, prioritization, and a 9-item development roadmap (R-01..R-09) with technical approach, dependencies, integration requirements, and performance considerations per item. Includes the standing Rule-15 evaluation of external ecosystems: Polyfork (live; CC BY 4.0 meshes + Three.js ES-module/GLB; approved as evaluation resource, not a runtime dependency without approval) and Sandflow/Sand3D (research-stage; watch only).
+- **Key Findings**:
+  - **No P0 visual defects remain.** All 10 P0 items from the 2026-11-18 `docs/art-direction/VISUAL_AUDIT.md` are verified fixed in code and live captures.
+  - The scene is 100% procedural in-house (zero imported models/textures), palette-cached, instanced where repeated, zero-GC in the frame loop, software-GL parity maintained.
+  - Remaining priorities: **P1** R-01 golden/dusk lighting drama (phases read under-differentiated), R-02 water materials (pond + fountain are the flattest materials in the scene), R-03 desktop VirtualJoystick visibility; **P2** grass-tuft cone readability, meadow texture tiling, Copperwheel dressing depth, ~370 lines of dead legacy builders in `models.ts` (`buildClayCottage`/`buildGreenhouse` unreferenced; `buildStoneFountain` kept alive only by a legacy test), title overlay framing, three.js bundle code-splitting.
+- **Verification**:
+  - `npm test` **50/50**, `npm run lint` **0 errors**, `npm run build` pass.
+  - Live headless Chromium on the audit branch: desktop 1440×900 title / morning / golden 4:24 PM / dusk 9:30 PM and mobile 390×844 — **0 console errors, 0 page errors**; window glow, festoon gating, clapper gating, fireflies, contact shadows, and botanical dressing all confirmed visually.
