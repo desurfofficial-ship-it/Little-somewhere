@@ -42,6 +42,7 @@ import {
   cloneNpcMemories,
   propagateEncounterGossipInPlace,
 } from './memories';
+import { cloneStorylines } from './storylines';
 import { distance2D, getSeatById, isPointWalkable } from './worldMap';
 
 export interface SimulationStepOptions {
@@ -1006,6 +1007,7 @@ export function stepSimulation(
     topicHistory: { ...(world.topicHistory ?? {}) },
     lastTopicByResident: { ...(world.lastTopicByResident ?? {}) },
     sideFlags: { ...(world.sideFlags ?? {}) },
+    storylines: cloneStorylines(world.storylines),
     npcMemories: cloneNpcMemories(world.npcMemories),
   };
   stepSimulationInPlace(next, dtSeconds, options);

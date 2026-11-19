@@ -69,8 +69,13 @@ import {
   isPointWalkable,
 } from './worldMap';
 import { createInitialNpcRuntime } from './simulation';
+import {
+  createInitialStorylines,
+  hydrateStorylinesFromLegacyState,
+  sanitizeStorylines,
+} from './storylines';
 
-export const CURRENT_SCHEMA_VERSION = 4;
+export const CURRENT_SCHEMA_VERSION = 5;
 export const DEFAULT_SIM_SEED = 18042;
 
 export interface MigrationResult {
@@ -196,6 +201,7 @@ export function createDefaultWorldState(): WorldState {
     topicHistory: {},
     lastTopicByResident: {},
     sideFlags: {},
+    storylines: createInitialStorylines(),
     flags,
     memories: createStarterMemories(),
     npcMemories: createInitialNpcMemories(flags.claraArthurReconciled, day, minuteOfDay),
@@ -586,7 +592,9 @@ function sanitizeWorldEvents(raw: unknown): WorldEventRecord[] {
       item.kind === 'npc_social' ||
       item.kind === 'bell_ring' ||
       item.kind === 'weather_shift' ||
-      item.kind === 'player_help'
+      item.kind === 'player_help' ||
+      item.kind === 'storyline_beat' ||
+      item.kind === 'conflict_shift'
         ? item.kind
         : 'npc_social';
     const phase =
@@ -1035,6 +1043,11 @@ export function sanitizeWorldState(candidate: unknown, externalWarnings: string[
   const topicHistory = sanitizeTopicHistory(candidate.topicHistory);
   const lastTopicByResident = sanitizeLastTopicByResident(candidate.lastTopicByResident);
   const sideFlags = sanitizeSideFlags(candidate.sideFlags);
+  const storylines = sanitizeStorylines(
+    candidate.storylines,
+    { flags, sideFlags, day },
+    warnings,
+  );
   const npcMemories = sanitizeNpcMemories(
     candidate.npcMemories,
     flags.claraArthurReconciled,
@@ -1093,6 +1106,7 @@ export function sanitizeWorldState(candidate: unknown, externalWarnings: string[
     topicHistory,
     lastTopicByResident,
     sideFlags,
+    storylines,
     flags,
     memories: sanitizeMemories(candidate.memories),
     npcMemories,
@@ -1419,11 +1433,29 @@ function RESIDENTS_HAS(id: ResidentId): boolean {
   return (RESIDENT_ORDER as readonly string[]).includes(id);
 }
 
+/**
+ * Pure sequential v4 -> v5 save upgrader adding structured multi-stage storyline progress
+ * hydrated cleanly from existing v4 story flags and sideFlags while leaving v4 npcMemories intact.
+ */
+export function migrateV4ToV5(v4Raw: Record<string, unknown>): Record<string, unknown> {
+  const warnings: string[] = [];
+  const day = Math.max(1, Math.floor(asFiniteNumber(v4Raw.day, 1)));
+  const flags = sanitizeFlags(v4Raw.flags, warnings);
+  const sideFlags = sanitizeSideFlags(v4Raw.sideFlags);
+  const storylines = hydrateStorylinesFromLegacyState({ flags, sideFlags, day });
+
+  return {
+    ...v4Raw,
+    schemaVersion: 5,
+    storylines,
+  };
+}
+
 export function migrateWorldState(raw: unknown): MigrationResult {
   const warnings: string[] = [];
   const detected = detectSchemaVersion(raw);
   if (detected === null) {
-    warnings.push('unrecognized or corrupt save payload; created fresh WorldState v4');
+    warnings.push('unrecognized or corrupt save payload; created fresh WorldState v5');
     return {
       state: createDefaultWorldState(),
       migratedFromVersion: null,
@@ -1447,6 +1479,11 @@ export function migrateWorldState(raw: unknown): MigrationResult {
   if (version === 3) {
     working = migrateV3ToV4(working);
     version = 4;
+  }
+
+  if (version === 4) {
+    working = migrateV4ToV5(working);
+    version = 5;
   }
 
   if (version > CURRENT_SCHEMA_VERSION) {

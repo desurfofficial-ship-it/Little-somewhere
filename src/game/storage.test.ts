@@ -158,7 +158,7 @@ test('per-field sanitization clamps bad day/clock/trust and resets non-walkable 
   assert.equal(early.minuteOfDay, DAY_START_MINUTE);
 });
 
-test('corrupt JSON falls back cleanly and v4 round-trip preserves state', () => {
+test('corrupt JSON falls back cleanly and v5 round-trip preserves state', () => {
   const corrupt = deserializeWorldState('{not valid json!!!');
   assert.equal(corrupt.migratedFromVersion, null);
   assert.equal(corrupt.state.schemaVersion, CURRENT_SCHEMA_VERSION);
@@ -449,7 +449,7 @@ test('v3->v4 migration hydrates strictly save-backed evidence without manufactur
     const rawV3 = JSON.stringify(v3Save);
     store.set(STORAGE_KEY, rawV3);
     const loaded = loadWorldState();
-    assert.equal(loaded.schemaVersion, 4);
+    assert.equal(loaded.schemaVersion, CURRENT_SCHEMA_VERSION);
     assert.equal(store.get(STORAGE_BACKUP_KEY), rawV3);
   });
 });
@@ -605,6 +605,105 @@ test('bounded npcMemories keeps full 9-resident save compact and scales safely t
   const scaled25Bytes = serializedBytes + Math.ceil((memJsonBytes / RESIDENT_ORDER.length) * 16);
   assert.ok(scaled25Bytes < 220_000, `Expected 25-resident extrapolated save < 220KB, got ${scaled25Bytes}`);
 });
+
+test('v4->v5 migration hydrates storyline progress from legacy sideFlags without manufacturing npcMemories', () => {
+  const v4Save = {
+    schemaVersion: 4,
+    day: 6,
+    minuteOfDay: 720,
+    flags: {
+      heardBellMystery: true,
+      lanternsLit: true,
+    },
+    sideFlags: {
+      pipZineStarted: true,
+      herbLoafStarted: true,
+      herbLoafShared: true,
+      herbLoafStyle: 'tea_basket',
+    },
+    npcMemories: {
+      mina: [
+        {
+          id: 'ev_v4_mina',
+          eventId: 'ev_v4_mina',
+          tag: 'moon_petals',
+          category: 'event',
+          provenance: 'firsthand',
+          sourceKind: 'participant',
+          createdDay: 4,
+          createdMinute: 600,
+          learnedDay: 4,
+          learnedMinute: 600,
+          retention: 'durable',
+        },
+      ],
+    },
+  };
+
+  const res = deserializeWorldState(JSON.stringify(v4Save));
+  assert.equal(res.migratedFromVersion, 4);
+  assert.equal(res.state.schemaVersion, 5);
+  assert.equal(res.state.storylines.side_pip_zine.status, 'active');
+  assert.equal(res.state.storylines.side_pip_zine.stage, 1);
+  assert.equal(res.state.storylines.side_herb_loaf.status, 'completed');
+  assert.equal(res.state.storylines.side_herb_loaf.stage, 3);
+  assert.equal(res.state.storylines.side_herb_loaf.outcome, 'tea_basket');
+  assert.equal(res.state.storylines.conflict_plaza_lanterns.status, 'available');
+  assert.equal(res.state.storylines.conflict_plaza_lanterns.stage, 0);
+
+  // V4 npcMemories preserved cleanly without fabricating memories for uninvolved residents
+  assert.ok(res.state.npcMemories.mina.some((m) => m.id === 'ev_v4_mina'));
+  assert.equal(res.state.npcMemories.nora.length, 0);
+
+  // Backup written during v4 -> v5 localStorage upgrade
+  withMockLocalStorage((store) => {
+    const rawV4 = JSON.stringify(v4Save);
+    store.set(STORAGE_KEY, rawV4);
+    const loaded = loadWorldState();
+    assert.equal(loaded.schemaVersion, 5);
+    assert.equal(store.get(STORAGE_BACKUP_KEY), rawV4);
+  });
+});
+
+test('sanitizeStorylines clamps bad entries, preserves cooldowns, and computeWorldSaveRevision tracks storyline edits', () => {
+  const warnings: string[] = [];
+  const sanitized = sanitizeWorldState(
+    {
+      schemaVersion: 5,
+      day: 4,
+      minuteOfDay: 600,
+      storylines: {
+        bad_entry: 'not_an_object',
+        conflict_plaza_lanterns: {
+          id: 'conflict_plaza_lanterns',
+          stage: 99, // clamped to 3
+          status: 'active',
+          outcome: 'bridge_compromise',
+          cooldownUntilDay: 6,
+          notes: ['a', '', 'b', 'c', 'd', 'e', 'f', 'g'],
+        },
+      },
+    },
+    warnings,
+  );
+
+  assert.equal(sanitized.storylines.conflict_plaza_lanterns.stage, 3);
+  assert.equal(sanitized.storylines.conflict_plaza_lanterns.cooldownUntilDay, 6);
+  assert.equal(sanitized.storylines.conflict_plaza_lanterns.notes?.length, 6);
+  assert.ok(warnings.some((w) => w.includes('bad_entry')));
+
+  const base = createFreshWorldState();
+  const rev0 = computeWorldSaveRevision(base);
+  const edited = structuredClone(base);
+  edited.storylines.conflict_plaza_lanterns.stage = 2;
+  edited.storylines.conflict_plaza_lanterns.status = 'active';
+  edited.storylines.conflict_plaza_lanterns.cooldownUntilDay = 5;
+  assert.notEqual(computeWorldSaveRevision(edited), rev0);
+
+  const roundTrip = deserializeWorldState(serializeWorldState(edited));
+  assert.equal(roundTrip.state.storylines.conflict_plaza_lanterns.cooldownUntilDay, 5);
+});
+
 
 
 

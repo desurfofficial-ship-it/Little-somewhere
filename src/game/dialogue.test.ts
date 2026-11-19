@@ -556,16 +556,34 @@ test('Phase 1 engine scalability: new DialogueCondition predicates and reachable
     `Expected sitting context flavor remark in daily_slice text: "${claraDaily.nodes.root.text}"`,
   );
 
-  // Forward Phase 2/3 hooks on evaluateDialogueCondition (npcMemories & storylines)
-  const hookedWorld = {
+  // Native Phase 3/4 predicates on evaluateDialogueCondition (npcMemories & storylines + cooldown)
+  const hookedWorld: WorldState = {
     ...world,
+    day: 3,
     npcMemories: {
-      clara: [{ id: 'm1', tag: 'shared_bread' }],
+      ...world.npcMemories,
+      clara: [
+        createNpcMemoryEntry({
+          id: 'm1',
+          eventId: 'm1',
+          tag: 'shared_bread',
+          category: 'interaction',
+          createdDay: 3,
+          createdMinute: 600,
+        }),
+      ],
     },
     storylines: {
-      bakery_revival: { id: 'bakery_revival', stage: 2, status: 'active', outcome: 'warm' },
+      ...world.storylines,
+      bakery_revival: {
+        id: 'bakery_revival',
+        stage: 2,
+        status: 'active',
+        outcome: 'warm',
+        cooldownUntilDay: 5,
+      },
     },
-  } as unknown as WorldState;
+  };
 
   assert.equal(
     evaluateDialogueCondition({ requiresNpcMemoriesAny: ['shared_bread'] }, 'clara', hookedWorld, 'afternoon', 'h1'),
@@ -580,6 +598,26 @@ test('Phase 1 engine scalability: new DialogueCondition predicates and reachable
       { requiresStoryline: { id: 'bakery_revival', minStage: 2, status: ['active'], outcome: 'warm' } },
       'clara',
       hookedWorld,
+      'afternoon',
+      'h1',
+    ),
+    true,
+  );
+  assert.equal(
+    evaluateDialogueCondition(
+      { requiresStoryline: { id: 'bakery_revival', minStage: 2, requireCooldownCleared: true } },
+      'clara',
+      hookedWorld,
+      'afternoon',
+      'h1',
+    ),
+    false,
+  );
+  assert.equal(
+    evaluateDialogueCondition(
+      { requiresStoryline: { id: 'bakery_revival', minStage: 2, requireCooldownCleared: true } },
+      'clara',
+      { ...hookedWorld, day: 5 },
       'afternoon',
       'h1',
     ),

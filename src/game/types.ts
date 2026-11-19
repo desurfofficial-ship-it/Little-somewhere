@@ -328,7 +328,14 @@ export interface WorldEventRecord {
   day: number;
   phase: TimePhase;
   minuteOfDay: number;
-  kind: 'story_flag' | 'npc_social' | 'bell_ring' | 'weather_shift' | 'player_help';
+  kind:
+    | 'story_flag'
+    | 'npc_social'
+    | 'bell_ring'
+    | 'weather_shift'
+    | 'player_help'
+    | 'storyline_beat'
+    | 'conflict_shift';
   actors: ResidentId[];
   summary: string;
   summaryTag: string;
@@ -379,6 +386,60 @@ export interface SeatSpot {
   zoneId: string;
 }
 
+export type StorylineStatus = 'locked' | 'available' | 'active' | 'completed';
+
+export interface StorylineProgress {
+  id: string;
+  stage: number;
+  status: StorylineStatus;
+  outcome?: string;
+  startedDay?: number;
+  updatedDay?: number;
+  completedDay?: number;
+  cooldownUntilDay?: number;
+  notes?: string[];
+}
+
+export interface StorylineStageDef {
+  stage: number;
+  title: string;
+  journalHint: string;
+  involvedResidents: ResidentId[];
+  unlockCondition?: DialogueCondition;
+}
+
+export interface StorylineOutcomeDef {
+  label: string;
+  journalSummary: string;
+}
+
+export interface StorylineDefinition {
+  id: string;
+  title: string;
+  subtitle: string;
+  category: 'personal_story' | 'interconnected_conflict';
+  leadResidents: ResidentId[];
+  stages: StorylineStageDef[];
+  outcomes: Record<string, StorylineOutcomeDef>;
+}
+
+export interface StorylineAdvanceSpec {
+  id: string;
+  setStage?: number;
+  setStatus?: StorylineStatus;
+  setOutcome?: string;
+  cooldownDays?: number;
+  note?: string;
+}
+
+export interface NpcRelationAdjustment {
+  a: ResidentId;
+  b: ResidentId;
+  deltaAffinity: number;
+  deltaTension: number;
+  tag?: string;
+}
+
 export interface WorldState {
   schemaVersion: number;
   simSeed: number;
@@ -406,6 +467,7 @@ export interface WorldState {
   flags: StoryFlags;
   memories: JournalMemory[];
   npcMemories: Record<ResidentId, NpcMemoryEntry[]>;
+  storylines: Record<string, StorylineProgress>;
   mailboxUnread: boolean;
   dailyLettersRead: number[];
   bellRungCount: number;
@@ -424,10 +486,11 @@ export type DialogueCategory =
 
 export interface DialogueStorylineCondition {
   id: string;
-  status?: Array<'locked' | 'available' | 'active' | 'completed'>;
+  status?: StorylineStatus[];
   minStage?: number;
   maxStage?: number;
   outcome?: string;
+  requireCooldownCleared?: boolean;
 }
 
 export interface ThirdPartyRelationCondition {
@@ -504,13 +567,9 @@ export interface DialogueChoice {
   setEmotion?: CharacterEmotion;
   setFlags?: Partial<StoryFlags>;
   setSideFlags?: Record<string, boolean | number | string>;
-  adjustNpcTension?: {
-    a: ResidentId;
-    b: ResidentId;
-    deltaAffinity: number;
-    deltaTension: number;
-    tag?: string;
-  };
+  adjustNpcTension?: NpcRelationAdjustment;
+  adjustNpcRelations?: NpcRelationAdjustment[];
+  advanceStoryline?: StorylineAdvanceSpec | StorylineAdvanceSpec[];
   deliverHeldItem?: CarryableItemId;
   unlockMemory?: Omit<JournalMemory, 'day' | 'phase'>;
   requiresFlag?: keyof StoryFlags;

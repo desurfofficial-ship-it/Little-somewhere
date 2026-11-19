@@ -29,20 +29,21 @@
 ┌───────────────────────────────────────────────────────────────────────────┐
 │               Headless Game Engine (src/game/* — Zero UI/3D)              │
 │                                                                           │
-│  • types.ts      — WorldState v4, StoryFlags, NpcMemoryEntry, Dialogue   │
+│  • types.ts      — WorldState v5, StoryFlags, Storylines, Memories, Dialogue│
 │  • time.ts/rng.ts— Unified 360–1290 clock, 10-day seasons, deterministic PRNG│
 │  • worldMap.ts   — Bounds, box/circle obstacles, seats, carryable props    │
 │  • navigation.ts — 38-node A* lane graph + cottage interior, LOS smoothing  │
 │  • residents.ts  — Founding residents, traits, 4-phase slots & activities  │
 │  • simulation.ts — Needs, emotions, autonomous encounters & gossip hooks   │
 │  • memories.ts   — Bounded NPC memories, witness rules, encounter gossip   │
+│  • storylines.ts — Multi-stage storyline registry, state & journal views   │
 │  • relationships.ts — Player<->NPC & NPC<->NPC tiers, daily cap, events    │
 │  • dialogueEngine.ts — Declarative selector, non-omniscient memory & gossip│
-│  • narrative.ts  — Story topics, Bell & side arcs, computeEnvironmentState │
+│  • narrative.ts  — Story topics, Bell, 4 arcs + conflict, env reactivity   │
 │  • actions.ts    — Dialogue, prop, water wish/skip, & next-day reducers    │
 │  • environment.ts— 5-layer Environment Composer (time/weather/season/props)│
 │  • playerController.ts — Locomotion, bridge Y, bench sit, prop targeting   │
-│  • migrations.ts — v1 -> v2 -> v3 -> v4 save migration & field sanitization│
+│  • migrations.ts — v1 -> v2 -> v3 -> v4 -> v5 save migration & sanitization│
 │  • storage.ts    — localStorage persistence ('little_somewhere_world_v1')  │
 │  • audio.ts      — Procedural Web Audio API SFX (footsteps, chimes, bell)  │
 └────────────────────────────────────────────────────────────────────────────┘
@@ -120,14 +121,14 @@ computeEnvironmentState(world.flags)
 
 | Path | Responsibility |
 | :--- | :--- |
-| `src/game/types.ts` | Core domain interfaces (`WorldState` v4, `StoryFlags`, `NpcMemoryEntry`, `DialogueSession`) |
+| `src/game/types.ts` | Core domain interfaces (`WorldState` v5, `StoryFlags`, `StorylineProgress`, `NpcMemoryEntry`, `DialogueSession`) |
 | `src/game/time.ts`, `rng.ts` | Unified clock (`360–1290`), 10-day 4-season calendar, deterministic FNV/Mulberry PRNG |
 | `src/game/worldMap.ts`, `navigation.ts` | Neighborhood map, bounds, collision math, landmarks, props, cottage interior plates, 38-node A* graph |
 | `src/game/residents.ts`, `simulation.ts` | Founding resident definitions, traits, schedules, needs/emotions, encounters & gossip triggers |
-| `src/game/memories.ts`, `relationships.ts` | Bounded per-NPC subjective memories, witness rules, controlled gossip/distortion, tiers & events |
-| `src/game/dialogueEngine.ts`, `narrative.ts` | Declarative selector, knowledge-based gossip & reactions, Bell & side arcs, `computeEnvironmentState()` || `src/game/actions.ts`, `playerController.ts` | Pure state transition reducers, mailbox letters, prop/water actions, locomotion & bench logic |
-| `src/game/environment.ts` | Pure 5-Layer Environment Composer (time, seeded weather, season, flags, NPC touches) |
-| `src/game/migrations.ts`, `storage.ts`, `audio.ts` | `v1 -> v2 -> v3 -> v4` migrations, `localStorage` autosave + revision hash, Web Audio SFX |
+| `src/game/memories.ts`, `storylines.ts`, `relationships.ts` | Bounded per-NPC subjective memories/gossip, multi-stage personal/conflict storylines, tiers & events |
+| `src/game/dialogueEngine.ts`, `narrative.ts` | Declarative selector, knowledge-based gossip & reactions, Bell, 4 arcs + conflict, `computeEnvironmentState()` |
+| `src/game/actions.ts`, `playerController.ts` | Pure state transition reducers, mailbox letters, prop/water actions, locomotion & bench logic || `src/game/environment.ts` | Pure 5-Layer Environment Composer (time, seeded weather, season, flags, NPC touches) |
+| `src/game/migrations.ts`, `storage.ts`, `audio.ts` | `v1 -> v2 -> v3 -> v4 -> v5` migrations, `localStorage` autosave + revision hash, Web Audio SFX |
 | `src/game/*.test.ts`, `src/scene/*.test.ts` | Deterministic `node:test` suites covering engine rules, saves, and 3D scene contracts |
 | `src/scene/textures.ts`, `materials.ts` | Seeded procedural `CanvasTexture` surfaces & shared `MaterialPalette` cache |
 | `src/scene/models.ts`, `waterShaders.ts` | Shared rig type contracts (`GazeboRig`, `FountainRig`, `MirrorPondRig`, `CharacterRig`) & water shaders |

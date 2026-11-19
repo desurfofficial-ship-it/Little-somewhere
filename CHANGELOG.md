@@ -8,7 +8,7 @@ All notable changes to **LITTLE SOMEWHERE** are documented in this file.
 - **Walkable Willow Step Cottage interior** (Build 3): furnished one-room interior with fieldstone hearth (phase-aware ember + flickering flames), moss-green quilt bed with a real *Rest Until Morning* flow, round table & stools on a woven rug, tinted bookshelf, kitchenette with jars & brass kettle, keepsake shelf + postcards, and a brass sconce that glows at dusk. Hinged porch door swings open as the player approaches; a dollhouse occlusion swap lifts the roof and camera-side walls the moment the player steps onto the porch. Entry ramp + raised porch/floor plates climb smoothly (`getGroundHeightAt`), the 38-node A* graph routes through the doorway, and the bed/hearth are real interactables with walkable approaches.
 - **Fern Hollow Orchard** north district (Build 1): season-tinted crabapple orchard, fieldstone gate with hanging sign, harvest ladder/crates, bee skep, stepping stones, 5 nav nodes + orchard bench.
 - **Player full-capability polish** (Build 2): bespoke storybook player rig (scarf/satchel/postcard/beret pin), dusk pocket lantern, idle flourishes, wave-hello emote with neighbor wave-back, tiered footstep audio + dust puffs, pinch-to-zoom, sprint camera juice.
-- 17 new test suites covering cottage walkability/A*/plateaus/hysteresis/prop flows and scene-contract sync (88 total).
+- 17 new test suites covering cottage walkability/A*/plateaus/hysteresis/prop flows and scene-contract sync.
 
 ### Changed
 - `player_door` interaction is now inside-aware flavor ("Step Inside" / "Step Outside"); resting moved to the new `player_bed` interactable (`rest_next_day`).

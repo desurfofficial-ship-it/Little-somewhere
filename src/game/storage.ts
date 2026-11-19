@@ -34,7 +34,7 @@ export function deserializeWorldState(rawJson: string): MigrationResult {
     return {
       state: createDefaultWorldState(),
       migratedFromVersion: null,
-      warnings: ['corrupt JSON payload; created fresh WorldState v4'],
+      warnings: ['corrupt JSON payload; created fresh WorldState v5'],
     };
   }
 }
@@ -142,6 +142,28 @@ export function computeWorldSaveRevision(state: WorldState): string {
     const sk = sideKeys[i];
     pushStr(sk);
     pushStr(String(state.sideFlags[sk]));
+  }
+
+  const storylineKeys = Object.keys(state.storylines ?? {}).sort();
+  pushNum(storylineKeys.length);
+  for (let i = 0; i < storylineKeys.length; i++) {
+    const stKey = storylineKeys[i];
+    const st = state.storylines[stKey];
+    pushStr(stKey);
+    if (st) {
+      pushNum(st.stage);
+      pushStr(st.status);
+      pushStr(st.outcome ?? '');
+      pushNum(st.startedDay ?? -1);
+      pushNum(st.updatedDay ?? -1);
+      pushNum(st.completedDay ?? -1);
+      pushNum(st.cooldownUntilDay ?? -1);
+      const notes = st.notes ?? [];
+      pushNum(notes.length);
+      for (let nIdx = 0; nIdx < notes.length; nIdx++) {
+        pushStr(notes[nIdx]);
+      }
+    }
   }
 
   const propKeys = Object.keys(state.worldProps ?? {}).sort();

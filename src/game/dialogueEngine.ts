@@ -30,6 +30,7 @@ import {
   getProvenanceRank,
   isMemoryExpired,
 } from './memories';
+import { isStorylineOnCooldown } from './storylines';
 import { getTimePhase } from './time';
 import { getSeatById } from './worldMap';
 
@@ -44,10 +45,6 @@ const CATEGORY_PRIORITY: Record<DialogueCategory, number> = {
   weather_season: 42,
   daily_slice: 34,
 };
-
-interface ForwardStorylineHooks {
-  storylines?: Record<string, { id: string; stage: number; status: string; outcome?: string }>;
-}
 
 export function getTopicHistoryKey(
   topic: Pick<DialogueTopic, 'id' | 'residentId' | 'historyScope'>,
@@ -455,18 +452,20 @@ export function evaluateDialogueCondition(
     });
     if (!matched) return false;
   }
-  const hooks = world as WorldState & ForwardStorylineHooks;
   if (cond.requiresStoryline) {
     const req = cond.requiresStoryline;
-    const progStory = hooks.storylines?.[req.id];
+    const progStory = world.storylines?.[req.id];
     const status = progStory?.status ?? 'available';
     const stage = progStory?.stage ?? 0;
-    if (req.status && !req.status.includes(status as 'locked' | 'available' | 'active' | 'completed')) {
+    if (req.status && !req.status.includes(status)) {
       return false;
     }
     if (req.minStage !== undefined && stage < req.minStage) return false;
     if (req.maxStage !== undefined && stage > req.maxStage) return false;
     if (req.outcome !== undefined && progStory?.outcome !== req.outcome) return false;
+    if (req.requireCooldownCleared && isStorylineOnCooldown(progStory, world.day)) {
+      return false;
+    }
   }
 
   const hist = getTopicHistoryEntry(world, residentId, topicId);

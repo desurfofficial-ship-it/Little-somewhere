@@ -12,6 +12,7 @@ import {
   WorldState,
 } from './types';
 import { RESIDENTS } from './residents';
+import { getNpcRelation, getRelationshipTier } from './relationships';
 import {
   type DeclarativeNodeSpec,
   findSpeakerMemory,
@@ -754,14 +755,19 @@ export const DIALOGUE_TOPICS: readonly DialogueTopic[] = [
     },
   ),
 
-  // ================= 4 PERSONAL SIDE STORYLINES =================
-  // 1. Nora & Pip's Chalk Zine
+  // ================= 4 PERSONAL MULTI-STAGE STORYLINES =================
+  // 1. Willow Lane Zine (Pip -> Toby/Clara -> Nora)
   makeSimpleTopic(
     'side_pip_zine_1',
     'pip',
     'personal_story',
     15,
-    { sideFlagsFalse: ['pipZineStarted'], minTrust: 1, notSeenToday: true },
+    {
+      requiresStoryline: { id: 'side_pip_zine', status: ['available'], maxStage: 0 },
+      sideFlagsFalse: ['pipZineStarted'],
+      minTrust: 1,
+      notSeenToday: true,
+    },
     {
       moodLabel: 'Excited',
       buildText: () =>
@@ -777,61 +783,311 @@ export const DIALOGUE_TOPICS: readonly DialogueTopic[] = [
           isStoryMilestone: true,
           setEmotion: 'excited',
           setSideFlags: { pipZineStarted: true },
+          advanceStoryline: {
+            id: 'side_pip_zine',
+            setStage: 1,
+            setStatus: 'active',
+            note: 'Pip started gathering chalk sketches and neighborhood stories for Issue #1.',
+          },
+          adjustNpcRelations: [
+            { a: 'nora', b: 'pip', deltaAffinity: 4, deltaTension: 0, tag: 'zine_planning' },
+          ],
+          recordNpcMemories: [
+            {
+              target: 'speaker',
+              id: 'ev_pip_zine_start',
+              tag: 'zine_started',
+              category: 'interaction',
+              valence: 'warm',
+              importance: 3,
+              retention: 'durable',
+              subjectPlayer: true,
+              subjectResidents: ['pip', 'nora'],
+            },
+          ],
         },
       ],
       endings: {
         end_yes: {
           moodLabel: 'Beaming',
-          text: `Really?! Tell Miss Nora I picked her favorite marigold leaf for the cover!`,
+          text: `Really?! Tell Miss Nora I picked her favorite marigold leaf for the cover—or maybe ask Toby or Clara if they want a guest page!`,
         },
       },
     },
   ),
   makeSimpleTopic(
+    'side_toby_zine_art',
+    'toby',
+    'personal_story',
+    19,
+    {
+      requiresStoryline: { id: 'side_pip_zine', status: ['active'], minStage: 1, maxStage: 1 },
+      notSeenToday: true,
+    },
+    {
+      moodLabel: 'Curious',
+      buildText: () =>
+        `Pip stopped by asking if I ever drew the koi under Mirror Pond’s lantern reflection… I’ve actually got two clean watercolor sheets drying right here.`,
+      choices: [
+        {
+          id: 'toby_zine_watercolor',
+          label: 'Include Toby’s pond-and-lantern watercolors in Issue #1.',
+          tone: 'warm',
+          nextNodeId: 'toby_art_yes',
+          trustDelta: 1,
+          reliabilityDelta: 7,
+          isStoryMilestone: true,
+          setEmotion: 'happy',
+          advanceStoryline: {
+            id: 'side_pip_zine',
+            setStage: 2,
+            setStatus: 'active',
+            setOutcome: 'art_edition',
+            note: 'Toby offered Mirror Pond watercolor spreads for Issue #1.',
+          },
+          adjustNpcRelations: [
+            { a: 'pip', b: 'toby', deltaAffinity: 6, deltaTension: 0, tag: 'zine_art' },
+          ],
+          recordNpcMemories: [
+            {
+              target: 'speaker',
+              id: 'ev_toby_zine_art',
+              tag: 'zine_contributor_art',
+              category: 'interaction',
+              valence: 'warm',
+              importance: 3,
+              retention: 'durable',
+              subjectPlayer: true,
+              subjectResidents: ['toby', 'pip'],
+            },
+          ],
+        },
+        {
+          id: 'toby_zine_save_later',
+          label: 'Let’s keep your watercolors for Issue #2—we might try a kitchen page first.',
+          tone: 'gentle',
+          nextNodeId: 'toby_art_wait',
+          trustDelta: 0,
+          setEmotion: 'relaxed',
+        },
+      ],
+      endings: {
+        toby_art_yes: {
+          moodLabel: 'Shy-Proud',
+          text: `Whoa, really?! Tell Miss Nora I’ll slip the painted carp folio onto the Linden counter before dusk.`,
+        },
+        toby_art_wait: {
+          moodLabel: 'Understanding',
+          text: `No rush—I’ll keep adding lily-pad details until Pip’s second issue comes around.`,
+        },
+      },
+    },
+  ),
+  makeSimpleTopic(
+    'side_clara_zine_kitchen',
+    'clara',
+    'personal_story',
+    19,
+    {
+      requiresStoryline: { id: 'side_pip_zine', status: ['active'], minStage: 1, maxStage: 1 },
+      notSeenToday: true,
+    },
+    {
+      moodLabel: 'Fond',
+      buildText: () =>
+        `Pip’s little pocket zine sounds dear. I scribbled my hearth-steamed rosemary crust timing on an index card—think Nora would tuck a baking corner inside Issue #1?`,
+      choices: [
+        {
+          id: 'clara_zine_recipe',
+          label: 'Add Clara’s rosemary crust notes as the Hearth & Recipe feature.',
+          tone: 'warm',
+          nextNodeId: 'clara_rec_yes',
+          trustDelta: 1,
+          reliabilityDelta: 7,
+          isStoryMilestone: true,
+          setEmotion: 'happy',
+          advanceStoryline: {
+            id: 'side_pip_zine',
+            setStage: 2,
+            setStatus: 'active',
+            setOutcome: 'kitchen_edition',
+            note: 'Clara contributed her hearth sourdough notes for Issue #1.',
+          },
+          adjustNpcRelations: [
+            { a: 'clara', b: 'pip', deltaAffinity: 6, deltaTension: 0, tag: 'zine_recipe' },
+          ],
+          recordNpcMemories: [
+            {
+              target: 'speaker',
+              id: 'ev_clara_zine_recipe',
+              tag: 'zine_contributor_recipe',
+              category: 'interaction',
+              valence: 'warm',
+              importance: 3,
+              retention: 'durable',
+              subjectPlayer: true,
+              subjectResidents: ['clara', 'pip'],
+            },
+          ],
+        },
+        {
+          id: 'clara_zine_skip',
+          label: 'Save your recipe card for next month—maybe Toby has a sketch for #1.',
+          tone: 'gentle',
+          nextNodeId: 'clara_rec_wait',
+          trustDelta: 0,
+          setEmotion: 'relaxed',
+        },
+      ],
+      endings: {
+        clara_rec_yes: {
+          moodLabel: 'Warm',
+          text: `Tuck it right beside Pip’s chalk stars! Nothing binds a neighborhood like crumbs and ink together.`,
+        },
+        clara_rec_wait: {
+          moodLabel: 'Cheerful',
+          text: `Fair enough—I’ll pin it above the flour bin until Issue #2!`,
+        },
+      },
+    },
+  ),
+  makeBranchingTopic(
     'side_nora_zine_2',
     'nora',
     'personal_story',
     18,
-    { sideFlagsTrue: ['pipZineStarted'], sideFlagsFalse: ['pipZinePrinted'], notSeenToday: true },
     {
-      moodLabel: 'Amused',
-      buildText: () =>
-        `Pip arrived with six chalk drawings of the fountain carp and a dandelion bookmark. If you think the lane’s ready for a pocket edition, I’ve stitched the spine.`,
-      choices: [
+      requiresStoryline: { id: 'side_pip_zine', status: ['active'], minStage: 1, maxStage: 2 },
+      sideFlagsFalse: ['pipZinePrinted'],
+      notSeenToday: true,
+    },
+    (_id, world): { nodes: Record<string, DeclarativeNodeSpec> } => {
+      const prog = world.storylines?.side_pip_zine;
+      const outcome =
+        prog?.outcome === 'art_edition' || prog?.outcome === 'kitchen_edition'
+          ? prog.outcome
+          : 'classic_edition';
+      const contributorMem = findSpeakerMemory('nora', world, {
+        tags: ['zine_contributor_art', 'zine_contributor_recipe'],
+      });
+      const heardPrefix = contributorMem?.fromResidentId
+        ? `${RESIDENTS[contributorMem.fromResidentId].name} already dropped word—`
+        : '';
+
+      const rootText =
+        outcome === 'art_edition'
+          ? `${heardPrefix}Toby’s koi-and-lantern watercolor spread pairs beautifully with Pip’s chalk drawings. Shall we stitch the Pond & Lantern Art Edition onto the shelf?`
+          : outcome === 'kitchen_edition'
+          ? `${heardPrefix}Clara’s rosemary-crust recipe card smells faintly of flour beside Pip’s chalk doodles. Ready to bind the Hearth & Recipe Edition for the counter?`
+          : `Pip arrived with six chalk drawings of the fountain carp and a dandelion bookmark. If you think the lane’s ready for a pocket edition, I’ve stitched the spine.`;
+
+      const stageChoices: DialogueChoice[] = [
         {
           id: 'nora_print_zine',
-          label: 'Let’s place Issue #1 on the Linden Book Nook counter!',
+          label:
+            outcome === 'art_edition'
+              ? 'Bind the Pond & Lantern Art Edition for the Book Nook counter!'
+              : outcome === 'kitchen_edition'
+              ? 'Bind the Hearth & Recipe Edition for the Book Nook counter!'
+              : 'Let’s place Issue #1 on the Linden Book Nook counter!',
           tone: 'warm',
           nextNodeId: 'end_print',
           trustDelta: 1,
           reliabilityDelta: 10,
           isStoryMilestone: true,
           setEmotion: 'happy',
-          setSideFlags: { pipZinePrinted: true },
+          setSideFlags: { pipZinePrinted: true, pipZineTheme: outcome },
+          advanceStoryline: {
+            id: 'side_pip_zine',
+            setStage: 3,
+            setStatus: 'completed',
+            setOutcome: outcome,
+            note: `Bound Issue #1 (${outcome}).`,
+          },
+          adjustNpcRelations: [
+            { a: 'nora', b: 'pip', deltaAffinity: 8, deltaTension: 0, tag: 'zine_published' },
+          ],
+          recordNpcMemories: [
+            {
+              target: 'speaker',
+              id: 'ev_zine_published',
+              tag: 'zine_published',
+              category: 'event',
+              valence: 'warm',
+              importance: 4,
+              retention: 'durable',
+              subjectPlayer: true,
+              subjectResidents: ['nora', 'pip'],
+            },
+            {
+              target: 'pip',
+              id: 'ev_zine_published',
+              tag: 'zine_published',
+              category: 'event',
+              valence: 'warm',
+              importance: 4,
+              retention: 'durable',
+              subjectPlayer: true,
+              subjectResidents: ['nora', 'pip'],
+            },
+          ],
           unlockMemory: {
             id: 'mem_side_chalk_zine',
             title: 'Willow Lane Zine, Issue #1',
-            summary: 'Helped Pip and Nora stitch together the neighborhood’s first pocket storybook zine.',
+            summary:
+              outcome === 'art_edition'
+                ? 'Bound Pip’s chalk tales alongside Toby’s Mirror Pond watercolors for the neighborhood’s first storybook zine.'
+                : outcome === 'kitchen_edition'
+                ? 'Bound Pip’s chalk tales with Clara’s rosemary crust notes into the neighborhood’s first pocket zine.'
+                : 'Helped Pip and Nora stitch together the neighborhood’s first pocket storybook zine.',
             residentId: 'nora',
           },
         },
-      ],
-      endings: {
-        end_print: {
-          moodLabel: 'Proud',
-          text: `Every little lane deserves its own chronicler—thank you for cheering Pip on.`,
+      ];
+
+      if ((prog?.stage ?? 1) < 2) {
+        stageChoices.push({
+          id: 'nora_wait_guest_page',
+          label: 'Wait a beat—let’s ask Toby or Clara if they have a guest page first.',
+          tone: 'curious',
+          nextNodeId: 'wait_guest',
+          trustDelta: 0,
+          setEmotion: 'curious',
+        });
+      }
+
+      return {
+        nodes: {
+          root: {
+            moodLabel: 'Amused',
+            text: rootText,
+            choices: stageChoices,
+          },
+          end_print: {
+            moodLabel: 'Proud',
+            text: `Every little lane deserves its own chronicler—thank you for cheering Pip on.`,
+          },
+          wait_guest: {
+            moodLabel: 'Attentive',
+            text: `Good instinct. Toby keeps fresh watercolors by the pond, and Clara always has recipe scraps by her oven.`,
+          },
         },
-      },
+      };
     },
   ),
 
-  // 2. Mina & Clara's Herb Loaf
+  // 2. Seasonal Herb & Hearth (Mina -> Sora -> Clara)
   makeSimpleTopic(
     'side_mina_herbloaf_1',
     'mina',
     'personal_story',
     14,
-    { sideFlagsFalse: ['herbLoafStarted'], minTrust: 1, notSeenToday: true },
+    {
+      requiresStoryline: { id: 'side_herb_loaf', status: ['available'], maxStage: 0 },
+      sideFlagsFalse: ['herbLoafStarted'],
+      minTrust: 1,
+      notSeenToday: true,
+    },
     {
       moodLabel: 'Curious',
       buildText: () =>
@@ -847,61 +1103,292 @@ export const DIALOGUE_TOPICS: readonly DialogueTopic[] = [
           isStoryMilestone: true,
           setEmotion: 'happy',
           setSideFlags: { herbLoafStarted: true },
+          advanceStoryline: {
+            id: 'side_herb_loaf',
+            setStage: 1,
+            setStatus: 'active',
+            note: 'Mina snipped lemon-thyme sprigs for Clara’s stone oven.',
+          },
+          adjustNpcRelations: [
+            { a: 'clara', b: 'mina', deltaAffinity: 4, deltaTension: 0, tag: 'herb_harvest' },
+          ],
+          recordNpcMemories: [
+            {
+              target: 'speaker',
+              id: 'ev_herb_loaf_started',
+              tag: 'herb_harvest',
+              category: 'interaction',
+              valence: 'warm',
+              importance: 3,
+              retention: 'durable',
+              subjectPlayer: true,
+              subjectResidents: ['mina', 'clara'],
+            },
+          ],
         },
       ],
       endings: {
         end_herb: {
           moodLabel: 'Grateful',
-          text: `Oh, wonderful! Wait until you taste it fresh from the hearth.`,
+          text: `Oh, wonderful! Sora might even have a tea pairing idea if you pass her cart on the way to Clara’s oven.`,
         },
       },
     },
   ),
   makeSimpleTopic(
+    'side_sora_herbloaf_tasting',
+    'sora',
+    'personal_story',
+    19,
+    {
+      requiresStoryline: { id: 'side_herb_loaf', status: ['active'], minStage: 1, maxStage: 1 },
+      notSeenToday: true,
+    },
+    {
+      moodLabel: 'Thoughtful',
+      buildText: () =>
+        `Lemon-thyme rising inside Clara’s sourdough crust? Should we serve warm slices along the sunlit fountain benches, or pack a quiet tea basket for Mina’s greenhouse porch?`,
+      choices: [
+        {
+          id: 'sora_plan_plaza_table',
+          label: 'Set warm slices across the fountain benches for the whole square.',
+          tone: 'warm',
+          nextNodeId: 'sora_plaza_end',
+          trustDelta: 1,
+          reliabilityDelta: 6,
+          isStoryMilestone: true,
+          setEmotion: 'happy',
+          advanceStoryline: {
+            id: 'side_herb_loaf',
+            setStage: 2,
+            setStatus: 'active',
+            setOutcome: 'plaza_table',
+            note: 'Sora planned a sunlit fountain sharing board for the herb loaf.',
+          },
+          adjustNpcRelations: [
+            { a: 'clara', b: 'sora', deltaAffinity: 5, deltaTension: 0, tag: 'loaf_pairing' },
+          ],
+          recordNpcMemories: [
+            {
+              target: 'speaker',
+              id: 'ev_loaf_plan_plaza',
+              tag: 'loaf_pairing_plaza',
+              category: 'interaction',
+              valence: 'warm',
+              importance: 3,
+              retention: 'durable',
+              subjectPlayer: true,
+              subjectResidents: ['sora', 'clara'],
+            },
+          ],
+        },
+        {
+          id: 'sora_plan_tea_basket',
+          label: 'Steep chamomile-pear tea and pack a porch basket for Mina’s greenhouse.',
+          tone: 'gentle',
+          nextNodeId: 'sora_basket_end',
+          trustDelta: 1,
+          reliabilityDelta: 7,
+          isStoryMilestone: true,
+          setEmotion: 'relaxed',
+          advanceStoryline: {
+            id: 'side_herb_loaf',
+            setStage: 2,
+            setStatus: 'active',
+            setOutcome: 'tea_basket',
+            note: 'Sora matched Mina’s herb loaf with a chamomile-pear tea basket.',
+          },
+          adjustNpcRelations: [
+            { a: 'mina', b: 'sora', deltaAffinity: 6, deltaTension: 0, tag: 'tea_basket' },
+          ],
+          recordNpcMemories: [
+            {
+              target: 'speaker',
+              id: 'ev_loaf_plan_basket',
+              tag: 'loaf_pairing_basket',
+              category: 'interaction',
+              valence: 'warm',
+              importance: 3,
+              retention: 'durable',
+              subjectPlayer: true,
+              subjectResidents: ['sora', 'mina'],
+            },
+          ],
+        },
+      ],
+      endings: {
+        sora_plaza_end: {
+          moodLabel: 'Bright',
+          text: `Warm crust under open sunlight—let Clara know as soon as her oven bell chimes.`,
+        },
+        sora_basket_end: {
+          moodLabel: 'Warm',
+          text: `I’ll wrap the kettle cloth right now—tell Clara to save two fresh heels for Mina’s greenhouse steps.`,
+        },
+      },
+    },
+  ),
+  makeBranchingTopic(
     'side_clara_herbloaf_2',
     'clara',
     'personal_story',
     17,
-    { sideFlagsTrue: ['herbLoafStarted'], sideFlagsFalse: ['herbLoafShared'], notSeenToday: true },
     {
-      moodLabel: 'Warm',
-      buildText: () =>
-        `Mina’s lemon-thyme sprig crackled like gold inside the dough! Pull off a warm heel before it cools—should we share loaves on the plaza benches?`,
-      choices: [
+      requiresStoryline: { id: 'side_herb_loaf', status: ['active'], minStage: 1, maxStage: 2 },
+      sideFlagsFalse: ['herbLoafShared'],
+      notSeenToday: true,
+    },
+    (_id, world): { nodes: Record<string, DeclarativeNodeSpec> } => {
+      const prog = world.storylines?.side_herb_loaf;
+      const outcome = prog?.outcome === 'tea_basket' ? 'tea_basket' : 'plaza_table';
+
+      const rootText =
+        prog?.stage === 2 && outcome === 'tea_basket'
+          ? `Mina’s lemon-thyme sprig crackled like gold inside the dough, and Sora sent chamomile-pear tea over! Ready to pack the warm greenhouse basket?`
+          : `Mina’s lemon-thyme sprig crackled like gold inside the dough! Pull off a warm heel before it cools—should we share loaves on the plaza benches?`;
+
+      const choices: DialogueChoice[] = [
         {
           id: 'clara_share_herb_loaf',
-          label: 'Yes—let’s leave warm slices out for everyone passing the fountain.',
+          label:
+            prog?.stage === 2 && outcome === 'tea_basket'
+              ? 'Pack the warm loaves and tea basket for Mina’s greenhouse porch!'
+              : 'Yes—let’s leave warm slices out for everyone passing the fountain.',
           tone: 'warm',
           nextNodeId: 'end_share',
           trustDelta: 1,
           reliabilityDelta: 10,
           isStoryMilestone: true,
           setEmotion: 'happy',
-          setSideFlags: { herbLoafShared: true },
+          setSideFlags: { herbLoafShared: true, herbLoafStyle: outcome },
+          advanceStoryline: {
+            id: 'side_herb_loaf',
+            setStage: 3,
+            setStatus: 'completed',
+            setOutcome: outcome,
+            note: `Shared Mina’s lemon-thyme loaves (${outcome}).`,
+          },
+          adjustNpcRelations: [
+            { a: 'clara', b: 'mina', deltaAffinity: 8, deltaTension: 0, tag: 'herb_loaf_shared' },
+            ...(outcome === 'tea_basket'
+              ? [{ a: 'clara' as const, b: 'sora' as const, deltaAffinity: 5, deltaTension: 0, tag: 'tea_basket' }]
+              : []),
+          ],
+          recordNpcMemories: [
+            {
+              target: 'speaker',
+              id: 'ev_herb_loaf_shared',
+              tag: 'herb_loaf_shared',
+              category: 'event',
+              valence: 'warm',
+              importance: 4,
+              retention: 'durable',
+              subjectPlayer: true,
+              subjectResidents: ['clara', 'mina'],
+            },
+            {
+              target: 'mina',
+              id: 'ev_herb_loaf_shared',
+              tag: 'herb_loaf_shared',
+              category: 'event',
+              valence: 'warm',
+              importance: 4,
+              retention: 'durable',
+              subjectPlayer: true,
+              subjectResidents: ['clara', 'mina'],
+            },
+          ],
           unlockMemory: {
             id: 'mem_side_herb_loaf',
             title: 'Lemon-Thyme Sourdough',
-            summary: 'Paired Mina’s greenhouse herbs with Clara’s sourdough for a fragrant neighborhood tasting.',
+            summary:
+              outcome === 'tea_basket'
+                ? 'Paired Mina’s greenhouse herbs, Sora’s chamomile-pear tea, and Clara’s warm sourdough in a porch basket.'
+                : 'Paired Mina’s greenhouse herbs with Clara’s sourdough for a fragrant neighborhood tasting.',
             residentId: 'clara',
           },
         },
-      ],
-      endings: {
-        end_share: {
-          moodLabel: 'Delighted',
-          text: `Look at Pip’s nose following the scent from halfway across the bridge already!`,
+      ];
+
+      if ((prog?.stage ?? 1) < 2) {
+        choices.push({
+          id: 'clara_pack_tea_basket',
+          label: 'Let’s pair a warm loaf with tea for Mina’s greenhouse porch instead.',
+          tone: 'gentle',
+          nextNodeId: 'end_basket',
+          trustDelta: 1,
+          reliabilityDelta: 10,
+          isStoryMilestone: true,
+          setEmotion: 'happy',
+          setSideFlags: { herbLoafShared: true, herbLoafStyle: 'tea_basket' },
+          advanceStoryline: {
+            id: 'side_herb_loaf',
+            setStage: 3,
+            setStatus: 'completed',
+            setOutcome: 'tea_basket',
+            note: 'Delivered warm herb loaves to Mina’s greenhouse porch.',
+          },
+          adjustNpcRelations: [
+            { a: 'clara', b: 'mina', deltaAffinity: 8, deltaTension: 0, tag: 'tea_basket' },
+          ],
+          recordNpcMemories: [
+            {
+              target: 'speaker',
+              id: 'ev_herb_loaf_shared',
+              tag: 'herb_loaf_shared',
+              category: 'event',
+              valence: 'warm',
+              importance: 4,
+              retention: 'durable',
+              subjectPlayer: true,
+              subjectResidents: ['clara', 'mina'],
+            },
+          ],
+          unlockMemory: {
+            id: 'mem_side_herb_loaf',
+            title: 'Lemon-Thyme Sourdough',
+            summary:
+              'Carried Clara’s warm lemon-thyme sourdough straight to Mina’s greenhouse porch.',
+            residentId: 'clara',
+          },
+        });
+      }
+
+      return {
+        nodes: {
+          root: {
+            moodLabel: 'Warm',
+            text: rootText,
+            choices,
+          },
+          end_share: {
+            moodLabel: 'Delighted',
+            text:
+              outcome === 'tea_basket'
+                ? `Mina’s eyes will light right up smelling warm sourdough beside Sora’s chamomile tea!`
+                : `Look at Pip’s nose following the scent from halfway across the bridge already!`,
+          },
+          end_basket: {
+            moodLabel: 'Fond',
+            text: `Wrapped in clean checkered linen—Mina never takes a break unless someone brings lunch to her potting table!`,
+          },
         },
-      },
+      };
     },
   ),
 
-  // 3. Barnaby & Sora's Pond Acoustic Stand
+  // 3. Cedar Music Stand (Sora -> Toby -> Barnaby)
   makeSimpleTopic(
     'side_sora_stand_1',
     'sora',
     'personal_story',
     14,
-    { sideFlagsFalse: ['pondStandStarted'], minTrust: 1, notSeenToday: true },
+    {
+      requiresStoryline: { id: 'side_pond_stand', status: ['available'], maxStage: 0 },
+      sideFlagsFalse: ['pondStandStarted'],
+      minTrust: 1,
+      notSeenToday: true,
+    },
     {
       moodLabel: 'Dreamy',
       buildText: () =>
@@ -917,65 +1404,294 @@ export const DIALOGUE_TOPICS: readonly DialogueTopic[] = [
           isStoryMilestone: true,
           setEmotion: 'happy',
           setSideFlags: { pondStandStarted: true },
+          advanceStoryline: {
+            id: 'side_pond_stand',
+            setStage: 1,
+            setStatus: 'active',
+            note: 'Sora asked for a wind-steady cedar music stand beside Mirror Pond.',
+          },
+          adjustNpcRelations: [
+            { a: 'barnaby', b: 'sora', deltaAffinity: 4, deltaTension: 0, tag: 'stand_planned' },
+          ],
+          recordNpcMemories: [
+            {
+              target: 'speaker',
+              id: 'ev_pond_stand_start',
+              tag: 'pond_stand_requested',
+              category: 'interaction',
+              valence: 'warm',
+              importance: 3,
+              retention: 'durable',
+              subjectPlayer: true,
+              subjectResidents: ['sora', 'barnaby'],
+            },
+          ],
         },
       ],
       endings: {
         end_stand1: {
           moodLabel: 'Hopeful',
-          text: `Would he really? Tell him even crooked cedar curls smell sweeter than damp pages.`,
+          text: `Would he really? Toby sketches right beside the pier too—he knows exactly which way the pond gusts blow.`,
         },
       },
     },
   ),
   makeSimpleTopic(
+    'side_toby_stand_sketch',
+    'toby',
+    'personal_story',
+    19,
+    {
+      requiresStoryline: { id: 'side_pond_stand', status: ['active'], minStage: 1, maxStage: 1 },
+      notSeenToday: true,
+    },
+    {
+      moodLabel: 'Helpful',
+      buildText: () =>
+        `Wait—you’re helping Barnaby build Sora’s pond music stand? Down on the pier, afternoon gusts always sweep left off the reeds, or we could sketch a treble motif for the lip.`,
+      choices: [
+        {
+          id: 'toby_sketch_oak_brace',
+          label: 'Sketch the wind direction so Barnaby weights the stand with storm-braced oak.',
+          tone: 'practical',
+          nextNodeId: 'toby_brace_end',
+          trustDelta: 1,
+          reliabilityDelta: 7,
+          isStoryMilestone: true,
+          setEmotion: 'happy',
+          advanceStoryline: {
+            id: 'side_pond_stand',
+            setStage: 2,
+            setStatus: 'active',
+            setOutcome: 'weatherproof_oak',
+            note: 'Toby mapped Mirror Pond gusts for a weighted oak music stand.',
+          },
+          adjustNpcRelations: [
+            { a: 'sora', b: 'toby', deltaAffinity: 6, deltaTension: 0, tag: 'pond_sketch' },
+          ],
+          recordNpcMemories: [
+            {
+              target: 'speaker',
+              id: 'ev_toby_stand_sketch',
+              tag: 'pond_stand_wind_sketch',
+              category: 'interaction',
+              valence: 'warm',
+              importance: 3,
+              retention: 'durable',
+              subjectPlayer: true,
+              subjectResidents: ['toby', 'sora'],
+            },
+          ],
+        },
+        {
+          id: 'toby_sketch_clef_motif',
+          label: 'Draw a curved treble-clef lip pattern for Barnaby to carve in cedar.',
+          tone: 'warm',
+          nextNodeId: 'toby_clef_end',
+          trustDelta: 1,
+          reliabilityDelta: 6,
+          isStoryMilestone: true,
+          setEmotion: 'happy',
+          advanceStoryline: {
+            id: 'side_pond_stand',
+            setStage: 2,
+            setStatus: 'active',
+            setOutcome: 'carved_clef',
+            note: 'Toby drew a treble-clef carving template for Sora’s stand.',
+          },
+          adjustNpcRelations: [
+            { a: 'barnaby', b: 'toby', deltaAffinity: 5, deltaTension: 0, tag: 'clef_sketch' },
+          ],
+          recordNpcMemories: [
+            {
+              target: 'speaker',
+              id: 'ev_toby_stand_clef',
+              tag: 'pond_stand_clef_sketch',
+              category: 'interaction',
+              valence: 'warm',
+              importance: 3,
+              retention: 'durable',
+              subjectPlayer: true,
+              subjectResidents: ['toby', 'barnaby'],
+            },
+          ],
+        },
+      ],
+      endings: {
+        toby_brace_end: {
+          moodLabel: 'Pleased',
+          text: `Measured the breeze-angle twice! Barnaby will know how wide to plane that oak footplate.`,
+        },
+        toby_clef_end: {
+          moodLabel: 'Shy-Warm',
+          text: `Tried keeping the scrollwork simple enough for his chisel—Sora’s going to smile when she sees it.`,
+        },
+      },
+    },
+  ),
+  makeBranchingTopic(
     'side_barnaby_stand_2',
     'barnaby',
     'personal_story',
     17,
-    { sideFlagsTrue: ['pondStandStarted'], sideFlagsFalse: ['pondStandBuilt'], notSeenToday: true },
     {
-      moodLabel: 'Pleased',
-      buildText: () =>
-        `Sheet-music stand for Sora’s violin, eh? Give me two brass thumbscrews and a heartwood cedar plank—it’ll stand sturdy through autumn gusts.`,
-      choices: [
+      requiresStoryline: { id: 'side_pond_stand', status: ['active'], minStage: 1, maxStage: 2 },
+      sideFlagsFalse: ['pondStandBuilt'],
+      notSeenToday: true,
+    },
+    (_id, world): { nodes: Record<string, DeclarativeNodeSpec> } => {
+      const prog = world.storylines?.side_pond_stand;
+      const outcome =
+        prog?.outcome === 'weatherproof_oak' ? 'weatherproof_oak' : 'carved_clef';
+      const rootText =
+        prog?.stage === 2 && outcome === 'weatherproof_oak'
+          ? `With Toby’s pond wind angle, a weighted oak footplate and two brass thumbscrews will anchor Sora’s sheet music through autumn gusts.`
+          : `Sheet-music stand for Sora’s violin, eh? Give me two brass thumbscrews and a heartwood cedar plank—it’ll stand sturdy through autumn gusts.`;
+
+      const choices: DialogueChoice[] = [
         {
           id: 'barnaby_carve_stand',
-          label: 'Carve a little treble clef along the lip—she’ll treasure it.',
+          label:
+            prog?.stage === 2 && outcome === 'weatherproof_oak'
+              ? 'Plane the weighted oak footplate so pond gusts never tip a sheet!'
+              : 'Carve a little treble clef along the lip—she’ll treasure it.',
           tone: 'warm',
           nextNodeId: 'end_stand2',
           trustDelta: 1,
           reliabilityDelta: 10,
           isStoryMilestone: true,
           setEmotion: 'happy',
-          setSideFlags: { pondStandBuilt: true },
+          setSideFlags: { pondStandBuilt: true, pondStandStyle: outcome },
+          advanceStoryline: {
+            id: 'side_pond_stand',
+            setStage: 3,
+            setStatus: 'completed',
+            setOutcome: outcome,
+            note: `Completed Sora’s music stand (${outcome}).`,
+          },
+          adjustNpcRelations: [
+            { a: 'barnaby', b: 'sora', deltaAffinity: 8, deltaTension: 0, tag: 'pond_stand_built' },
+          ],
+          recordNpcMemories: [
+            {
+              target: 'speaker',
+              id: 'ev_pond_stand_built',
+              tag: 'pond_stand_built',
+              category: 'event',
+              valence: 'warm',
+              importance: 4,
+              retention: 'durable',
+              subjectPlayer: true,
+              subjectResidents: ['barnaby', 'sora'],
+            },
+            {
+              target: 'sora',
+              id: 'ev_pond_stand_built',
+              tag: 'pond_stand_built',
+              category: 'event',
+              valence: 'warm',
+              importance: 4,
+              retention: 'durable',
+              subjectPlayer: true,
+              subjectResidents: ['barnaby', 'sora'],
+            },
+          ],
           unlockMemory: {
             id: 'mem_side_music_stand',
             title: 'Cedar Music Stand',
-            summary: 'Barnaby planed a wind-proof cedar music stand so Sora can play comfortably beside Mirror Pond.',
+            summary:
+              outcome === 'weatherproof_oak'
+                ? 'Following Toby’s wind sketch, Barnaby built a weighted oak music stand so Sora can play beside Mirror Pond in any breeze.'
+                : 'Barnaby planed a wind-proof cedar music stand so Sora can play comfortably beside Mirror Pond.',
             residentId: 'barnaby',
           },
         },
-      ],
-      endings: {
-        end_stand2: {
-          moodLabel: 'Proud',
-          text: `Done and rubbed with beeswax. Wait till you hear how violin wood sings beside cedar.`,
+      ];
+
+      if ((prog?.stage ?? 1) < 2) {
+        choices.push({
+          id: 'barnaby_build_storm_stand',
+          label: 'Weight the base with oiled oak first so pond breezes never tip it.',
+          tone: 'practical',
+          nextNodeId: 'end_storm_stand',
+          trustDelta: 1,
+          reliabilityDelta: 10,
+          isStoryMilestone: true,
+          setEmotion: 'happy',
+          setSideFlags: { pondStandBuilt: true, pondStandStyle: 'weatherproof_oak' },
+          advanceStoryline: {
+            id: 'side_pond_stand',
+            setStage: 3,
+            setStatus: 'completed',
+            setOutcome: 'weatherproof_oak',
+            note: 'Weighted Sora’s pond music stand with oiled oak.',
+          },
+          adjustNpcRelations: [
+            { a: 'barnaby', b: 'sora', deltaAffinity: 8, deltaTension: 0, tag: 'pond_stand_built' },
+          ],
+          recordNpcMemories: [
+            {
+              target: 'speaker',
+              id: 'ev_pond_stand_built',
+              tag: 'pond_stand_built',
+              category: 'event',
+              valence: 'warm',
+              importance: 4,
+              retention: 'durable',
+              subjectPlayer: true,
+              subjectResidents: ['barnaby', 'sora'],
+            },
+          ],
+          unlockMemory: {
+            id: 'mem_side_music_stand',
+            title: 'Cedar Music Stand',
+            summary:
+              'Barnaby weighted a sturdy oiled-oak music stand so Sora can play beside Mirror Pond without losing pages to the wind.',
+            residentId: 'barnaby',
+          },
+        });
+      }
+
+      return {
+        nodes: {
+          root: {
+            moodLabel: 'Pleased',
+            text: rootText,
+            choices,
+          },
+          end_stand2: {
+            moodLabel: 'Proud',
+            text: `Done and rubbed with beeswax. Wait till you hear how violin wood sings beside cedar.`,
+          },
+          end_storm_stand: {
+            moodLabel: 'Sturdy',
+            text: `Mortised oak footplate won’t budge in a coastal gale! Wait till she plays by the reeds tomorrow.`,
+          },
         },
-      },
+      };
     },
   ),
 
-  // 4. Arthur & Jun's Brass Pocket Watch
+  // 4. True on the Route (Jun -> Nora -> Arthur, friction-aware!)
   makeSimpleTopic(
     'side_jun_watch_1',
     'jun',
     'personal_story',
     13,
-    { sideFlagsFalse: ['watchTuneStarted'], flagsTrue: ['deliveredPostcard'], notSeenToday: true },
+    {
+      requiresStoryline: { id: 'side_jun_watch', status: ['available'], maxStage: 0 },
+      sideFlagsFalse: ['watchTuneStarted'],
+      flagsTrue: ['deliveredPostcard'],
+      notSeenToday: true,
+    },
     {
       moodLabel: 'Curious',
-      buildText: () =>
-        `Ever since my route expanded past Mirror Pond, my old brass pocket watch loses four minutes every misty morning—makes me rush the mailbox loop.`,
+      buildText: (_id, world) => {
+        const bluntMem = findSpeakerMemory('jun', world, { tags: ['player_blunt'] });
+        return bluntMem
+          ? `Look—I’ve been triple-checking every mail strap since earlier. Truth is, my old brass pocket watch loses four minutes in the morning mist, which makes me rush the whole route.`
+          : `Ever since my route expanded past Mirror Pond, my old brass pocket watch loses four minutes every misty morning—makes me rush the mailbox loop.`;
+      },
       choices: [
         {
           id: 'jun_watch_arthur',
@@ -987,49 +1703,924 @@ export const DIALOGUE_TOPICS: readonly DialogueTopic[] = [
           isStoryMilestone: true,
           setEmotion: 'happy',
           setSideFlags: { watchTuneStarted: true },
+          advanceStoryline: {
+            id: 'side_jun_watch',
+            setStage: 1,
+            setStatus: 'active',
+            note: 'Jun admitted his brass watch drifts four minutes on misty mornings.',
+          },
+          adjustNpcRelations: [
+            { a: 'arthur', b: 'jun', deltaAffinity: 4, deltaTension: 0, tag: 'watch_request' },
+          ],
+          recordNpcMemories: [
+            {
+              target: 'speaker',
+              id: 'ev_jun_watch_start',
+              tag: 'watch_drift_shared',
+              category: 'interaction',
+              valence: 'warm',
+              importance: 3,
+              retention: 'durable',
+              subjectPlayer: true,
+              subjectResidents: ['jun', 'arthur'],
+            },
+          ],
         },
       ],
       endings: {
         end_w1: {
           moodLabel: 'Relieved',
-          text: `Would you? I hate arriving at your cottage porch late!`,
+          text: `Would you? And maybe ask Nora if my Book Nook ledger drop can sit five minutes later while Arthur looks at the spring!`,
         },
       },
     },
   ),
   makeSimpleTopic(
+    'side_nora_watch_check',
+    'nora',
+    'personal_story',
+    19,
+    {
+      requiresStoryline: { id: 'side_jun_watch', status: ['active'], minStage: 1, maxStage: 1 },
+      notSeenToday: true,
+    },
+    {
+      moodLabel: 'Kind',
+      buildText: () =>
+        `Jun checks the Book Nook almanac stamps like a hawk, yet nobody here minds waiting five extra minutes for morning post. How should we ease his route pressure?`,
+      choices: [
+        {
+          id: 'nora_trim_ledger_stops',
+          label: 'Drop redundant bookshop check-in slips so his morning loop stays brisk.',
+          tone: 'practical',
+          nextNodeId: 'nora_ledger_end',
+          trustDelta: 1,
+          reliabilityDelta: 6,
+          isStoryMilestone: true,
+          setEmotion: 'happy',
+          advanceStoryline: {
+            id: 'side_jun_watch',
+            setStage: 2,
+            setStatus: 'active',
+            setOutcome: 'steady_route',
+            note: 'Nora trimmed redundant morning ledger stamps for Jun.',
+          },
+          adjustNpcRelations: [
+            { a: 'jun', b: 'nora', deltaAffinity: 6, deltaTension: -3, tag: 'ledger_trimmed' },
+          ],
+          recordNpcMemories: [
+            {
+              target: 'speaker',
+              id: 'ev_nora_watch_ledger',
+              tag: 'watch_ledger_trimmed',
+              category: 'interaction',
+              valence: 'warm',
+              importance: 3,
+              retention: 'durable',
+              subjectPlayer: true,
+              subjectResidents: ['nora', 'jun'],
+            },
+          ],
+        },
+        {
+          id: 'nora_teach_gentle_pace',
+          label: 'Remind him neighbors welcome a tea-break pace—ask Arthur to teach him gentle winding.',
+          tone: 'gentle',
+          nextNodeId: 'nora_pace_end',
+          trustDelta: 1,
+          reliabilityDelta: 7,
+          isStoryMilestone: true,
+          setEmotion: 'relaxed',
+          advanceStoryline: {
+            id: 'side_jun_watch',
+            setStage: 2,
+            setStatus: 'active',
+            setOutcome: 'patient_repair',
+            note: 'Nora encouraged a gentler morning post rhythm with Arthur.',
+          },
+          adjustNpcRelations: [
+            { a: 'jun', b: 'nora', deltaAffinity: 5, deltaTension: -2, tag: 'patient_route' },
+          ],
+          recordNpcMemories: [
+            {
+              target: 'speaker',
+              id: 'ev_nora_watch_pace',
+              tag: 'watch_patient_pace',
+              category: 'interaction',
+              valence: 'warm',
+              importance: 3,
+              retention: 'durable',
+              subjectPlayer: true,
+              subjectResidents: ['nora', 'jun'],
+            },
+          ],
+        },
+      ],
+      endings: {
+        nora_ledger_end: {
+          moodLabel: 'Crisp',
+          text: `Sorted—fewer slips means Jun can focus on real letters. Let Arthur balance the mainspring next.`,
+        },
+        nora_pace_end: {
+          moodLabel: 'Fond',
+          text: `Tell Arthur to pour two tea cups while he opens the watch case—Jun listens twice as well unhurried.`,
+        },
+      },
+    },
+  ),
+  makeBranchingTopic(
     'side_arthur_watch_2',
     'arthur',
     'personal_story',
     16,
-    { sideFlagsTrue: ['watchTuneStarted'], sideFlagsFalse: ['watchTuneFinished'], notSeenToday: true },
     {
-      moodLabel: 'Focused',
-      buildText: () =>
-        `Jun’s mail watch? Aye, morning mist stiffens the mainspring oil. Hand it over—a drop of watchmaker’s oil and half a turn on the balance screw will keep him right to the chime.`,
-      choices: [
+      requiresStoryline: { id: 'side_jun_watch', status: ['active'], minStage: 1, maxStage: 2 },
+      sideFlagsFalse: ['watchTuneFinished'],
+      notSeenToday: true,
+    },
+    (_id, world): { nodes: Record<string, DeclarativeNodeSpec> } => {
+      const prog = world.storylines?.side_jun_watch;
+      const outcome =
+        prog?.outcome === 'patient_repair' ? 'patient_repair' : 'steady_route';
+      const rootText =
+        prog?.stage === 2 && outcome === 'patient_repair'
+          ? `Jun’s mail watch? Aye, Nora sent word—morning mist stiffens the mainspring oil, and the lad’s been over-winding out of worry. Let’s pour tea and balance it properly.`
+          : `Jun’s mail watch? Aye, morning mist stiffens the mainspring oil. Hand it over—a drop of watchmaker’s oil and half a turn on the balance screw will keep him right to the chime.`;
+
+      const choices: DialogueChoice[] = [
         {
           id: 'arthur_fix_watch',
-          label: 'Listen how clean that tick sounds already—thank you, Arthur.',
+          label:
+            prog?.stage === 2 && outcome === 'patient_repair'
+              ? 'Show Jun how gently a balanced escapement ticks over warm tea.'
+              : 'Listen how clean that tick sounds already—thank you, Arthur.',
           tone: 'warm',
           nextNodeId: 'end_w2',
           trustDelta: 1,
           reliabilityDelta: 10,
           isStoryMilestone: true,
           setEmotion: 'happy',
-          setSideFlags: { watchTuneFinished: true },
+          setSideFlags: { watchTuneFinished: true, watchTuneStyle: outcome },
+          advanceStoryline: {
+            id: 'side_jun_watch',
+            setStage: 3,
+            setStatus: 'completed',
+            setOutcome: outcome,
+            note: `Arthur balanced Jun’s pocket watch (${outcome}).`,
+          },
+          adjustNpcRelations: [
+            { a: 'arthur', b: 'jun', deltaAffinity: 8, deltaTension: -4, tag: 'watch_tuned' },
+          ],
+          recordNpcMemories: [
+            {
+              target: 'speaker',
+              id: 'ev_jun_watch_tuned',
+              tag: 'watch_tuned',
+              category: 'event',
+              valence: 'warm',
+              importance: 4,
+              retention: 'durable',
+              subjectPlayer: true,
+              subjectResidents: ['arthur', 'jun'],
+            },
+            {
+              target: 'jun',
+              id: 'ev_jun_watch_tuned',
+              tag: 'watch_tuned',
+              category: 'event',
+              valence: 'warm',
+              importance: 4,
+              retention: 'durable',
+              subjectPlayer: true,
+              subjectResidents: ['arthur', 'jun'],
+            },
+          ],
           unlockMemory: {
             id: 'mem_side_jun_watch',
             title: 'True on the Route',
-            summary: 'Arthur calibrated Jun’s courier pocket watch so the morning post never drifts behind schedule.',
+            summary:
+              outcome === 'patient_repair'
+                ? 'Arthur oiled Jun’s watch over tea and eased his rush along the morning mail loop.'
+                : 'Arthur calibrated Jun’s courier pocket watch so the morning post never drifts behind schedule.',
             residentId: 'arthur',
           },
         },
+      ];
+
+      if ((prog?.stage ?? 1) < 2) {
+        choices.push({
+          id: 'arthur_tea_and_wind',
+          label: 'Remind Jun he can wind slowly over tea—no neighbor minds two minutes.',
+          tone: 'gentle',
+          nextNodeId: 'end_w2_tea',
+          trustDelta: 1,
+          reliabilityDelta: 10,
+          isStoryMilestone: true,
+          setEmotion: 'relaxed',
+          setSideFlags: { watchTuneFinished: true, watchTuneStyle: 'patient_repair' },
+          advanceStoryline: {
+            id: 'side_jun_watch',
+            setStage: 3,
+            setStatus: 'completed',
+            setOutcome: 'patient_repair',
+            note: 'Arthur taught Jun a calmer morning watch routine.',
+          },
+          adjustNpcRelations: [
+            { a: 'arthur', b: 'jun', deltaAffinity: 9, deltaTension: -5, tag: 'watch_tuned' },
+          ],
+          recordNpcMemories: [
+            {
+              target: 'speaker',
+              id: 'ev_jun_watch_tuned',
+              tag: 'watch_tuned',
+              category: 'event',
+              valence: 'warm',
+              importance: 4,
+              retention: 'durable',
+              subjectPlayer: true,
+              subjectResidents: ['arthur', 'jun'],
+            },
+          ],
+          unlockMemory: {
+            id: 'mem_side_jun_watch',
+            title: 'True on the Route',
+            summary:
+              'Arthur balanced Jun’s pocket watch and showed him how to wind it calmly before morning rounds.',
+            residentId: 'arthur',
+          },
+        });
+      }
+
+      return {
+        nodes: {
+          root: {
+            moodLabel: 'Focused',
+            text: rootText,
+            choices,
+          },
+          end_w2: {
+            moodLabel: 'Warm',
+            text: `A town runs gentler when its letter carrier trusts the hour.`,
+          },
+          end_w2_tea: {
+            moodLabel: 'Gentle',
+            text: `Never force a spring or a morning, I told him. Look how steady his shoulders sit already.`,
+          },
+        },
+      };
+    },
+  ),
+
+  // ================= ARC 5: INTERCONNECTED MULTI-STAGE CONFLICT =================
+  // Lanterns Over Mirror Pond (Toby -> Barnaby [1-day cooldown] -> Nora)
+  makeBranchingTopic(
+    'conflict_lanterns_1_spark',
+    'toby',
+    'conflict_reconciliation',
+    7,
+    {
+      flagsTrue: ['lanternsLit'],
+      requiresStoryline: { id: 'conflict_plaza_lanterns', status: ['available'], maxStage: 0 },
+      notSeenToday: true,
+    },
+    () => ({
+      nodes: {
+        root: {
+          moodLabel: 'Troubled',
+          text: `Now that the plaza bulbs are glowing, Barnaby bolted two bright work-lanterns straight down Mirror Pond’s pier too… I know he wants safe footing, yet the glare chased every dusk firefly out of the reeds.`,
+          choices: [
+            {
+              id: 'lanterns_hear_toby_gentle',
+              label: 'You shouldn’t have to lose firefly dusk—let’s ask Barnaby about gentler shades.',
+              tone: 'gentle',
+              nextNodeId: 'toby_gentle_end',
+              trustDelta: 1,
+              reliabilityDelta: 6,
+              isStoryMilestone: true,
+              setEmotion: 'curious',
+              advanceStoryline: {
+                id: 'conflict_plaza_lanterns',
+                setStage: 1,
+                setStatus: 'active',
+                note: 'Heard Toby’s worry that bright pier lamps drown out Mirror Pond’s dusk fireflies.',
+              },
+              adjustNpcRelations: [
+                { a: 'barnaby', b: 'toby', deltaAffinity: -2, deltaTension: 6, tag: 'pier_lanterns' },
+                { a: 'nora', b: 'toby', deltaAffinity: 4, deltaTension: 0, tag: 'firefly_watch' },
+              ],
+              recordNpcMemories: [
+                {
+                  target: 'speaker',
+                  id: 'ev_lantern_debate_toby',
+                  tag: 'lantern_debate',
+                  category: 'interaction',
+                  valence: 'neutral',
+                  importance: 4,
+                  retention: 'durable',
+                  subjectPlayer: true,
+                  subjectResidents: ['toby', 'barnaby'],
+                },
+              ],
+            },
+            {
+              id: 'lanterns_side_barnaby_blunt',
+              label: 'Fireflies don’t keep folks from slipping on wet pier planks, Toby.',
+              tone: 'blunt',
+              nextNodeId: 'toby_blunt_end',
+              trustDelta: -1,
+              isNegative: true,
+              setEmotion: 'sad',
+              advanceStoryline: {
+                id: 'conflict_plaza_lanterns',
+                setStage: 1,
+                setStatus: 'active',
+                note: 'Sided sharply with pier brightness over Toby’s firefly sketches.',
+              },
+              adjustNpcRelations: [
+                { a: 'barnaby', b: 'toby', deltaAffinity: -8, deltaTension: 16, tag: 'pier_lanterns_heated' },
+                { a: 'barnaby', b: 'nora', deltaAffinity: -5, deltaTension: 10, tag: 'pier_lanterns_heated' },
+              ],
+              recordNpcMemories: [
+                {
+                  target: 'speaker',
+                  id: 'ev_lantern_debate_blunt',
+                  tag: 'lantern_debate_blunt',
+                  category: 'friction',
+                  valence: 'tense',
+                  importance: 4,
+                  retention: 'durable',
+                  subjectPlayer: true,
+                  subjectResidents: ['toby', 'barnaby'],
+                },
+              ],
+            },
+          ],
+        },
+        toby_gentle_end: {
+          moodLabel: 'Relieved',
+          text: `Thanks for actually hearing me out… Barnaby works out of kindness, he just doesn’t see how harsh bare bulbs look against the pond.`,
+        },
+        toby_blunt_end: {
+          moodLabel: 'Withdrawn',
+          text: `Right… safety first. Maybe go talk to Barnaby if you’re already certain.`,
+        },
+      },
+    }),
+  ),
+
+  makeBranchingTopic(
+    'conflict_lanterns_2_barnaby',
+    'barnaby',
+    'conflict_reconciliation',
+    7,
+    {
+      requiresStoryline: { id: 'conflict_plaza_lanterns', status: ['active'], minStage: 1, maxStage: 1 },
+      notSeenToday: true,
+    },
+    (_id, world) => {
+      const heardDebate = findSpeakerMemory('barnaby', world, {
+        tags: ['lantern_debate', 'lantern_debate_blunt'],
+      });
+      const tobyTension = getNpcRelation(world.npcRelations ?? {}, 'barnaby', 'toby').tension;
+      const fromName = heardDebate?.fromResidentId
+        ? RESIDENTS[heardDebate.fromResidentId]?.name
+        : undefined;
+
+      const rootText = heardDebate
+        ? `${fromName ? `${fromName} already told me` : 'Heard word'} folks are grumbling about my new pier lanterns${tobyTension >= 15 ? '—looks like tempers spiked over by the bridge' : ''}. I only hung bright bulbs so nobody twists an ankle at dusk.`
+        : `Mounted those tall pier lamps nice and sturdy over Mirror Pond—wait, you mean Toby and Nora think they’re too bright for the fireflies? Nobody mentioned a word to me yet.`;
+
+      return {
+        nodes: {
+          root: {
+            moodLabel: tobyTension >= 15 ? 'Gruff' : 'Surprised',
+            text: rootText,
+            choices: [
+              {
+                id: 'lanterns_suggest_hooded_brass',
+                label: 'Try downward brass hoods tonight—bright planks, calm dark pond water.',
+                tone: 'practical',
+                nextNodeId: 'barnaby_hood_end',
+                trustDelta: 1,
+                reliabilityDelta: 8,
+                isStoryMilestone: true,
+                setEmotion: 'curious',
+                advanceStoryline: {
+                  id: 'conflict_plaza_lanterns',
+                  setStage: 2,
+                  setStatus: 'active',
+                  setOutcome: 'bridge_compromise',
+                  cooldownDays: 1,
+                  note: 'Barnaby agreed to test downward brass lantern hoods overnight.',
+                },
+                adjustNpcRelations: [
+                  { a: 'barnaby', b: 'toby', deltaAffinity: 6, deltaTension: -6, tag: 'hood_trial' },
+                  { a: 'barnaby', b: 'nora', deltaAffinity: 4, deltaTension: -4, tag: 'hood_trial' },
+                ],
+                recordNpcMemories: [
+                  {
+                    target: 'speaker',
+                    id: 'ev_lantern_trial_hood',
+                    tag: 'lantern_trial_compromise',
+                    category: 'interaction',
+                    valence: 'warm',
+                    importance: 4,
+                    retention: 'durable',
+                    subjectPlayer: true,
+                    subjectResidents: ['barnaby', 'toby', 'nora'],
+                  },
+                ],
+              },
+              {
+                id: 'lanterns_suggest_cool_off',
+                label: 'Switch off the pier bulbs tonight so tempers cool down until tomorrow.',
+                tone: 'gentle',
+                nextNodeId: 'barnaby_space_end',
+                trustDelta: 1,
+                reliabilityDelta: 6,
+                isStoryMilestone: true,
+                setEmotion: 'relaxed',
+                advanceStoryline: {
+                  id: 'conflict_plaza_lanterns',
+                  setStage: 2,
+                  setStatus: 'active',
+                  setOutcome: 'gentle_space',
+                  cooldownDays: 1,
+                  note: 'Everyone paused pier lighting for one quiet night to cool feelings.',
+                },
+                adjustNpcRelations: [
+                  { a: 'barnaby', b: 'toby', deltaAffinity: 4, deltaTension: -8, tag: 'cooling_night' },
+                ],
+                recordNpcMemories: [
+                  {
+                    target: 'speaker',
+                    id: 'ev_lantern_trial_space',
+                    tag: 'lantern_trial_space',
+                    category: 'interaction',
+                    valence: 'warm',
+                    importance: 4,
+                    retention: 'durable',
+                    subjectPlayer: true,
+                    subjectResidents: ['barnaby', 'toby', 'nora'],
+                  },
+                ],
+              },
+              {
+                id: 'lanterns_push_bright_pier',
+                label: 'Keep every pier bulb blazing full strength—the rest of town will get used to it.',
+                tone: 'blunt',
+                nextNodeId: 'barnaby_heated_end',
+                trustDelta: -1,
+                isNegative: true,
+                setEmotion: 'frustrated',
+                advanceStoryline: {
+                  id: 'conflict_plaza_lanterns',
+                  setStage: 2,
+                  setStatus: 'active',
+                  setOutcome: 'bridge_compromise',
+                  cooldownDays: 1,
+                  note: 'Full-glare lamps stayed lit overnight, sharpening pond-side friction.',
+                },
+                adjustNpcRelations: [
+                  { a: 'barnaby', b: 'toby', deltaAffinity: -6, deltaTension: 12, tag: 'bright_pier_glare' },
+                  { a: 'barnaby', b: 'nora', deltaAffinity: -5, deltaTension: 10, tag: 'bright_pier_glare' },
+                ],
+                recordNpcMemories: [
+                  {
+                    target: 'speaker',
+                    id: 'ev_lantern_trial_heated',
+                    tag: 'lantern_trial_heated',
+                    category: 'friction',
+                    valence: 'tense',
+                    importance: 4,
+                    retention: 'durable',
+                    subjectPlayer: true,
+                    subjectResidents: ['barnaby', 'toby', 'nora'],
+                  },
+                ],
+              },
+            ],
+          },
+          barnaby_hood_end: {
+            moodLabel: 'Thoughtful',
+            text: `Downward brass hoods… hmm, directs light straight onto the wet boards while leaving the water dark! Give me tonight to test how it settles—check with Nora tomorrow.`,
+          },
+          barnaby_space_end: {
+            moodLabel: 'Steady',
+            text: `Fair call. Never hammer wood—or settle a neighbor tiff—while shoulders are tense. Ask Nora tomorrow once morning settles.`,
+          },
+          barnaby_heated_end: {
+            moodLabel: 'Stubborn',
+            text: `Hmph. Well, they’re staying bolted tonight at least. Nora will probably have an earful for both of us tomorrow.`,
+          },
+        },
+      };
+    },
+  ),
+
+  makeBranchingTopic(
+    'conflict_lanterns_3_resolve',
+    'nora',
+    'conflict_reconciliation',
+    19,
+    {
+      requiresStoryline: {
+        id: 'conflict_plaza_lanterns',
+        status: ['active'],
+        minStage: 2,
+        maxStage: 2,
+        requireCooldownCleared: true,
+      },
+    },
+    (_id, world) => {
+      const noraMem = findSpeakerMemory('nora', world, {
+        tags: [
+          'lantern_debate',
+          'lantern_debate_blunt',
+          'lantern_trial_compromise',
+          'lantern_trial_space',
+          'lantern_trial_heated',
+        ],
+      });
+      const btRel = getNpcRelation(world.npcRelations ?? {}, 'barnaby', 'toby');
+      const noraRel = world.playerRelations?.nora;
+      const noraAffinity = noraRel?.affinity ?? world.residents.nora.trust * 20;
+      const noraTier = getRelationshipTier(noraAffinity);
+      const fromText = noraMem?.fromResidentId
+        ? `After hearing from ${RESIDENTS[noraMem.fromResidentId].name} about how dusk felt over Mirror Pond`
+        : `Standing on the bridge after last night’s lantern trial`;
+
+      const tensionSummary =
+        btRel.tension >= 18
+          ? `Toby and Barnaby are still walking wide circles around one another this morning, so we need a clean settlement.`
+          : `Everyone cooled down nicely overnight—now we just decide what stays on Mirror Pond permanently.`;
+
+      return {
+        nodes: {
+          root: {
+            moodLabel: btRel.tension >= 18 ? 'Earnest' : 'Reflective',
+            text: `${fromText}, ${tensionSummary}`,
+            choices: [
+              {
+                id: 'lanterns_resolve_compromise',
+                label: 'Anchor Barnaby’s downward brass hoods so planks glow and water stays dark.',
+                tone: 'practical',
+                nextNodeId: 'resolve_comp_end',
+                trustDelta: 1,
+                reliabilityDelta: 10,
+                isStoryMilestone: true,
+                setEmotion: 'happy',
+                setSideFlags: {
+                  lanternConflictResolved: true,
+                  lanternConflictOutcome: 'bridge_compromise',
+                },
+                advanceStoryline: {
+                  id: 'conflict_plaza_lanterns',
+                  setStage: 3,
+                  setStatus: 'completed',
+                  setOutcome: 'bridge_compromise',
+                  note: 'Settled on downward brass hoods balancing footing safety and firefly water.',
+                },
+                adjustNpcRelations: [
+                  { a: 'barnaby', b: 'toby', deltaAffinity: 12, deltaTension: -16, tag: 'hood_compromise' },
+                  { a: 'barnaby', b: 'nora', deltaAffinity: 8, deltaTension: -10, tag: 'hood_compromise' },
+                ],
+                recordNpcMemories: [
+                  {
+                    target: 'nora',
+                    id: 'ev_lanterns_resolved_compromise',
+                    tag: 'lanterns_resolved_compromise',
+                    category: 'town_lore',
+                    valence: 'warm',
+                    importance: 4,
+                    retention: 'durable',
+                    subjectPlayer: true,
+                    subjectResidents: ['barnaby', 'toby', 'nora'],
+                  },
+                  {
+                    target: 'barnaby',
+                    id: 'ev_lanterns_resolved_compromise',
+                    tag: 'lanterns_resolved_compromise',
+                    category: 'town_lore',
+                    valence: 'warm',
+                    importance: 4,
+                    retention: 'durable',
+                    subjectPlayer: true,
+                    subjectResidents: ['barnaby', 'toby', 'nora'],
+                  },
+                  {
+                    target: 'toby',
+                    id: 'ev_lanterns_resolved_compromise',
+                    tag: 'lanterns_resolved_compromise',
+                    category: 'town_lore',
+                    valence: 'warm',
+                    importance: 4,
+                    retention: 'durable',
+                    subjectPlayer: true,
+                    subjectResidents: ['barnaby', 'toby', 'nora'],
+                  },
+                ],
+                unlockMemory: {
+                  id: 'mem_side_lantern_compromise',
+                  title: 'Hooded Brass by Mirror Pond',
+                  summary:
+                    'Barnaby, Toby, and Nora settled on warm downward-hooded lanterns that light the pier planks while keeping the reeds quiet for fireflies.',
+                  residentId: 'nora',
+                },
+              },
+              {
+                id: 'lanterns_resolve_gentle_space',
+                label: 'Leave the pier unlit for fireflies and place guide lamps at the bridgehead only.',
+                tone: 'gentle',
+                nextNodeId: 'resolve_space_end',
+                trustDelta: 1,
+                reliabilityDelta: 8,
+                isStoryMilestone: true,
+                setEmotion: 'relaxed',
+                setSideFlags: {
+                  lanternConflictResolved: true,
+                  lanternConflictOutcome: 'gentle_space',
+                },
+                advanceStoryline: {
+                  id: 'conflict_plaza_lanterns',
+                  setStage: 3,
+                  setStatus: 'completed',
+                  setOutcome: 'gentle_space',
+                  note: 'Kept guide lanterns at the bridgehead so Mirror Pond stays calm at dusk.',
+                },
+                adjustNpcRelations: [
+                  { a: 'barnaby', b: 'toby', deltaAffinity: 8, deltaTension: -12, tag: 'bridgehead_sanctuary' },
+                  { a: 'barnaby', b: 'nora', deltaAffinity: 6, deltaTension: -8, tag: 'bridgehead_sanctuary' },
+                ],
+                recordNpcMemories: [
+                  {
+                    target: 'nora',
+                    id: 'ev_lanterns_resolved_space',
+                    tag: 'lanterns_resolved_space',
+                    category: 'town_lore',
+                    valence: 'warm',
+                    importance: 4,
+                    retention: 'durable',
+                    subjectPlayer: true,
+                    subjectResidents: ['barnaby', 'toby', 'nora'],
+                  },
+                  {
+                    target: 'barnaby',
+                    id: 'ev_lanterns_resolved_space',
+                    tag: 'lanterns_resolved_space',
+                    category: 'town_lore',
+                    valence: 'warm',
+                    importance: 4,
+                    retention: 'durable',
+                    subjectPlayer: true,
+                    subjectResidents: ['barnaby', 'toby', 'nora'],
+                  },
+                  {
+                    target: 'toby',
+                    id: 'ev_lanterns_resolved_space',
+                    tag: 'lanterns_resolved_space',
+                    category: 'town_lore',
+                    valence: 'warm',
+                    importance: 4,
+                    retention: 'durable',
+                    subjectPlayer: true,
+                    subjectResidents: ['barnaby', 'toby', 'nora'],
+                  },
+                ],
+                unlockMemory: {
+                  id: 'mem_side_lantern_compromise',
+                  title: 'Bridgehead Dusk Lanterns',
+                  summary:
+                    'Neighbors agreed to keep guide lanterns anchored at the cedar bridgehead so Mirror Pond stays dark and calm for evening sketches.',
+                  residentId: 'nora',
+                },
+              },
+              {
+                id: 'lanterns_resolve_public_harmony',
+                label: 'Gather Barnaby, Toby & Sora for a shared dusk candle-and-violin walk.',
+                tone: 'warm',
+                nextNodeId: 'resolve_harmony_end',
+                minTier: 'friendly',
+                requiresCondition: { minTrust: 2, minReliability: 30 },
+                trustDelta: 2,
+                reliabilityDelta: 12,
+                isStoryMilestone: true,
+                setEmotion: 'excited',
+                setSideFlags: {
+                  lanternConflictResolved: true,
+                  lanternConflictOutcome: 'public_harmony',
+                },
+                advanceStoryline: {
+                  id: 'conflict_plaza_lanterns',
+                  setStage: 3,
+                  setStatus: 'completed',
+                  setOutcome: 'public_harmony',
+                  note: 'United Barnaby, Toby, Nora & Sora with a shared evening candle walk.',
+                },
+                adjustNpcRelations: [
+                  { a: 'barnaby', b: 'toby', deltaAffinity: 18, deltaTension: -24, tag: 'dusk_candle_walk' },
+                  { a: 'barnaby', b: 'nora', deltaAffinity: 14, deltaTension: -16, tag: 'dusk_candle_walk' },
+                  { a: 'nora', b: 'sora', deltaAffinity: 10, deltaTension: -6, tag: 'dusk_candle_walk' },
+                  { a: 'barnaby', b: 'sora', deltaAffinity: 10, deltaTension: -6, tag: 'dusk_candle_walk' },
+                ],
+                recordNpcMemories: [
+                  {
+                    target: 'nora',
+                    id: 'ev_lanterns_resolved_harmony',
+                    tag: 'lanterns_resolved_harmony',
+                    category: 'town_lore',
+                    valence: 'warm',
+                    importance: 5,
+                    retention: 'durable',
+                    subjectPlayer: true,
+                    subjectResidents: ['nora', 'barnaby', 'toby', 'sora'],
+                  },
+                  {
+                    target: 'barnaby',
+                    id: 'ev_lanterns_resolved_harmony',
+                    tag: 'lanterns_resolved_harmony',
+                    category: 'town_lore',
+                    valence: 'warm',
+                    importance: 5,
+                    retention: 'durable',
+                    subjectPlayer: true,
+                    subjectResidents: ['nora', 'barnaby', 'toby', 'sora'],
+                  },
+                  {
+                    target: 'toby',
+                    id: 'ev_lanterns_resolved_harmony',
+                    tag: 'lanterns_resolved_harmony',
+                    category: 'town_lore',
+                    valence: 'warm',
+                    importance: 5,
+                    retention: 'durable',
+                    subjectPlayer: true,
+                    subjectResidents: ['nora', 'barnaby', 'toby', 'sora'],
+                  },
+                  {
+                    target: 'sora',
+                    id: 'ev_lanterns_resolved_harmony',
+                    tag: 'lanterns_resolved_harmony',
+                    category: 'town_lore',
+                    valence: 'warm',
+                    importance: 5,
+                    retention: 'durable',
+                    subjectPlayer: true,
+                    subjectResidents: ['nora', 'barnaby', 'toby', 'sora'],
+                  },
+                ],
+                unlockMemory: {
+                  id: 'mem_side_lantern_compromise',
+                  title: 'Mirror Pond Candle Walk',
+                  summary:
+                    'With Nora’s steady diplomacy, Barnaby, Toby, and Sora turned the pier dispute into an unhurried evening lantern-and-violin stroll.',
+                  residentId: 'nora',
+                },
+              },
+            ],
+          },
+          resolve_comp_end: {
+            moodLabel: 'At Peace',
+            text: `Smart and fair. Barnaby’s brass hoods already threw amber ovals along the planks while three fireflies blinked right back in the reeds.`,
+          },
+          resolve_space_end: {
+            moodLabel: 'Serene',
+            text: `Quiet agreement suits Mirror Pond. Barnaby moved the posts cleanly to the bridgehead without a grumble.`,
+          },
+          resolve_harmony_end: {
+            moodLabel: 'Moved',
+            text:
+              noraTier === 'kindred' || noraTier === 'close'
+                ? `Only someone neighbors truly trust could turn an argument into Sora playing under handheld paper candles. Thank you, friend.`
+                : `Sora played a slow waltz by the bridgehead while Toby and Barnaby carried paper candles side by side. The whole bank felt warmer.`,
+          },
+        },
+      };
+    },
+  ),
+
+  // ================= KNOWLEDGE-GATED STORYLINE EPILOGUE REACTIONS =================
+  makeSimpleTopic(
+    'storyline_epilogue_lanterns',
+    'any',
+    'event_reaction',
+    9,
+    {
+      requiresStoryline: { id: 'conflict_plaza_lanterns', status: ['completed'] },
+      requiresNpcMemory: {
+        tags: ['lanterns_resolved_compromise', 'lanterns_resolved_space', 'lanterns_resolved_harmony'],
+        unmentionedOnly: true,
+      },
+      notSeenToday: true,
+    },
+    {
+      moodLabel: 'Warm',
+      buildText: (id, world) => {
+        const mem =
+          findSpeakerMemory(id, world, {
+            tags: ['lanterns_resolved_compromise', 'lanterns_resolved_space', 'lanterns_resolved_harmony'],
+            unmentionedOnly: true,
+          }) ??
+          findSpeakerMemory(id, world, {
+            tags: ['lanterns_resolved_compromise', 'lanterns_resolved_space', 'lanterns_resolved_harmony'],
+          });
+        const outcome = world.storylines?.conflict_plaza_lanterns?.outcome ?? 'bridge_compromise';
+        if (mem && mem.provenance === 'firsthand') {
+          if (outcome === 'public_harmony' || mem.tag === 'lanterns_resolved_harmony') {
+            return `Still smiling over that evening candle walk beside Mirror Pond—nobody keeps score when violin notes drift across the water.`;
+          }
+          if (outcome === 'gentle_space' || mem.tag === 'lanterns_resolved_space') {
+            return `Anchoring the lamps back at the bridgehead kept both our footing steady and the fireflies right over the reeds.`;
+          }
+          return `Those downward brass hoods along the pier turned out cleaner than I’d hoped—warm path underfoot, quiet water beside it.`;
+        }
+        const fromName = mem?.fromResidentId ? RESIDENTS[mem.fromResidentId]?.name : undefined;
+        const lead = fromName
+          ? `${fromName} told me you helped settle the Mirror Pond lantern argument`
+          : `Word along the cobbles is Mirror Pond’s lantern dispute ended warmly`;
+        if (mem?.distortionFlavor === 'exaggerated') {
+          return `${lead}—the way it’s told, half the neighborhood marched down with brass lanterns!`;
+        }
+        if (mem?.distortionFlavor === 'uncertain') {
+          return `${lead}, though I wasn’t near the pier to see whether the lamps stayed hooded or moved.`;
+        }
+        return `${lead}—nice knowing the pond stays gentle at dusk.`;
+      },
+      choices: [
+        {
+          id: 'epilogue_lanterns_warm',
+          label: 'Everyone just needed room to be heard by the water.',
+          tone: 'warm',
+          nextNodeId: 'ep_lan_end',
+          trustDelta: 1,
+          setEmotion: 'happy',
+          markMemoryTagsMentioned: [
+            'lanterns_resolved_compromise',
+            'lanterns_resolved_space',
+            'lanterns_resolved_harmony',
+          ],
+        },
       ],
       endings: {
-        end_w2: {
-          moodLabel: 'Warm',
-          text: `A town runs gentler when its letter carrier trusts the hour.`,
+        ep_lan_end: {
+          moodLabel: 'Peaceful',
+          text: `Willow Step Lane shines softest when neighbors choose care over noise.`,
+        },
+      },
+    },
+  ),
+
+  makeSimpleTopic(
+    'storyline_epilogue_zine',
+    'any',
+    'event_reaction',
+    8,
+    {
+      requiresStoryline: { id: 'side_pip_zine', status: ['completed'] },
+      requiresNpcMemory: {
+        tags: ['zine_published'],
+        unmentionedOnly: true,
+      },
+      notSeenToday: true,
+    },
+    {
+      moodLabel: 'Fond',
+      buildText: (id, world) => {
+        const mem =
+          findSpeakerMemory(id, world, { tags: ['zine_published'], unmentionedOnly: true }) ??
+          findSpeakerMemory(id, world, { tags: ['zine_published'] });
+        const outcome = world.storylines?.side_pip_zine?.outcome;
+        if (mem && mem.provenance === 'firsthand') {
+          return outcome === 'art_edition'
+            ? `Every time I flip past Toby’s koi spread in Issue #1, I grin—Pip hasn’t stopped smiling all week!`
+            : outcome === 'kitchen_edition'
+            ? `Issue #1 still smells faintly of Clara’s bakery parchment! Best pocket zine on Willow Step Lane.`
+            : `Seeing Issue #1 stitched right there on the Linden counter makes the whole square feel storied.`;
+        }
+        const fromName = mem?.fromResidentId ? RESIDENTS[mem.fromResidentId]?.name : undefined;
+        const lead = fromName
+          ? `${fromName} mentioned Pip and Nora finally bound Issue #1 of the Willow Lane Zine`
+          : `I heard folks talking about Pip and Nora’s new pocket zine down at Linden Book Nook`;
+        if (mem?.distortionFlavor === 'exaggerated') {
+          return `${lead}—supposedly folk queued around the fountain for a look!`;
+        }
+        return `${lead}—I’ll have to borrow a copy next time I pass Nora’s desk.`;
+      },
+      choices: [
+        {
+          id: 'epilogue_zine_warm',
+          label: 'Pip already has chalk notes started for Issue #2!',
+          tone: 'warm',
+          nextNodeId: 'ep_zine_end',
+          trustDelta: 1,
+          setEmotion: 'happy',
+          markMemoryTagsMentioned: ['zine_published'],
+        },
+      ],
+      endings: {
+        ep_zine_end: {
+          moodLabel: 'Smiling',
+          text: `Save me a margin note before Issue #2 goes to twine!`,
         },
       },
     },

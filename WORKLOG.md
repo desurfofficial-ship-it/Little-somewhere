@@ -485,8 +485,32 @@ Chronological log of design decisions, implementation milestones, verification r
   - Live headless Chromium (`1440×900` & `390×844` via `?autostart=1`): verified playing world, interactive porch dialog sheet, zero horizontal overflow (`1440===1440`, `390===390`), `localStorage` persisting `schemaVersion: 4` with 9 resident `npcMemories` buckets, and **0 console errors / 0 warnings**.
 
 ---
+<<<<<<< HEAD
+=======
 
-## Entry 026 — Milestone 3 Build 3: Walkable Cottage Interiors (Willow Step Dollhouse)
+## Entry 026 — Milestone 2B Phase 4: Multi-Stage Storylines & Conflict System (`WorldState v5`)
+- **Date**: 2026-11-19
+- **Status**: Completed & Verified (Phase 4 Only — Phase 5 `JournalDrawer.tsx` UI Left Untouched)
+- **Key Deliverables**:
+  - **Declarative Storyline Registry & Engine (`src/game/types.ts`, `src/game/storylines.ts`)**:
+    - Extended `WorldState` to schema `v5` (`storylines: Record<string, StorylineProgress>`), adding `StorylineStatus`, `StorylineProgress`, `StorylineStageDef`, `StorylineOutcomeDef`, `StorylineDefinition`, `StorylineAdvanceSpec`, `NpcRelationAdjustment`, `DialogueStorylineCondition.requireCooldownCleared`, `DialogueChoice.advanceStoryline` / `adjustNpcRelations`, and `'storyline_beat' | 'conflict_shift'` `WorldEventKind` variants.
+    - Authored `src/game/storylines.ts` with 5 multi-stage storylines (`STORYLINES` / `STORYLINE_MAP`): 4 upgraded 3-stage personal arcs (`side_pip_zine`, `side_herb_loaf`, `side_pond_stand`, `side_jun_watch`) and 1 interconnected 3-stage neighborhood conflict (`conflict_plaza_lanterns`), plus pure helpers (`createInitialStorylines`, `cloneStorylines`, `isStorylineOnCooldown`, `hydrateStorylinesFromLegacyState`, `sanitizeStorylines`, `syncSideFlagsFromStorylineInPlace`, `advanceStorylineInPlace`, `getActiveStorylineCue`, `projectStorylineForJournal`).
+  - **Migrations, Sanitization & Simulation Integration (`src/game/migrations.ts`, `src/game/storage.ts`, `src/game/simulation.ts`)**:
+    - Bumped `CURRENT_SCHEMA_VERSION = 5` with deterministic `migrateV4ToV5` hydrating `storylines` from legacy `sideFlags` without manufacturing `npcMemories`, sequential `v1 -> v2 -> v3 -> v4 -> v5` migration, defensive `sanitizeStorylines`, and `computeWorldSaveRevision` tracking of storyline progress/notes/cooldowns.
+    - Deep-cloned `storylines` cleanly in `stepSimulation`.
+  - **Dialogue, Reducer & Knowledge-Gated Content Integration (`src/game/dialogueEngine.ts`, `src/game/actions.ts`, `src/game/narrative.ts`)**:
+    - Integrated native `world.storylines` and in-game `world.day` cooldown checks (`requireCooldownCleared`) into `evaluateDialogueCondition`, removing `ForwardStorylineHooks` shims.
+    - Wired `advanceStorylineInPlace`, `adjustNpcRelations`, and `'storyline_beat'` / `'conflict_shift'` `WorldEventRecord` emission into `applyDialogueChoice` without mutating input state, guarding `hasPositiveStorylineAdvance` so negative friction choices still adjust affinity/reliability properly.
+    - Upgraded all 4 personal arcs to 3-stage branching paths with alternative outcomes (preserving legacy `JournalMemory` IDs `mem_side_*`), added `conflict_plaza_lanterns` (`conflict_lanterns_1_spark` -> `conflict_lanterns_2_barnaby` [non-omniscient gossip check + 1-day cooldown] -> `conflict_lanterns_3_resolve` [relationship-gated `public_harmony` + `bridge_compromise` / `gentle_space`]), and added knowledge-gated `storyline_epilogue_lanterns` and `storyline_epilogue_zine`.
+    - Tuned `conflict_lanterns_1_spark` / `conflict_lanterns_2_barnaby` priorities (`7`, total `91`) below Stage 2/3 personal storyline beats (`92–95`) so personal storylines proceed without starvation when `lanternsLit` is active.
+- **Verification**:
+  - `npm test`: **87/87 passing** (`0` failures across `src/game/storylines.test.ts`, `storage.test.ts`, `dialogue.test.ts`, `memories.test.ts`, `relationships.test.ts`, `simulation.test.ts`, `engine.test.ts`, `environment.test.ts`, `navigation.test.ts`, `player.test.ts`, and `src/scene/*.test.ts`).
+  - `npm run lint` (`tsc --noEmit`), `compile_applet`, `lint_applet`, and `npm run build` (`vite build`): **Passing (`0` errors)**.
+  - Verified `src/components/JournalDrawer.tsx` remains untouched pending Phase 5.
+
+>>>>>>> origin/main
+
+## Entry 027 — Milestone 3 Build 3: Walkable Cottage Interiors (Willow Step Dollhouse)
 - **Date**: 2026-11-19
 - **Status**: Completed & Verified
 - **Scope**: The Willow Step Cottage becomes the neighborhood's first *walkable* building: the player (and A*) can stroll up the entry ramp, cross the porch, pass through the swinging porch door, and wander a fully furnished one-room interior with a hearth, bed, table, bookshelf, and kitchenette — with a dollhouse occlusion swap that lifts the roof and near walls the moment the player steps onto the porch.
