@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { BookOpen, Check, Clock, Heart, MapPin, Users, X } from 'lucide-react';
 import { RESIDENTS, RESIDENT_ORDER, getResidentScheduleSlot, getTimePhase } from '../game/residents';
-import { computeEnvironmentState, getResidentAvailableQuestCue } from '../game/narrative';
+import { getResidentAvailableQuestCue } from '../game/narrative';
+import { composeEnvironmentState, getWeatherLabel } from '../game/environment';
 import { WorldState } from '../game/types';
 
 interface JournalDrawerProps {
@@ -22,7 +23,8 @@ export const JournalDrawer: React.FC<JournalDrawerProps> = ({
   if (!open) return null;
 
   const phase = getTimePhase(world.minuteOfDay);
-  const env = computeEnvironmentState(world.flags);
+  const composed = composeEnvironmentState(world);
+  const env = composed.playerChanges;
 
   const storyThreads = [
     {
@@ -73,7 +75,7 @@ export const JournalDrawer: React.FC<JournalDrawerProps> = ({
               Pocket Journal
             </h2>
             <p className="text-xs text-[#6A5B50] mt-0.5">
-              Day {world.day} · {phase.charAt(0).toUpperCase() + phase.slice(1)} · {world.memories.length} {world.memories.length === 1 ? 'Memory' : 'Memories'} Saved
+              Day {world.day} ({composed.season.seasonLabel}) · {phase.charAt(0).toUpperCase() + phase.slice(1)} · {getWeatherLabel(composed.weather.effective)} · {world.memories.length} {world.memories.length === 1 ? 'Memory' : 'Memories'} Saved
             </p>
           </div>
           <button
@@ -134,6 +136,7 @@ export const JournalDrawer: React.FC<JournalDrawerProps> = ({
                 const def = RESIDENTS[id];
                 const prog = world.residents[id];
                 const slot = getResidentScheduleSlot(id, phase, env.reconciledTogether);
+                const runtime = world.npcRuntime?.[id];
                 const cue = getResidentAvailableQuestCue(id, world);
                 return (
                   <div
@@ -185,7 +188,7 @@ export const JournalDrawer: React.FC<JournalDrawerProps> = ({
 
                     <div className="pt-2 border-t border-[#E5D9C7] text-xs text-[#5E5046] flex items-center justify-between gap-2">
                       <span className="font-medium truncate">
-                        Now: {slot.placeName} — {slot.activity}
+                        Now: {runtime?.currentPlaceName ?? slot.placeName} — {runtime?.currentActivityLabel ?? slot.activity}
                       </span>
                     </div>
                   </div>
@@ -253,6 +256,29 @@ export const JournalDrawer: React.FC<JournalDrawerProps> = ({
                   ))}
                 </div>
               </div>
+
+              {world.worldEvents && world.worldEvents.length > 0 && (
+                <div>
+                  <h3 className="font-display text-lg font-semibold text-[#2D241E] mb-3">
+                    Recent Lane Moments
+                  </h3>
+                  <div className="space-y-2">
+                    {world.worldEvents.slice(0, 5).map((ev) => (
+                      <div
+                        key={ev.id}
+                        className="px-3.5 py-2.5 rounded-xl bg-[#F4ECE0] border border-[#E2D4C0] flex items-center justify-between gap-3"
+                      >
+                        <p className="text-xs sm:text-sm text-[#3D3128] leading-snug">
+                          {ev.summary}
+                        </p>
+                        <span className="text-xs text-[#6A5B50] font-mono-nums shrink-0">
+                          Day {ev.day}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
@@ -278,6 +304,48 @@ export const JournalDrawer: React.FC<JournalDrawerProps> = ({
                   <Clock className="w-4 h-4" />
                   <span>Advance 2 Hours</span>
                 </button>
+              </div>
+
+              <div className="p-4 rounded-xl bg-[#F4ECE0] border border-[#E2D4C0]">
+                <h3 className="font-display text-lg font-semibold text-[#2D241E] mb-2">
+                  Sky, Season & Neighborhood Rhythm
+                </h3>
+                <ul className="text-sm text-[#3D3128] space-y-1.5">
+                  <li>
+                    Season:{' '}
+                    <strong>
+                      {composed.season.seasonLabel} — Day {composed.season.dayOfSeason} of 10, Year{' '}
+                      {composed.season.year}
+                    </strong>
+                  </li>
+                  <li>
+                    Today&apos;s sky:{' '}
+                    <strong>
+                      {getWeatherLabel(composed.weather.effective)}
+                      {composed.weather.current === 'misty_morning' &&
+                      composed.weather.effective === 'misty_morning'
+                        ? ' (clearing mid-morning)'
+                        : ''}
+                    </strong>
+                  </li>
+                  <li>
+                    Tomorrow&apos;s forecast:{' '}
+                    <strong>{getWeatherLabel(composed.weather.tomorrowForecast)}</strong>
+                  </li>
+                  <li>
+                    Plaza noticeboard flyers:{' '}
+                    <strong className="font-mono-nums">
+                      {composed.npcTouches.noticeboardFlyerCount}/3
+                    </strong>{' '}
+                    posted
+                  </li>
+                  <li>
+                    Sunbeam Greenhouse bloom stage:{' '}
+                    <strong className="font-mono-nums">
+                      Stage {composed.npcTouches.minaGreenhouseStage}/3
+                    </strong>
+                  </li>
+                </ul>
               </div>
 
               <div className="p-4 rounded-xl bg-[#F4ECE0] border border-[#E2D4C0]">

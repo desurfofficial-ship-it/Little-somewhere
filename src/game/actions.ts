@@ -2,7 +2,16 @@ import {
   computeEnvironmentState,
   isChoiceAvailable,
 } from './narrative';
-import { getTimePhase } from './residents';
+import {
+  composeEnvironmentState,
+  getWeatherLabel,
+} from './environment';
+import {
+  pushWorldEventInPlace,
+  reconcileClaraAndArthurRelation,
+  recordPlayerTalkAffinity,
+} from './relationships';
+import { RESIDENTS, getTimePhase } from './residents';
 import { advanceToNextDay } from './storage';
 import {
   DialogueChoice,
@@ -37,26 +46,55 @@ export function applyDialogueChoice(
     : world.flags;
 
   const trustGain = choice.trustDelta ?? 0;
-  const nextTrust = Math.max(0, Math.min(5, currentRes.trust + trustGain));
+  const isStoryMilestone = Boolean(
+    choice.isStoryMilestone || choice.setFlags || choice.unlockMemory || trustGain >= 2,
+  );
+  const phase = getTimePhase(world.minuteOfDay);
 
-  const nextMood =
+  const forcedMood =
     nextFlags.claraArthurReconciled && (residentId === 'clara' || residentId === 'arthur')
-      ? 'joyful'
-      : nextTrust >= 3
-      ? 'warm'
-      : currentRes.mood;
+      ? ('joyful' as const)
+      : undefined;
+
+  const existingPlayerRel = world.playerRelations?.[residentId] ?? {
+    residentId,
+    affinity: currentRes.trust * 20,
+    familiarity: currentRes.met ? 10 : 0,
+    dailyAffinityGained: 0,
+    talkedCount: currentRes.met ? 1 : 0,
+    lastTalkDay: null,
+    lastTalkPhase: null,
+    mood: currentRes.mood,
+    moodUntilMinute: 0,
+  };
+
+  const { relation: nextPlayerRel, progress: nextResidentProg } = recordPlayerTalkAffinity(
+    existingPlayerRel,
+    currentRes,
+    {
+      day: world.day,
+      phase,
+      minuteOfDay: world.minuteOfDay,
+      requestedTrustDelta: trustGain,
+      isStoryMilestone,
+      nextNodeId: choice.nextNodeId,
+      forcedMood,
+    },
+  );
 
   const nextResidents = {
     ...world.residents,
-    [residentId]: {
-      ...currentRes,
-      met: true,
-      talkedToday: true,
-      trust: nextTrust,
-      mood: nextMood,
-      lastDialogueId: choice.nextNodeId,
-    },
+    [residentId]: nextResidentProg,
   };
+  const nextPlayerRelations = {
+    ...(world.playerRelations ?? {}),
+    [residentId]: nextPlayerRel,
+  };
+
+  let nextNpcRelations = world.npcRelations ?? {};
+  if (nextFlags.claraArthurReconciled && !world.flags.claraArthurReconciled) {
+    nextNpcRelations = reconcileClaraAndArthurRelation(nextNpcRelations, world.day);
+  }
 
   let nextMemories = world.memories;
   let memoryUnlockedTitle: string | undefined;
@@ -69,16 +107,36 @@ export function applyDialogueChoice(
         {
           ...choice.unlockMemory,
           day: world.day,
-          phase: getTimePhase(world.minuteOfDay),
+          phase,
         },
         ...world.memories,
       ];
     }
   }
 
+  const nextEvents = [...(world.worldEvents ?? [])];
+  if (choice.setFlags) {
+    const flagSummary = memoryUnlockedTitle
+      ? `${RESIDENTS[residentId].name}: ${memoryUnlockedTitle}`
+      : `Shared a meaningful step with ${RESIDENTS[residentId].name}.`;
+    pushWorldEventInPlace(nextEvents, {
+      id: `story_${world.day}_${choice.id}`,
+      day: world.day,
+      phase,
+      minuteOfDay: Math.round(world.minuteOfDay),
+      kind: 'story_flag',
+      actors: [residentId],
+      summary: flagSummary,
+      summaryTag: choice.id,
+    });
+  }
+
   const nextWorld: WorldState = {
     ...world,
     residents: nextResidents,
+    playerRelations: nextPlayerRelations,
+    npcRelations: nextNpcRelations,
+    worldEvents: nextEvents,
     flags: nextFlags,
     memories: nextMemories,
   };
@@ -226,7 +284,9 @@ export function interactWithProp(
   }
 
   // plaza_noticeboard
+  const composed = composeEnvironmentState(world);
   const notes: string[] = [
+    `• Tomorrow's Sky (${composed.season.seasonLabel} Day ${composed.season.dayOfSeason}): ${getWeatherLabel(composed.weather.tomorrowForecast)}.`,
     '• Hearth & Crumb: Warm rosemary loaves every morning!',
   ];
   if (world.flags.heardBellMystery) {

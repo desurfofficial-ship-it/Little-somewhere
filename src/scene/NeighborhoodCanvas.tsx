@@ -2,42 +2,40 @@ import React, { useEffect, useRef } from 'react';
 import * as THREE from 'three';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import {
-  EnvironmentalState,
   GameScreenState,
   InteractiveTarget,
   PropInteractableId,
   ResidentId,
   ScreenVec2,
+  SeasonType,
   TimePhase,
   Vec2,
+  WeatherType,
   WorldState,
 } from '../game/types';
 import {
   RESIDENTS,
   RESIDENT_ORDER,
-  getResidentScheduleSlot,
   getTimePhase,
 } from '../game/residents';
+import {
+  createInitialNpcRuntime,
+  stepSimulationInPlace,
+} from '../game/simulation';
 import {
   PROP_INTERACTABLES,
   distance2D,
   isPointWalkable,
   resolveMovement,
 } from '../game/worldMap';
-import {
-  computeEnvironmentState,
-  getResidentAvailableQuestCue,
-} from '../game/narrative';
+import { getResidentAvailableQuestCue } from '../game/narrative';
+import { composeEnvironmentState } from '../game/environment';
 import { cozyAudio } from '../game/audio';
+import { EnvironmentVisualController } from './environmentRenderer';
 import {
   CharacterRig,
   FountainRig,
   GazeboRig,
-  buildClayCharacter,
-  buildClayCottage,
-  buildGreenhouse,
-  buildOldBellGazebo,
-  buildStoneFountain,
 } from './models';
 import {
   createCobblestoneTexture,
@@ -45,7 +43,7 @@ import {
   createMeadowTexture,
   createRoofShingleTexture,
 } from './textures';
-import { MaterialPalette } from './materials';
+import { MaterialPalette, STORYBOOK_PALETTE } from './materials';
 import {
   buildStorybookJun,
   buildWillowLaneCourtyardProps,
@@ -53,6 +51,31 @@ import {
   buildWillowStepCottage,
   updateWillowPrototypeMotion,
 } from './prototypes/willowLaneDiorama';
+import {
+  addContactShadow,
+  buildGroveTreesInstanced,
+  buildHollowOakLandmark,
+  buildMirrorPondAndBridge,
+  buildPerimeterBorder,
+} from './builders/vegetation';
+import {
+  buildStorybookFountain,
+  buildStorybookGazebo,
+  buildStorybookNoticeboard,
+  buildStorybookTeaCart,
+} from './builders/landmarks';
+import {
+  buildBakeryCafeTables,
+  buildStorybookArthurWorkshop,
+  buildStorybookBakery,
+  buildStorybookBarnabyWoodshop,
+  buildStorybookBookNook,
+  buildStorybookGreenhouse,
+} from './builders/buildings';
+import {
+  animateCharacterRig,
+  buildStorybookCharacter,
+} from './builders/characters';
 
 export interface NeighborhoodCanvasProps {
   screenState: GameScreenState;
@@ -66,6 +89,8 @@ export interface NeighborhoodCanvasProps {
     playerPos: Vec2;
     playerFacing: number;
     nearestTarget: InteractiveTarget | null;
+    weather: WeatherType;
+    season: SeasonType;
   }) => void;
   onSelectTarget: (target: InteractiveTarget) => void;
 }
@@ -75,18 +100,6 @@ const _vec3B = new THREE.Vector3();
 const _raycaster = new THREE.Raycaster();
 const _pointer = new THREE.Vector2();
 const _groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
-const _skyMorning = new THREE.Color('#DCEBF2');
-const _skyAfternoon = new THREE.Color('#D9ECF5');
-const _skyGolden = new THREE.Color('#F5CFA0');
-const _skyDusk = new THREE.Color('#6F7FA8');
-const _sunMorning = new THREE.Color('#FFF1D0');
-const _sunAfternoon = new THREE.Color('#FFF6DF');
-const _sunGolden = new THREE.Color('#FFB266');
-const _sunDusk = new THREE.Color('#97AEE0');
-const _hemiSkyMorning = new THREE.Color('#B5D7EB');
-const _hemiSkyDusk = new THREE.Color('#5B71A8');
-const _hemiGroundMorning = new THREE.Color('#7A664E');
-const _hemiGroundDusk = new THREE.Color('#3F3D52');
 
 export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
   screenState,
@@ -209,20 +222,24 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
     const shadowTex = createContactShadowTexture();
 
     // Extended natural meadow floor (no boxed void)
-    const ground = new THREE.Mesh(
-      new THREE.PlaneGeometry(110, 110),
-      new THREE.MeshStandardMaterial({
-        color: '#FFFFFF',
-        map: meadowTex,
-        roughness: 0.92,
-        metalness: 0.0,
-      }),
-    );
+    const groundMat = new THREE.MeshStandardMaterial({
+      color: '#FFFFFF',
+      map: meadowTex,
+      roughness: 0.92,
+      metalness: 0.0,
+    });
+    const ground = new THREE.Mesh(new THREE.PlaneGeometry(110, 110), groundMat);
     ground.rotation.x = -Math.PI / 2;
     ground.receiveShadow = true;
     scene.add(ground);
 
-    // Cobblestone road & plaza slabs (offset by +0.025 on Y to prevent Z-fighting)
+    // Shared storybook palette & reactive scene elements
+    const palette = new MaterialPalette();
+    const windowMaterials: THREE.MeshStandardMaterial[] = [];
+    const prototypeLanternMats: THREE.MeshStandardMaterial[] = [];
+    const flowerGroups: THREE.Group[] = [];
+
+    // Cobblestone road & plaza slabs (offset by +0.02 on Y to prevent Z-fighting)
     const cobbleMat = new THREE.MeshStandardMaterial({
       color: '#FFFFFF',
       map: cobbleTex,
@@ -236,76 +253,36 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
       m.receiveShadow = true;
       scene.add(m);
     };
-    // Central Plaza + cross lanes
+    // Central Plaza + cross lanes + bridge & woodshop spurs
     addCobbleStrip(0, 0, 12.5, 13.5);
     addCobbleStrip(-9, 10, 11, 3.6); // Home lane
     addCobbleStrip(-10, -1, 3.8, 22); // West lane (Book Nook -> Bakery -> Home)
     addCobbleStrip(8.3, -1, 4.2, 23); // East lane (Workshop -> Greenhouse -> Woodshop)
+    addCobbleStrip(8.3, 11.6, 4.0, 2.6); // East lane extension to Pinecone Woodshop
     addCobbleStrip(0, 7.2, 22, 3.2); // South promenade above pond
+    addCobbleStrip(-2.9, 10.1, 2.3, 3.0); // Bridge approach walk
     addCobbleStrip(0, -6.5, 22, 3.2); // North promenade by gazebo
 
-    // Natural perimeter stone edging & rolling hills outside playable bounds
-    const perimeterStoneMat = new THREE.MeshStandardMaterial({ color: '#9D9384', roughness: 0.9 });
-    const hedgeMat = new THREE.MeshStandardMaterial({ color: '#618852', roughness: 0.85 });
-    for (let i = -24; i <= 24; i += 6) {
-      const wallN = new THREE.Mesh(new THREE.BoxGeometry(4.8, 0.65, 0.6), perimeterStoneMat);
-      wallN.position.set(i, 0.32, -23.6);
-      wallN.receiveShadow = true;
-      const wallS = wallN.clone();
-      wallS.position.z = 23.6;
-      scene.add(wallN, wallS);
-    }
-
-    // Surrounding grove trees (InstancedMesh for crisp performance)
-    const treeCount = 46;
-    const trunkGeo = new THREE.CylinderGeometry(0.22, 0.32, 1.4, 7);
-    trunkGeo.translate(0, 0.7, 0);
-    const trunkMat = new THREE.MeshStandardMaterial({ color: '#78523A', roughness: 0.88 });
-    const canopyGeo = new THREE.DodecahedronGeometry(1.15, 0);
-    canopyGeo.translate(0, 2.15, 0);
-    const canopyMat = new THREE.MeshStandardMaterial({ color: '#FFFFFF', roughness: 0.84 });
-
-    const trunksInst = new THREE.InstancedMesh(trunkGeo, trunkMat, treeCount);
-    const canopiesInst = new THREE.InstancedMesh(canopyGeo, canopyMat, treeCount);
-    canopiesInst.castShadow = !isSoftwareGl;
-    trunksInst.castShadow = !isSoftwareGl;
-    const dummy = new THREE.Object3D();
-    const treePalette = [
-      new THREE.Color('#6B9A5A'),
-      new THREE.Color('#7CA864'),
-      new THREE.Color('#5E8954'),
-      new THREE.Color('#8EB46B'),
-    ];
-    let tIdx = 0;
-    for (let ring = 0; ring < treeCount; ring++) {
-      const angle = (ring / treeCount) * Math.PI * 2;
-      const radius = 26.5 + (ring % 3) * 3.8;
-      const tx = Math.cos(angle) * radius * 1.08;
-      const tz = Math.sin(angle) * radius * 0.96;
-      const scale = 0.88 + ((ring * 17) % 10) * 0.03;
-      dummy.position.set(tx, 0, tz);
-      dummy.rotation.y = angle;
-      dummy.scale.setScalar(scale);
-      dummy.updateMatrix();
-      trunksInst.setMatrixAt(tIdx, dummy.matrix);
-      canopiesInst.setMatrixAt(tIdx, dummy.matrix);
-      canopiesInst.setColorAt(tIdx, treePalette[ring % treePalette.length]);
-      tIdx++;
-    }
-    trunksInst.computeBoundingSphere();
-    canopiesInst.computeBoundingSphere();
-    scene.add(trunksInst, canopiesInst);
-
-    // Shared storybook palette & reactive scene elements
-    const palette = new MaterialPalette();
-    const windowMaterials: THREE.MeshStandardMaterial[] = [];
-    const prototypeLanternMats: THREE.MeshStandardMaterial[] = [];
-    const flowerGroups: THREE.Group[] = [];
+    // Natural perimeter stone/cedar border, rolling distant hills & multi-lobe instanced grove
+    scene.add(buildPerimeterBorder(palette, shadowTex));
+    const groveRig = buildGroveTreesInstanced(palette, isSoftwareGl);
+    scene.add(groveRig.group);
 
     const willowProtoCtx = {
       palette,
       shadowTex,
       terracottaRoofTex,
+      windowMaterials,
+      lanternMaterials: prototypeLanternMats,
+      flowerGroups,
+    };
+
+    const buildingCtx = {
+      palette,
+      shadowTex,
+      terracottaRoofTex,
+      sageRoofTex,
+      slateRoofTex,
       windowMaterials,
       lanternMaterials: prototypeLanternMats,
       flowerGroups,
@@ -325,244 +302,51 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
     scene.add(willowMailbox.group);
     const mbFlag = willowMailbox.flagMesh;
 
-    // 2. Hearth & Crumb Bakery (Clara)
-    const bakery = buildClayCottage({
-      width: 6.8,
-      depth: 5.8,
-      wallHeight: 2.7,
-      wallColor: '#F8DFC1',
-      roofColor: '#C46347',
-      trimColor: '#8B563A',
-      doorSide: 'south',
-      hasAwning: true,
-      awningColor: '#D67054',
-      roofTex: terracottaRoofTex,
-      windowMaterials,
-      flowerGroups,
-    });
-    bakery.position.set(-12.4, 0, -10.8);
-    scene.add(bakery);
-
-    // Reactive Bakery Outdoor Café Tables (appear after reconciliation or shared baking)
-    const bakeryTablesGroup = new THREE.Group();
-    bakeryTablesGroup.position.set(-8.0, 0, -6.4);
-    for (let i = 0; i < 2; i++) {
-      const tbl = new THREE.Group();
-      tbl.position.set(i * 2.1, 0, 0.4);
-      const leg = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.08, 0.1, 0.72, 8),
-        new THREE.MeshStandardMaterial({ color: '#5D4638', roughness: 0.8 }),
-      );
-      leg.position.y = 0.36;
-      const top = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.62, 0.62, 0.08, 12),
-        new THREE.MeshStandardMaterial({ color: '#FAF2E4', roughness: 0.7 }),
-      );
-      top.position.y = 0.74;
-      const loaf = new THREE.Mesh(
-        new THREE.CapsuleGeometry(0.12, 0.22, 4, 6),
-        new THREE.MeshStandardMaterial({ color: '#D8964B', roughness: 0.8 }),
-      );
-      loaf.rotation.z = Math.PI / 2;
-      loaf.position.y = 0.86;
-      tbl.add(leg, top, loaf);
-      bakeryTablesGroup.add(tbl);
-    }
-    bakeryTablesGroup.visible = false;
+    // 2. Hearth & Crumb Bakery (Clara) + Reactive Outdoor Café Tables
+    scene.add(buildStorybookBakery(buildingCtx));
+    const bakeryTablesGroup = buildBakeryCafeTables(palette, shadowTex);
     scene.add(bakeryTablesGroup);
 
     // 3. Linden Book Nook (Nora)
-    const bookNook = buildClayCottage({
-      width: 5.8,
-      depth: 5.4,
-      wallHeight: 2.5,
-      wallColor: '#E5DAC8',
-      roofColor: '#5F8267',
-      trimColor: '#694F41',
-      doorSide: 'east',
-      hasAwning: true,
-      awningColor: '#7A5463',
-      roofTex: sageRoofTex,
-      windowMaterials,
-      flowerGroups,
-    });
-    bookNook.position.set(-15.8, 0, -1.0);
-    scene.add(bookNook);
+    scene.add(buildStorybookBookNook(buildingCtx));
 
     // 4. Copperwheel Cottage (Arthur)
-    const workshopArthur = buildClayCottage({
-      width: 6.4,
-      depth: 5.6,
-      wallHeight: 2.6,
-      wallColor: '#DFDFD6',
-      roofColor: '#5D7082',
-      trimColor: '#584B42',
-      doorSide: 'south',
-      hasAwning: false,
-      roofTex: slateRoofTex,
-      windowMaterials,
-      flowerGroups,
-    });
-    workshopArthur.position.set(13.1, 0, -11.5);
-    scene.add(workshopArthur);
+    scene.add(buildStorybookArthurWorkshop(buildingCtx));
 
     // 5. Sunbeam Greenhouse (Mina)
-    const greenhouse = buildGreenhouse(windowMaterials);
-    greenhouse.position.set(14.3, 0, 1.7);
-    scene.add(greenhouse);
+    scene.add(buildStorybookGreenhouse(buildingCtx));
 
     // 6. Pinecone Woodshop (Barnaby)
-    const workshopBarnaby = buildClayCottage({
-      width: 5.8,
-      depth: 5.4,
-      wallHeight: 2.4,
-      wallColor: '#E8D5BD',
-      roofColor: '#5F8267',
-      trimColor: '#7B4E34',
-      doorSide: 'west',
-      hasAwning: false,
-      roofTex: sageRoofTex,
-      windowMaterials,
-      flowerGroups,
-    });
-    workshopBarnaby.position.set(12.4, 0, 13.0);
-    scene.add(workshopBarnaby);
+    scene.add(buildStorybookBarnabyWoodshop(buildingCtx));
 
     // 7. Old Bell Gazebo (Centerpiece Landmark!)
-    const gazeboRig: GazeboRig = buildOldBellGazebo();
-    gazeboRig.group.position.set(0, 0, -9.5);
+    const gazeboRig: GazeboRig = buildStorybookGazebo(palette, shadowTex, sageRoofTex);
     scene.add(gazeboRig.group);
 
     // 8. Mossy Stone Fountain
-    const fountainRig: FountainRig = buildStoneFountain();
-    fountainRig.group.position.set(0, 0, 1.5);
+    const fountainRig: FountainRig = buildStorybookFountain(palette, shadowTex);
     scene.add(fountainRig.group);
 
-    // 9. Sora's Tea Cart & Noticeboard
-    const teaCart = new THREE.Group();
-    teaCart.position.set(-5.4, 0, -3.2);
-    const cartBase = new THREE.Mesh(
-      new THREE.BoxGeometry(1.5, 0.85, 0.95),
-      new THREE.MeshStandardMaterial({ color: '#8D5F42', roughness: 0.8 }),
-    );
-    cartBase.position.y = 0.55;
-    cartBase.castShadow = true;
-    const kettle = new THREE.Mesh(
-      new THREE.SphereGeometry(0.22, 10, 8),
-      new THREE.MeshStandardMaterial({ color: '#D49E42', roughness: 0.25, metalness: 0.8 }),
-    );
-    kettle.position.set(-0.2, 1.15, 0);
-    const canopy = new THREE.Mesh(
-      new THREE.BoxGeometry(1.75, 0.12, 1.2),
-      new THREE.MeshStandardMaterial({ color: '#8C6BB1', roughness: 0.78 }),
-    );
-    canopy.position.y = 1.95;
-    const cartPostMat = palette.standard('#6B4834', 0.78, 0.04);
-    for (const px of [-0.68, 0.68]) {
-      for (const pz of [-0.42, 0.42]) {
-        const post = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.045, 1.05, 6), cartPostMat);
-        post.position.set(px, 1.42, pz);
-        teaCart.add(post);
-      }
-    }
-    teaCart.add(cartBase, kettle, canopy);
-    scene.add(teaCart);
+    // 9. Sora's Tea Cart & Neighborhood Noticeboard
+    scene.add(buildStorybookTeaCart(palette, shadowTex));
+    const noticeboardRig = buildStorybookNoticeboard(palette, shadowTex, terracottaRoofTex);
+    scene.add(noticeboardRig.group);
 
-    const noticeBoard = new THREE.Group();
-    noticeBoard.position.set(4.4, 0, -3.2);
-    const nbPostL = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.08, 0.08, 1.6, 8),
-      new THREE.MeshStandardMaterial({ color: '#6E4C36', roughness: 0.85 }),
-    );
-    nbPostL.position.set(-0.55, 0.8, 0);
-    const nbPostR = nbPostL.clone();
-    nbPostR.position.x = 0.55;
-    const nbBoard = new THREE.Mesh(
-      new THREE.BoxGeometry(1.3, 0.85, 0.14),
-      new THREE.MeshStandardMaterial({ color: '#DFC7A0', roughness: 0.82 }),
-    );
-    nbBoard.position.y = 1.2;
-    const nbFlyer = new THREE.Mesh(
-      new THREE.BoxGeometry(0.4, 0.45, 0.16),
-      new THREE.MeshStandardMaterial({ color: '#F9F3E4', roughness: 0.9 }),
-    );
-    nbFlyer.position.set(-0.2, 1.22, 0.02);
-    noticeBoard.add(nbPostL, nbPostR, nbBoard, nbFlyer);
-    scene.add(noticeBoard);
+    // 10. Mirror Pond, Arched Cedar Bridge & Gnarled Hollow Oak
+    scene.add(buildMirrorPondAndBridge(palette, shadowTex));
+    const hollowOakRig = buildHollowOakLandmark(palette, shadowTex);
+    scene.add(hollowOakRig.group);
+    const oakGlint = hollowOakRig.oakGlint;
 
-    // 10. Mirror Pond, Wooden Bridge & Hollow Oak
-    const pondWater = new THREE.Mesh(
-      new THREE.BoxGeometry(7.2, 0.12, 4.4),
-      new THREE.MeshStandardMaterial({
-        color: '#6CAEC0',
-        roughness: 0.16,
-        metalness: 0.15,
-        transparent: true,
-        opacity: 0.88,
-      }),
-    );
-    pondWater.position.set(1.6, 0.06, 14.0);
-    scene.add(pondWater);
-
-    const bridgeGroup = new THREE.Group();
-    bridgeGroup.position.set(-2.9, 0, 14.0);
-    const bridgeDeck = new THREE.Mesh(
-      new THREE.BoxGeometry(2.2, 0.2, 5.2),
-      new THREE.MeshStandardMaterial({ color: '#9D6E4C', roughness: 0.82 }),
-    );
-    bridgeDeck.position.y = 0.22;
-    bridgeDeck.castShadow = true;
-    bridgeDeck.receiveShadow = true;
-    bridgeGroup.add(bridgeDeck);
-
-    const railMat = new THREE.MeshStandardMaterial({ color: '#7D5338', roughness: 0.85 });
-    for (const rx of [-0.96, 0.96]) {
-      const railBar = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.1, 5.1), railMat);
-      railBar.position.set(rx, 0.82, 0);
-      bridgeGroup.add(railBar);
-      for (const rz of [-2.2, 0, 2.2]) {
-        const post = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.08, 0.68, 6), railMat);
-        post.position.set(rx, 0.52, rz);
-        bridgeGroup.add(post);
-      }
-    }
-    scene.add(bridgeGroup);
-
-    const hollowOak = new THREE.Group();
-    hollowOak.position.set(-6.2, 0, 15.6);
-    const oakTrunk = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.65, 0.95, 2.2, 9),
-      new THREE.MeshStandardMaterial({ color: '#6E4B35', roughness: 0.9 }),
-    );
-    oakTrunk.position.y = 1.1;
-    oakTrunk.castShadow = true;
-    const oakCrown = new THREE.Mesh(
-      new THREE.DodecahedronGeometry(2.0, 0),
-      hedgeMat,
-    );
-    oakCrown.position.y = 3.1;
-    oakCrown.castShadow = true;
-    const oakGlint = new THREE.Mesh(
-      new THREE.SphereGeometry(0.18, 8, 8),
-      new THREE.MeshStandardMaterial({
-        color: '#F5C452',
-        emissive: '#E09A2B',
-        emissiveIntensity: 0.65,
-        metalness: 0.8,
-        roughness: 0.2,
-      }),
-    );
-    oakGlint.position.set(0.3, 0.35, -0.78);
-    hollowOak.add(oakTrunk, oakCrown, oakGlint);
-    scene.add(hollowOak);
-
-    // 11. Festoon Lanterns & Plaza Lamps
+    // 11. Plaza Stone/Iron Lamps & Festoon Lantern Strands
     const lanternMat = new THREE.MeshStandardMaterial({
       color: '#FFE6A3',
       emissive: new THREE.Color('#FFAA3B'),
-      emissiveIntensity: 0.2,
-      roughness: 0.25,
+      emissiveIntensity: 0.22,
+      roughness: 0.2,
     });
+    const lampStoneMat = palette.standard(STORYBOOK_PALETTE.limestone, 0.88, 0.02);
+    const lampIronMat = palette.standard(STORYBOOK_PALETTE.wroughtIron, 0.42, 0.72);
     const festoonGroup = new THREE.Group();
     const lampPosts: Array<[number, number]> = [
       [-6.2, -5.2],
@@ -571,28 +355,69 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
       [6.2, 6.2],
     ];
     for (const [lx, lz] of lampPosts) {
-      const post = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.08, 0.11, 2.8, 8),
-        new THREE.MeshStandardMaterial({ color: '#45484E', roughness: 0.45, metalness: 0.6 }),
-      );
-      post.position.set(lx, 1.4, lz);
+      const lamp = new THREE.Group();
+      lamp.position.set(lx, 0, lz);
+      addContactShadow(lamp, shadowTex, 0.95, 0.95, 0.42, 0.018);
+      const plinth = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.23, 0.28, 8), lampStoneMat);
+      plinth.position.y = 0.14;
+      const post = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.1, 2.58, 8), lampIronMat);
+      post.position.y = 1.56;
       post.castShadow = true;
-      const bulb = new THREE.Mesh(new THREE.SphereGeometry(0.24, 10, 8), lanternMat);
-      bulb.position.set(lx, 2.95, lz);
-      scene.add(post, bulb);
+      const collar = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.12, 0.09, 6), lampIronMat);
+      collar.position.y = 2.86;
+      const bulb = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.11, 0.24, 6), lanternMat);
+      bulb.position.y = 3.01;
+      const cap = new THREE.Mesh(new THREE.ConeGeometry(0.22, 0.16, 6), lampIronMat);
+      cap.position.y = 3.2;
+      lamp.add(plinth, post, collar, bulb, cap);
+      scene.add(lamp);
     }
 
-    // Festoon lantern bulbs strung across plaza
+    // Festoon lantern bulbs + overhead swag wire strung across plaza
+    const wireMat = palette.standard('#3E3B39', 0.65, 0.4);
     for (let i = 0; i < 9; i++) {
       const t = i / 8;
       const fx = THREE.MathUtils.lerp(-5.8, 5.8, t);
       const sag = Math.sin(t * Math.PI) * 0.65;
-      const bulb = new THREE.Mesh(new THREE.SphereGeometry(0.15, 8, 8), lanternMat);
-      bulb.position.set(fx, 3.3 - sag, -5.2);
+      const bulb = new THREE.Mesh(new THREE.SphereGeometry(0.14, 8, 8), lanternMat);
+      bulb.position.set(fx, 3.25 - sag, -5.2);
       festoonGroup.add(bulb);
+      if (i < 8) {
+        const nt = (i + 1) / 8;
+        const nfx = THREE.MathUtils.lerp(-5.8, 5.8, nt);
+        const nsag = Math.sin(nt * Math.PI) * 0.65;
+        const dx = nfx - fx;
+        const dy = (3.25 - nsag) - (3.25 - sag);
+        const segLen = Math.hypot(dx, dy);
+        const seg = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.015, segLen, 4), wireMat);
+        seg.position.set((fx + nfx) * 0.5, 3.36 - (sag + nsag) * 0.5, -5.2);
+        seg.rotation.z = Math.PI / 2 - Math.atan2(dy, dx);
+        festoonGroup.add(seg);
+      }
     }
     festoonGroup.visible = false;
     scene.add(festoonGroup);
+
+    const envController = new EnvironmentVisualController({
+      scene,
+      groundMat,
+      groveRig,
+      hemiLight,
+      sunLight,
+      windowMaterials,
+      lanternMat,
+      prototypeLanternMats,
+      flowerGroups,
+      gazeboRig,
+      fountainRig,
+      bakeryTablesGroup,
+      festoonGroup,
+      noticeboardRig,
+      oakGlint,
+      mbFlag,
+      bellSwingVelRef,
+      isSoftwareGl,
+    });
 
     // Tap-to-walk destination indicator ring
     const destRing = new THREE.Mesh(
@@ -622,8 +447,8 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
       chimeParticles.push({ mesh: m, vel: new THREE.Vector3(), life: 0 });
     }
 
-    // Build Player & 9 Resident Character Rigs
-    const playerRig: CharacterRig = buildClayCharacter(
+    // Build Player & 9 Resident Character Rigs (Storybook Diorama standard)
+    const playerRig: CharacterRig = buildStorybookCharacter(
       {
         coatColor: '#D46E51',
         shirtColor: '#FAF4E8',
@@ -634,30 +459,32 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
         propType: 'none',
         heightScale: 1.0,
       },
+      palette,
       shadowTex,
+      'player',
     );
     playerRig.root.position.set(worldRef.current.playerPos.x, 0, worldRef.current.playerPos.z);
     playerRig.root.rotation.y = worldRef.current.playerFacing;
     scene.add(playerRig.root);
 
     const residentRigs = {} as Record<ResidentId, CharacterRig>;
-    const residentPositions = {} as Record<ResidentId, Vec2>;
-    const residentWalkPhase = {} as Record<ResidentId, number>;
     const interactableMeshes: THREE.Object3D[] = [];
+    if (!worldRef.current.npcRuntime) {
+      worldRef.current.npcRuntime = createInitialNpcRuntime(
+        worldRef.current.minuteOfDay,
+        worldRef.current.flags.claraArthurReconciled,
+      );
+    }
 
     for (const id of RESIDENT_ORDER) {
       const def = RESIDENTS[id];
       const rig =
         id === 'jun'
           ? buildStorybookJun(def.appearance, palette, shadowTex)
-          : buildClayCharacter(def.appearance, shadowTex);
-      const slot = getResidentScheduleSlot(
-        id,
-        getTimePhase(worldRef.current.minuteOfDay),
-        worldRef.current.flags.claraArthurReconciled,
-      );
-      rig.root.position.set(slot.target.x, 0, slot.target.z);
-      rig.root.rotation.y = slot.facingAngle;
+          : buildStorybookCharacter(def.appearance, palette, shadowTex, id);
+      const rt = worldRef.current.npcRuntime[id];
+      rig.root.position.set(rt.position.x, 0, rt.position.z);
+      rig.root.rotation.y = rt.facing;
       rig.root.userData = { targetKind: 'resident', targetId: id };
 
       // Simple invisible raycast cylinder per resident
@@ -671,8 +498,6 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
       interactableMeshes.push(hitProxy);
 
       residentRigs[id] = rig;
-      residentPositions[id] = { x: slot.target.x, z: slot.target.z };
-      residentWalkPhase[id] = 0;
       scene.add(rig.root);
     }
 
@@ -695,7 +520,13 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
     let playerWalkPhase = 0;
     let stepSoundAccum = 0;
     let hudSyncAccum = 0;
+    let hasSyncedInitialHud = false;
     let lastNearestId: string | null = null;
+    let lastSyncedMinuteInt = -1;
+    let lastSyncedX = NaN;
+    let lastSyncedZ = NaN;
+    let lastSyncedWeather: WeatherType | null = null;
+    let lastSyncedSeason: SeasonType | null = null;
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.code === 'Space' || e.code === 'Enter') {
@@ -732,7 +563,7 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
 
         if (ud.targetKind === 'resident') {
           const rid = ud.targetId as ResidentId;
-          tPos = residentPositions[rid];
+          tPos = worldRef.current.npcRuntime[rid].position;
           label = RESIDENTS[rid].name;
           actionLabel = `Talk to ${label}`;
         } else {
@@ -840,57 +671,6 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
       frameId = window.setTimeout(poll, 5);
     }
 
-    function updateEnvironmentVisuals(env: EnvironmentalState, phase: TimePhase, elapsed: number, dt: number) {
-      // Planters blooming
-      flowerGroups.forEach((fg, idx) => {
-        const bloomActive = idx % 3 < env.plantersBloomed;
-        const targetScale = bloomActive ? 1.15 : 0.55;
-        fg.scale.setScalar(targetScale);
-      });
-
-      // Gazebo Ivy, Clapper & Ribbon
-      gazeboRig.ivyGroup.visible = !env.ivyCleared;
-      gazeboRig.clapperMesh.visible = env.bellGleaming;
-      gazeboRig.ribbonMesh.visible = env.reconciledTogether;
-      bakeryTablesGroup.visible = env.bakeryTablesOpen;
-      festoonGroup.visible = env.festoonLanterns || phase === 'dusk';
-
-      // Hollow Oak glint hidden once brass clapper found
-      oakGlint.visible = !worldRef.current.flags.foundBrassClapper;
-      if (oakGlint.visible) {
-        oakGlint.position.y = 0.35 + Math.sin(elapsed * 3.0) * 0.05;
-      }
-
-      // Mailbox unread flag raised/lowered
-      mbFlag.rotation.z = worldRef.current.mailboxUnread ? 0 : -1.2;
-
-      // Fountain water & droplets
-      fountainRig.waterMesh.visible = env.fountainFlowing;
-      fountainRig.spoutParticles.visible = env.fountainFlowing;
-      if (env.fountainFlowing) {
-        fountainRig.spoutParticles.children.forEach((drop, idx) => {
-          const ph = ((elapsed * 1.8 + idx / 8) % 1);
-          const angle = (idx / 8) * Math.PI * 2;
-          const r = ph * 0.95;
-          const arcY = 2.05 + Math.sin(ph * Math.PI) * 0.65 - ph * 1.45;
-          drop.position.set(Math.cos(angle) * r, arcY, Math.sin(angle) * r);
-        });
-      }
-
-      // Bell damped swing (frame-rate independent)
-      if (Math.abs(bellSwingVelRef.current) > 0.01 || Math.abs(gazeboRig.bellPivot.rotation.z) > 0.005) {
-        const dtClamped = Math.min(dt, 0.032);
-        const k = 18.0;
-        const damping = 2.2;
-        const acc = -k * gazeboRig.bellPivot.rotation.z - damping * bellSwingVelRef.current;
-        bellSwingVelRef.current += acc * dtClamped;
-        gazeboRig.bellPivot.rotation.z += bellSwingVelRef.current * dtClamped;
-        if (Math.abs(bellSwingVelRef.current) > 3.6) {
-          spawnChimeBurst(0, 3.1, -9.5);
-        }
-      }
-    }
-
     let prevBellCountLocal = bellRingCounter;
 
     function tick() {
@@ -907,57 +687,20 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
         spawnChimeBurst(0, 3.1, -9.5);
       }
 
-      // Advance cozy neighborhood clock while playing (not during pause/dialogue)
-      if (state === 'playing' && !dialogueOpenRef.current) {
-        world.minuteOfDay = Math.min(1260, world.minuteOfDay + dt * 2.2); // Gentle pace (~1 min = 27s)
-      }
+      // Step headless simulation clock & NPC navigation/runtime state
+      stepSimulationInPlace(world, dt, {
+        paused: state === 'paused',
+        dialogueOpen: state !== 'playing' || dialogueOpenRef.current,
+      });
 
       const phase = getTimePhase(world.minuteOfDay);
       if (phase !== prevPhase) {
         prevPhase = phase;
       }
 
-      // Smooth time-of-day sky, fog, sun & window glow
-      const tNorm = THREE.MathUtils.clamp((world.minuteOfDay - 420) / 840, 0, 1);
-      if (tNorm < 0.35) {
-        _vec3A.set(_skyMorning.r, _skyMorning.g, _skyMorning.b);
-        sunLight.color.copy(_sunMorning).lerp(_sunAfternoon, tNorm / 0.35);
-        (scene.background as THREE.Color).copy(_skyMorning).lerp(_skyAfternoon, tNorm / 0.35);
-      } else if (tNorm < 0.72) {
-        const k = (tNorm - 0.35) / 0.37;
-        sunLight.color.copy(_sunAfternoon).lerp(_sunGolden, k);
-        (scene.background as THREE.Color).copy(_skyAfternoon).lerp(_skyGolden, k);
-      } else {
-        const k = (tNorm - 0.72) / 0.28;
-        sunLight.color.copy(_sunGolden).lerp(_sunDusk, k);
-        (scene.background as THREE.Color).copy(_skyGolden).lerp(_skyDusk, k);
-      }
-      if (scene.fog instanceof THREE.Fog) {
-        scene.fog.color.copy(scene.background as THREE.Color);
-      }
-      const duskFactor = Math.max(0, (tNorm - 0.58) / 0.42);
-      hemiLight.color.copy(_hemiSkyMorning).lerp(_hemiSkyDusk, duskFactor);
-      hemiLight.groundColor.copy(_hemiGroundMorning).lerp(_hemiGroundDusk, duskFactor);
-      hemiLight.intensity = THREE.MathUtils.lerp(0.54, 0.34, duskFactor);
-      scene.environmentIntensity = THREE.MathUtils.lerp(0.68, 0.24, duskFactor);
-      sunLight.intensity = THREE.MathUtils.lerp(1.52, 0.58, Math.max(0, (tNorm - 0.62) / 0.38));
-
-      const sunAngle = THREE.MathUtils.lerp(0.5, 2.4, tNorm);
-      sunLight.position.set(Math.cos(sunAngle) * 26, 26 - Math.abs(tNorm - 0.5) * 10, 16);
-
-      const windowGlow = phase === 'dusk' ? 1.75 : phase === 'golden' ? 0.78 : 0.22;
-      for (const wm of windowMaterials) {
-        wm.emissiveIntensity = windowGlow;
-      }
-      lanternMat.emissiveIntensity = phase === 'dusk' ? 1.85 : world.flags.lanternsLit ? 0.85 : 0.15;
-      const protoLanternGlow = phase === 'dusk' ? 2.1 : phase === 'golden' ? 0.85 : 0.22;
-      for (const lm of prototypeLanternMats) {
-        lm.emissiveIntensity = protoLanternGlow;
-      }
-
-      // Update environment visual reactivity & Willow Lane prototype motion
-      const env = computeEnvironmentState(world.flags);
-      updateEnvironmentVisuals(env, phase, elapsed, dt);
+      // Five-layer environment composition & dirty-flagged GPU/scene visual controller
+      const composed = composeEnvironmentState(world);
+      envController.update(composed, world, world.playerPos, elapsed, dt);
       updateWillowPrototypeMotion(willowCottage, willowCourtyard, elapsed);
 
       // Update chime sparkle particles
@@ -1055,61 +798,30 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
         destRing.visible = false;
       }
 
-      // Animate player character rig
+      // Animate player character rig cleanly with joint pivots
       playerRig.root.position.set(world.playerPos.x, 0, world.playerPos.z);
       playerRig.root.rotation.y = world.playerFacing;
-      const swing = Math.sin(playerWalkPhase) * (moveLen > 0.01 ? 0.55 : 0);
-      playerRig.leftLeg.rotation.x = swing;
-      playerRig.rightLeg.rotation.x = -swing;
-      playerRig.leftArm.rotation.x = -swing * 0.7;
-      playerRig.rightArm.rotation.x = swing * 0.7;
-      playerRig.bodyGroup.position.y = Math.abs(Math.sin(playerWalkPhase)) * (moveLen > 0.01 ? 0.06 : 0);
+      animateCharacterRig(
+        playerRig,
+        moveLen > 0.01 ? 'walk' : 'idle',
+        playerWalkPhase,
+        elapsed,
+        dt,
+        0,
+      );
 
-      // Move & animate all 9 residents along their living schedules
+      // Project persistent NPC runtime state onto 3D resident rigs
       let nearestTarget: InteractiveTarget | null = null;
       let nearestDist = 2.95;
 
-      for (const id of RESIDENT_ORDER) {
+      for (let i = 0; i < RESIDENT_ORDER.length; i++) {
+        const id = RESIDENT_ORDER[i];
         const rig = residentRigs[id];
-        const pos = residentPositions[id];
-        const slot = getResidentScheduleSlot(id, phase, env.reconciledTogether);
-        const dx = slot.target.x - pos.x;
-        const dz = slot.target.z - pos.z;
-        const distToGoal = Math.hypot(dx, dz);
+        const rt = world.npcRuntime[id];
+        rig.root.position.set(rt.position.x, 0, rt.position.z);
+        rig.root.rotation.y = rt.facing;
 
-        if (distToGoal > 0.18 && state !== 'paused') {
-          const step = Math.min(distToGoal, 2.3 * dt);
-          const nx = dx / distToGoal;
-          const nz = dz / distToGoal;
-          const next = resolveMovement(pos, { x: pos.x + nx * step, z: pos.z + nz * step }, 0.38);
-          pos.x = next.x;
-          pos.z = next.z;
-          rig.root.rotation.y = Math.atan2(nx, nz);
-          residentWalkPhase[id] += step * 5.2;
-          const rSwing = Math.sin(residentWalkPhase[id]) * 0.45;
-          rig.leftLeg.rotation.x = rSwing;
-          rig.rightLeg.rotation.x = -rSwing;
-          rig.leftArm.rotation.x = -rSwing * 0.6;
-          rig.rightArm.rotation.x = rSwing * 0.6;
-          rig.bodyGroup.position.y = Math.abs(Math.sin(residentWalkPhase[id])) * 0.04;
-        } else {
-          // Gentle idle breathing & face toward schedule angle (or player if nearby)
-          const pDist = distance2D(world.playerPos, pos);
-          const goalRot =
-            pDist < 3.2
-              ? Math.atan2(world.playerPos.x - pos.x, world.playerPos.z - pos.z)
-              : slot.facingAngle;
-          let rDiff = goalRot - rig.root.rotation.y;
-          while (rDiff > Math.PI) rDiff -= Math.PI * 2;
-          while (rDiff < -Math.PI) rDiff += Math.PI * 2;
-          rig.root.rotation.y += rDiff * Math.min(1, dt * 4);
-          rig.leftLeg.rotation.x = 0;
-          rig.rightLeg.rotation.x = 0;
-          rig.leftArm.rotation.x = 0;
-          rig.rightArm.rotation.x = 0;
-          rig.bodyGroup.position.y = Math.sin(elapsed * 2.1 + pos.x) * 0.025;
-        }
-        rig.root.position.set(pos.x, 0, pos.z);
+        animateCharacterRig(rig, rt.animState, rt.walkPhase, elapsed, dt, i * 0.7);
 
         // Quest cue diamond
         const cue = getResidentAvailableQuestCue(id, world);
@@ -1119,7 +831,7 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
           rig.questPip.position.y = (2.05 + Math.sin(elapsed * 3.2) * 0.08) * RESIDENTS[id].appearance.heightScale;
         }
 
-        const pDist = distance2D(world.playerPos, pos);
+        const pDist = distance2D(world.playerPos, rt.position);
         rig.ringMesh.visible = pDist < 2.95;
         if (pDist < nearestDist) {
           nearestDist = pDist;
@@ -1129,7 +841,7 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
             label: RESIDENTS[id].name,
             actionLabel: `Talk to ${RESIDENTS[id].name}`,
             distance: pDist,
-            worldPos: { x: pos.x, z: pos.z },
+            worldPos: { x: rt.position.x, z: rt.position.z },
           };
         }
       }
@@ -1146,7 +858,7 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
             actionLabel:
               prop.id === 'player_door'
                 ? 'Porch / Rest'
-                : prop.id === 'gazebo_bell' && env.bellGleaming
+                : prop.id === 'gazebo_bell' && composed.playerChanges.bellGleaming
                 ? 'Ring Gazebo Bell'
                 : `Inspect ${prop.name}`,
             distance: dProp,
@@ -1177,17 +889,38 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
 
       renderer.render(scene, camera);
 
-      // Throttled HUD sync (~6 Hz or when nearest target changes)
+      // Edge-gated throttled HUD sync
       hudSyncAccum += dt;
+      const minuteInt = Math.floor(world.minuteOfDay);
       const nearestKey = nearestTarget ? `${nearestTarget.kind}:${nearestTarget.id}` : null;
-      if (hudSyncAccum >= 0.18 || nearestKey !== lastNearestId) {
+      const movedDist = Number.isNaN(lastSyncedX)
+        ? 999
+        : Math.hypot(world.playerPos.x - lastSyncedX, world.playerPos.z - lastSyncedZ);
+      const edgeTriggered =
+        !hasSyncedInitialHud ||
+        nearestKey !== lastNearestId ||
+        composed.weather.effective !== lastSyncedWeather ||
+        composed.season.season !== lastSyncedSeason;
+
+      if (
+        edgeTriggered ||
+        (hudSyncAccum >= 0.18 && (minuteInt !== lastSyncedMinuteInt || movedDist > 0.15))
+      ) {
+        hasSyncedInitialHud = true;
         hudSyncAccum = 0;
         lastNearestId = nearestKey;
+        lastSyncedMinuteInt = minuteInt;
+        lastSyncedX = world.playerPos.x;
+        lastSyncedZ = world.playerPos.z;
+        lastSyncedWeather = composed.weather.effective;
+        lastSyncedSeason = composed.season.season;
         onHudSyncRef.current({
           minuteOfDay: world.minuteOfDay,
           playerPos: { ...world.playerPos },
           playerFacing: world.playerFacing,
           nearestTarget,
+          weather: composed.weather.effective,
+          season: composed.season.season,
         });
       }
 
@@ -1216,6 +949,12 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
       window.removeEventListener('blur', clearInputs);
       renderer.domElement.removeEventListener('pointerdown', handlePointerDown);
       renderer.domElement.removeEventListener('wheel', handleWheel);
+      envController.dispose();
+      groundMat.dispose();
+      cobbleMat.dispose();
+      lanternMat.dispose();
+      chimeGeo.dispose();
+      chimeMat.dispose();
       meadowTex.dispose();
       cobbleTex.dispose();
       terracottaRoofTex.dispose();

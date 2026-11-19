@@ -95,6 +95,15 @@ export function buildResidentDialogue(
       ? 'This golden light always slows the lane down.'
       : 'Lantern dusk is my favorite hour here.';
 
+  const recentSocial = (world.worldEvents ?? []).find(
+    (e) => e.kind === 'npc_social' && e.day === world.day && e.actors.includes(id),
+  );
+  const otherSocialPartnerId = recentSocial?.actors.find((a) => a !== id);
+  const recentPartnerRemark =
+    otherSocialPartnerId && RESIDENTS[otherSocialPartnerId]
+      ? ` (I bumped into ${RESIDENTS[otherSocialPartnerId].name} along the cobbles earlier—made the morning fly by.)`
+      : '';
+
   // Build customized, branching storylines per resident
   if (id === 'pip') {
     if (!f.heardBellMystery) {
@@ -263,6 +272,12 @@ export function buildResidentDialogue(
             nextNodeId: 'nora_ribbon',
             setFlags: { foundPostcard: true },
             trustDelta: 1,
+            unlockMemory: {
+              id: 'mem_lost_postcard',
+              title: 'A Pressed Postcard',
+              summary: 'Nora found an old coastal postcard meant for Arthur tucked inside her bookshop almanac.',
+              residentId: 'nora',
+            },
           },
         ],
       };
@@ -300,8 +315,8 @@ export function buildResidentDialogue(
         speakerRole: def.role,
         moodLabel: f.claraArthurReconciled ? 'Serene' : 'Attentive',
         text: f.claraArthurReconciled
-          ? `The marigold ribbon is tied to the gazebo rail now. Notice how much brighter the square feels?`
-          : `Every quiet lane needs someone willing to listen without rushing. You have a knack for that.`,
+          ? `The marigold ribbon is tied to the gazebo rail now. Notice how much brighter the square feels?${recentPartnerRemark}`
+          : `Every quiet lane needs someone willing to listen without rushing. You have a knack for that.${recentPartnerRemark}`,
         choices: [
           {
             id: 'nora_tea_chat',
@@ -373,7 +388,7 @@ export function buildResidentDialogue(
         speakerName: def.name,
         speakerRole: def.role,
         moodLabel: 'Cheerful',
-        text: `${phaseGreeting} I’ve already walked the cobblestone loop twice today. Have you checked your own Willow Mailbox lately?`,
+        text: `${phaseGreeting} I’ve already walked the cobblestone loop twice today. Have you checked your own Willow Mailbox lately?${recentPartnerRemark}`,
         choices: [
           {
             id: 'jun_gossip',
@@ -634,6 +649,7 @@ export function buildResidentDialogue(
           label: 'Let’s rescue the brass clapper from the hollow oak together.',
           tone: 'practical',
           nextNodeId: 'toby_found',
+          requiresFlag: 'heardBellMystery',
           requiresFalseFlag: 'foundBrassClapper',
           trustDelta: 1,
           setFlags: { foundBrassClapper: true },

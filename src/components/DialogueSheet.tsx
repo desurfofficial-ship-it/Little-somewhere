@@ -83,7 +83,11 @@ export const DialogueSheet: React.FC<DialogueSheetProps> = ({
   }
 
   if (!session) return null;
-  const node = session.nodes[session.currentNodeId];
+  const node =
+    session.nodes[session.currentNodeId] ??
+    session.nodes.root ??
+    Object.values(session.nodes)[0];
+  if (!node) return null;
   const resDef = RESIDENTS[session.residentId];
   const trust = residentProgress?.trust ?? 0;
 

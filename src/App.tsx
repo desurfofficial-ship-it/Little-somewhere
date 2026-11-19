@@ -18,7 +18,9 @@ import {
   PropInteractableId,
   ResidentId,
   ScreenVec2,
+  SeasonType,
   Vec2,
+  WeatherType,
   WorldState,
 } from './game/types';
 import {
@@ -28,7 +30,13 @@ import {
   saveWorldState,
 } from './game/storage';
 import { formatClock, getTimePhase } from './game/residents';
+import { advanceSimulationClock } from './game/time';
 import { buildResidentDialogue } from './game/narrative';
+import {
+  composeEnvironmentState,
+  getSeasonLabel,
+  getWeatherLabel,
+} from './game/environment';
 import {
   PropInteractionResult,
   applyDialogueChoice,
@@ -36,6 +44,7 @@ import {
   markResidentMet,
   performNextDayRest,
 } from './game/actions';
+import { interruptSocialEncounter } from './game/simulation';
 import { getLandmarkAt } from './game/worldMap';
 import { cozyAudio } from './game/audio';
 import { NeighborhoodCanvas } from './scene/NeighborhoodCanvas';
@@ -51,15 +60,19 @@ export default function App() {
     new URLSearchParams(window.location.search).get('autostart') === '1';
 
   const [initialLoaded] = useState<WorldState>(() => loadWorldState());
+  const [initialComposed] = useState(() => composeEnvironmentState(initialLoaded));
   const worldRef = useRef<WorldState>(initialLoaded);
   const joystickVectorRef = useRef<ScreenVec2>({ x: 0, y: 0 });
   const zoomRef = useRef<number>(1.0);
+  const lastSavedStampRef = useRef<string>('');
 
   const [screenState, setScreenState] = useState<GameScreenState>(
     initialAutostart ? 'playing' : 'title',
   );
   const [worldSnapshot, setWorldSnapshot] = useState<WorldState>(initialLoaded);
   const [hudClock, setHudClock] = useState<number>(initialLoaded.minuteOfDay);
+  const [hudWeather, setHudWeather] = useState<WeatherType>(initialComposed.weather.effective);
+  const [hudSeason, setHudSeason] = useState<SeasonType>(initialComposed.season.season);
   const [playerPos, setPlayerPos] = useState<Vec2>(initialLoaded.playerPos);
   const [nearestTarget, setNearestTarget] = useState<InteractiveTarget | null>(null);
   const [dialogueSession, setDialogueSession] = useState<DialogueSession | null>(null);
@@ -89,11 +102,20 @@ export default function App() {
     document.body.dataset.state = screenState;
   }, [screenState]);
 
+  const getSaveStamp = (w: WorldState): string =>
+    `${w.day}:${Math.floor(w.minuteOfDay)}:${Math.round(w.playerPos.x * 10)},${Math.round(
+      w.playerPos.z * 10,
+    )}:${w.memories.length}:${w.bellRungCount}:${w.worldEvents?.length ?? 0}:${w.weather}:${w.season}`;
+
   const commitWorld = useCallback((next: WorldState) => {
+    const composed = composeEnvironmentState(next);
     worldRef.current = next;
     setWorldSnapshot(next);
     setHudClock(next.minuteOfDay);
+    setHudWeather(composed.weather.effective);
+    setHudSeason(composed.season.season);
     setPlayerPos(next.playerPos);
+    lastSavedStampRef.current = getSaveStamp(next);
     saveWorldState(next);
   }, []);
 
@@ -109,10 +131,14 @@ export default function App() {
   const handleResetAndStart = useCallback(() => {
     cozyAudio.playUiTap(0.95);
     const fresh: WorldState = resetWorldState();
+    const composed = composeEnvironmentState(fresh);
     worldRef.current = fresh;
     setWorldSnapshot(fresh);
     setHudClock(fresh.minuteOfDay);
+    setHudWeather(composed.weather.effective);
+    setHudSeason(composed.season.season);
     setPlayerPos(fresh.playerPos);
+    lastSavedStampRef.current = getSaveStamp(fresh);
     setDialogueSession(null);
     setPropCard(null);
     setJournalOpen(false);
@@ -129,7 +155,8 @@ export default function App() {
       const current = worldRef.current;
       if (target.kind === 'resident') {
         const rid = target.id as ResidentId;
-        const metWorld = markResidentMet(current, rid);
+        const interrupted = interruptSocialEncounter(current, rid);
+        const metWorld = markResidentMet(interrupted, rid);
         if (metWorld !== current) {
           commitWorld(metWorld);
         }
@@ -203,7 +230,7 @@ export default function App() {
   const handleAdvanceTwoHours = useCallback(() => {
     cozyAudio.playUiTap(1.02);
     const current = worldRef.current;
-    const nextMin = Math.min(1230, current.minuteOfDay + 120);
+    const nextMin = advanceSimulationClock(current.minuteOfDay, 120);
     const next = { ...current, minuteOfDay: nextMin };
     commitWorld(next);
     const nextPhase = getTimePhase(nextMin);
@@ -274,14 +301,42 @@ export default function App() {
     screenState,
   ]);
 
-  // Periodic background auto-save of player position & clock
+  // Dirty-flagged periodic background auto-save + pagehide/visibilitychange flush
   useEffect(() => {
+    const flushIfDirty = () => {
+      const current = worldRef.current;
+      const stamp = getSaveStamp(current);
+      if (stamp !== lastSavedStampRef.current) {
+        lastSavedStampRef.current = stamp;
+        saveWorldState(current);
+      }
+    };
+
     const interval = window.setInterval(() => {
       if (screenState === 'playing') {
-        saveWorldState(worldRef.current);
+        flushIfDirty();
       }
     }, 5000);
-    return () => window.clearInterval(interval);
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'hidden' && screenState === 'playing') {
+        flushIfDirty();
+      }
+    };
+
+    const handlePageHide = () => {
+      if (screenState === 'playing') {
+        flushIfDirty();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('pagehide', handlePageHide);
+    return () => {
+      window.clearInterval(interval);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('pagehide', handlePageHide);
+    };
   }, [screenState]);
 
   const handleHudSync = useCallback(
@@ -290,10 +345,14 @@ export default function App() {
       playerPos: Vec2;
       playerFacing: number;
       nearestTarget: InteractiveTarget | null;
+      weather: WeatherType;
+      season: SeasonType;
     }) => {
       setHudClock(snap.minuteOfDay);
       setPlayerPos(snap.playerPos);
       setNearestTarget(snap.nearestTarget);
+      setHudWeather(snap.weather);
+      setHudSeason(snap.season);
     },
     [],
   );
@@ -339,7 +398,7 @@ export default function App() {
         <div className="fixed inset-0 z-10 pointer-events-none flex flex-col justify-between p-3 sm:p-5">
           {/* Top Bar: Left Location & Clock | Right Compact Utility Buttons */}
           <div className="flex items-start justify-between gap-2 sm:gap-3">
-            <div className="bg-[#FAF5EC]/95 border border-[#D4C4AE] rounded-2xl px-3 py-2 sm:px-4 sm:py-2.5 shadow-[0_6px_20px_rgba(45,36,30,0.12)] pointer-events-auto min-w-0 max-w-[185px] sm:max-w-xs">
+            <div className="bg-[#FAF5EC]/95 border border-[#D4C4AE] rounded-2xl px-3 py-2 sm:px-4 sm:py-2.5 shadow-[0_6px_20px_rgba(45,36,30,0.12)] pointer-events-auto min-w-0 max-w-[195px] sm:max-w-md">
               <div className="font-display text-sm sm:text-lg font-semibold text-[#2D241E] truncate">
                 {landmark.name}
               </div>
@@ -349,6 +408,10 @@ export default function App() {
                 <span>{formatClock(hudClock)}</span>
                 <span className="hidden sm:inline" aria-hidden="true">·</span>
                 <span className="hidden sm:inline font-sans">{phaseLabel}</span>
+                <span className="hidden md:inline" aria-hidden="true">·</span>
+                <span className="hidden md:inline font-sans">
+                  {getSeasonLabel(hudSeason)} · {getWeatherLabel(hudWeather)}
+                </span>
               </div>
             </div>
 
@@ -446,7 +509,9 @@ export default function App() {
                   </button>
                 ) : (
                   <div className="bg-[#FAF5EC]/90 border border-[#D4C4AE] rounded-xl px-3.5 py-2 text-xs text-[#5E5046] shadow-sm">
-                    Walk up to a neighbor or cottage to interact
+                    {hudClock >= 1260
+                      ? 'Lanterns are glowing low — rest on your porch anytime'
+                      : 'Walk up to a neighbor or cottage to interact'}
                   </div>
                 )}
               </div>

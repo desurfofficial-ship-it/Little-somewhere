@@ -1,4 +1,16 @@
-import { ResidentDefinition, ResidentId, ResidentProgress, TimePhase, Vec2 } from './types';
+import {
+  NpcAnimationState,
+  ResidentDefinition,
+  ResidentId,
+  ResidentProgress,
+  StoryFlags,
+  TimePhase,
+  Vec2,
+  WeatherType,
+} from './types';
+import { formatClock, getTimePhase } from './time';
+
+export { formatClock, getTimePhase };
 
 export const RESIDENT_ORDER: ResidentId[] = [
   'clara',
@@ -20,6 +32,14 @@ export const RESIDENTS: Record<ResidentId, ResidentDefinition> = {
     homeName: 'Hearth & Crumb Bakery',
     personality: 'Warm-hearted, proud, secretly misses the old morning bell.',
     favoriteThing: 'Crusty rosemary loaves and busy café tables',
+    traits: {
+      sociability: 0.72,
+      outdoorsiness: 0.55,
+      morningLark: 0.9,
+      curiosity: 0.5,
+      preferredZones: ['bakery', 'square', 'gazebo'],
+      rainBehavior: 'shelter_home',
+    },
     appearance: {
       coatColor: '#D67B5A',
       shirtColor: '#F9F3E7',
@@ -68,6 +88,14 @@ export const RESIDENTS: Record<ResidentId, ResidentDefinition> = {
     homeName: 'Copperwheel Cottage',
     personality: 'Gentle perfectionist who locked away his tools after an old rift.',
     favoriteThing: 'Brass escapements and chamomile tea',
+    traits: {
+      sociability: 0.2,
+      outdoorsiness: 0.35,
+      morningLark: 0.75,
+      curiosity: 0.4,
+      preferredZones: ['workshop_arthur', 'gazebo'],
+      rainBehavior: 'shelter_home',
+    },
     appearance: {
       coatColor: '#546E7A',
       shirtColor: '#E5DEC9',
@@ -116,6 +144,14 @@ export const RESIDENTS: Record<ResidentId, ResidentDefinition> = {
     homeName: 'Sunbeam Greenhouse',
     personality: 'Optimistic, patient, reads moods through blooming petals.',
     favoriteThing: 'Moon-petal seedlings and rain-soaked terracotta',
+    traits: {
+      sociability: 0.68,
+      outdoorsiness: 0.85,
+      morningLark: 0.8,
+      curiosity: 0.7,
+      preferredZones: ['greenhouse', 'square', 'bakery'],
+      rainBehavior: 'umbrella_stroll',
+    },
     appearance: {
       coatColor: '#6E9168',
       shirtColor: '#FAF2DF',
@@ -164,6 +200,14 @@ export const RESIDENTS: Record<ResidentId, ResidentDefinition> = {
     homeName: 'Post Lane',
     personality: 'Cheerful, observant keeper of postcards and small kindnesses.',
     favoriteThing: 'Handwritten envelopes and clean morning routes',
+    traits: {
+      sociability: 0.9,
+      outdoorsiness: 0.9,
+      morningLark: 0.85,
+      curiosity: 0.78,
+      preferredZones: ['home', 'square', 'book_nook', 'bakery'],
+      rainBehavior: 'visit_cafe',
+    },
     appearance: {
       coatColor: '#4E79A7',
       shirtColor: '#F3EFE4',
@@ -212,6 +256,14 @@ export const RESIDENTS: Record<ResidentId, ResidentDefinition> = {
     homeName: 'Pinecone Woodshop',
     personality: 'Gruff-warm craftsman who still checks every beam he built.',
     favoriteThing: 'Cedar shavings, beeswax polish, and sturdy ladders',
+    traits: {
+      sociability: 0.45,
+      outdoorsiness: 0.72,
+      morningLark: 0.82,
+      curiosity: 0.48,
+      preferredZones: ['barnaby', 'gazebo', 'pond'],
+      rainBehavior: 'shelter_home',
+    },
     appearance: {
       coatColor: '#9E6240',
       shirtColor: '#E3D5C0',
@@ -260,6 +312,14 @@ export const RESIDENTS: Record<ResidentId, ResidentDefinition> = {
     homeName: 'South Lantern Caravan',
     personality: 'Dreamy listener who hears the missing note in the square.',
     favoriteThing: 'Chamomile-pear tea and soft dusk arpeggios',
+    traits: {
+      sociability: 0.62,
+      outdoorsiness: 0.7,
+      morningLark: 0.35,
+      curiosity: 0.65,
+      preferredZones: ['square', 'gazebo', 'pond'],
+      rainBehavior: 'visit_cafe',
+    },
     appearance: {
       coatColor: '#8C6BB1',
       shirtColor: '#F7EFE2',
@@ -308,6 +368,14 @@ export const RESIDENTS: Record<ResidentId, ResidentDefinition> = {
     homeName: 'Linden Loft',
     personality: 'Quiet observer who notices shiny objects and stray cats.',
     favoriteThing: 'Charcoal sketches and mossy oak roots',
+    traits: {
+      sociability: 0.25,
+      outdoorsiness: 0.92,
+      morningLark: 0.45,
+      curiosity: 0.88,
+      preferredZones: ['pond', 'greenhouse', 'square'],
+      rainBehavior: 'umbrella_stroll',
+    },
     appearance: {
       coatColor: '#C9973E',
       shirtColor: '#EDE7D9',
@@ -356,6 +424,14 @@ export const RESIDENTS: Record<ResidentId, ResidentDefinition> = {
     homeName: 'Linden Book Nook',
     personality: 'Wry, wise chronicler who remembers every festival of the past.',
     favoriteThing: 'Annotated almanacs and quiet afternoons',
+    traits: {
+      sociability: 0.52,
+      outdoorsiness: 0.3,
+      morningLark: 0.5,
+      curiosity: 0.82,
+      preferredZones: ['book_nook', 'square'],
+      rainBehavior: 'shelter_home',
+    },
     appearance: {
       coatColor: '#7A5463',
       shirtColor: '#F3E9DB',
@@ -404,6 +480,14 @@ export const RESIDENTS: Record<ResidentId, ResidentDefinition> = {
     homeName: 'Bakery Upstairs',
     personality: 'Bright-eyed kid who has never heard the town bell ring.',
     favoriteThing: 'Skipping stones, chalk doodles, and warm crusts',
+    traits: {
+      sociability: 0.92,
+      outdoorsiness: 0.95,
+      morningLark: 0.78,
+      curiosity: 0.96,
+      preferredZones: ['square', 'pond', 'bakery', 'gazebo'],
+      rainBehavior: 'visit_cafe',
+    },
     appearance: {
       coatColor: '#D96B6B',
       shirtColor: '#F9F0DB',
@@ -447,21 +531,6 @@ export const RESIDENTS: Record<ResidentId, ResidentDefinition> = {
   },
 };
 
-export function getTimePhase(minuteOfDay: number): TimePhase {
-  if (minuteOfDay < 690) return 'morning'; // 6:00 AM - 11:30 AM
-  if (minuteOfDay < 960) return 'afternoon'; // 11:30 AM - 4:00 PM
-  if (minuteOfDay < 1110) return 'golden'; // 4:00 PM - 6:30 PM
-  return 'dusk'; // 6:30 PM - 9:00 PM
-}
-
-export function formatClock(minuteOfDay: number): string {
-  const clamped = Math.max(0, Math.min(1439, Math.round(minuteOfDay)));
-  const hours24 = Math.floor(clamped / 60);
-  const mins = clamped % 60;
-  const suffix = hours24 >= 12 ? 'PM' : 'AM';
-  const hours12 = hours24 % 12 === 0 ? 12 : hours24 % 12;
-  return `${hours12}:${mins.toString().padStart(2, '0')} ${suffix}`;
-}
 
 export function getResidentScheduleSlot(
   id: ResidentId,
@@ -490,6 +559,264 @@ export function getResidentScheduleSlot(
   }
   return RESIDENTS[id].schedule[phase];
 }
+
+export interface ActivityCandidate {
+  id: string;
+  phases: readonly TimePhase[];
+  target: Vec2;
+  placeName: string;
+  activity: string;
+  facingAngle: number;
+  animState: NpcAnimationState;
+  baseWeight: number;
+  requiresFlag?: keyof StoryFlags;
+  onlyWeathers?: readonly WeatherType[];
+  preferredWeathers?: readonly WeatherType[];
+  sheltered?: boolean;
+}
+
+export const RESIDENT_EXTRA_ACTIVITIES: Record<ResidentId, readonly ActivityCandidate[]> = {
+  clara: [
+    {
+      id: 'clara_herb_errand',
+      phases: ['morning', 'afternoon'],
+      target: { x: 8.4, z: 1.6 },
+      placeName: 'Sunbeam Greenhouse',
+      activity: 'Picking fresh rosemary sprigs with Mina',
+      facingAngle: 1.4,
+      animState: 'admire',
+      baseWeight: 0.75,
+    },
+    {
+      id: 'clara_cafe_tables',
+      phases: ['afternoon', 'golden'],
+      target: { x: -7.2, z: -5.4 },
+      placeName: 'Bakery Café Tables',
+      activity: 'Setting warm loaves and butter on the sunny café tables',
+      facingAngle: 0.6,
+      animState: 'work',
+      baseWeight: 1.3,
+      requiresFlag: 'claraArthurReconciled',
+    },
+    {
+      id: 'clara_rain_oven',
+      phases: ['morning', 'afternoon', 'golden', 'dusk'],
+      target: { x: -8.0, z: -6.4 },
+      placeName: 'Bakery Porch',
+      activity: 'Tending warm sourdough loaves beneath the bakery awning',
+      facingAngle: 0.3,
+      animState: 'work',
+      baseWeight: 1.6,
+      onlyWeathers: ['light_rain'],
+      sheltered: true,
+    },
+  ],
+  arthur: [
+    {
+      id: 'arthur_noticeboard',
+      phases: ['afternoon', 'golden'],
+      target: { x: 5.5, z: -2.2 },
+      placeName: 'Noticeboard Corner',
+      activity: 'Quietly adjusting the crooked town noticeboard pin',
+      facingAngle: -1.6,
+      animState: 'work',
+      baseWeight: 0.65,
+    },
+    {
+      id: 'arthur_fountain_brass',
+      phases: ['afternoon', 'golden'],
+      target: { x: 3.1, z: 2.2 },
+      placeName: 'Fountain Plaza',
+      activity: 'Listening to clear spring water chime off the stone tier',
+      facingAngle: -1.8,
+      animState: 'admire',
+      baseWeight: 1.05,
+      requiresFlag: 'repairedFountain',
+    },
+    {
+      id: 'arthur_rain_bench',
+      phases: ['morning', 'afternoon', 'golden', 'dusk'],
+      target: { x: 8.6, z: -7.5 },
+      placeName: 'Copperwheel Porch',
+      activity: 'Oiling brass escapements dry beneath his workshop eaves',
+      facingAngle: -1.2,
+      animState: 'work',
+      baseWeight: 1.8,
+      onlyWeathers: ['light_rain'],
+      sheltered: true,
+    },
+  ],
+  mina: [
+    {
+      id: 'mina_willow_planters',
+      phases: ['morning', 'afternoon'],
+      target: { x: -8.8, z: 6.2 },
+      placeName: 'Willow Step Planters',
+      activity: 'Checking moon-petal buds blooming along your windowsill',
+      facingAngle: -2.2,
+      animState: 'admire',
+      baseWeight: 1.15,
+      requiresFlag: 'plantedMoonPetals',
+    },
+    {
+      id: 'mina_fountain_ferns',
+      phases: ['afternoon', 'golden'],
+      target: { x: 0.0, z: 4.5 },
+      placeName: 'Fountain Plaza',
+      activity: 'Tracing cool mist around the overflowing fountain lip',
+      facingAngle: 3.1,
+      animState: 'admire',
+      baseWeight: 1.1,
+      requiresFlag: 'repairedFountain',
+    },
+  ],
+  jun: [
+    {
+      id: 'jun_bakery_stop',
+      phases: ['morning', 'afternoon'],
+      target: { x: -7.4, z: -5.6 },
+      placeName: 'Hearth & Crumb',
+      activity: 'Grabbing a rosemary roll before his afternoon rounds',
+      facingAngle: -0.6,
+      animState: 'idle',
+      baseWeight: 0.9,
+      preferredWeathers: ['sunlit', 'breezy', 'light_rain'],
+      sheltered: true,
+    },
+    {
+      id: 'jun_gazebo_lanterns',
+      phases: ['golden', 'dusk'],
+      target: { x: -3.4, z: -5.6 },
+      placeName: 'Plaza Lanterns',
+      activity: 'Checking festoon lantern cords along the north cobbles',
+      facingAngle: 0.4,
+      animState: 'work',
+      baseWeight: 1.1,
+      requiresFlag: 'lanternsLit',
+    },
+  ],
+  barnaby: [
+    {
+      id: 'barnaby_fountain_valve',
+      phases: ['afternoon', 'golden'],
+      target: { x: 2.9, z: 3.2 },
+      placeName: 'Fountain Plaza',
+      activity: 'Admiring the steady brass valve pressure on the stone basin',
+      facingAngle: -2.1,
+      animState: 'admire',
+      baseWeight: 1.05,
+      requiresFlag: 'repairedFountain',
+    },
+    {
+      id: 'barnaby_rain_shed',
+      phases: ['morning', 'afternoon', 'golden', 'dusk'],
+      target: { x: 7.5, z: 11.8 },
+      placeName: 'Pinecone Woodshop',
+      activity: 'Sharpening chisels dry inside his cedar doorway',
+      facingAngle: -1.4,
+      animState: 'work',
+      baseWeight: 1.6,
+      onlyWeathers: ['light_rain'],
+      sheltered: true,
+    },
+  ],
+  sora: [
+    {
+      id: 'sora_pond_melody',
+      phases: ['afternoon', 'golden'],
+      target: { x: -3.8, z: 10.6 },
+      placeName: 'Mirror Pond Approach',
+      activity: 'Practicing soft violin arpeggios where water echoes',
+      facingAngle: 0.3,
+      animState: 'music',
+      baseWeight: 0.9,
+    },
+    {
+      id: 'sora_cafe_tea',
+      phases: ['morning', 'afternoon', 'golden', 'dusk'],
+      target: { x: -7.8, z: -6.0 },
+      placeName: 'Bakery Awning',
+      activity: 'Sharing a warm flask beneath Hearth & Crumb’s striped awning',
+      facingAngle: 0.2,
+      animState: 'idle',
+      baseWeight: 1.5,
+      onlyWeathers: ['light_rain'],
+      sheltered: true,
+    },
+  ],
+  toby: [
+    {
+      id: 'toby_noticeboard_sketch',
+      phases: ['afternoon', 'golden'],
+      target: { x: 3.1, z: -2.6 },
+      placeName: 'Noticeboard Corner',
+      activity: 'Doodling neighborhood sparrows in charcoal margins',
+      facingAngle: 1.2,
+      animState: 'sketch_read',
+      baseWeight: 0.85,
+    },
+    {
+      id: 'toby_bell_sketch',
+      phases: ['golden', 'dusk'],
+      target: { x: -2.8, z: -5.2 },
+      placeName: 'Gazebo Lawn',
+      activity: 'Sketching the gleaming brass bell against dusk clouds',
+      facingAngle: 0.6,
+      animState: 'sketch_read',
+      baseWeight: 1.3,
+      requiresFlag: 'bellRestored',
+    },
+  ],
+  nora: [
+    {
+      id: 'nora_gazebo_ribbon',
+      phases: ['afternoon', 'golden'],
+      target: { x: -2.6, z: -5.8 },
+      placeName: 'Gazebo Steps',
+      activity: 'Admiring the marigold festival ribbon on the cedar rail',
+      facingAngle: 0.7,
+      animState: 'admire',
+      baseWeight: 1.15,
+      requiresFlag: 'claraArthurReconciled',
+    },
+    {
+      id: 'nora_rain_nook',
+      phases: ['morning', 'afternoon', 'golden', 'dusk'],
+      target: { x: -10.8, z: -0.6 },
+      placeName: 'Linden Book Nook',
+      activity: 'Cataloging damp-weather almanacs beneath her awning',
+      facingAngle: 1.5,
+      animState: 'sketch_read',
+      baseWeight: 1.7,
+      onlyWeathers: ['light_rain'],
+      sheltered: true,
+    },
+  ],
+  pip: [
+    {
+      id: 'pip_noticeboard_read',
+      phases: ['morning', 'afternoon'],
+      target: { x: 4.4, z: -1.6 },
+      placeName: 'Noticeboard Corner',
+      activity: 'Standing on tiptoe to read every pinned town note',
+      facingAngle: 3.1,
+      animState: 'admire',
+      baseWeight: 0.95,
+    },
+    {
+      id: 'pip_bakery_awning',
+      phases: ['morning', 'afternoon', 'golden', 'dusk'],
+      target: { x: -7.5, z: -6.4 },
+      placeName: 'Bakery Awning',
+      activity: 'Counting cinnamon rolls while dodging puddles under the awning',
+      facingAngle: -0.4,
+      animState: 'idle',
+      baseWeight: 1.6,
+      onlyWeathers: ['light_rain'],
+      sheltered: true,
+    },
+  ],
+};
 
 export function createInitialResidentsProgress(): Record<ResidentId, ResidentProgress> {
   const out = {} as Record<ResidentId, ResidentProgress>;

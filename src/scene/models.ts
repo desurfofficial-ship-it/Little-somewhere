@@ -481,10 +481,10 @@ export function buildStoneFountain(): FountainRig {
 export interface CharacterRig {
   root: THREE.Group;
   bodyGroup: THREE.Group;
-  leftLeg: THREE.Mesh;
-  rightLeg: THREE.Mesh;
-  leftArm: THREE.Mesh;
-  rightArm: THREE.Mesh;
+  leftLeg: THREE.Object3D;
+  rightLeg: THREE.Object3D;
+  leftArm: THREE.Object3D;
+  rightArm: THREE.Object3D;
   headGroup: THREE.Group;
   ringMesh: THREE.Mesh;
   questPip: THREE.Mesh;

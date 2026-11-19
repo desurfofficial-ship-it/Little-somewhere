@@ -89,4 +89,62 @@ Chronological log of design decisions, implementation milestones, verification r
   - `npm test` (`5/5` pass), `npm run lint` (`tsc --noEmit`, 0 errors), and `npm run build` (`vite build`) passed.
   - Live Chromium inspection (`1440×900` morning, Golden Hour, Lantern Dusk, Jun/Porch interaction, and `390×844` mobile) confirmed **0 console errors, 0 console warnings**.
 
+---
+
+## Entry 006 — Milestone 2A Phase 1: Simulation Foundation
+- **Date**: 2026-11-18
+- **Status**: Completed & Verified
+- **Key Deliverables**:
+  - **Deterministic Simulation Core (`src/game/rng.ts`, `src/game/time.ts`, `src/game/types.ts`)**:
+    - Added FNV-1a seed hashing (`hashSeed`) and `mulberry32` PRNG helpers (`seededRange`, `seededInt`, `seededPick`).
+    - Unified simulation clock (`DAY_START_MINUTE = 360`, `NEXT_DAY_WAKE_MINUTE = 480`, `DEFAULT_START_MINUTE = 495`, `DAY_END_MINUTE = 1290`, `DAYS_PER_SEASON = 10`) used across engine, HUD (`+2h`), and renderer (`src/App.tsx`, `src/game/residents.ts`, `src/scene/NeighborhoodCanvas.tsx`).
+    - Extended `WorldState` to schema v2 (`schemaVersion`, `simSeed`, `season`, `weather`, `npcRuntime`) while preserving 100% of v1 fields.
+  - **Lane Navigation & Headless Simulation (`src/game/navigation.ts`, `src/game/simulation.ts`)**:
+    - Authored connected 28-node lane waypoint graph (`NAV_NODES`, `NAV_EDGES`) with A* pathfinding, collinear line-of-sight smoothing, soft actor separation (`computeSeparationVector`), and stuck recovery.
+    - Built zero-GC `stepSimulationInPlace` and pure immutable `stepSimulation` driving persistent `NpcRuntimeState` inside `WorldState`.
+    - Removed local `residentPositions` / `residentWalkPhase` closures from `src/scene/NeighborhoodCanvas.tsx` and surfaced live `npcRuntime` activity labels in `src/components/JournalDrawer.tsx`.
+  - **Versioned Migrations & Safe Sanitization (`src/game/migrations.ts`, `src/game/storage.ts`)**:
+    - Implemented sequential `v1 -> v2` save migration (`migrateV1ToV2`), per-field save sanitization (`sanitizeWorldState`), corrupt JSON recovery, and pre-migration v1 backup (`little_somewhere_world_v1_backup`).
+- **Verification**:
+  - `npm test`: `17/17` tests pass across `engine.test.ts`, `navigation.test.ts`, `storage.test.ts`, and `simulation.test.ts`.
+  - `npm run lint` (`tsc --noEmit`) and `npm run build` (`vite build`) passed with 0 errors.
+  - Headless Chromium (`1440×900`) verified live `v1 -> v2` localStorage migration (preserving Day 3, trust, flags, memories), `+2h` advancing into Lantern Dusk, live Journal status, and 0 console errors/warnings.
+
+---
+
+## Entry 007 — Milestone 2A Phase 2: NPC Ambient Life
+- **Date**: 2026-11-18
+- **Status**: Completed & Verified
+- **Key Deliverables**:
+  - **Resident Traits & Autonomous Activities (`src/game/types.ts`, `src/game/residents.ts`, `src/game/simulation.ts`)**:
+    - Added `ResidentTraits` (`sociability`, `outdoorsiness`, `morningLark`, `curiosity`, `preferredZones`, `rainBehavior`) and distinct per-resident `RESIDENT_EXTRA_ACTIVITIES` pools (errands, fountain/planter admiration, sketching, music, rain-sheltered awnings gated via `onlyWeathers`).
+    - Replaced static schedule arrival with seeded utility selection (`selectActivityForResident`) driven by `simSeed`, `day`, `blockIndex`, weather, and unlocked `StoryFlags`, recording bounded `npcActivityHistory` per resident.
+  - **NPC-to-NPC Social Encounters & Cooldowns (`src/game/simulation.ts`)**:
+    - Added deterministic `ActiveSocialEncounter` pairing within `7.5 m` when both residents are idle, off cooldown (`SOCIAL_COOLDOWN_MINUTES = 95`), not next to the player, and `npcRelation.affinity >= -1` (strictly keeping estranged Clara & Arthur apart until `claraArthurReconciled`).
+    - Paired NPCs walk to verified `1.28 m` conversation spots (`converse` pose), update bilateral `npcRelations`, log bounded `worldEvents`, and cleanly pause/clear via `interruptSocialEncounter()` when the player talks to either participant.
+  - **Bilateral Relationships & Narrative Defect Fixes (`src/game/relationships.ts`, `src/game/actions.ts`, `src/game/narrative.ts`, `src/game/migrations.ts`, `src/components/DialogueSheet.tsx`, `src/components/JournalDrawer.tsx`)**:
+    - Implemented `PlayerNpcRelation` (continuous `0..100` affinity mapped to `0..5` hearts) and `NpcNpcRelation` matrix with lore-accurate baseline bonds and daily non-milestone small-talk capping (fixing the Day 1 trust-farming exploit).
+    - Fixed `nora_read_together` missing `mem_lost_postcard`, aligned `toby_clapper` `requiresFlag: 'heardBellMystery'`, added missing-node fallback in `DialogueSheet`, wove same-day social encounter awareness into neighbor greetings, and surfaced *Recent Lane Moments* in `JournalDrawer`.
+- **Verification**:
+  - `npm test`: `23/23` tests pass (`engine.test.ts`, `navigation.test.ts`, `relationships.test.ts`, `simulation.test.ts`, `storage.test.ts`).
+  - `npm run lint` (`tsc --noEmit`) and `npm run build` (`vite build`) passed with 0 errors.
+  - Headless Chromium (`1440×900`) verified live autonomous simulation, *Recent Lane Moments* population in Pocket Journal, and 0 console errors/warnings.
+
+---
+
+## Entry 008 — Milestone 2A Phase 3: Visual Transformation
+- **Date**: 2026-11-18
+- **Status**: Completed & Verified
+- **Key Deliverables**:
+  - **Town-Wide Vegetation, Perimeter, Hollow Oak & Mirror Pond (`src/scene/builders/vegetation.ts`)**:
+    - Replaced generic perimeter stone wall blocks and lollipop `DodecahedronGeometry` instanced trees with a 3-draw-call `InstancedMesh` grove (flared `LatheGeometry` trunks + two overlapping sculpted organic crown layers per tree), natural fieldstone + cedar split-rail + hedgerow borders, soft distant rolling hills, gnarled **Hollow Oak** with flared buttress roots & North-East root cavity housing the brass glint, and natural stone-coped **Mirror Pond** (lily pads, cattails, arched cambered cedar footbridge).
+  - **Hero Landmarks & Shop Cottages (`src/scene/builders/landmarks.ts`, `src/scene/builders/buildings.ts`)**:
+    - Elevated **Old Bell Gazebo** (stepped octagonal dais, South entrance steps, plinth-mounted cedar columns with knee braces & open-front balustrade, tiered shingled cupola spire, `LatheGeometry` brass bell + yoke + rope, removable climbing ivy, marigold festival bunting) and **Mossy Stone Fountain** (octagonal apron, beveled coping, moss tufts, `LatheGeometry` fluted pedestal & catch-bowl, bronze spouts, water shimmer & droplets).
+    - Upgraded **Hearth & Crumb Bakery** (post-supported striped awning, exterior brick/stone bake-oven, window display shelf with sourdough loaves, menu A-frame, café tables with linen runners & mugs), **Linden Book Nook** (post-supported awning, outdoor rolling book cart with colorful spines), **Copperwheel Cottage**, **Pinecone Woodshop**, **Sunbeam Greenhouse**, **Sora's Tea Cart** (spoked wheels, kettle, teacups, 4-post striped canopy), **Noticeboard** (3 toggleable flyers under shingled hood), and grounded plaza stone/iron lamps + festoon swag wire.
+  - **Full Cast Storybook Character Rigs & Contextual Poses (`src/scene/builders/characters.ts`, `src/scene/models.ts`, `src/scene/NeighborhoodCanvas.tsx`)**:
+    - Built articulated `CharacterRig` figures (`THREE.Object3D` hip/shoulder joint pivots) for the Player and remaining 8 residents matching `buildStorybookJun` craft (aprons, waistcoats/pocket watches, spectacles, loupe, straw/beret/cap/hood/bun styling, catchlight eyes, blush cheeks, sculpted noses, violin, sketchbook, watering can, bread basket).
+    - Implemented zero-GC `animateCharacterRig()` driving Phase 2 `NpcAnimationState` poses (`walk`, `work`, `sketch_read`, `music`, `converse`, `admire`, `idle`), closed south/east cobble spurs, removed per-frame closures inside `tick()`, and fixed duplicate bell burst triggers.
+- **Verification**:
+  - `npm test` (`23/23` pass), `npm run lint` (`tsc --noEmit`, 0 errors), and `npm run build` (`vite build`) passed.
+  - Headless Chromium inspection across Title (`1440×900`), Plaza & Pond gameplay (`1440×900`), and Mobile (`390×844`) confirmed cohesive *PREMIUM HANDCRAFTED STORYBOOK DIORAMA* craft and `0` console errors / `0` console warnings.
 
