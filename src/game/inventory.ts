@@ -64,6 +64,7 @@ export const PERSONAL_ITEMS: readonly PersonalItemDef[] = [
     category: 'baked_treat',
     description: 'Steeped floral chamomile and honey poured warm from your kettle.',
     giftable: true,
+    sipable: true,
   },
   {
     id: 'herb_loaf',
@@ -171,6 +172,23 @@ export const PERSONAL_ITEM_MAP: Record<PersonalItemId, PersonalItemDef> = PERSON
 export const VALID_PERSONAL_ITEM_IDS = new Set<PersonalItemId>(
   PERSONAL_ITEMS.map((item) => item.id),
 );
+
+/**
+ * Brewed drinks that can be enjoyed with the seated tea-table ritual (Pass 5, everyday-life polish).
+ * Derived from the item defs so new `sipable` drinks join automatically.
+ */
+export function getFirstSipableItem(inventory: Record<string, number> | undefined): {
+  itemId: PersonalItemId;
+  def: PersonalItemDef;
+} | null {
+  if (!inventory) return null;
+  for (const item of PERSONAL_ITEMS) {
+    if (item.sipable && (inventory[item.id] ?? 0) > 0) {
+      return { itemId: item.id, def: item };
+    }
+  }
+  return null;
+}
 
 export const HEARTH_RECIPES: readonly RecipeDef[] = [
   {

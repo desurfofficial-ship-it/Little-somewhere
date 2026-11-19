@@ -5,11 +5,12 @@ import {
   InteractiveTarget,
   PersonalItemId,
   SeasonType,
+  SeatSpot,
   Vec2,
   WorldState,
 } from './types';
 import { PERSONAL_ITEM_MAP } from './inventory';
-import { computeFacingAlignment, distance2D } from './worldMap';
+import { computeFacingAlignment, distance2D, getSeatById } from './worldMap';
 
 export const COTTAGE_BOUNDS = {
   minX: -3.5,
@@ -158,6 +159,42 @@ export function createInitialDailyActivities(): DailyActivitiesState {
   };
 }
 
+/**
+ * Indoor dining seats on the two carved stools tucked under the oak table (Pass 5, everyday-life polish).
+ * Seat positions sit exactly on the stool meshes built in `cottageInterior.ts` (table group origin (0.25, 1.0),
+ * stool offsets (-0.62, 0.04) / (0.62, -0.06)); approach positions are verified interior-walkable standing spots.
+ * Indoor seats are never claimed by NPCs (residents never enter the cottage) and never touch the outdoor
+ * `SEAT_SPOTS` registry used by the Milestone 3 autonomous-simulation seat machinery.
+ */
+export const COTTAGE_SEAT_SPOTS: readonly SeatSpot[] = [
+  {
+    id: 'cottage_seat_table_west',
+    label: 'Oak Table Stool',
+    seatPos: { x: -0.37, z: 1.04 },
+    approachPos: { x: -1.05, z: 1.0 },
+    facingAngle: Math.atan2(0.25 - -0.37, 1.0 - 1.04), // Facing east across the table toward the vase
+    seatHeight: 0.46,
+    zoneId: 'cottage_interior',
+    indoor: true,
+  },
+  {
+    id: 'cottage_seat_table_east',
+    label: 'Oak Table Stool',
+    seatPos: { x: 0.87, z: 0.94 },
+    approachPos: { x: 1.5, z: 0.9 },
+    facingAngle: Math.atan2(0.25 - 0.87, 1.0 - 0.94), // Facing west across the table toward the hearth side
+    seatHeight: 0.46,
+    zoneId: 'cottage_interior',
+    indoor: true,
+  },
+];
+
+/** Resolve a seat by id across both registries — indoor cottage seats first, outdoor benches fallback. */
+export function resolveAnySeatById(seatId: string | null | undefined): SeatSpot | undefined {
+  if (!seatId) return undefined;
+  return COTTAGE_SEAT_SPOTS.find((s) => s.id === seatId) ?? getSeatById(seatId);
+}
+
 export function isInteriorPointWalkable(x: number, z: number, actorRadius = 0.42): boolean {
   if (
     x < COTTAGE_BOUNDS.minX + actorRadius ||
@@ -273,6 +310,13 @@ export function selectBestInteriorTarget(world: WorldState): InteractiveTarget |
   let bestTarget: InteractiveTarget | null = null;
   let bestScore = Infinity;
 
+  const evaluateCandidate = (target: InteractiveTarget, score: number) => {
+    if (score < bestScore) {
+      bestScore = score;
+      bestTarget = target;
+    }
+  };
+
   for (const prop of COTTAGE_INTERACTABLES) {
     const dist = distance2D(world.playerPos, { x: prop.x, z: prop.z });
     const focusDist = distance2D(world.playerPos, { x: prop.focusX, z: prop.focusZ });
@@ -284,10 +328,8 @@ export function selectBestInteriorTarget(world: WorldState): InteractiveTarget |
       z: prop.focusZ,
     });
     const facingPenalty = (1 - align) * 0.45;
-    const score = effDist + facingPenalty;
-    if (score < bestScore) {
-      bestScore = score;
-      bestTarget = {
+    evaluateCandidate(
+      {
         kind: 'cottage_prop',
         id: prop.id,
         cottagePropId: prop.id,
@@ -295,8 +337,33 @@ export function selectBestInteriorTarget(world: WorldState): InteractiveTarget |
         actionLabel: prop.actionLabel,
         distance: effDist,
         worldPos: { x: prop.focusX, z: prop.focusZ },
-      };
-    }
+      },
+      effDist + facingPenalty,
+    );
+  }
+
+  // Indoor dining seats (Pass 5): offered like outdoor benches, weight slightly behind props
+  // so aiming at the hearth/table is never stolen by an adjacent stool.
+  for (const seat of COTTAGE_SEAT_SPOTS) {
+    const dist = Math.min(
+      distance2D(world.playerPos, seat.seatPos),
+      distance2D(world.playerPos, seat.approachPos) + 0.35,
+    );
+    if (dist > 2.0) continue;
+    const align = computeFacingAlignment(world.playerPos, world.playerFacing, seat.seatPos);
+    const facingPenalty = (1 - align) * 0.45;
+    evaluateCandidate(
+      {
+        kind: 'seat',
+        id: seat.id,
+        seatId: seat.id,
+        label: seat.label,
+        actionLabel: `Sit on ${seat.label}`,
+        distance: dist,
+        worldPos: { ...seat.seatPos },
+      },
+      dist + facingPenalty + 0.22,
+    );
   }
 
   return bestTarget;

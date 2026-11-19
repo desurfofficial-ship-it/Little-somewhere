@@ -37,6 +37,8 @@ import {
   createInitialDailyActivities,
   describePlacedFlower,
   getSeasonalAlmanacReading,
+  isInteriorPointWalkable,
+  resolveAnySeatById,
 } from './cottage';
 import {
   HEARTH_RECIPES,
@@ -45,6 +47,7 @@ import {
   addItemToInventory,
   canCraftRecipe,
   consumeItemFromInventory,
+  getFirstSipableItem,
   getGiftReactionTier,
   getItemCount,
 } from './inventory';
@@ -771,11 +774,14 @@ export function togglePlayerSitAction(
   seatId?: string,
 ): { nextWorld: WorldState; sat: boolean; toast?: string } {
   if (world.playerPosture === 'sitting') {
-    const seat = getSeatById(world.playerSeatId);
+    const seat = resolveAnySeatById(world.playerSeatId);
+    const approachWalkable = seat
+      ? seat.indoor
+        ? isInteriorPointWalkable(seat.approachPos.x, seat.approachPos.z, 0.42)
+        : isPointWalkable(seat.approachPos.x, seat.approachPos.z, 0.48)
+      : false;
     const standPos =
-      seat && isPointWalkable(seat.approachPos.x, seat.approachPos.z, 0.48)
-        ? { ...seat.approachPos }
-        : { ...world.playerPos };
+      seat && approachWalkable ? { ...seat.approachPos } : { ...world.playerPos };
     return {
       nextWorld: {
         ...world,
@@ -788,15 +794,19 @@ export function togglePlayerSitAction(
     };
   }
 
-  const seat = getSeatById(seatId);
+  const seat = resolveAnySeatById(seatId);
   if (!seat) return { nextWorld: world, sat: false };
-  const occupier = isSeatOccupiedByNpc(world, seat.id);
-  if (occupier) {
-    return {
-      nextWorld: world,
-      sat: false,
-      toast: `${RESIDENTS[occupier].name} is resting on ${seat.label} right now.`,
-    };
+  // Cottage-interior seats are player-only (residents never enter the home), so the
+  // outdoor NPC seat-claiming occupancy check does not apply to them.
+  if (!seat.indoor) {
+    const occupier = isSeatOccupiedByNpc(world, seat.id);
+    if (occupier) {
+      return {
+        nextWorld: world,
+        sat: false,
+        toast: `${RESIDENTS[occupier].name} is resting on ${seat.label} right now.`,
+      };
+    }
   }
 
   return {
@@ -808,7 +818,99 @@ export function togglePlayerSitAction(
       playerFacing: seat.facingAngle,
     },
     sat: true,
-    toast: `Resting on ${seat.label}.`,
+    toast: seat.indoor ? `Sitting at ${seat.label.toLowerCase()}.` : `Resting on ${seat.label}.`,
+  };
+}
+
+/** Minutes gently spent enjoying a drink at the cottage tea table. */
+export const SIP_MINUTES_SPENT = 8;
+
+export interface SipBeverageResult {
+  ok: boolean;
+  nextWorld: WorldState;
+  title: string;
+  body: string;
+  toast?: string;
+  memoryUnlockedTitle?: string;
+}
+
+const SIP_SCENES: string[] = [
+  'The cup warms your hands while the room hums its quiet afternoon sounds. Outside, Willow Lane keeps moving without you — for a few minutes, that is exactly right.',
+  'You take it slow, one unhurried sip at a time. The oak table holds the vase, the window holds the light, and the cottage holds you.',
+  'Steam curls past your nose, sweet and faintly herbal. The stool creaks softly as you lean back and simply sit for a while.',
+  'You wrap both palms around the cup and let the warmth settle in. Somewhere beyond the window, a neighbor passes humming — the lane carries on, and so do you.',
+];
+
+/**
+ * Tea-table ritual (Pass 5, everyday-life polish): enjoy a brewed drink while seated
+ * at a cottage seat. Consumes the item once, spends a few in-game minutes, and records
+ * a first-time Pocket Journal memory per drink. Pure reducer — no UI scheduling.
+ */
+export function sipBeverageAtTableAction(
+  world: WorldState,
+  requestedItemId?: PersonalItemId,
+): SipBeverageResult {
+  if (world.playerLocation !== 'cottage_interior') {
+    return { ok: false, nextWorld: world, title: '', body: '' };
+  }
+  if (world.playerPosture !== 'sitting') {
+    return { ok: false, nextWorld: world, title: '', body: '' };
+  }
+  const seat = resolveAnySeatById(world.playerSeatId);
+  if (!seat?.indoor) {
+    return { ok: false, nextWorld: world, title: '', body: '' };
+  }
+
+  const sip = requestedItemId
+    ? (() => {
+        const def = PERSONAL_ITEM_MAP[requestedItemId];
+        return def?.sipable && getItemCount(world.inventory, requestedItemId) > 0
+          ? { itemId: requestedItemId, def }
+          : null;
+      })()
+    : getFirstSipableItem(world.inventory);
+  if (!sip) {
+    return { ok: false, nextWorld: world, title: '', body: '' };
+  }
+
+  const consumed = consumeItemFromInventory({ ...(world.inventory ?? {}) }, sip.itemId, 1);
+  if (!consumed.ok) {
+    return { ok: false, nextWorld: world, title: '', body: '' };
+  }
+
+  const nextMin = Math.min(DAY_END_MINUTE, world.minuteOfDay + SIP_MINUTES_SPENT);
+  const phase = getTimePhase(nextMin);
+
+  const memId = `mem_teatable_${sip.itemId}`;
+  const hasMem = world.memories.some((m) => m.id === memId);
+  const memoryUnlockedTitle = hasMem ? undefined : `A Quiet ${sip.def.label} Moment`;
+  const nextMemories = hasMem
+    ? world.memories
+    : [
+        {
+          id: memId,
+          day: world.day,
+          phase,
+          title: memoryUnlockedTitle!,
+          summary: `I sat at the oak table with a warm ${sip.def.label.toLowerCase()} and let the cottage be still for a few minutes.`,
+        },
+        ...world.memories,
+      ];
+
+  const sceneIdx = (world.day + Math.round(world.minuteOfDay)) % SIP_SCENES.length;
+
+  return {
+    ok: true,
+    nextWorld: {
+      ...world,
+      minuteOfDay: nextMin,
+      inventory: consumed.inventory,
+      memories: nextMemories,
+    },
+    title: `Tea at the Oak Table`,
+    body: `${SIP_SCENES[sceneIdx]} (Spent ${SIP_MINUTES_SPENT} minutes.)`,
+    toast: `Enjoyed ${sip.def.label} at the table (+${SIP_MINUTES_SPENT}m).`,
+    memoryUnlockedTitle,
   };
 }
 

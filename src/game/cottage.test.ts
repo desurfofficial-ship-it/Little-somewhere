@@ -1,20 +1,25 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  SIP_MINUTES_SPENT,
   cookRecipeAction,
   enterCottageAction,
   exitCottageAction,
   interactWithCottageProp,
   interactWithProp,
   placeFlowerInVaseAction,
+  sipBeverageAtTableAction,
   toggleDisplayedKeepsakeAction,
+  togglePlayerSitAction,
 } from './actions';
 import {
   COTTAGE_DOOR_SPAWN,
   COTTAGE_INTERACTABLES,
   COTTAGE_INTERIOR_OBSTACLES,
+  COTTAGE_SEAT_SPOTS,
   COTTAGE_WAKE_SPAWN,
   isInteriorPointWalkable,
+  resolveAnySeatById,
   resolveInteriorMovement,
   selectBestInteriorTarget,
 } from './cottage';
@@ -27,6 +32,7 @@ import {
 } from './playerController';
 import { stepSimulation } from './simulation';
 import { advanceToNextDay, createFreshWorldState } from './storage';
+import { DAY_END_MINUTE } from './time';
 import { isPointWalkable } from './worldMap';
 
 test('cottage interior walkability, obstacle bounds, spawns, and interactable stand spots are valid', () => {
@@ -289,4 +295,107 @@ test('gathering results carry explicit gainedItems chips matching the inventory 
   const boxAgain = interactWithProp(world, 'cottage_window_box');
   assert.equal(boxAgain.nextWorld, world);
   assert.equal(boxAgain.gainedItems, undefined);
+});
+
+test('cottage indoor dining seats are footprint-anchored, walkable-approach, and offered by interior target selection', () => {
+  const ids = new Set(COTTAGE_SEAT_SPOTS.map((s) => s.id));
+  assert.equal(COTTAGE_SEAT_SPOTS.length, 2);
+  assert.equal(ids.size, 2, 'Indoor seat ids are unique');
+
+  const tableBox = COTTAGE_INTERIOR_OBSTACLES.find((o) => o.id === 'cottage_table')!;
+  for (const seat of COTTAGE_SEAT_SPOTS) {
+    assert.equal(seat.indoor, true, `${seat.id} must be flagged indoor`);
+    assert.ok(
+      seat.seatPos.x > tableBox.minX &&
+        seat.seatPos.x < tableBox.maxX &&
+        seat.seatPos.z > tableBox.minZ &&
+        seat.seatPos.z < tableBox.maxZ,
+      `${seat.id} seatPos sits on the tucked stool inside the table footprint`,
+    );
+    assert.equal(
+      isInteriorPointWalkable(seat.approachPos.x, seat.approachPos.z, 0.42),
+      true,
+      `${seat.id} approachPos must be a walkable interior standing spot`,
+    );
+    assert.ok(seat.seatHeight > 0.3 && seat.seatHeight < 0.7, `${seat.id} seatHeight is stool-scale`);
+  }
+
+  // Cross-registry resolution: indoor seats first, outdoor benches fallback, nothing for null
+  const westSeat = resolveAnySeatById('cottage_seat_table_west');
+  assert.ok(westSeat && westSeat.indoor === true);
+  const outdoorSeat = resolveAnySeatById('seat_east_plaza');
+  assert.ok(outdoorSeat && !outdoorSeat.indoor);
+  assert.equal(resolveAnySeatById(undefined), undefined);
+
+  // Standing near the west approach and facing the stool surfaces the seat target
+  const west = COTTAGE_SEAT_SPOTS[0];
+  const seatWorld = {
+    ...createFreshWorldState(),
+    playerLocation: 'cottage_interior' as const,
+    playerPos: { ...west.approachPos },
+    playerFacing: Math.atan2(
+      west.seatPos.x - west.approachPos.x,
+      west.seatPos.z - west.approachPos.z,
+    ),
+  };
+  const target = selectBestInteriorTarget(seatWorld);
+  assert.ok(target && target.kind === 'seat' && target.seatId === west.id,
+    'Facing the stool from its approach point offers the seat target');
+  assert.equal(target.actionLabel, 'Sit on Oak Table Stool');
+});
+
+test('tea-table sip ritual consumes a drink, spends minutes, and writes one first-time journal memory', () => {
+  // Build a seated-inside world with a freshly brewed tea in the satchel
+  let world = enterCottageAction(createFreshWorldState()).nextWorld;
+  const cooked = cookRecipeAction(world, 'recipe_chamomile_tea');
+  assert.equal(cooked.ok, true);
+  world = cooked.nextWorld;
+  const seated = togglePlayerSitAction(world, 'cottage_seat_table_west');
+  assert.equal(seated.sat, true);
+  world = seated.nextWorld;
+
+  const startMinute = world.minuteOfDay;
+  const sip = sipBeverageAtTableAction(world);
+  assert.equal(sip.ok, true);
+  world = sip.nextWorld;
+  assert.equal(getItemCount(world.inventory, 'chamomile_pear_tea'), 0);
+  assert.equal(world.minuteOfDay, Math.min(DAY_END_MINUTE, startMinute + SIP_MINUTES_SPENT));
+  assert.ok(world.memories.some((m) => m.id === 'mem_teatable_chamomile_pear_tea'));
+  assert.equal(sip.memoryUnlockedTitle, 'A Quiet Warm Chamomile Tea Moment');
+  assert.ok(sip.title.includes('Oak Table'));
+
+  // A second sip (with another tea brewed) is cozy but writes no duplicate memory
+  const rebrew = cookRecipeAction(
+    { ...world, inventory: { ...world.inventory, chamomile_blossom: 1 } },
+    'recipe_chamomile_tea',
+  );
+  assert.equal(rebrew.ok, true);
+  world = rebrew.nextWorld;
+  const secondSip = sipBeverageAtTableAction(world);
+  assert.equal(secondSip.ok, true);
+  assert.equal(secondSip.memoryUnlockedTitle, undefined);
+  assert.equal(
+    secondSip.nextWorld.memories.filter((m) => m.id === 'mem_teatable_chamomile_pear_tea').length,
+    1,
+  );
+
+  // Rejection paths: standing up, sitting outdoors, and having no drink
+  const standingWorld = togglePlayerSitAction(world, undefined).nextWorld;
+  assert.equal(sipBeverageAtTableAction(standingWorld).ok, false);
+  const outdoorSeated = togglePlayerSitAction(
+    { ...standingWorld, playerLocation: 'exterior' as const },
+    'seat_east_plaza',
+  ).nextWorld;
+  assert.equal(sipBeverageAtTableAction(outdoorSeated).ok, false);
+  const emptySatchel = togglePlayerSitAction(
+    { ...standingWorld, inventory: {} },
+    'cottage_seat_table_east',
+  ).nextWorld;
+  assert.equal(sipBeverageAtTableAction(emptySatchel).ok, false);
+  // Explicit non-sipable item request is rejected
+  const seatedNoTea = togglePlayerSitAction(
+    { ...emptySatchel, inventory: { herb_loaf: 1 } },
+    'cottage_seat_table_east',
+  ).nextWorld;
+  assert.equal(sipBeverageAtTableAction(seatedNoTea, 'herb_loaf').ok, false);
 });

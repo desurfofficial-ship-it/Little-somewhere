@@ -63,6 +63,7 @@ import {
   placeWorldPropAction,
   toggleDisplayedKeepsakeAction,
   togglePlayerSitAction,
+  sipBeverageAtTableAction,
 } from './game/actions';
 import { interruptSocialEncounter } from './game/simulation';
 import { getLandmarkAt, getPropInteractionMetrics } from './game/worldMap';
@@ -264,11 +265,40 @@ export default function App() {
         setPropCard(null);
         setDialogueSession(session);
       } else if (target.kind === 'seat') {
+        // Pass 5: seated at a cottage seat with a brewed drink → primary action is the sip ritual
+        if (target.sipItemId && current.playerPosture === 'sitting') {
+          const sipRes = sipBeverageAtTableAction(current, target.sipItemId);
+          if (sipRes.ok) {
+            commitWorld(sipRes.nextWorld);
+            triggerPlayerPulse('interact', target.worldPos);
+            cozyAudio.playSip();
+            if (sipRes.memoryUnlockedTitle) {
+              cozyAudio.playMemoryChime();
+              showToast(`Memory saved: ${sipRes.memoryUnlockedTitle}`);
+            } else if (sipRes.toast) {
+              showToast(sipRes.toast);
+            }
+            setDialogueSession(null);
+            setActivePropId(null);
+            setPropCard({
+              nextWorld: sipRes.nextWorld,
+              title: sipRes.title,
+              body: sipRes.body,
+            });
+          } else {
+            cozyAudio.playUiTap(0.92);
+          }
+          return;
+        }
         const res = togglePlayerSitAction(current, target.seatId ?? target.id);
         if (res.nextWorld !== current) {
           commitWorld(res.nextWorld);
         }
-        cozyAudio.playUiTap(res.sat ? 1.02 : 0.96);
+        if (res.sat) {
+          cozyAudio.playSitDown();
+        } else {
+          cozyAudio.playUiTap(0.96);
+        }
         if (res.toast) {
           showToast(res.toast);
         }

@@ -74,6 +74,8 @@ export interface PersonalItemDef {
   description: string;
   homeDisplayable?: 'vase' | 'shelf';
   giftable: boolean;
+  /** True for brewed drinks that can be enjoyed with the seated tea-table ritual. */
+  sipable?: boolean;
 }
 
 export interface RecipeDef {
@@ -472,6 +474,8 @@ export interface SeatSpot {
   facingAngle: number;
   seatHeight: number;
   zoneId: string;
+  /** True for cottage-interior seats (walkability validated with the indoor grid, never NPC-claimed). */
+  indoor?: boolean;
 }
 
 export type StorylineStatus = 'locked' | 'available' | 'active' | 'completed';
@@ -748,4 +752,6 @@ export interface InteractiveTarget {
   seatId?: string;
   carryableId?: CarryableItemId;
   cottagePropId?: CottageInteractableId;
+  /** Set on seated cottage-seat targets when a sipable drink is in the satchel: primary action becomes the sip ritual. */
+  sipItemId?: PersonalItemId;
 }

@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { COTTAGE_INTERACTABLES } from '../../game/cottage';
+import { COTTAGE_INTERACTABLES, COTTAGE_SEAT_SPOTS } from '../../game/cottage';
 import { CottageHomeState, TimePhase, WorldState } from '../../game/types';
 import { MaterialPalette, STORYBOOK_PALETTE } from '../materials';
 import { addContactShadow } from './vegetation';
@@ -123,6 +123,19 @@ export function buildWillowCottageInterior(
       visible: false,
     }),
   );
+  // Mantel candle flame — dusk-emissive, flicker shared with the ember curve
+  const mantelFlameMat = trackMat(
+    new THREE.MeshStandardMaterial({
+      color: '#FFD27F',
+      emissive: '#FFB050',
+      emissiveIntensity: 0.3,
+      roughness: 0.5,
+      metalness: 0.02,
+    }),
+  );
+  const honeyAmberMat = palette.standard('#D9A441', 0.5, 0.02);
+  const strawHatMat = palette.standard('#C9A85C', 0.85, 0.0);
+  const teaBrewMat = palette.standard('#B97F4A', 0.6, 0.0);
 
   // 1. Foundation Plinth, Plank Floor & Braided Hearth Rug
   const plinth = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(7.35, 0.24, 5.75)), darkStoneMat);
@@ -275,6 +288,68 @@ export function buildWillowCottageInterior(
   }
   group.add(hearthGroup);
 
+  // H7 (Pass 6). Mantel life: beeswax candle, leaning photo frame, potted sprig
+  // (hearthGroup local: mantle top y 1.58, spans x -0.88..0.88, front edge z 0.49)
+  const candleHolder = new THREE.Mesh(trackGeo(new THREE.CylinderGeometry(0.045, 0.055, 0.03, 10)), brassMat);
+  candleHolder.position.set(-0.44, 1.595, 0.16);
+  const candleBody = new THREE.Mesh(trackGeo(new THREE.CylinderGeometry(0.026, 0.028, 0.1, 10)), linenMat);
+  candleBody.position.set(-0.44, 1.66, 0.16);
+  const candleFlame = new THREE.Mesh(trackGeo(new THREE.SphereGeometry(0.018, 8, 6)), mantelFlameMat);
+  candleFlame.scale.set(0.7, 1.25, 0.7);
+  candleFlame.position.set(-0.44, 1.735, 0.16);
+  const photoFrame = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(0.17, 0.21, 0.022)), cedarWarmMat);
+  photoFrame.position.set(-0.04, 1.665, 0.2);
+  photoFrame.rotation.x = -0.16;
+  const photoCanvas = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(0.13, 0.17, 0.026)), petalCreamMat);
+  photoCanvas.position.set(-0.04, 1.67, 0.201);
+  photoCanvas.rotation.x = -0.16;
+  const photoPond = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(0.09, 0.05, 0.03)), palette.standard('#8BBCD1', 0.65, 0.0));
+  photoPond.position.set(-0.04, 1.685, 0.206);
+  photoPond.rotation.x = -0.16;
+  const mantelPot = new THREE.Mesh(trackGeo(new THREE.CylinderGeometry(0.048, 0.038, 0.075, 10)), terracottaMat);
+  mantelPot.position.set(0.44, 1.617, 0.1);
+  const mantelSprig = new THREE.Mesh(trackGeo(new THREE.DodecahedronGeometry(0.052, 0)), foliageMat);
+  mantelSprig.scale.set(1, 0.8, 1);
+  mantelSprig.position.set(0.44, 1.685, 0.1);
+  hearthGroup.add(
+    candleHolder,
+    candleBody,
+    candleFlame,
+    photoFrame,
+    photoCanvas,
+    photoPond,
+    mantelPot,
+    mantelSprig,
+  );
+
+  // H8 (Pass 6). Kitchen counter sign-of-use: crock + spoons, bread board + slice, folded cloth
+  // (hearthGroup local: counter top surface y 0.96, spans x 0.69..1.47, z -0.42..0.46)
+  const crockBody = new THREE.Mesh(trackGeo(new THREE.CylinderGeometry(0.078, 0.092, 0.17, 12)), ceramicMat);
+  crockBody.position.set(0.82, 1.045, -0.18);
+  const crockRim = new THREE.Mesh(trackGeo(new THREE.TorusGeometry(0.078, 0.012, 6, 14)), ceramicMat);
+  crockRim.rotation.x = Math.PI * 0.5;
+  crockRim.position.set(0.82, 1.128, -0.18);
+  for (const [sx, tilt, len] of [
+    [-0.03, 0.28, 0.2],
+    [0.02, -0.2, 0.16],
+  ] as const) {
+    const spoon = new THREE.Mesh(trackGeo(new THREE.CylinderGeometry(0.008, 0.007, len, 6)), cedarDarkMat);
+    spoon.position.set(0.82 + sx, 1.2, -0.18);
+    spoon.rotation.z = tilt;
+    hearthGroup.add(spoon);
+  }
+  const breadBoard = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(0.34, 0.026, 0.2)), cedarWarmMat);
+  breadBoard.position.set(1.18, 0.973, 0.16);
+  breadBoard.rotation.y = 0.3;
+  const loafSlice = new THREE.Mesh(trackGeo(new THREE.CylinderGeometry(0.072, 0.072, 0.052, 14)), teaBrewMat);
+  loafSlice.position.set(1.18, 1.012, 0.16);
+  loafSlice.rotation.set(0, 0.3, Math.PI * 0.5);
+  loafSlice.scale.set(1, 1, 0.62);
+  const linenCloth = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(0.22, 0.018, 0.18)), linenMat);
+  linenCloth.position.set(1.34, 0.969, -0.14);
+  linenCloth.rotation.y = -0.22;
+  hearthGroup.add(crockBody, crockRim, breadBoard, loafSlice, linenCloth);
+
   // B. Patchwork Quilt Bed (cottage_bed: x=-3.42..-1.55, z=0.85..2.55, focus=(-2.4, 1.7))
   const bedGroup = new THREE.Group();
   bedGroup.position.set(-2.48, 0, 1.7);
@@ -404,6 +479,42 @@ export function buildWillowCottageInterior(
     crabappleGroup.add(bough, fruit, leaf);
   }
   tableGroup.add(crabappleGroup);
+
+  // H9 (Pass 6). Tea-for-one statics: honey pot + spoon rest beside the vase
+  const honeyPot = new THREE.Mesh(trackGeo(new THREE.CylinderGeometry(0.05, 0.045, 0.085, 12)), honeyAmberMat);
+  honeyPot.position.set(0.3, 0.812, -0.26);
+  const honeyLid = new THREE.Mesh(trackGeo(new THREE.CylinderGeometry(0.052, 0.052, 0.02, 12)), cedarDarkMat);
+  honeyLid.position.set(0.3, 0.862, -0.26);
+  const honeyDipper = new THREE.Mesh(trackGeo(new THREE.CylinderGeometry(0.007, 0.009, 0.14, 6)), cedarWarmMat);
+  honeyDipper.position.set(0.36, 0.86, -0.22);
+  honeyDipper.rotation.z = 0.5;
+  tableGroup.add(honeyPot, honeyLid, honeyDipper);
+
+  // H10 (Pass 5). Reactive tea moment: stoneware teacup + steam wisp visible while the
+  // player is seated at a cottage seat (visual-only, derived from posture — no save state)
+  const teacupGroup = new THREE.Group();
+  teacupGroup.name = 'teacupGroup';
+  teacupGroup.position.set(-0.29, 0.762, 0.17);
+  teacupGroup.visible = false;
+  const cupSaucer = new THREE.Mesh(trackGeo(new THREE.CylinderGeometry(0.095, 0.08, 0.016, 14)), ceramicMat);
+  cupSaucer.position.y = 0.008;
+  const seatedCupBody = new THREE.Mesh(trackGeo(new THREE.CylinderGeometry(0.06, 0.05, 0.078, 12)), ceramicMat);
+  seatedCupBody.position.y = 0.055;
+  const cupTea = new THREE.Mesh(trackGeo(new THREE.CylinderGeometry(0.052, 0.052, 0.012, 12)), teaBrewMat);
+  cupTea.position.y = 0.086;
+  const seatedCupHandle = new THREE.Mesh(trackGeo(new THREE.TorusGeometry(0.026, 0.007, 6, 12, Math.PI)), ceramicMat);
+  seatedCupHandle.position.set(0.062, 0.055, 0);
+  seatedCupHandle.rotation.z = -Math.PI * 0.5;
+  teacupGroup.add(cupSaucer, seatedCupBody, cupTea, seatedCupHandle);
+  const cupSteamPuffs: THREE.Mesh[] = [];
+  for (let i = 0; i < 2; i++) {
+    const puff = new THREE.Mesh(trackGeo(new THREE.SphereGeometry(0.022, 7, 6)), steamMat);
+    puff.position.set(0, 0.13 + i * 0.1, 0);
+    puff.visible = false;
+    teacupGroup.add(puff);
+    cupSteamPuffs.push(puff);
+  }
+  tableGroup.add(teacupGroup);
 
   const vaseFlowers: Record<VaseFlowerKey, THREE.Group> = {
     chamomile_blossom: chamomileGroup,
@@ -557,6 +668,37 @@ export function buildWillowCottageInterior(
   doorKnob.position.set(-0.01, 1.02, 0.36);
   doorGroup.add(doorMatRug, doorJambN, doorJambS, doorLintel, doorLeaf, doorKnob);
   group.add(doorGroup);
+
+  // H11 (Pass 6). Entry sign-of-use: garden boots in the door recess + wall pegs with a straw hat
+  // (door recess spans z -0.62..0.62 at the east curb; pegs live on the north wall plane near the door)
+  const bootLeatherMat = palette.standard('#5C3A28', 0.72, 0.04);
+  for (const [bx, bz, rot] of [
+    [3.14, -0.45, 0.18],
+    [3.14, -0.2, -0.12],
+  ] as const) {
+    const bootShaft = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(0.1, 0.17, 0.12)), bootLeatherMat);
+    bootShaft.position.set(bx, 0.085, bz);
+    bootShaft.rotation.y = rot;
+    const bootToe = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(0.1, 0.055, 0.09)), bootLeatherMat);
+    bootToe.position.set(bx - 0.015, 0.027, bz + 0.09);
+    bootToe.rotation.y = rot;
+    group.add(bootShaft, bootToe);
+  }
+  const pegA = new THREE.Mesh(trackGeo(new THREE.CylinderGeometry(0.02, 0.024, 0.09, 8)), brassMat);
+  pegA.position.set(2.52, 1.36, -2.7);
+  pegA.rotation.x = Math.PI * 0.5;
+  const pegB = new THREE.Mesh(trackGeo(new THREE.CylinderGeometry(0.02, 0.024, 0.09, 8)), brassMat);
+  pegB.position.set(2.78, 1.36, -2.7);
+  pegB.rotation.x = Math.PI * 0.5;
+  const pegBoard = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(0.44, 0.1, 0.03)), cedarWarmMat);
+  pegBoard.position.set(2.65, 1.44, -2.71);
+  const hatCrown = new THREE.Mesh(trackGeo(new THREE.SphereGeometry(0.095, 10, 8)), strawHatMat);
+  hatCrown.scale.set(1, 0.55, 1);
+  hatCrown.position.set(2.65, 1.38, -2.65);
+  const hatBrim = new THREE.Mesh(trackGeo(new THREE.CylinderGeometry(0.15, 0.155, 0.02, 14)), strawHatMat);
+  hatBrim.position.set(2.65, 1.365, -2.65);
+  hatBrim.rotation.set(0.12, 0, -0.06);
+  group.add(pegA, pegB, pegBoard, hatCrown, hatBrim);
 
   // H. Lived-in dressing (Pass 1 — Everyday Life polish; all inside existing obstacle
   //    footprints or wall planes so COTTAGE_INTERIOR_OBSTACLES stays untouched).
@@ -830,11 +972,16 @@ export function buildWillowCottageInterior(
   group.add(dustMotes);
 
   // 4. Raycast Hit Proxies matching every entry in COTTAGE_INTERACTABLES (7 total)
+  //    plus the two indoor dining-seat proxies (Pass 5, targetKind 'seat').
   const hitProxies: THREE.Mesh[] = [];
   const proxyGeo = trackGeo(new THREE.BoxGeometry(1.15, 1.65, 1.15));
+  // The table proxy hugs the tabletop zone only, so stool-click rays pass under it to the
+  // low seat proxies instead of being swallowed by a tall invisible box (Pass 5 fix).
+  const tableProxyGeo = trackGeo(new THREE.BoxGeometry(0.98, 0.55, 0.98));
   for (const prop of COTTAGE_INTERACTABLES) {
-    const proxy = new THREE.Mesh(proxyGeo, hitProxyMat);
-    proxy.position.set(prop.focusX, 0.85, prop.focusZ);
+    const isTable = prop.id === 'cottage_table';
+    const proxy = new THREE.Mesh(isTable ? tableProxyGeo : proxyGeo, hitProxyMat);
+    proxy.position.set(prop.focusX, isTable ? 1.02 : 0.85, prop.focusZ);
     proxy.userData = {
       targetKind: 'cottage_prop',
       targetId: prop.id,
@@ -842,9 +989,35 @@ export function buildWillowCottageInterior(
     group.add(proxy);
     hitProxies.push(proxy);
   }
+  // Seat proxies stand over the stool meshes so clicks near the stools resolve to the seat.
+  const seatProxyGeo = trackGeo(new THREE.BoxGeometry(0.52, 0.85, 0.52));
+  for (const seat of COTTAGE_SEAT_SPOTS) {
+    const proxy = new THREE.Mesh(seatProxyGeo, hitProxyMat);
+    proxy.position.set(seat.seatPos.x, 0.42, seat.seatPos.z);
+    proxy.userData = { targetKind: 'seat', targetId: seat.id };
+    group.add(proxy);
+    hitProxies.push(proxy);
+  }
 
   function update(world: WorldState, phase: TimePhase, elapsed: number): void {
     const cs = world.cottageState;
+
+    // Reactive tea moment (Pass 5): teacup + steam wisp while seated at a cottage seat
+    const seatedIndoor =
+      world.playerPosture === 'sitting' &&
+      typeof world.playerSeatId === 'string' &&
+      world.playerSeatId.startsWith('cottage_seat_');
+    teacupGroup.visible = seatedIndoor;
+    for (let i = 0; i < cupSteamPuffs.length; i++) {
+      const puff = cupSteamPuffs[i];
+      puff.visible = seatedIndoor;
+      if (seatedIndoor) {
+        const cycle = (elapsed * 0.5 + i * 0.5) % 1;
+        puff.position.y = 0.12 + cycle * 0.22;
+        puff.position.x = Math.sin(elapsed * 1.7 + i * 2.1) * 0.018;
+        puff.scale.setScalar(0.7 + Math.sin(cycle * Math.PI) * 0.6);
+      }
+    }
 
     // Placed flower in table vase
     const placed = cs?.placedFlowerId ?? null;
@@ -880,14 +1053,17 @@ export function buildWillowCottageInterior(
       almanacLampMat.emissiveIntensity = 1.65;
       windowGlassMat.emissiveIntensity = 0.28;
       pendantLampMat.emissiveIntensity = 1.45 + Math.sin(elapsed * 3.1) * 0.12;
+      mantelFlameMat.emissiveIntensity = 1.7 + Math.sin(elapsed * 6.3) * 0.18;
     } else if (phase === 'golden') {
       almanacLampMat.emissiveIntensity = 0.95;
       windowGlassMat.emissiveIntensity = 0.75;
       pendantLampMat.emissiveIntensity = 0.62;
+      mantelFlameMat.emissiveIntensity = 0.95 + Math.sin(elapsed * 6.3) * 0.12;
     } else {
       almanacLampMat.emissiveIntensity = 0.35;
       windowGlassMat.emissiveIntensity = 0.55;
       pendantLampMat.emissiveIntensity = 0.14;
+      mantelFlameMat.emissiveIntensity = 0.3;
     }
 
     // Atmosphere: hearth key light, window daylight shaft, drifting dust motes

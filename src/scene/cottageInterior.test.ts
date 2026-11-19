@@ -1,19 +1,28 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as THREE from 'three';
-import { COTTAGE_INTERACTABLES } from '../game/cottage';
+import { COTTAGE_INTERACTABLES, COTTAGE_SEAT_SPOTS } from '../game/cottage';
 import { createFreshWorldState } from '../game/storage';
 import { MaterialPalette } from './materials';
 import { buildWillowCottageInterior } from './builders/cottageInterior';
 
-test('cottage interior 3D rig exposes all 7 hit proxies matching COTTAGE_INTERACTABLES', () => {
+test('cottage interior 3D rig exposes all 7 cottage hit proxies + 2 indoor seat proxies', () => {
   const palette = new MaterialPalette();
   const rig = buildWillowCottageInterior(palette, new THREE.Texture());
 
-  const ids = new Set(rig.hitProxies.map((mesh) => mesh.userData.targetId));
-  assert.equal(rig.hitProxies.length, COTTAGE_INTERACTABLES.length);
+  const cottageProxies = rig.hitProxies.filter(
+    (mesh) => mesh.userData.targetKind === 'cottage_prop',
+  );
+  const seatProxies = rig.hitProxies.filter((mesh) => mesh.userData.targetKind === 'seat');
+  assert.equal(cottageProxies.length, COTTAGE_INTERACTABLES.length);
+  assert.equal(seatProxies.length, COTTAGE_SEAT_SPOTS.length);
+  const ids = new Set(cottageProxies.map((mesh) => mesh.userData.targetId));
   for (const prop of COTTAGE_INTERACTABLES) {
     assert.ok(ids.has(prop.id), `Missing interior hit proxy for ${prop.id}`);
+  }
+  const seatIds = new Set(seatProxies.map((mesh) => mesh.userData.targetId));
+  for (const seat of COTTAGE_SEAT_SPOTS) {
+    assert.ok(seatIds.has(seat.id), `Missing indoor seat proxy for ${seat.id}`);
   }
 
   const box = new THREE.Box3().setFromObject(rig.group);
@@ -149,6 +158,91 @@ test('cottage interior lived-in dressing exists without inflating the diorama bo
   // The whole dressed diorama still fits the diorama envelope
   const box = new THREE.Box3().setFromObject(rig.group);
   assert.ok(box.min.y >= -0.35 && box.max.y <= 3.6, `Bounds y: ${box.min.y.toFixed(2)}..${box.max.y.toFixed(2)}`);
+
+  rig.dispose();
+  palette.disposeAll();
+});
+
+test('cottage interior tea-table moment: reactive teacup appears only while seated at a cottage seat', () => {
+  const palette = new MaterialPalette();
+  const rig = buildWillowCottageInterior(palette, new THREE.Texture());
+  const base = createFreshWorldState();
+
+  const teacup = rig.group.getObjectByName('teacupGroup');
+  assert.ok(teacup, 'Reactive teacup group exists on the oak table');
+
+  // Standing indoors: teacup hidden
+  rig.update(base, 'morning', 1.0);
+  assert.equal(teacup.visible, false);
+
+  // Seated at a cottage seat: teacup + steam wisps appear, steam stays bounded
+  const seated = {
+    ...base,
+    playerLocation: 'cottage_interior' as const,
+    playerPosture: 'sitting' as const,
+    playerSeatId: 'cottage_seat_table_west',
+  };
+  for (let t = 0; t < 120; t++) {
+    rig.update(seated, 'afternoon', t * 0.1 + 2);
+    assert.equal(teacup.visible, true);
+    for (const child of teacup.children) {
+      if (child instanceof THREE.Mesh && child.geometry instanceof THREE.SphereGeometry) {
+        assert.ok(child.position.y > 0.05 && child.position.y < 0.5, `Steam wisp bounded: ${child.position.y}`);
+        assert.ok(Number.isFinite(child.position.x) && Number.isFinite(child.position.y));
+      }
+    }
+  }
+
+  // Seated outdoors (bench) or on an unknown seat: teacup stays hidden
+  rig.update(
+    { ...seated, playerSeatId: 'seat_east_plaza' },
+    'afternoon',
+    3,
+  );
+  assert.equal(teacup.visible, false);
+
+  rig.dispose();
+  palette.disposeAll();
+});
+
+test('cottage interior hearth-wall life: mantel candle glows at dusk and the rig carries entry dressing', () => {
+  const palette = new MaterialPalette();
+  const rig = buildWillowCottageInterior(palette, new THREE.Texture());
+  const base = createFreshWorldState();
+
+  // Find the mantel flame material via a flame-tagged emissive mesh near the chimney
+  let flameMesh: THREE.Mesh | null = null;
+  rig.group.traverse((obj) => {
+    if (
+      obj instanceof THREE.Mesh &&
+      obj.material instanceof THREE.MeshStandardMaterial &&
+      (obj.material as THREE.MeshStandardMaterial).emissive.getHexString() === 'ffb050' &&
+      !flameMesh
+    ) {
+      flameMesh = obj;
+    }
+  });
+  assert.ok(flameMesh, 'Mantel candle flame exists');
+  const flameMat = (flameMesh as THREE.Mesh).material as THREE.MeshStandardMaterial;
+
+  rig.update({ ...base, minuteOfDay: 1120 }, 'dusk', 1.2);
+  const duskIntensity = flameMat.emissiveIntensity;
+  assert.ok(duskIntensity > 1.2, `Candle flame glows at dusk, got ${duskIntensity.toFixed(2)}`);
+  rig.update(base, 'morning', 1.2);
+  assert.ok(flameMat.emissiveIntensity < 0.5, 'Candle flame dims by day');
+
+  // Entry dressing: garden boots + straw hat exist in the door/east-corner region
+  let bootMeshes = 0;
+  let hatMeshes = 0;
+  rig.group.traverse((obj) => {
+    if (obj instanceof THREE.Mesh) {
+      const p = obj.position;
+      if (p.x > 2.9 && p.x < 3.4 && p.z > -0.7 && p.z < 0.2 && p.y < 0.25) bootMeshes++;
+      if (p.x > 2.3 && p.x < 3.0 && p.z < -2.55 && p.y > 1.25 && p.y < 1.55) hatMeshes++;
+    }
+  });
+  assert.ok(bootMeshes >= 4, `Garden boots dress the door recess (got ${bootMeshes})`);
+  assert.ok(hatMeshes >= 2, `Straw hat hangs by the wall pegs (got ${hatMeshes})`);
 
   rig.dispose();
   palette.disposeAll();

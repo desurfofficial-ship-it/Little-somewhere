@@ -8,6 +8,8 @@ import {
   WorldState,
 } from './types';
 import {
+  isInteriorPointWalkable,
+  resolveAnySeatById,
   resolveInteriorMovement,
   selectBestInteriorTarget,
 } from './cottage';
@@ -22,6 +24,7 @@ import {
   isPointWalkable,
   resolveMovement,
 } from './worldMap';
+import { getFirstSipableItem } from './inventory';
 
 export const PLAYER_WALK_SPEED = 3.6;
 export const PLAYER_RUN_SPEED = 5.4;
@@ -133,12 +136,17 @@ export function stepPlayerMovement(input: StepPlayerMovementInput): StepPlayerMo
   const hasMoveInput = input.inputMagnitude >= 0.08 && (Math.abs(input.moveDirX) > 0.001 || Math.abs(input.moveDirZ) > 0.001);
 
   if (posture === 'sitting') {
-    const seat = getSeatById(seatId);
+    const seat = resolveAnySeatById(seatId);
     if (hasMoveInput) {
       // Pushing a movement key/stick while sitting gracefully steps back onto walkable approach spot
       posture = 'standing';
       stoodUpFromMove = true;
-      if (seat && isPointWalkable(seat.approachPos.x, seat.approachPos.z, 0.48)) {
+      const approachWalkable = seat
+        ? seat.indoor
+          ? isInteriorPointWalkable(seat.approachPos.x, seat.approachPos.z, 0.42)
+          : isPointWalkable(seat.approachPos.x, seat.approachPos.z, 0.48)
+        : false;
+      if (seat && approachWalkable) {
         pos = { ...seat.approachPos };
       }
       seatId = null;
@@ -306,11 +314,40 @@ export function selectBestInteractiveTarget(
   residentNames: Record<ResidentId, { name: string }>,
 ): InteractiveTarget | null {
   if (world.playerLocation === 'cottage_interior') {
+    // Seated at the cottage tea table (Pass 5): offer the sip ritual when a brewed drink
+    // is in the satchel, otherwise a plain Stand Up target — never other room props.
+    if (world.playerPosture === 'sitting') {
+      const seat = resolveAnySeatById(world.playerSeatId);
+      if (seat?.indoor) {
+        const sip = getFirstSipableItem(world.inventory);
+        if (sip) {
+          return {
+            kind: 'seat',
+            id: seat.id,
+            seatId: seat.id,
+            label: seat.label,
+            actionLabel: `Sip ${sip.def.label}`,
+            distance: 0,
+            worldPos: { ...world.playerPos },
+            sipItemId: sip.itemId,
+          };
+        }
+        return {
+          kind: 'seat',
+          id: seat.id,
+          seatId: seat.id,
+          label: seat.label,
+          actionLabel: 'Stand Up',
+          distance: 0,
+          worldPos: { ...world.playerPos },
+        };
+      }
+    }
     return selectBestInteriorTarget(world);
   }
 
   if (world.playerPosture === 'sitting') {
-    const seat = getSeatById(world.playerSeatId);
+    const seat = resolveAnySeatById(world.playerSeatId);
     return {
       kind: 'seat',
       id: seat?.id ?? 'seat_current',

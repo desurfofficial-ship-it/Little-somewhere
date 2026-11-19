@@ -89,13 +89,45 @@ Severity scale: **P0** = broken/blocks the loop · **P1** = materially weakens t
 
 ---
 
-## 4. Production quality target (measurable)
+## 5. Round-2 findings (2026-11-20, after Passes 1–4 shipped)
 
-"LITTLE SOMEWHERE everyday life is exceptional when, on a fresh save and a Day-3 decorated save:
+**Method**: re-playtest on a fresh headless session (desktop 1440×900 + mobile 390×844) with the dusk `WorldState v6` save, full hearth→satchel→vase→shelf→door loop exercised, plus a line-level re-read of `src/game/cottage.ts`, `src/game/playerController.ts`, `src/game/actions.ts`, `src/game/inventory.ts`, `src/scene/builders/cottageInterior.ts`, `src/scene/NeighborhoodCanvas.tsx`, and `src/game/audio.ts`. Baseline at commit `86ba9e2` (115/115 suites, `tsc` 0 errors, build green).
 
-1. Brewing tea at the hearth is a staged, audible, ~2 s activity with a completion card — and the 3D kettle visibly reacts.
-2. The cottage interior reads as a lived-in home: seating at the table, dressed windows/walls, sign-of-use props, and a hearth that actually lights the room at dusk.
-3. Interior daylight has a visible shaft + dust-mote layer, and the room never falls into undifferentiated murk at any phase.
-4. Entering, leaving, and resting fade through a soft veil instead of hard cuts.
-5. Every gathering result shows explicit item chips ("+2 Orchard Crabapple") in addition to prose.
-6. All 110+ unit suites, `tsc`, and `vite build` stay green; console stays at 0 errors; the deferred scene chunk does not grow materially."
+### EL-11 · P1 — The dining stools are decoration; the player cannot sit at home
+**Where**: `src/game/worldMap.ts SEAT_SPOTS` (outdoor-only), `src/game/cottage.ts selectBestInteriorTarget` (cottage props only), `src/game/playerController.ts selectBestInteractiveTarget` (indoor branch never offers seats).
+**Evidence**: All six `SEAT_SPOTS` entries are outdoor benches; the two carved stools built in Pass 1 are static meshes. The seated-player pipeline (`playerPosture: 'sitting'`, sit pose in `characters.ts`, `computeSitGroundY`, move-to-stand release) is fully generic and works for any seat — only the seat registry and target selection are missing indoors. Playtest confirms the action button cycles only cottage props; no "Sit" ever appears.
+**Impact**: The directive's end-state vision is "brew tea, **sit down**, tidy things, enjoy home" — the sit beat is the missing piece of that sentence.
+
+### EL-12 · P1 — Brewed drinks have no enjoyment moment; hearth→table routine is severed
+**Where**: `src/game/inventory.ts` (drink items are `baked_treat` with no consume path), `src/game/actions.ts` (no sip/serve action).
+**Evidence**: `chamomile_pear_tea` can be brewed, gifted, or carried forever, but never consumed at home. The routine breaks: brew → item lands in satchel → nothing in the room acknowledges it.
+**Impact**: The most-produced home item has no payoff ritual; the home loop reads as production + storage rather than living.
+
+### EL-13 · P2 — Hearth wall lacks mantel life and kitchen sign-of-use
+**Where**: `src/scene/builders/cottageInterior.ts` (mantle at y 1.52 is bare; counter top at y 0.92 is bare).
+**Evidence**: Dusk screenshot review — the chimney breast dominates the north-west but is a blank slab; the cream counter reads as an empty white box; EL-02's wall dressing did not extend to the hearth zone.
+**Impact**: The room's primary activity anchor is its least-inhabited surface.
+
+### EL-14 · P2 — The hearth never audibly crackles; no indoor room-tone
+**Where**: `src/game/audio.ts` (one-shot SFX only; no loop manager).
+**Evidence**: Hearth copy says "Embers crackle warmly" — brewing plays a kettle swell once, but sitting in the room is silent regardless of `hearthLit`.
+**Impact**: The strongest ambience opportunity in the game is unused; home feels quieter than the porch.
+
+### EL-15 · P2 — Door-side floor quadrant is undressed
+**Where**: `cottageInterior.ts` south-east floor (between door jamb and desk).
+**Evidence**: Dusk screenshot — the door-to-desk diagonal is bare plank; entry area has a doormat but no boots/peg/coat cue to say "someone comes home here".
+**Impact**: Minor, but it is the first floor the player sees on every entry.
+
+### Round-2 healthy checks (do not regress)
+- Passes 1–4 hold: dressing, atmosphere layer, brew overlay, item chips, veil transitions, indoor speed cap all verified live.
+- Save persistence (`WorldState v6`), NPC memory/gossip pipeline, mobile hit targets, 0 console errors — all unchanged.
+
+## 6. Production quality target (round 2 — measurable)
+
+"Willow Step Cottage is *lived in* when:
+
+7. The player can sit at the oak table on both stools, and the room reacts (seated pose, tea moment).
+8. A brewed drink can be sipped at the table: staged payoff, time passes, a journal memory exists the first time, and a teacup appears on the table while seated.
+9. The hearth wall carries mantel-life (candle, frame, sprig) and kitchen sign-of-use (crock, board, cloth); the entry carries boots + wall pegs.
+10. Indoors with `hearthLit`, a soft procedural crackle room-tone plays (mute-respecting), and sit/sip get their own gentle SFX.
+11. All 115+ suites, `tsc`, and `vite build` stay green; obstacle/collision contracts bit-identical; no save-schema version bump."

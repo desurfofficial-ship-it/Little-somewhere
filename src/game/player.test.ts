@@ -10,6 +10,8 @@ import {
   stepPlayerMovement,
 } from './playerController';
 import { computeWaypointPath, hasLineOfSight } from './navigation';
+import { COTTAGE_SEAT_SPOTS, isInteriorPointWalkable } from './cottage';
+import type { WorldState } from './types';
 import {
   deliverHeldItemAction,
   interactWithProp,
@@ -594,3 +596,79 @@ test('fountain and mirror pond support multi-sided perimeter interaction, water 
   assert.ok(lockedStep.motion.speed < 1.25, `Expected rapid interaction settle (<1.25), got ${lockedStep.motion.speed}`);
 });
 
+
+test('cottage seats: sit locks to the stool, movement stands onto the walkable approach, and tea offers the sip action', () => {
+  // Sit on the west cottage stool from a fresh indoor world
+  const baseWorld: WorldState = {
+    ...createFreshWorldState(),
+    playerLocation: 'cottage_interior',
+    playerPos: { x: -1.05, z: 1.0 },
+  };
+  const west = COTTAGE_SEAT_SPOTS.find((s) => s.id === 'cottage_seat_table_west')!;
+  const satRes = togglePlayerSitAction(baseWorld, west.id);
+  assert.equal(satRes.sat, true);
+  assert.equal(satRes.nextWorld.playerSeatId, west.id);
+  let world: WorldState = satRes.nextWorld;
+  assert.equal(world.playerPos.x, west.seatPos.x);
+  assert.equal(world.playerPosture, 'sitting');
+
+  // While seated with no input, locomotion stays locked to the stool at sit height
+  const seatedStep = stepPlayerMovement({
+    pos: { ...world.playerPos },
+    facing: world.playerFacing,
+    motion: createInitialPlayerMotion(world.playerPos),
+    moveDirX: 0,
+    moveDirZ: 0,
+    inputMagnitude: 0,
+    sprintHeld: false,
+    carryingItem: false,
+    posture: 'sitting',
+    seatId: west.id,
+    location: 'cottage_interior',
+    dt: 0.016,
+  });
+  assert.equal(seatedStep.posture, 'sitting');
+  assert.equal(seatedStep.motion.animState, 'sit');
+  assert.equal(seatedStep.motion.groundY, computeSitGroundY(west.seatHeight, 1.0));
+
+  // Pushing a movement key stands the player back up onto the interior-walkable approach
+  const stoodUp = stepPlayerMovement({
+    pos: { ...world.playerPos },
+    facing: world.playerFacing,
+    motion: createInitialPlayerMotion(world.playerPos),
+    moveDirX: -1,
+    moveDirZ: 0,
+    inputMagnitude: 1,
+    sprintHeld: false,
+    carryingItem: false,
+    posture: 'sitting',
+    seatId: west.id,
+    location: 'cottage_interior',
+    dt: 0.016,
+  });
+  assert.equal(stoodUp.stoodUpFromMove, true);
+  assert.equal(stoodUp.posture, 'standing');
+  assert.equal(stoodUp.seatId, null);
+  const standDist = Math.hypot(stoodUp.pos.x - west.approachPos.x, stoodUp.pos.z - west.approachPos.z);
+  assert.ok(
+    standDist < 0.25,
+    `Stand-up lands at/near the stool approach spot (dist ${standDist.toFixed(3)})`,
+  );
+  assert.equal(isInteriorPointWalkable(stoodUp.pos.x, stoodUp.pos.z, 0.42), true);
+
+  // Seated with tea in the satchel: the primary target becomes the sip ritual
+  const teaWorld = {
+    ...world,
+    inventory: { ...world.inventory, chamomile_pear_tea: 1 },
+  };
+  const sipTarget = selectBestInteractiveTarget(teaWorld, RESIDENTS);
+  assert.ok(sipTarget && sipTarget.kind === 'seat');
+  assert.equal(sipTarget.actionLabel, 'Sip Warm Chamomile Tea');
+  assert.equal(sipTarget.sipItemId, 'chamomile_pear_tea');
+
+  // Seated without a drink: standard Stand Up target (never a cottage-prop target)
+  const standTarget = selectBestInteractiveTarget(world, RESIDENTS);
+  assert.ok(standTarget && standTarget.kind === 'seat');
+  assert.equal(standTarget.actionLabel, 'Stand Up');
+  assert.equal(standTarget.sipItemId, undefined);
+});

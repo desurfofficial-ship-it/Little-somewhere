@@ -48,6 +48,7 @@ import {
   COTTAGE_INTERACTABLES,
   computeInteriorWaypoints,
   isInteriorPointWalkable,
+  resolveAnySeatById,
 } from '../game/cottage';
 import { computeWaypointPath } from '../game/navigation';
 import { getResidentAvailableQuestCue } from '../game/narrative';
@@ -893,6 +894,7 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
     let lastSyncedBubbleKey: string | null = null;
     let lastSyncedLocation: PlayerLocation | null = null;
     let prevWorldLocation: PlayerLocation = worldRef.current.playerLocation ?? 'exterior';
+    let hearthAmbienceActive = false; // Pass 7: crackle room-tone evaluated on transitions only
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.code === 'Space' || e.code === 'Enter') {
@@ -923,7 +925,21 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
       const activeInteractables = isIndoors ? cottageInteriorRig.hitProxies : interactableMeshes;
       const hits = _raycaster.intersectObjects(activeInteractables, false);
       if (hits.length > 0) {
-        const ud = hits[0].object.userData as {
+        // Seat proxies tuck beneath the tabletop-sized table proxy — when a table click
+        // co-hits a stool proxy within a close band, prefer the seat (Pass 5).
+        let chosen = hits[0];
+        if (
+          chosen.object.userData.targetKind === 'cottage_prop' &&
+          chosen.object.userData.targetId === 'cottage_table'
+        ) {
+          const firstDist = chosen.distance;
+          const seatHit = hits.find(
+            (h) =>
+              h.object.userData.targetKind === 'seat' && h.distance <= firstDist + 0.6,
+          );
+          if (seatHit) chosen = seatHit;
+        }
+        const ud = chosen.object.userData as {
           targetKind: 'resident' | 'prop' | 'seat' | 'carryable' | 'cottage_prop';
           targetId: string;
         };
@@ -958,7 +974,7 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
           scoreDist = distance2D(pPos, tPos);
           isImmediate = scoreDist <= immediateRange;
         } else if (ud.targetKind === 'seat') {
-          const seat = getSeatById(ud.targetId);
+          const seat = resolveAnySeatById(ud.targetId);
           if (!seat) return;
           tPos = { ...seat.seatPos };
           walkDest = { ...seat.approachPos };
@@ -1192,6 +1208,18 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
         exteriorRoot.visible = true;
         interiorRoot.visible = false;
         updateWillowPrototypeMotion(willowCottage, willowCourtyard, elapsed);
+      }
+
+      // Pass 7: soft hearth crackle room-tone — started/stopped on state transitions only,
+      // never per frame. Honors mute via the engine and pauses with the game.
+      const hearthAmbienceDesired =
+        isIndoors &&
+        (world.cottageState?.hearthLit ?? true) &&
+        screenStateRef.current === 'playing' &&
+        !cozyAudio.isMuted();
+      if (hearthAmbienceDesired !== hearthAmbienceActive) {
+        hearthAmbienceActive = hearthAmbienceDesired;
+        cozyAudio.playHearthAmbience(hearthAmbienceDesired);
       }
 
       // Update chime sparkle particles

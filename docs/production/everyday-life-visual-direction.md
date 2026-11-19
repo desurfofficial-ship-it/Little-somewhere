@@ -36,3 +36,16 @@ Everything reuses `STORYBOOK_PALETTE` cached materials: plaster walls, cedar war
 ## 5. Non-goals
 
 No exterior art overhaul, no new furniture categories with gameplay claims, no decoration mode, no currency/economy surfaces, no real-time day progression, no new residents or districts, no heavy imports into the deferred chunk.
+
+---
+
+## 6. Round-2 additions — tea table, hearth wall, entry (Passes 5–7)
+
+**Tea-table ritual presentation** (Pass 5):
+- Seat targets are offered only via the two existing stool meshes; the seated character uses the shared sit pose at `computeSitGroundY(0.46)` — no bespoke animation.
+- While seated on a cottage seat, a **stoneware teacup + thin steam wisp** fades in on the table (visual-only, derived from `playerPosture`/`playerSeatId` — zero persisted state, zero allocation). It disappears the moment the player stands.
+- Sip feedback: gentle porcelain SFX + a prose card in the existing prop-card language ("The cup warms your hands…"); time advances +8m; first-ever sip per drink writes a Pocket Journal memory. No overlays, no progress bars — sipping should feel like resting, not like crafting.
+
+**Hearth-wall life** (Pass 6): mantel objects stay below y 1.9 and in front of the chimney breast plane; candle flame is a single emissive dot (dusk-emissive, sine flicker shared with the ember curve). Counter props read as *use*, not clutter: crock + spoons upright at the wall end, board + slice toward the firebox end, folded cloth centered. Entry boots sit against the east curb inside the door recess; pegs + hat live on the north wall plane. All statics reuse cached `STORYBOOK_PALETTE` materials.
+
+**Sound** (Pass 7): the crackle room-tone is a *floor* (≈0.02 gain), never a feature — if the player notices it as "a sound", it is too loud. It stops immediately on mute, exit, extinguished hearth, or pause. Sit = one soft wooden settle; sip = two tiny breaths + one porcelain tick. Restraint check unchanged: every effect reinforces exactly the action that triggered it.

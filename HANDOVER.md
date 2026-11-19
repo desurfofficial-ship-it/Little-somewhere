@@ -4,6 +4,9 @@
 **Current Phase**: **Milestone 3 Build 2 `COMPLETE` (Completing Fern Hollow Orchard)** atop **Milestone 2A, 2B, 2C (`WorldState v6`)** & **Milestone 3 Builds 1 & 4**: Willow Step Cottage enterable interior cutaway (`7` stations), Personal Satchel (`18` items) & gifting, **Rowan the Orchard Keeper** (10th resident), **`side_orchard_gathering`** 3-stage dual-branch orchard storyline + epilogue, interactive **`orchard_skep`**, permanent **Orchard Tasting Table & Marigold Lantern Garland**, and **Orchard Songbirds + Seasonal Blossom/Leaf Drift**  
 **Target Next Milestone**: Milestone 3 Polish / Village Expansion / Community Projects upon explicit user request
 
+6. **Cottage Interior & 2C Polish Contracts (Entries 029-030)**:
+   - `builders/cottageInterior.ts` mirrors `COTTAGE_BOUNDS` / `COTTAGE_INTERIOR_OBSTACLES` / `COTTAGE_INTERACTABLES` exactly (enforced by `src/game/cottage.test.ts` + `src/scene/cottageInterior.test.ts`); `rig.update(world, phase, elapsed)` is the single zero-GC reactive entry point. All interior statics live **inside existing obstacle footprints or wall planes** — never add furniture to the walk band without extending `COTTAGE_INTERIOR_OBSTACLES` together with its mirrored geometry and tests. The atmosphere layer (hearth `PointLight`, window shaft, dust motes) lives inside the rig's group; `rig.update` owns all flicker/drift math with zero allocation. The hearth brew overlay commits `cookRecipeAction` exactly once — keep `RECIPE_ACTIVITY_STEPS` coverage of every `HEARTH_RECIPES` id when adding recipes. `PropInteractionResult.gainedItems` must stay in sync with the actual inventory delta (enforced by test).
+
 ---
 
 ## 1. Current State of the Repository
@@ -49,3 +52,10 @@ All core simulation, cottage home-life, personal inventory/gifting, dialogue, re
 - `npm run lint` (`tsc --noEmit`) — **Passing (0 errors)**.
 - `npm run build` (`vite build`) — **Passing**.
 - Live Headless Chromium QA (`1440×900` & `390×844` via `?autostart=1`): verified `Orchard Bee Skep [E]` proximity prompt & `"Woven Bee Skep & Honey Crock"` inspect modal, glazed honey crock + bees, permanent Orchard Tasting Table (`spiced_tart_table` & `blossom_honey_picnic` outcomes) with lit marigold lanterns at Golden Hour, all 3 perched orchard songbirds + falling spring blossom drift, Pocket Journal `Stories` (`The Fern Hollow Orchard Gathering`) & `Discoveries` (`Fern Hollow Orchard · Honey Picnic Open`), zero mobile horizontal overflow (`scrollW: 390 === innerW: 390`), and **0 console errors / 0 warnings**.
+
+
+## 5. Round-2 Verification Addendum (2026-11-20, Milestone 2C Polish Round 2 — Sit & Sip)
+
+- `npm test` — **126/126 passing** (`0` failures; the 121-suite merged orchard + everyday-life baseline + 5 new Round-2 suites: indoor-seat registry contract, sip reducer, player sit/stand + sip-target priority, interior seat proxies (7 cottage + 2 seat), teacup gating, hearth-wall life).
+- `npm run lint` (`tsc --noEmit`) — **Passing (0 errors)**; `npm run build` — **Passing** (chunk-size warning unchanged).
+- Browser QA (headless Chromium 1440×900 & 390×844, dusk `WorldState v6` save): brew tea → click stool → seated pose → `Sip Warm Chamomile Tea` → `Tea at the Oak Table` card (+8m, day-end clamp verified) → teacup visible while seated → tap-to-walk stand-up re-offers the seat → `A Quiet Warm Chamomile Tea Moment` in Pocket Journal → mute/unmute with ambience clean → mobile zero horizontal overflow → **0 console errors / 0 page errors** across all runs.

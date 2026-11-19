@@ -78,6 +78,63 @@
 
 ---
 
+## Pass 5 — Sit & Sip: indoor seats + tea-table ritual (EL-11, EL-12)
+
+**Outcome**: The player sits on either dining stool and sips a brewed drink at the table; the hearth→table routine closes.
+
+**Systems affected / files**:
+- `src/game/worldMap.ts`: `SeatSpot` gains optional `indoor?: boolean` (outdoor registry untouched — NPC seat-claiming machinery is protected).
+- `src/game/cottage.ts`: new `COTTAGE_SEAT_SPOTS` (2 seats on the existing stool meshes, `indoor: true`, seatHeight 0.46) + `resolveAnySeatById` (indoor first, outdoor fallback via existing `getSeatById`) + `selectBestInteriorTarget` extended to offer seat candidates (kind `'seat'`, never when occupied — indoor seats cannot be occupied since NPCs never enter).
+- `src/game/playerController.ts`: sitting-block stand-up + seated-target branch resolve via `resolveAnySeatById`; stand-up approach validated with `isInteriorPointWalkable` for `indoor` seats; while seated on an indoor seat with a sipable drink in satchel, the primary target becomes `Sip <drink>` (`InteractiveTarget` gains optional `sipItemId`).
+- `src/game/inventory.ts`: optional `sipable?: true` flag on drink item defs + `getFirstSipableItem` helper (item defs are code, not save data — zero schema impact).
+- `src/game/actions.ts`: `togglePlayerSitAction` stand-up uses the same indoor/outdoor branch; new `sipBeverageAtTableAction` — validates indoor + seated on cottage seat + sipable item; consumes 1, advances +8 min (clamped), first-time journal memory per item id (`mem_teatable_<itemId>`), returns prose card.
+- `src/App.tsx`: seat-target branch handles the sip case (prop card + interact pulse + SFX); stand-up path unchanged.
+- `src/scene/NeighborhoodCanvas.tsx`: seat proxy resolution uses `resolveAnySeatById`; hearth ambience gating (Pass 7).
+- `src/scene/builders/cottageInterior.ts`: two invisible seat hit proxies (`targetKind: 'seat'`) over the stools; reactive **teacup + steam wisp** on the table while `playerPosture === 'sitting'` on a cottage seat (visual only — no persisted state).
+
+**Dependencies**: none. **Tests**: `cottage.test.ts` (seat spots: unique ids, approach positions interior-walkable, seat positions inside `cottage_table` footprint), `player.test.ts` (indoor sit→move stands onto walkable approach; seated `groundY`), `inventory.test.ts` (sipable ids resolve), `engine.test.ts` or `cottage.test.ts` sip reducer (consume + time + one-time memory + rejection paths).
+
+**Perf**: zero per-frame allocation beyond one visibility toggle; no new lights; 2 hit proxies reuse the existing proxy geometry.
+
+**Acceptance criteria**: action button offers "Sit at Oak Table" near stools; seated pose renders on the stool; with tea in satchel the button becomes "Sip Warm Chamomile Tea"; sipping consumes the item, +8m, one journal memory, teacup visible while seated; standing up works via movement/tap; outdoor seats bit-identical.
+
+---
+
+## Pass 6 — Hearth-wall life & entry dressing (EL-13, EL-15)
+
+**Outcome**: The chimney breast carries mantel-life; the kitchen counter shows sign-of-use; the entry quadrant reads "someone comes home here".
+
+**Systems affected / files**: `src/scene/builders/cottageInterior.ts` only (visual layer; statics inside existing footprints/wall planes).
+- **Mantel** (top y ≈ 1.58): beeswax candle in a brass holder (dusk-emissive flame dot), small leaning framed photo, tiny potted sprig.
+- **Kitchen counter** (top y ≈ 0.92): stoneware crock with wooden spoons, small bread board with a loaf slice, folded linen cloth.
+- **Table "tea for one" statics**: honey pot + spoon beside the vase (composition support for the sip ritual; the reactive teacup from Pass 5 appears only while seated).
+- **Entry**: a pair of garden boots by the door jamb, two brass wall pegs with a woven hat on the north wall near the door, thin woven runner mat inside the door.
+
+**Dependencies**: none. **Tests**: extend `cottageInterior.test.ts` — new statics exist inside expected rooms/bounds, diorama height envelope intact, hit proxies unchanged (7 cottage + 2 seat).
+
+**Perf**: ~18 shared-palette statics; zero per-frame cost beyond the existing candle/teacup emissive toggles.
+
+**Acceptance criteria**: dusk + morning screenshots show dressed mantel/counter/entry; obstacle table and all nav tests untouched; no growth in the deferred chunk beyond noise.
+
+---
+
+## Pass 7 — Ambient hearth crackle & interaction SFX (EL-14)
+
+**Outcome**: Indoors with the hearth lit, a soft procedural crackle room-tone plays; sitting and sipping get gentle sound identity.
+
+**Systems affected / files**:
+- `src/game/audio.ts`: `playHearthAmbience(start: boolean)` — band-passed noise bed (~0.022 gain) + randomized crackle pops via a lightweight scheduler; idempotent start/stop; honors the existing mute switch (immediate stop on mute); `playSitDown()` (soft wooden settle), `playSip()` (two tiny filtered breaths + porcelain tick).
+- `src/scene/NeighborhoodCanvas.tsx`: in the indoor branch — `playHearthAmbience(isIndoors && hearthLit && !muted && playing)` evaluated on state transitions only (no per-frame calls); stopped on location change / pause / mute.
+- `src/App.tsx` + `CottageStationModal.tsx`: sit/stand/sip hooks under the existing mute switch.
+
+**Dependencies**: Pass 5 (sit/sip moments). **Tests**: `audio.test.ts`-style pure coverage is not meaningful for Web Audio; covered by browser QA (no console errors, mute toggle stops the loop) + a light unit check that the engine exposes the new methods and start/stop is idempotent without an AudioContext (SSR/headless safe).
+
+**Perf**: one persistent noise source + ~2 pop nodes/second (garbage-collected by the audio thread); negligible.
+
+**Acceptance criteria**: crackle audible indoors with hearth lit, silent outdoors/extinguished/muted; sit and sip SFX fire once per action; 0 console errors on desktop + mobile QA.
+
+---
+
 ## Reassessment & iteration policy
 
-After each pass: rerun full gates, re-screenshot dusk + morning interiors and one gathering flow, and re-rank remaining findings. Expected leftovers after Pass 4: EL-10 (chunk warning — track), possible new micro-findings from visual review (fix inline within the pass that introduced them).
+After each pass: rerun full gates, re-screenshot dusk + morning interiors and one gathering flow, and re-rank remaining findings. Round-2 leftovers tracked: EL-10 (chunk warning — track only). Expected after Pass 7: only micro-findings from visual review (fix inline within the pass that introduced them).
