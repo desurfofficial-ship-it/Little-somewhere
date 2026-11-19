@@ -4,10 +4,12 @@ import {
   PLAYER_RUN_SPEED,
   PLAYER_SPRINT_SPEED,
   PLAYER_WALK_SPEED,
+  computeSitGroundY,
   createInitialPlayerMotion,
   selectBestInteractiveTarget,
   stepPlayerMovement,
 } from './playerController';
+import { computeWaypointPath, hasLineOfSight } from './navigation';
 import {
   deliverHeldItemAction,
   pickupWorldPropAction,
@@ -408,4 +410,70 @@ test('selectBestInteractiveTarget prioritizes facing resident, excludes occupied
   };
   const benchCheck = selectBestInteractiveTarget(nearEastBench, RESIDENTS);
   assert.notEqual(benchCheck?.seatId, seat.id);
+});
+
+test('diagonal player movement normalizes speed, Alt modifier enforces walk speed, sit height scales cleanly, and A* routes around pond', () => {
+  // Diagonal normalization keeps speed capped at PLAYER_RUN_SPEED
+  let diagMotion = createInitialPlayerMotion(PLAYER_SPAWN);
+  let diagPos = { ...PLAYER_SPAWN };
+  for (let i = 0; i < 35; i++) {
+    const s = stepPlayerMovement({
+      pos: diagPos,
+      facing: 0,
+      motion: diagMotion,
+      moveDirX: 1,
+      moveDirZ: 1, // unnormalized diagonal input
+      inputMagnitude: 1.0,
+      sprintHeld: false,
+      carryingItem: false,
+      posture: 'standing',
+      seatId: null,
+      dt: 0.033,
+    });
+    diagPos = s.pos;
+    diagMotion = s.motion;
+  }
+  assert.ok(diagMotion.speed <= PLAYER_RUN_SPEED + 0.05);
+
+  // Alt walk modifier keeps speed <= PLAYER_WALK_SPEED even with full input & Shift
+  let walkModMotion = createInitialPlayerMotion(PLAYER_SPAWN);
+  let walkModPos = { ...PLAYER_SPAWN };
+  for (let i = 0; i < 30; i++) {
+    const s = stepPlayerMovement({
+      pos: walkModPos,
+      facing: 0,
+      motion: walkModMotion,
+      moveDirX: 1,
+      moveDirZ: 0,
+      inputMagnitude: 1.0,
+      sprintHeld: true,
+      walkHeld: true,
+      carryingItem: false,
+      posture: 'standing',
+      seatId: null,
+      dt: 0.033,
+    });
+    walkModPos = s.pos;
+    walkModMotion = s.motion;
+  }
+  assert.ok(walkModMotion.speed <= PLAYER_WALK_SPEED + 0.05);
+  assert.equal(walkModMotion.mode, 'walk');
+
+  // Bench height calibration aligns coat bottom (~0.325 * heightScale) to seatHeight across scales
+  const seatHeight = 0.36;
+  const pipSitY = computeSitGroundY(seatHeight, RESIDENTS.pip.appearance.heightScale);
+  const barnabySitY = computeSitGroundY(seatHeight, RESIDENTS.barnaby.appearance.heightScale);
+  assert.ok(pipSitY > barnabySitY);
+  assert.ok(Math.abs(pipSitY + 0.33 * RESIDENTS.pip.appearance.heightScale - seatHeight) < 0.001);
+
+  // Tap-to-walk across Mirror Pond produces unobstructed A* waypoints
+  const start = { x: -4.2, z: 14.2 };
+  const acrossPond = { x: 7.4, z: 11.4 };
+  const route = computeWaypointPath(start, acrossPond, 0.48);
+  assert.ok(route.length >= 2);
+  let prev = start;
+  for (const wp of route) {
+    assert.equal(hasLineOfSight(prev, wp, 0.42), true);
+    prev = wp;
+  }
 });

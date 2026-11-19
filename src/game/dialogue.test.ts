@@ -180,6 +180,7 @@ test('holding a carryable item injects a live gift choice into dialogue and deli
   world = pickupWorldPropAction(world, 'chalk_bundle').nextWorld;
 
   const pipSession = buildResidentDialogue('pip', world, 'afternoon');
+  assert.ok(pipSession.nodes.root.text.includes('Chalk') || pipSession.nodes.root.choices.some((c) => c.id === 'deliver_chalk_bundle_to_pip'));
   const giftChoice = pipSession.nodes.root.choices.find((c) => c.id === 'deliver_chalk_bundle_to_pip');
   assert.ok(giftChoice, 'Expected dynamic gift choice for held chalk_bundle');
   assert.equal(giftChoice.deliverHeldItem, 'chalk_bundle');
@@ -189,4 +190,55 @@ test('holding a carryable item injects a live gift choice into dialogue and deli
   assert.equal(res.nextWorld.worldProps.chalk_bundle.holder, 'pip');
   assert.equal(res.nextWorld.playerRelations.pip.giftsGiven, 1);
   assert.ok(res.nextSession.recentToast?.includes('Shared'));
+
+  // Recent player_help worldEvent enables event_gift_thanks reaction topic cleanly
+  const claraThanks = buildResidentDialogue('clara', {
+    ...res.nextWorld,
+    flags: { ...res.nextWorld.flags, heardBellMystery: true, claraArthurReconciled: true },
+  }, 'afternoon');
+  assert.equal(claraThanks.topicId, 'event_gift_thanks');
+});
+
+test('negative encounter unlocks sincere amends choice and Barnaby-Arthur craft conflict mediates cleanly', () => {
+  let world = createFreshWorldState();
+  world = {
+    ...world,
+    flags: { ...world.flags, heardBellMystery: true, foundPostcard: true },
+    playerRelations: {
+      ...world.playerRelations,
+      jun: { ...world.playerRelations.jun, affinity: 30, reliability: 35 },
+    },
+  };
+  const junSession = buildResidentDialogue('jun', world, 'morning');
+  const bluntChoice = junSession.nodes.root.choices.find((c) => c.id === 'jun_scold_blunt')!;
+  const afterBlunt = applyDialogueChoice(world, junSession, bluntChoice).nextWorld;
+
+  // Next conversation surfaces make_amends_jun recovery option on non-quest topic
+  const afterDelivered = {
+    ...afterBlunt,
+    flags: { ...afterBlunt.flags, deliveredPostcard: true },
+  };
+  const repairSession = buildResidentDialogue('jun', afterDelivered, 'afternoon');
+  const amendsChoice = repairSession.nodes.root.choices.find((c) => c.id === 'make_amends_jun');
+  assert.ok(amendsChoice, 'Expected make_amends_jun recovery choice after blunt reply');
+  const repaired = applyDialogueChoice(afterDelivered, repairSession, amendsChoice);
+  assert.ok(repaired.nextWorld.playerRelations.jun.reliability > afterBlunt.playerRelations.jun.reliability);
+  assert.equal(repaired.nextWorld.npcRuntime.jun.emotion, 'relaxed');
+
+  // Barnaby-Arthur craft mediation
+  const barnabyWorld = {
+    ...createFreshWorldState(),
+    flags: {
+      ...createFreshWorldState().flags,
+      heardBellMystery: true,
+      borrowedBarnabyLadder: true,
+      repairedFountain: true,
+    },
+  };
+  const barnabyBefore = getNpcRelation(barnabyWorld.npcRelations, 'arthur', 'barnaby').affinity;
+  const barnabySession = buildResidentDialogue('barnaby', barnabyWorld, 'afternoon');
+  assert.equal(barnabySession.topicId, 'conflict_barnaby_arthur_rafters');
+  const bridgeChoice = barnabySession.nodes.root.choices.find((c) => c.id === 'barnaby_bridge_craft')!;
+  const mediated = applyDialogueChoice(barnabyWorld, barnabySession, bridgeChoice).nextWorld;
+  assert.ok(getNpcRelation(mediated.npcRelations, 'arthur', 'barnaby').affinity > barnabyBefore);
 });

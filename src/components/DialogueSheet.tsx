@@ -220,7 +220,11 @@ export const DialogueSheet: React.FC<DialogueSheetProps> = ({
                 onClick={onClose}
                 className="min-h-[44px] px-6 py-2 rounded-xl bg-[#C86446] hover:bg-[#B45539] text-sm font-semibold text-[#FAF5EC] transition-colors cursor-pointer"
               >
-                Wave Goodbye
+                {emotion === 'frustrated' || emotion === 'angry' || emotion === 'sad'
+                  ? 'Step Back Gently'
+                  : playerRelation && playerRelation.affinity >= 60
+                  ? 'Wave Warmly'
+                  : 'Wave Goodbye'}
               </button>
             </div>
           )}

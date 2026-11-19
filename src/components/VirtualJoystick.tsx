@@ -57,7 +57,7 @@ export const VirtualJoystick: React.FC<VirtualJoystickProps> = ({ vectorRef }) =
         reset();
       }}
       onPointerCancel={reset}
-      className="relative w-24 h-24 rounded-full bg-[#FAF5EC]/85 border-2 border-[#CBBBA3] shadow-[0_6px_20px_rgba(45,36,30,0.16)] flex items-center justify-center touch-none pointer-events-auto cursor-grab active:cursor-grabbing"
+      className="relative w-24 h-24 shrink-0 rounded-full bg-[#FAF5EC]/85 border-2 border-[#CBBBA3] shadow-[0_6px_20px_rgba(45,36,30,0.16)] flex items-center justify-center touch-none pointer-events-auto cursor-grab active:cursor-grabbing"
     >
       {/* Compass ticks */}
       <div className="absolute inset-2 rounded-full border border-dashed border-[#D8C9B4] pointer-events-none" />

@@ -195,9 +195,21 @@ test('legacy v2 save migrates sequentially to v3 with props, posture, needs, and
   assert.equal(typeof res.state.playerRelations.pip.reliability, 'number');
 });
 
-test('advanceToNextDay advances season at day 11 and resets npcRuntime to 8:00 AM', () => {
+test('advanceToNextDay advances season at day 11, resets npcRuntime to 8:00 AM, and returns gifted props to homePos', () => {
   let state = createFreshWorldState();
-  state = { ...state, day: 10, minuteOfDay: 1220 };
+  state = {
+    ...state,
+    day: 10,
+    minuteOfDay: 1220,
+    worldProps: {
+      ...state.worldProps,
+      water_pail: {
+        ...state.worldProps.water_pail,
+        holder: 'mina',
+        pos: { x: 8.6, z: 2.0 },
+      },
+    },
+  };
   const day11 = advanceToNextDay(state);
 
   assert.equal(day11.day, 11);
@@ -205,6 +217,8 @@ test('advanceToNextDay advances season at day 11 and resets npcRuntime to 8:00 A
   assert.equal(day11.season, 'summer');
   assert.equal(day11.npcRuntime.pip.currentPlaceName, 'Fountain Plaza');
   assert.equal(day11.mailboxUnread, true);
+  assert.equal(day11.worldProps.water_pail.holder, 'world');
+  assert.deepEqual(day11.worldProps.water_pail.pos, day11.worldProps.water_pail.homePos);
 });
 
 test('regionId defaults cleanly and sparse non-baseline npcRelations survive sanitization', () => {

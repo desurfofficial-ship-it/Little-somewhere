@@ -40,6 +40,7 @@ import { distance2D, getSeatById, isPointWalkable } from './worldMap';
 export interface SimulationStepOptions {
   paused?: boolean;
   dialogueOpen?: boolean;
+  activeDialogueResidentId?: ResidentId | null;
   clockRateMinutesPerSec?: number;
   npcSpeedPerSec?: number;
 }
@@ -539,6 +540,7 @@ export function stepSimulationInPlace(
 
   const paused = options.paused ?? false;
   const dialogueOpen = options.dialogueOpen ?? false;
+  const activeDialogueId = options.activeDialogueResidentId ?? null;
   const clockRate = options.clockRateMinutesPerSec ?? DEFAULT_CLOCK_RATE;
   const npcSpeed = options.npcSpeedPerSec ?? DEFAULT_NPC_SPEED;
 
@@ -569,6 +571,21 @@ export function stepSimulationInPlace(
     const id = RESIDENT_ORDER[i];
     const rt = world.npcRuntime[id];
     const def = RESIDENTS[id];
+
+    // Hold and animate the resident currently speaking with the player
+    if (dialogueOpen && activeDialogueId === id) {
+      rt.currentSpeed = 0;
+      rt.targetLookPos = world.playerPos;
+      if (rt.posture !== 'sitting') {
+        const playerYaw = Math.atan2(world.playerPos.x - rt.position.x, world.playerPos.z - rt.position.z);
+        const diff = normalizeAngleDiff(playerYaw, rt.facing);
+        rt.facing += diff * Math.min(1, dt * 8);
+        rt.animState = 'talk';
+      } else {
+        rt.animState = 'sit';
+      }
+      continue;
+    }
 
     if (rt.activeBubbleText && world.minuteOfDay >= rt.activeBubbleUntilMinute) {
       rt.activeBubbleText = null;
@@ -683,8 +700,13 @@ export function stepSimulationInPlace(
         const expectedMin = npcSpeed * dt * 0.12;
         if (step.movedDist < expectedMin) {
           rt.stuckSeconds += dt;
-          if (rt.stuckSeconds > 1.2) {
+          if (rt.stuckSeconds > 2.8) {
+            // Hard recovery: drop stale waypoints so NPC never jitters indefinitely
             rt.stuckSeconds = 0;
+            rt.waypoints.length = 0;
+            rt.currentSpeed = 0;
+            rt.animState = getDefaultPoseForSlot(id, phase);
+          } else if (rt.stuckSeconds > 1.2) {
             rt.waypoints = computeWaypointPath(rt.position, rt.targetPos, 0.38);
           }
         } else {
@@ -693,11 +715,19 @@ export function stepSimulationInPlace(
       }
     } else {
       rt.currentSpeed = 0;
+      const isFreshGreeting =
+        Boolean(rt.activeBubbleText) &&
+        world.minuteOfDay < rt.activeBubbleUntilMinute - 5.4 &&
+        rt.posture !== 'sitting' &&
+        !rt.socialPartnerId;
+
       if (rt.socialPartnerId) {
         rt.animState = 'converse';
         const partnerPos = world.npcRuntime[rt.socialPartnerId].position;
         rt.targetFacing = Math.atan2(partnerPos.x - rt.position.x, partnerPos.z - rt.position.z);
         rt.targetLookPos = partnerPos;
+      } else if (isFreshGreeting) {
+        rt.animState = 'wave';
       } else if (rt.reservedSeatId) {
         const seat = getSeatById(rt.reservedSeatId);
         if (seat && distance2D(rt.position, seat.seatPos) < 0.35) {
@@ -731,6 +761,9 @@ export function stepSimulationInPlace(
           rt.lastGreetedPlayerMinute = world.minuteOfDay;
           rt.activeBubbleText = getGreetingBubbleText(id, rt.emotion, affinity);
           rt.activeBubbleUntilMinute = world.minuteOfDay + 8;
+          if (rt.posture !== 'sitting' && rt.socialPartnerId === null) {
+            rt.animState = 'wave';
+          }
         }
       } else {
         if (!rt.socialPartnerId) rt.targetLookPos = null;

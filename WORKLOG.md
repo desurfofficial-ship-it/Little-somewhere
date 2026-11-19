@@ -221,3 +221,27 @@ Chronological log of design decisions, implementation milestones, verification r
 - **Verification**:
   - `npm test`, `npm run lint` (`tsc --noEmit`), `compile_applet`, `lint_applet`, and `npm run build` all pass with 0 errors.
   - Live Chromium (`390×844` & `1440×900`): Verified zero horizontal overflow across all 3 `JournalDrawer` tabs (`docScrollW === 390`, `dlgScrollW === 368`, `panelHasOverflowX === false`) and clear visual separation between the dry stone fountain basin (`v2-fountain-dry.png`) and repaired flowing fountain (`v2-fountain-repaired.png`) with 0 console errors.
+
+---
+
+## Entry 013 — Player & Character Excellence Upgrade (Full Capability Polish)
+- **Date**: 2026-11-18
+- **Status**: Completed & Verified
+- **Key Deliverables**:
+  - **Baseline Type & Material Fixes (`src/game/types.ts`, `src/scene/builders/landmarks.ts`)**:
+    - Exported `DialogueTopic` interface from `src/game/types.ts` to resolve `dialogueEngine.ts` / `narrative.ts` TypeScript imports.
+    - Fixed invalid `STORYBOOK_PALETTE` keys inside `buildCarryablePropMesh()` (`landmarks.ts`) so `water_pail`, `rosemary_basket`, `chalk_bundle`, `tea_tray`, and `lost_parcel` use valid palette constants and crisp storybook hex colors.
+  - **Player Locomotion, Sitting, Carrying & Camera Polish (`src/game/playerController.ts`, `src/scene/builders/characters.ts`, `src/scene/NeighborhoodCanvas.tsx`, `src/App.tsx`)**:
+    - Added exported `computeSitGroundY(seatHeight, heightScale)` so seated pelvis/coat heights align flush on cedar slats across all character scales (`0.86` Pip to `1.08` Barnaby).
+    - Upgraded tap-to-walk in `NeighborhoodCanvas.tsx` to route via A* `computeWaypointPath` + `findNearestWalkablePoint`, track moving NPCs dynamically, and recover cleanly from blocked paths (`tapStuckSeconds > 1.0`).
+    - Fixed inverted `carry` arm Z-rotation (`+0.14` / `-0.14`) so arms cradle held props snugly inside `carrySocket`, added subtle idle breathing/weight-shift/glance micro-motion and `walk`/`run`/`sprint` torso counter-twist, and added contextual `playerActionPulse` (`interact`, `talk`, `wave`).
+    - Smoothed occlusion fade (`THREE.MathUtils.damp`), added gentle dialogue midpoint camera framing (`smoothedDialogueZoom = 0.9`, `smoothedDialogueDropY = -0.42`), and tinted proximity rings sage-green (`#6FA873`) when holding a resident-liked gift.
+    - Fixed mobile (`390×844`) `VirtualJoystick` flex squishing (`shrink-0` in `VirtualJoystick.tsx`) and tightened bottom HUD hint/CTA widths in `App.tsx`.
+  - **NPC Intelligence, Narrative, Dialogue & Daily Props (`src/game/simulation.ts`, `src/game/dialogueEngine.ts`, `src/game/narrative.ts`, `src/game/storage.ts`, `src/components/DialogueSheet.tsx`)**:
+    - Locked spoken-to residents in `'talk'` / `'sit'` facing the player during active dialogue (`activeDialogueResidentId`), triggered instant `'wave'` pose on spontaneous greeting bubbles, and added hard stuck-waypoint recovery (`stuckSeconds > 2.8`).
+    - Added held liked-item conversational greetings, `make_amends_<residentId>` trust-recovery choices after blunt replies, `conflict_barnaby_arthur_rafters` (`conflict_reconciliation` topic), `event_gift_thanks` (`event_reaction` topic), emotion/tier-tailored dialogue closing buttons (`Step Back Gently` / `Wave Warmly` / `Wave Goodbye`), and morning reset of resident-delivered props back to `homePos` on `advanceToNextDay`.
+- **Verification**:
+  - `npm test`: **46/46 passing** (`0` failures across `src/game/*.test.ts` & `src/scene/*.test.ts`).
+  - `npm run lint` (`tsc --noEmit`), `compile_applet`, and `npm run build` all pass with **0 errors**.
+  - Live Chromium (`1440×900` & `390×844`): **0 console errors, 0 console warnings**; verified Title screen, WASD + Shift sprint, Jun dialogue framing & reply/wave close, carryable `Copper Water Pail` cradle & sage gift ring around Arthur, `Mirror Pond Bench` flush sitting pose, `Pocket Journal` tabs, `390×844` circular `VirtualJoystick` drag with zero horizontal overflow, and `v2 -> v3` Day 3 state migration.
+

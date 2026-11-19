@@ -34,11 +34,13 @@ import {
   isPointWalkable,
 } from '../game/worldMap';
 import {
+  computeSitGroundY,
   createInitialPlayerMotion,
   selectBestInteractiveTarget,
   stepPlayerMovement,
   wrapAngleDelta,
 } from '../game/playerController';
+import { computeWaypointPath } from '../game/navigation';
 import { getResidentAvailableQuestCue } from '../game/narrative';
 import { composeEnvironmentState } from '../game/environment';
 import { cozyAudio } from '../game/audio';
@@ -97,6 +99,11 @@ export interface HudBubbleSnapshot {
   text: string;
 }
 
+export interface PlayerActionPulse {
+  kind: 'wave' | 'interact' | 'talk';
+  seq: number;
+}
+
 export interface NeighborhoodCanvasProps {
   screenState: GameScreenState;
   worldRef: React.MutableRefObject<WorldState>;
@@ -104,6 +111,8 @@ export interface NeighborhoodCanvasProps {
   zoomRef: React.MutableRefObject<number>;
   bellRingCounter: number;
   isDialogueOpen: boolean;
+  activeDialogueResidentId?: ResidentId | null;
+  playerActionPulse?: PlayerActionPulse | null;
   onHudSync: (snapshot: {
     minuteOfDay: number;
     playerPos: Vec2;
@@ -123,8 +132,12 @@ const _vec3B = new THREE.Vector3();
 const _raycaster = new THREE.Raycaster();
 const _pointer = new THREE.Vector2();
 const _groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+const _ringAmber = new THREE.Color('#E5A93C');
+const _ringGiftSage = new THREE.Color('#6FA873');
 const _playerAnimOpts: CharacterAnimationOptions = {
   emotion: 'relaxed',
+  lookYaw: 0,
+  lookPitch: 0,
   bankAngle: 0,
   carrying: false,
   isMoving: false,
@@ -138,6 +151,24 @@ const _npcAnimOpts: CharacterAnimationOptions = {
   isMoving: false,
 };
 
+function findNearestWalkablePoint(x: number, z: number, playerPos: Vec2): Vec2 | null {
+  const cx = THREE.MathUtils.clamp(x, -23, 23);
+  const cz = THREE.MathUtils.clamp(z, -21, 21);
+  if (isPointWalkable(cx, cz, 0.48)) return { x: cx, z: cz };
+
+  for (let r = 0.8; r <= 4.0; r += 0.8) {
+    for (let a = 0; a < 8; a++) {
+      const ang = (a / 8) * Math.PI * 2;
+      const nx = THREE.MathUtils.clamp(cx + Math.cos(ang) * r, -23, 23);
+      const nz = THREE.MathUtils.clamp(cz + Math.sin(ang) * r, -21, 21);
+      if (isPointWalkable(nx, nz, 0.48)) return { x: nx, z: nz };
+    }
+  }
+  const midX = (playerPos.x + cx) * 0.5;
+  const midZ = (playerPos.z + cz) * 0.5;
+  return isPointWalkable(midX, midZ, 0.48) ? { x: midX, z: midZ } : null;
+}
+
 export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
   screenState,
   worldRef,
@@ -145,12 +176,16 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
   zoomRef,
   bellRingCounter,
   isDialogueOpen,
+  activeDialogueResidentId = null,
+  playerActionPulse = null,
   onHudSync,
   onSelectTarget,
 }) => {
   const mountRef = useRef<HTMLDivElement | null>(null);
   const screenStateRef = useRef<GameScreenState>(screenState);
   const dialogueOpenRef = useRef<boolean>(isDialogueOpen);
+  const activeDialogueResidentRef = useRef<ResidentId | null>(activeDialogueResidentId);
+  const playerActionPulseRef = useRef<PlayerActionPulse | null>(playerActionPulse);
   const onHudSyncRef = useRef(onHudSync);
   const onSelectTargetRef = useRef(onSelectTarget);
   const bellSwingVelRef = useRef(0);
@@ -158,6 +193,8 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
 
   screenStateRef.current = screenState;
   dialogueOpenRef.current = isDialogueOpen;
+  activeDialogueResidentRef.current = activeDialogueResidentId;
+  playerActionPulseRef.current = playerActionPulse;
   onHudSyncRef.current = onHudSync;
   onSelectTargetRef.current = onSelectTarget;
 
@@ -595,11 +632,19 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
       carryableRigs[def.id] = { group, shadow, hitProxy };
     }
 
-    // Input Tracking (WASD + Arrows + Shift Sprint + Tap-to-Walk + Interaction)
+    // Input Tracking (WASD + Arrows + Shift Sprint + A* Tap-to-Walk + Interaction)
     const keysDown = new Set<string>();
     let tapWalkDest: Vec2 | null = null;
+    let tapWalkWaypoints: Vec2[] = [];
+    let tapStuckSeconds = 0;
     let pendingTargetAfterWalk: InteractiveTarget | null = null;
     let playerMotion = createInitialPlayerMotion(worldRef.current.playerPos);
+    let lastPulseSeq = playerActionPulseRef.current?.seq ?? 0;
+    let activePulseKind: 'wave' | 'interact' | 'talk' | null = null;
+    let activePulseTimer = 0;
+    let smoothedOcclusionLift = 0;
+    let smoothedDialogueZoom = 1.0;
+    let smoothedDialogueDropY = 0;
     let hudSyncAccum = 0;
     let hasSyncedInitialHud = false;
     let lastNearestId: string | null = null;
@@ -697,28 +742,26 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
           cozyAudio.playUiTap(1.05);
           onSelectTargetRef.current(targetObj);
         } else {
-          tapWalkDest = walkDest ?? { ...tPos };
+          const dest = walkDest ?? { ...tPos };
+          const walkableDest = isPointWalkable(dest.x, dest.z, 0.48)
+            ? dest
+            : findNearestWalkablePoint(dest.x, dest.z, pPos) ?? dest;
+          tapWalkDest = walkableDest;
+          tapWalkWaypoints = computeWaypointPath(pPos, walkableDest, 0.48);
+          tapStuckSeconds = 0;
           pendingTargetAfterWalk = targetObj;
         }
         return;
       }
 
-      // Ground tap-to-walk
+      // Ground tap-to-walk routed via A* around Mirror Pond, Fountain, and cottages
       if (_raycaster.ray.intersectPlane(_groundPlane, _vec3A)) {
-        if (isPointWalkable(_vec3A.x, _vec3A.z)) {
-          tapWalkDest = { x: _vec3A.x, z: _vec3A.z };
+        const walkableDest = findNearestWalkablePoint(_vec3A.x, _vec3A.z, worldRef.current.playerPos);
+        if (walkableDest) {
+          tapWalkDest = walkableDest;
+          tapWalkWaypoints = computeWaypointPath(worldRef.current.playerPos, walkableDest, 0.48);
+          tapStuckSeconds = 0;
           pendingTargetAfterWalk = null;
-        } else {
-          // Nudge to nearest walkable point along ray toward player
-          const pPos = worldRef.current.playerPos;
-          const clampedX = THREE.MathUtils.clamp(_vec3A.x, -23, 23);
-          const clampedZ = THREE.MathUtils.clamp(_vec3A.z, -21, 21);
-          const midX = (pPos.x + clampedX) * 0.5;
-          const midZ = (pPos.z + clampedZ) * 0.5;
-          if (isPointWalkable(midX, midZ)) {
-            tapWalkDest = { x: midX, z: midZ };
-            pendingTargetAfterWalk = null;
-          }
         }
       }
     };
@@ -841,7 +884,10 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
         const id = RESIDENT_ORDER[i];
         const rig = residentRigs[id];
         const rt = world.npcRuntime[id];
-        const npcGroundY = rt.posture === 'sitting' ? 0 : getGroundHeightAt(rt.position.x, rt.position.z);
+        const seat = rt.posture === 'sitting' ? getSeatById(rt.reservedSeatId) : undefined;
+        const npcGroundY = seat
+          ? computeSitGroundY(seat.seatHeight, RESIDENTS[id].appearance.heightScale)
+          : getGroundHeightAt(rt.position.x, rt.position.z);
         rig.root.position.set(rt.position.x, npcGroundY, rt.position.z);
         rig.root.rotation.y = rt.facing;
 
@@ -873,6 +919,13 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
 
         const pDist = distance2D(world.playerPos, rt.position);
         rig.ringMesh.visible = pDist < 2.9;
+        if (rig.ringMesh.visible) {
+          const heldProp = world.playerHeldItem ? world.worldProps?.[world.playerHeldItem] : null;
+          const likesGift = Boolean(heldProp && heldProp.likedBy.includes(id));
+          (rig.ringMesh.material as THREE.MeshBasicMaterial).color.copy(
+            likesGift ? _ringGiftSage : _ringAmber,
+          );
+        }
 
         if (
           rt.activeBubbleText &&
@@ -956,7 +1009,20 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
       stepSimulationInPlace(world, dt, {
         paused: state === 'paused',
         dialogueOpen: state !== 'playing' || dialogueOpenRef.current,
+        activeDialogueResidentId: activeDialogueResidentRef.current,
       });
+
+      // Update triggered player gesture pulses (wave / interact / talk)
+      const latestPulse = playerActionPulseRef.current;
+      if (latestPulse && latestPulse.seq !== lastPulseSeq) {
+        lastPulseSeq = latestPulse.seq;
+        activePulseKind = latestPulse.kind;
+        activePulseTimer = latestPulse.kind === 'wave' ? 0.9 : 0.65;
+      }
+      if (activePulseTimer > 0) {
+        activePulseTimer = Math.max(0, activePulseTimer - dt);
+        if (activePulseTimer === 0) activePulseKind = null;
+      }
 
       const phase = getTimePhase(world.minuteOfDay);
       if (phase !== prevPhase) {
@@ -988,15 +1054,28 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
 
         if (Math.abs(screenHoriz) > 0.08 || Math.abs(screenVert) > 0.08) {
           tapWalkDest = null;
+          tapWalkWaypoints = [];
+          tapStuckSeconds = 0;
           pendingTargetAfterWalk = null;
+          activePulseTimer = 0;
+          activePulseKind = null;
           // Screen-right = (+0.707, -0.707), Screen-down = (+0.707, +0.707)
           moveDirX = screenHoriz * 0.7071 + screenVert * 0.7071;
           moveDirZ = -screenHoriz * 0.7071 + screenVert * 0.7071;
           inputMagnitude = Math.abs(keyHoriz) > 0 || Math.abs(keyVert) > 0 ? 1.0 : Math.min(1, joyMag);
         } else if (tapWalkDest) {
-          const dx = tapWalkDest.x - world.playerPos.x;
-          const dz = tapWalkDest.z - world.playerPos.z;
-          const dist = Math.hypot(dx, dz);
+          // Track updated resident position when walking to talk
+          if (pendingTargetAfterWalk?.kind === 'resident') {
+            const livePos = world.npcRuntime[pendingTargetAfterWalk.id as ResidentId]?.position;
+            if (livePos && distance2D(tapWalkDest, livePos) > 0.9) {
+              tapWalkDest = { ...livePos };
+              tapWalkWaypoints = computeWaypointPath(world.playerPos, tapWalkDest, 0.48);
+            }
+          }
+
+          const finalDx = tapWalkDest.x - world.playerPos.x;
+          const finalDz = tapWalkDest.z - world.playerPos.z;
+          const finalDist = Math.hypot(finalDx, finalDz);
           const arriveDist =
             pendingTargetAfterWalk?.kind === 'seat'
               ? 0.55
@@ -1006,17 +1085,31 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
               ? 2.35
               : 0.35;
 
-          if (dist > arriveDist) {
-            moveDirX = dx / dist;
-            moveDirZ = dz / dist;
-            inputMagnitude = dist < 1.1 ? 0.48 : 0.92;
-          } else {
+          if (finalDist <= arriveDist) {
             tapWalkDest = null;
+            tapWalkWaypoints = [];
+            tapStuckSeconds = 0;
             if (pendingTargetAfterWalk) {
               const target = pendingTargetAfterWalk;
               pendingTargetAfterWalk = null;
               cozyAudio.playUiTap(1.05);
               onSelectTargetRef.current(target);
+            }
+          } else {
+            while (
+              tapWalkWaypoints.length > 1 &&
+              distance2D(world.playerPos, tapWalkWaypoints[0]) <= 0.55
+            ) {
+              tapWalkWaypoints.shift();
+            }
+            const nextWp = tapWalkWaypoints[0] ?? tapWalkDest;
+            const dx = nextWp.x - world.playerPos.x;
+            const dz = nextWp.z - world.playerPos.z;
+            const wpDist = Math.hypot(dx, dz);
+            if (wpDist > 0.05) {
+              moveDirX = dx / wpDist;
+              moveDirZ = dz / wpDist;
+              inputMagnitude = finalDist < 1.1 ? 0.5 : 0.94;
             }
           }
         }
@@ -1043,6 +1136,21 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
       world.playerSeatId = moveResult.seatId;
       playerMotion = moveResult.motion;
 
+      // Cancel tap-walk cleanly if player stayed blocked on an obstacle
+      if (tapWalkDest && inputMagnitude > 0.1) {
+        if (playerMotion.speed < 0.22) {
+          tapStuckSeconds += dt;
+          if (tapStuckSeconds > 1.0) {
+            tapWalkDest = null;
+            tapWalkWaypoints = [];
+            pendingTargetAfterWalk = null;
+            tapStuckSeconds = 0;
+          }
+        } else {
+          tapStuckSeconds = 0;
+        }
+      }
+
       if (playerMotion.footstepPending) {
         cozyAudio.playFootstep();
       }
@@ -1061,22 +1169,48 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
         destRing.visible = false;
       }
 
+      // Face speaker & choose contextual player pose (dialogue listen/talk, wave, interact)
+      let playerAnim = playerMotion.animState;
+      let playerLookYaw = 0;
+      const dialogueResId = activeDialogueResidentRef.current;
+      if (dialogueOpenRef.current && dialogueResId && world.npcRuntime?.[dialogueResId]) {
+        const speakerPos = world.npcRuntime[dialogueResId].position;
+        const targetYaw = Math.atan2(
+          speakerPos.x - world.playerPos.x,
+          speakerPos.z - world.playerPos.z,
+        );
+        if (world.playerPosture !== 'sitting') {
+          world.playerFacing += wrapAngleDelta(world.playerFacing, targetYaw) * Math.min(1, dt * 8);
+        }
+        playerLookYaw = wrapAngleDelta(world.playerFacing, targetYaw);
+        if (world.playerPosture !== 'sitting') {
+          playerAnim = activePulseTimer > 0 && activePulseKind === 'talk' ? 'talk' : 'listen';
+        }
+      } else if (
+        activePulseTimer > 0 &&
+        activePulseKind &&
+        playerMotion.speed < 0.25 &&
+        world.playerPosture !== 'sitting'
+      ) {
+        playerAnim = activePulseKind;
+      }
+
       // Animate player character rig cleanly with joint pivots, ground height & turn banking
       playerRig.root.position.set(world.playerPos.x, playerMotion.groundY, world.playerPos.z);
       playerRig.root.rotation.y = world.playerFacing;
       _playerAnimOpts.emotion = world.playerHeldItem
         ? 'happy'
-        : world.playerPosture === 'sitting'
-        ? 'relaxed'
+        : dialogueResId
+        ? 'curious'
         : 'relaxed';
-      _playerAnimOpts.lookYaw = 0;
+      _playerAnimOpts.lookYaw = playerLookYaw;
       _playerAnimOpts.lookPitch = 0;
       _playerAnimOpts.bankAngle = playerMotion.bankAngle;
       _playerAnimOpts.carrying = Boolean(world.playerHeldItem);
       _playerAnimOpts.isMoving = playerMotion.speed > 0.25;
       animateCharacterRig(
         playerRig,
-        playerMotion.animState,
+        playerAnim,
         playerMotion.walkPhase,
         elapsed,
         dt,
@@ -1095,17 +1229,41 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
         camera.position.lerp(_vec3B, Math.min(1, dt * 3));
         camera.lookAt(0, 1.4, -2.5);
       } else {
-        const zoom = zoomRef.current;
-        const occlusionLift =
+        const targetOcclusionLift =
           world.playerPos.z > 8.5 && Math.abs(world.playerPos.x) > 8.5 ? 1.5 : 0;
-        const desiredCamX = world.playerPos.x + 19.5 * zoom;
-        const desiredCamY = 18.2 * zoom + occlusionLift;
-        const desiredCamZ = world.playerPos.z + 19.5 * zoom;
+        smoothedOcclusionLift = THREE.MathUtils.damp(smoothedOcclusionLift, targetOcclusionLift, 4.5, dt);
+
+        const inDialogueSheet = Boolean(dialogueResId);
+        smoothedDialogueZoom = THREE.MathUtils.damp(
+          smoothedDialogueZoom,
+          inDialogueSheet ? 0.9 : 1.0,
+          5.0,
+          dt,
+        );
+        smoothedDialogueDropY = THREE.MathUtils.damp(
+          smoothedDialogueDropY,
+          inDialogueSheet ? -0.42 : 0,
+          5.0,
+          dt,
+        );
+
+        const zoom = zoomRef.current * smoothedDialogueZoom;
+        let focusX = world.playerPos.x;
+        let focusZ = world.playerPos.z;
+        if (dialogueResId && world.npcRuntime?.[dialogueResId]) {
+          const sp = world.npcRuntime[dialogueResId].position;
+          focusX = (world.playerPos.x + sp.x) * 0.5;
+          focusZ = (world.playerPos.z + sp.z) * 0.5;
+        }
+
+        const desiredCamX = focusX + 19.5 * zoom;
+        const desiredCamY = 18.2 * zoom + smoothedOcclusionLift;
+        const desiredCamZ = focusZ + 19.5 * zoom;
         camera.position.x = THREE.MathUtils.damp(camera.position.x, desiredCamX, 6.5, dt);
         camera.position.y = THREE.MathUtils.damp(camera.position.y, desiredCamY, 6.5, dt);
         camera.position.z = THREE.MathUtils.damp(camera.position.z, desiredCamZ, 6.5, dt);
 
-        _vec3A.set(world.playerPos.x, 1.0 + playerMotion.groundY * 0.6, world.playerPos.z);
+        _vec3A.set(focusX, 1.0 + playerMotion.groundY * 0.6 + smoothedDialogueDropY, focusZ);
         camera.lookAt(_vec3A);
       }
 

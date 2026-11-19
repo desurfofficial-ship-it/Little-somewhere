@@ -415,6 +415,22 @@ export interface DialogueNode {
   isEnd?: boolean;
 }
 
+export interface DialogueTopic {
+  id: string;
+  residentId: ResidentId | 'any';
+  category: DialogueCategory;
+  priority?: number;
+  condition?: DialogueCondition;
+  build: (
+    residentId: ResidentId,
+    world: WorldState,
+    phase: TimePhase,
+  ) => {
+    rootId: string;
+    nodes: Record<string, DialogueNode>;
+  };
+}
+
 export interface DialogueSession {
   residentId: ResidentId;
   topicId?: string;

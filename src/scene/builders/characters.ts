@@ -431,7 +431,15 @@ export function animateCharacterRig(
   let targetHeadZ = 0;
   let targetBodyY = Math.sin(elapsed * 2.1 + phaseSeed) * 0.022;
 
-  if (animState === 'walk') {
+  if (animState === 'idle') {
+    const breath = Math.sin(elapsed * 2.1 + phaseSeed);
+    targetLeftArmX = breath * 0.035;
+    targetRightArmX = -breath * 0.035;
+    if (Math.abs(bankAngle) < 0.005) {
+      targetTorsoZ = Math.sin(elapsed * 0.95 + phaseSeed) * 0.018;
+    }
+    targetHeadY = Math.sin(elapsed * 0.65 + phaseSeed * 1.3) * 0.045;
+  } else if (animState === 'walk') {
     const rSwing = Math.sin(walkPhase) * 0.48;
     targetLeftLegX = rSwing;
     targetRightLegX = -rSwing;
@@ -440,6 +448,7 @@ export function animateCharacterRig(
     targetLeftArmZ = 0.08;
     targetRightArmZ = -0.08;
     targetTorsoX = 0.05;
+    targetTorsoY = -Math.sin(walkPhase) * 0.055;
     targetBodyY = Math.abs(Math.sin(walkPhase)) * 0.045;
   } else if (animState === 'run') {
     const rSwing = Math.sin(walkPhase) * 0.72;
@@ -450,6 +459,7 @@ export function animateCharacterRig(
     targetLeftArmZ = 0.1;
     targetRightArmZ = -0.1;
     targetTorsoX = 0.12;
+    targetTorsoY = -Math.sin(walkPhase) * 0.08;
     targetBodyY = Math.abs(Math.sin(walkPhase)) * 0.072;
   } else if (animState === 'sprint') {
     const rSwing = Math.sin(walkPhase) * 0.92;
@@ -460,6 +470,7 @@ export function animateCharacterRig(
     targetLeftArmZ = 0.12;
     targetRightArmZ = -0.12;
     targetTorsoX = 0.2;
+    targetTorsoY = -Math.sin(walkPhase) * 0.1;
     targetBodyY = Math.abs(Math.sin(walkPhase)) * 0.095;
   } else if (animState === 'carry') {
     if (opts?.isMoving) {
@@ -563,8 +574,8 @@ export function animateCharacterRig(
   if (carrying && animState !== 'sit' && animState !== 'wave') {
     targetLeftArmX = -0.84;
     targetRightArmX = -0.84;
-    targetLeftArmZ = -0.12;
-    targetRightArmZ = 0.12;
+    targetLeftArmZ = 0.14;
+    targetRightArmZ = -0.14;
   }
 
   // Emotion posture & facial modifiers

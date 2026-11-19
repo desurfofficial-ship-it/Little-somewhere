@@ -672,7 +672,7 @@ export function buildCarryablePropMesh(
   const brassMat = palette.standard(STORYBOOK_PALETTE.agedBrass, 0.24, 0.85);
   const ironMat = palette.standard(STORYBOOK_PALETTE.wroughtIron, 0.42, 0.72);
   const cedarMat = palette.standard(STORYBOOK_PALETTE.cedarWarm, 0.78, 0.03);
-  const creamMat = palette.standard(STORYBOOK_PALETTE.creamLinen, 0.86, 0.01);
+  const creamMat = palette.standard(STORYBOOK_PALETTE.creamTrim, 0.86, 0.01);
 
   if (id === 'water_pail') {
     const copperMat = palette.standard('#C9794E', 0.34, 0.72);
@@ -692,7 +692,7 @@ export function buildCarryablePropMesh(
   } else if (id === 'rosemary_basket') {
     const wickerMat = palette.standard('#B88952', 0.86, 0.01);
     const crustMat = palette.standard('#D79045', 0.82, 0.0);
-    const herbMat = palette.standard(STORYBOOK_PALETTE.leafOlive, 0.78, 0.01);
+    const herbMat = palette.standard(STORYBOOK_PALETTE.foliageSage, 0.78, 0.01);
     const basket = new THREE.Mesh(new THREE.CylinderGeometry(0.19, 0.14, 0.15, 10), wickerMat);
     basket.position.y = 0.075;
     basket.castShadow = true;
@@ -714,7 +714,7 @@ export function buildCarryablePropMesh(
     }
   } else if (id === 'chalk_bundle') {
     const twineMat = palette.standard('#8C6A47', 0.88, 0.0);
-    const slateMat = palette.standard(STORYBOOK_PALETTE.slateRoof, 0.82, 0.04);
+    const slateMat = palette.standard('#5D7082', 0.82, 0.04);
     const baseCard = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.03, 0.2), slateMat);
     baseCard.position.y = 0.015;
     baseCard.castShadow = true;
@@ -760,7 +760,7 @@ export function buildCarryablePropMesh(
   } else {
     // lost_parcel
     const kraftMat = palette.standard('#C9A574', 0.86, 0.0);
-    const sealMat = palette.standard(STORYBOOK_PALETTE.terracotta, 0.52, 0.04);
+    const sealMat = palette.standard(STORYBOOK_PALETTE.terracottaPot, 0.52, 0.04);
     const twineMat = palette.standard('#6E513A', 0.88, 0.0);
     const box = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.15, 0.22), kraftMat);
     box.position.y = 0.075;

@@ -853,6 +853,51 @@ export const DIALOGUE_TOPICS: readonly DialogueTopic[] = [
     },
   ),
 
+  makeSimpleTopic(
+    'conflict_barnaby_arthur_rafters',
+    'barnaby',
+    'conflict_reconciliation',
+    6,
+    { flagsTrue: ['borrowedBarnabyLadder'], flagsFalse: ['bellRestored'], maxNpcAffinity: { a: 'arthur', b: 'barnaby', max: 62 }, notSeenToday: true },
+    {
+      moodLabel: 'Gruff',
+      buildText: () =>
+        `Arthur insists on riveting brass brackets onto my oak gazebo beams! Good mortise-and-tenon joinery never needed brass screws showing.`,
+      choices: [
+        {
+          id: 'barnaby_bridge_craft',
+          label: 'Cedar joinery and Arthur’s warm brass actually complement each other cleanly.',
+          tone: 'warm',
+          nextNodeId: 'craft_warm_end',
+          trustDelta: 1,
+          reliabilityDelta: 6,
+          setEmotion: 'relaxed',
+          adjustNpcTension: { a: 'arthur', b: 'barnaby', deltaAffinity: 12, deltaTension: -8, tag: 'shared_craft' },
+        },
+        {
+          id: 'barnaby_stew_blunt',
+          label: 'Old brass clockmakers never listen to carpenters anyway.',
+          tone: 'blunt',
+          nextNodeId: 'craft_blunt_end',
+          trustDelta: -1,
+          isNegative: true,
+          setEmotion: 'frustrated',
+          adjustNpcTension: { a: 'arthur', b: 'barnaby', deltaAffinity: -4, deltaTension: 7 },
+        },
+      ],
+      endings: {
+        craft_warm_end: {
+          moodLabel: 'Charmed',
+          text: `Hmph… suppose his brass stays bright against cedar grain. I’ll save him a bench seat later.`,
+        },
+        craft_blunt_end: {
+          moodLabel: 'Brusque',
+          text: `Don’t stir pot-fires needlessly, kid. Arthur’s alright—just stubborn as oak knots.`,
+        },
+      },
+    },
+  ),
+
   // ================= 4 PERSONAL SIDE STORYLINES =================
   // 1. Nora & Pip's Chalk Zine
   makeSimpleTopic(
@@ -1188,6 +1233,36 @@ export const DIALOGUE_TOPICS: readonly DialogueTopic[] = [
         ev_fountain_end: {
           moodLabel: 'Warm',
           text: `Nothing beats running water beside warm sunlit cobblestones.`,
+        },
+      },
+    },
+  ),
+
+  makeSimpleTopic(
+    'event_gift_thanks',
+    'any',
+    'event_reaction',
+    9,
+    { requiresRecentEventKind: { kind: 'player_help', maxDaysAgo: 1 }, notSeenToday: true },
+    {
+      moodLabel: 'Appreciative',
+      buildText: (id) =>
+        `Word travels fast along Willow Step Lane—folks noticed you carrying helpful bundles across the square ${RESIDENTS[id].traits.temperament === 'whimsical' ? 'like a true lane sprite!' : 'for your neighbors.'}`,
+      choices: [
+        {
+          id: 'ev_help_reply',
+          label: 'Happy to lend a hand whenever someone needs one.',
+          tone: 'warm',
+          nextNodeId: 'ev_help_end',
+          trustDelta: 1,
+          reliabilityDelta: 4,
+          setEmotion: 'happy',
+        },
+      ],
+      endings: {
+        ev_help_end: {
+          moodLabel: 'Warm',
+          text: `Little acts like that stitch a whole neighborhood together.`,
         },
       },
     },

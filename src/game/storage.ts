@@ -291,6 +291,18 @@ export function advanceToNextDay(state: WorldState): WorldState {
     };
   }
 
+  const nextWorldProps = { ...state.worldProps };
+  for (const key of Object.keys(nextWorldProps) as Array<keyof typeof nextWorldProps>) {
+    const p = nextWorldProps[key];
+    if (p && p.holder !== 'player' && p.holder !== 'world') {
+      nextWorldProps[key] = {
+        ...p,
+        holder: 'world',
+        pos: { x: p.homePos.x, z: p.homePos.z },
+      };
+    }
+  }
+
   const nextDay = state.day + 1;
   return {
     ...state,
@@ -302,6 +314,7 @@ export function advanceToNextDay(state: WorldState): WorldState {
     playerFacing: PLAYER_DEFAULT_FACING,
     playerPosture: 'standing',
     playerSeatId: null,
+    worldProps: nextWorldProps,
     residents: nextResidents,
     playerRelations: nextPlayerRelations,
     npcRuntime: createInitialNpcRuntime(NEXT_DAY_WAKE_MINUTE, state.flags.claraArthurReconciled),

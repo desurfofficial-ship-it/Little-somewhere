@@ -53,7 +53,7 @@ import {
 import { interruptSocialEncounter } from './game/simulation';
 import { getLandmarkAt } from './game/worldMap';
 import { cozyAudio } from './game/audio';
-import { HudBubbleSnapshot, NeighborhoodCanvas } from './scene/NeighborhoodCanvas';
+import { HudBubbleSnapshot, NeighborhoodCanvas, PlayerActionPulse } from './scene/NeighborhoodCanvas';
 import { TitleOverlay } from './components/TitleOverlay';
 import { VirtualJoystick } from './components/VirtualJoystick';
 import { DialogueSheet } from './components/DialogueSheet';
@@ -96,6 +96,13 @@ export default function App() {
   const [muted, setMuted] = useState<boolean>(false);
   const [bellRingCounter, setBellRingCounter] = useState<number>(0);
   const [toastText, setToastText] = useState<string | null>(null);
+  const [playerActionPulse, setPlayerActionPulse] = useState<PlayerActionPulse | null>(null);
+  const pulseSeqRef = useRef(0);
+
+  const triggerPlayerPulse = useCallback((kind: PlayerActionPulse['kind']) => {
+    pulseSeqRef.current += 1;
+    setPlayerActionPulse({ kind, seq: pulseSeqRef.current });
+  }, []);
 
   const hasSavedProgress =
     worldSnapshot.day > 1 ||
@@ -199,6 +206,7 @@ export default function App() {
         const res = pickupWorldPropAction(current, cid);
         if (res.nextWorld !== current) {
           commitWorld(res.nextWorld);
+          triggerPlayerPulse('interact');
         }
         cozyAudio.playUiTap(1.12);
         if (res.toast) {
@@ -210,6 +218,7 @@ export default function App() {
         if (res.nextWorld !== current) {
           commitWorld(res.nextWorld);
         }
+        triggerPlayerPulse('interact');
         if (res.actionType === 'ring_bell') {
           setBellRingCounter((c) => c + 1);
           showToast('The restored brass bell echoes across Little Somewhere!');
@@ -218,19 +227,20 @@ export default function App() {
         setPropCard(res);
       }
     },
-    [commitWorld, showToast],
+    [commitWorld, showToast, triggerPlayerPulse],
   );
 
   const handlePlaceHeldItem = useCallback(() => {
     const res = placeWorldPropAction(worldRef.current);
     if (res.nextWorld !== worldRef.current) {
       commitWorld(res.nextWorld);
+      triggerPlayerPulse('interact');
       cozyAudio.playUiTap(0.95);
     }
     if (res.toast) {
       showToast(res.toast);
     }
-  }, [commitWorld, showToast]);
+  }, [commitWorld, showToast, triggerPlayerPulse]);
 
   const handleSelectChoice = useCallback(
     (choice: DialogueChoice) => {
@@ -242,6 +252,7 @@ export default function App() {
       );
       commitWorld(nextWorld);
       setDialogueSession(nextSession);
+      triggerPlayerPulse('talk');
       if (memoryUnlockedTitle) {
         cozyAudio.playMemoryChime();
         showToast(`Memory saved: ${memoryUnlockedTitle}`);
@@ -252,7 +263,7 @@ export default function App() {
         setBellRingCounter((c) => c + 1);
       }
     },
-    [commitWorld, dialogueSession, showToast],
+    [commitWorld, dialogueSession, showToast, triggerPlayerPulse],
   );
 
   const handlePropAction = useCallback(
@@ -442,6 +453,8 @@ export default function App() {
         zoomRef={zoomRef}
         bellRingCounter={bellRingCounter}
         isDialogueOpen={isSheetOpen || journalOpen}
+        activeDialogueResidentId={dialogueSession?.residentId ?? null}
+        playerActionPulse={playerActionPulse}
         onHudSync={handleHudSync}
         onSelectTarget={openTargetInteraction}
       />
@@ -568,10 +581,10 @@ export default function App() {
 
           {/* Bottom Controls: Left Thumbstick + Center/Right Contextual Interact & Held Item CTA */}
           {!isSheetOpen && !journalOpen && screenState === 'playing' && (
-            <div className="flex items-end justify-between gap-4 pb-1">
+            <div className="flex items-end justify-between gap-3 sm:gap-4 pb-1">
               <VirtualJoystick vectorRef={joystickVectorRef} />
 
-              <div className="flex flex-col items-end gap-2 pointer-events-auto">
+              <div className="flex flex-col items-end gap-2 pointer-events-auto min-w-0 max-w-[240px] sm:max-w-none">
                 {playerHeldItem && worldSnapshot.worldProps?.[playerHeldItem] && (
                   <button
                     type="button"
@@ -590,23 +603,28 @@ export default function App() {
                   <button
                     type="button"
                     onClick={() => openTargetInteraction(nearestTarget)}
-                    className="min-h-[48px] px-5 py-3 rounded-2xl bg-[#C86446] hover:bg-[#B45539] active:scale-[0.98] text-[#FAF5EC] font-semibold text-sm sm:text-base shadow-[0_8px_24px_rgba(45,36,30,0.25)] flex items-center gap-2.5 transition-all cursor-pointer whitespace-nowrap"
+                    className="min-h-[48px] max-w-full px-4 sm:px-5 py-3 rounded-2xl bg-[#C86446] hover:bg-[#B45539] active:scale-[0.98] text-[#FAF5EC] font-semibold text-sm sm:text-base shadow-[0_8px_24px_rgba(45,36,30,0.25)] flex items-center gap-2 sm:gap-2.5 transition-all cursor-pointer"
                   >
                     {nearestTarget.kind === 'resident' ? (
                       <MessageCircle className="w-4 h-4 shrink-0" />
                     ) : (
                       <Sparkles className="w-4 h-4 shrink-0" />
                     )}
-                    <span>{nearestTarget.actionLabel}</span>
-                    <span className="hidden sm:inline text-xs opacity-80 font-mono-nums">[E]</span>
+                    <span className="truncate">{nearestTarget.actionLabel}</span>
+                    <span className="hidden sm:inline text-xs opacity-80 font-mono-nums shrink-0">[E]</span>
                   </button>
                 ) : (
-                  <div className="bg-[#FAF5EC]/90 border border-[#D4C4AE] rounded-xl px-3.5 py-2 text-xs text-[#5E5046] shadow-sm">
+                  <div className="bg-[#FAF5EC]/90 border border-[#D4C4AE] rounded-xl px-3 sm:px-3.5 py-2 text-[11px] sm:text-xs text-[#5E5046] shadow-sm text-right leading-snug">
                     {playerPosture === 'sitting'
                       ? 'Resting on bench — move or tap Stand Up'
                       : hudClock >= 1260
                       ? 'Lanterns are glowing low — rest on your porch anytime'
-                      : 'Walk up to a neighbor, bench, or keepsake (Hold Shift to sprint)'}
+                      : (
+                        <>
+                          <span>Tap or walk to neighbors &amp; benches</span>
+                          <span className="hidden sm:inline"> (Hold Shift to sprint)</span>
+                        </>
+                      )}
                   </div>
                 )}
               </div>
@@ -635,6 +653,9 @@ export default function App() {
         sideFlags={worldSnapshot.sideFlags}
         onSelectChoice={handleSelectChoice}
         onClose={() => {
+          if (dialogueSession) {
+            triggerPlayerPulse('wave');
+          }
           setDialogueSession(null);
           setPropCard(null);
         }}

@@ -148,3 +148,25 @@ test('residents exhibit individual trait differences, weather sheltering, and so
   rainWorld = stepSimulation(rainWorld, 0.25);
   assert.equal(getNpcRelation(rainWorld.npcRelations, 'clara', 'arthur').affinity < 0, true);
 });
+
+test('activeDialogueResidentId locks and faces speaker while spontaneous greeting waves cleanly', () => {
+  const base = createFreshWorldState();
+  // Place player close to Clara and trigger spontaneous greeting wave
+  const nearClara = {
+    ...base,
+    playerPos: { x: base.npcRuntime.clara.position.x + 1.4, z: base.npcRuntime.clara.position.z + 1.0 },
+  };
+  const greeted = stepSimulation(nearClara, 0.2);
+  assert.ok(greeted.npcRuntime.clara.activeBubbleText);
+  assert.equal(greeted.npcRuntime.clara.animState, 'wave');
+
+  // Opening dialogue holds activeDialogueResidentId still in 'talk' facing player
+  const posBefore = { ...greeted.npcRuntime.clara.position };
+  const duringTalk = stepSimulation(greeted, 0.25, {
+    dialogueOpen: true,
+    activeDialogueResidentId: 'clara',
+  });
+  assert.deepEqual(duringTalk.npcRuntime.clara.position, posBefore);
+  assert.equal(duringTalk.npcRuntime.clara.animState, 'talk');
+  assert.deepEqual(duringTalk.npcRuntime.clara.targetLookPos, duringTalk.playerPos);
+});

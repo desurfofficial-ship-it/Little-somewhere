@@ -54,6 +54,10 @@ export function createInitialPlayerMotion(pos: Vec2): PlayerMotionRuntime {
   };
 }
 
+export function computeSitGroundY(seatHeight: number, heightScale = 1.0): number {
+  return seatHeight - 0.33 * heightScale;
+}
+
 export function wrapAngleDelta(current: number, target: number): number {
   let diff = target - current;
   while (diff > Math.PI) diff -= Math.PI * 2;
@@ -140,7 +144,7 @@ export function stepPlayerMovement(input: StepPlayerMovementInput): StepPlayerMo
         turnRateRadPerSec: 0,
         bankAngle: 0,
         animState: 'sit',
-        groundY: seat ? seat.seatHeight - 0.36 : 0,
+        groundY: seat ? computeSitGroundY(seat.seatHeight, 1.0) : 0,
         footstepPending: false,
       };
       return {

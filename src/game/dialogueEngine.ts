@@ -373,11 +373,50 @@ export function selectDialogueSession(
   const giftChoice = buildDynamicGiftChoice(residentId, world, 'gift_delivered_end', nodes);
   if (giftChoice && !existingIds.has(giftChoice.id)) {
     rootChoices.push(giftChoice);
+    existingIds.add(giftChoice.id);
   }
 
-  // Ensure root always has contextually warm greeting prefix if requested by topic
+  // Inject heartfelt amends option whenever resident feels frustrated/embarrassed/angry or reliability slipped
+  const needsAmends =
+    (rel && rel.negativeCount > 0 && (rel.reliability < 40 || emotion === 'frustrated' || emotion === 'embarrassed' || emotion === 'angry')) &&
+    chosenEntry.topic.category !== 'quest_milestone';
+  const amendsId = `make_amends_${residentId}`;
+  if (needsAmends && !existingIds.has(amendsId)) {
+    nodes['amends_end'] = {
+      id: 'amends_end',
+      speakerName: def.name,
+      speakerRole: def.role,
+      moodLabel: 'Softened',
+      text: `Thank you for saying that honestly. Neighbors don’t always get the first word right—what matters is showing up gently afterwards.`,
+      choices: [],
+      isEnd: true,
+    };
+    rootChoices.push({
+      id: amendsId,
+      label: `I was too blunt earlier—I’m sorry, ${def.name}.`,
+      tone: 'gentle',
+      nextNodeId: 'amends_end',
+      trustDelta: 0,
+      reliabilityDelta: 9,
+      setEmotion: 'relaxed',
+    });
+  }
+
+  // Add subtle context recognition prefix on non-quest topics when holding a liked item
+  let rootText = root.text;
+  const heldProp = world.playerHeldItem ? world.worldProps?.[world.playerHeldItem] : null;
+  if (
+    heldProp &&
+    heldProp.likedBy.includes(residentId) &&
+    chosenEntry.topic.category !== 'quest_milestone' &&
+    !rootText.includes(heldProp.label)
+  ) {
+    rootText = `Oh—is that ${heldProp.label} you’re carrying? ${rootText}`;
+  }
+
   nodes['root'] = {
     ...root,
+    text: rootText,
     moodLabel: root.moodLabel || getEmotionLabel(emotion),
     choices: rootChoices,
   };
