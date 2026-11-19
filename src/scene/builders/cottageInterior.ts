@@ -72,6 +72,20 @@ export interface WillowCottageInteriorRig {
     nookBook: THREE.Group;
     teaCaddy: THREE.Group;
   };
+  /**
+   * Round-4 Pass 14: seasons of home — observation handles for the seasonal sill
+   * posies, the door-lintel swag (accent material swaps color per season), and
+   * the spring/autumn floor scatter. Visual-only; derived from world.season.
+   */
+  seasonLife: {
+    posySpring: THREE.Group;
+    posySummer: THREE.Group;
+    posyAutumn: THREE.Group;
+    doorSwag: THREE.Group;
+    doorSwagAccentMat: THREE.MeshStandardMaterial;
+    autumnLeaves: THREE.Group;
+    springPetals: THREE.Group;
+  };
   update(world: WorldState, phase: TimePhase, elapsed: number): void;
   dispose(): void;
 }
@@ -199,6 +213,27 @@ export function buildWillowCottageInterior(
     }),
   );
   const paperCardMat = palette.standard('#F7F1E3', 0.9, 0.0);
+  // Round-4 Pass 14: swag accent material — its color follows the season in rig.update
+  const doorSwagAccentMat = trackMat(
+    new THREE.MeshStandardMaterial({
+      color: '#F3E5C6',
+      roughness: 0.6,
+      metalness: 0.08,
+    }),
+  );
+  /** Season glass/emissive tints + swag accent colors (precomputed, copied — zero alloc). */
+  const seasonGlassTints: Record<string, THREE.Color> = {
+    spring: new THREE.Color('#FFF6DA'),
+    summer: new THREE.Color('#FFE9B0'),
+    autumn: new THREE.Color('#FFDFA6'),
+    winter: new THREE.Color('#E8F1F7'),
+  };
+  const seasonSwagAccents: Record<string, THREE.Color> = {
+    spring: new THREE.Color('#F7EFD8'),
+    summer: new THREE.Color('#B9A3D6'),
+    autumn: new THREE.Color('#D97F3E'),
+    winter: new THREE.Color('#D9B36A'),
+  };
 
   // 1. Foundation Plinth, Plank Floor & Braided Hearth Rug
   const plinth = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(7.35, 0.24, 5.75)), darkStoneMat);
@@ -265,6 +300,7 @@ export function buildWillowCottageInterior(
 
   // West sunlit window frame + glass + muntins + sill
   const westGlass = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(0.06, 1.12, 1.4)), windowGlassMat);
+  westGlass.name = 'westWindowGlass';
   westGlass.position.set(-3.57, 1.52, 0);
   const westSill = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(0.32, 0.08, 1.66)), cedarDarkMat);
   westSill.position.set(-3.5, 0.94, 0);
@@ -766,6 +802,63 @@ export function buildWillowCottageInterior(
   greenhouseCutting.add(jarBody, jarWater, cuttingStem, cuttingLeaf, cuttingBloom);
   group.add(greenhouseCutting);
 
+  // M6 (Round-4 Pass 14). Seasonal sill posy on the north sill end — a glass bottle
+  // with a small gathering from the season. Hidden in winter (frost owns the sill).
+  const makePosyBottle = (x: number, z: number) => {
+    const bottle = new THREE.Group();
+    bottle.position.set(x, 0.98, z);
+    const neck = new THREE.Mesh(trackGeo(new THREE.CylinderGeometry(0.032, 0.045, 0.11, 10)), jarGlassMat);
+    neck.position.y = 0.055;
+    bottle.add(neck);
+    return bottle;
+  };
+  const posySpring = makePosyBottle(-3.44, -0.72);
+  {
+    const stemA = makeStem(0, 0, 0.14, -0.1);
+    stemA.position.set(0, 0.02, 0);
+    stemA.scale.setScalar(0.7);
+    const headA = new THREE.Mesh(trackGeo(new THREE.SphereGeometry(0.03, 7, 6)), petalCreamMat);
+    headA.position.set(0.02, 0.18, 0);
+    const stemB = makeStem(0, 0, -0.12, 0.12);
+    stemB.position.set(0.01, 0.01, 0);
+    stemB.scale.setScalar(0.6);
+    const headB = new THREE.Mesh(trackGeo(new THREE.SphereGeometry(0.026, 7, 6)), petalMarigoldMat);
+    headB.position.set(-0.02, 0.15, 0.01);
+    posySpring.add(stemA, headA, stemB, headB);
+  }
+  const posySummer = makePosyBottle(-3.44, -0.72);
+  {
+    const spikeA = new THREE.Mesh(trackGeo(new THREE.CapsuleGeometry(0.02, 0.09, 4, 7)), petalLavenderMat);
+    spikeA.position.set(0.02, 0.17, 0);
+    spikeA.rotation.z = 0.14;
+    const spikeB = new THREE.Mesh(trackGeo(new THREE.CapsuleGeometry(0.018, 0.08, 4, 7)), petalLavenderMat);
+    spikeB.position.set(-0.02, 0.15, 0.01);
+    spikeB.rotation.z = -0.16;
+    const stemC = makeStem(0, 0, 0, 0.08);
+    stemC.position.set(0, 0.02, 0);
+    stemC.scale.setScalar(0.55);
+    posySummer.add(spikeA, spikeB, stemC);
+  }
+  const posyAutumn = makePosyBottle(-3.44, -0.72);
+  {
+    const leafA = new THREE.Mesh(trackGeo(new THREE.SphereGeometry(0.045, 7, 6)), petalMarigoldMat);
+    leafA.scale.set(1.25, 0.5, 0.8);
+    leafA.position.set(0.02, 0.16, 0);
+    leafA.rotation.z = 0.3;
+    const leafB = new THREE.Mesh(trackGeo(new THREE.SphereGeometry(0.04, 7, 6)), appleRedMat);
+    leafB.scale.set(1.2, 0.5, 0.8);
+    leafB.position.set(-0.02, 0.13, 0.01);
+    leafB.rotation.z = -0.34;
+    const twig = new THREE.Mesh(trackGeo(new THREE.CylinderGeometry(0.007, 0.01, 0.14, 5)), cedarDarkMat);
+    twig.position.set(0, 0.07, 0);
+    twig.rotation.z = 0.08;
+    posyAutumn.add(leafA, leafB, twig);
+  }
+  posySpring.visible = false;
+  posySummer.visible = false;
+  posyAutumn.visible = false;
+  group.add(posySpring, posySummer, posyAutumn);
+
   // G. Front Porch Doorway (interior_door: focus=(3.45, 0.0))
   const doorGroup = new THREE.Group();
   doorGroup.position.set(3.48, 0, 0);
@@ -783,6 +876,69 @@ export function buildWillowCottageInterior(
   doorKnob.position.set(-0.01, 1.02, 0.36);
   doorGroup.add(doorMatRug, doorJambN, doorJambS, doorLintel, doorLeaf, doorKnob);
   group.add(doorGroup);
+
+  // M7 (Round-4 Pass 14). Door-lintel seasonal swag — an evergreen sprig garland on
+  // the lintel's inner face whose accent swaps with the season (spring blossoms,
+  // summer lavender, autumn berries, a winter brass bell). Wall-plane mounted.
+  const doorSwag = new THREE.Group();
+  for (const [lx, ly, tilt, scl] of [
+    [-0.36, 0.012, 0.24, 0.85],
+    [-0.18, 0.02, 0.12, 1.0],
+    [0.0, 0.024, 0.0, 1.05],
+    [0.18, 0.02, -0.12, 1.0],
+    [0.36, 0.012, -0.24, 0.85],
+  ] as const) {
+    const sprig = new THREE.Mesh(trackGeo(new THREE.SphereGeometry(0.07, 7, 6)), foliageMat);
+    sprig.scale.set(0.42, 0.3, 0.75);
+    sprig.position.set(lx, 2.325 + ly, 0);
+    sprig.rotation.z = tilt;
+    sprig.scale.multiplyScalar(scl);
+    doorSwag.add(sprig);
+  }
+  for (const ax of [-0.27, 0.0, 0.27]) {
+    const accent = new THREE.Mesh(trackGeo(new THREE.SphereGeometry(0.028, 8, 8)), doorSwagAccentMat);
+    accent.position.set(ax, 2.3 + Math.abs(ax) * 0.06, 0.045);
+    doorSwag.add(accent);
+  }
+  const swagCordL = new THREE.Mesh(trackGeo(new THREE.CylinderGeometry(0.008, 0.008, 0.12, 5)), linenMat);
+  swagCordL.position.set(-0.44, 2.37, 0);
+  swagCordL.rotation.z = 0.5;
+  const swagCordR = new THREE.Mesh(trackGeo(new THREE.CylinderGeometry(0.008, 0.008, 0.12, 5)), linenMat);
+  swagCordR.position.set(0.44, 2.37, 0);
+  swagCordR.rotation.z = -0.5;
+  doorSwag.add(swagCordL, swagCordR);
+  doorGroup.add(doorSwag);
+
+  // M8 (Round-4 Pass 14). Seasonal floor scatter — spring petals drift in from the
+  // west window; autumn leaves gather by the door. Tiny, static, season-gated.
+  const springPetals = new THREE.Group();
+  for (const [px, pz, pr, mat] of [
+    [-3.05, -0.28, 0.4, petalCreamMat],
+    [-2.72, 0.34, -0.5, petalMarigoldMat],
+    [-2.9, 0.02, 0.9, petalCreamMat],
+  ] as const) {
+    const petal = new THREE.Mesh(trackGeo(new THREE.SphereGeometry(0.038, 7, 5)), mat);
+    petal.scale.set(1.2, 0.22, 0.8);
+    petal.position.set(px, 0.012, pz);
+    petal.rotation.y = pr;
+    springPetals.add(petal);
+  }
+  springPetals.visible = false;
+  group.add(springPetals);
+  const autumnLeaves = new THREE.Group();
+  for (const [lx2, lz2, lr2, mat2] of [
+    [3.12, -0.44, 0.3, petalMarigoldMat],
+    [2.82, 0.12, -0.8, appleRedMat],
+    [3.2, 0.4, 1.1, petalMarigoldMat],
+  ] as const) {
+    const leaf = new THREE.Mesh(trackGeo(new THREE.SphereGeometry(0.05, 7, 5)), mat2);
+    leaf.scale.set(1.15, 0.2, 0.75);
+    leaf.position.set(lx2, 0.012, lz2);
+    leaf.rotation.y = lr2;
+    autumnLeaves.add(leaf);
+  }
+  autumnLeaves.visible = false;
+  group.add(autumnLeaves);
 
   // H11 (Pass 6). Entry sign-of-use: garden boots in the door recess + wall pegs with a straw hat
   // (door recess spans z -0.62..0.62 at the east curb; pegs live on the north wall plane near the door)
@@ -1242,6 +1398,17 @@ export function buildWillowCottageInterior(
     // Pass 8: winter frost feathers the sill and glass corners
     frostDressing.visible = season === 'winter';
 
+    // Round-4 Pass 14: seasons of home — sill posy, swag accent, scatter, glass tint
+    seasonLife.posySpring.visible = season === 'spring';
+    seasonLife.posySummer.visible = season === 'summer';
+    seasonLife.posyAutumn.visible = season === 'autumn';
+    seasonLife.autumnLeaves.visible = season === 'autumn';
+    seasonLife.springPetals.visible = season === 'spring';
+    const accent = seasonSwagAccents[season] ?? seasonSwagAccents.spring;
+    seasonLife.doorSwagAccentMat.color.copy(accent);
+    const glassTint = seasonGlassTints[season] ?? seasonGlassTints.spring;
+    windowGlassMat.emissive.copy(glassTint);
+
     // Pass 8: linen curtains stir only in a breeze, easing back to rest otherwise
     const swayAmp = breezy ? 1 : 0;
     curtainNorth.rotation.z = 0.02 + swayAmp * Math.sin(elapsed * 1.35) * 0.02;
@@ -1362,6 +1529,16 @@ export function buildWillowCottageInterior(
     teaCaddy,
   };
 
+  const seasonLife = {
+    posySpring,
+    posySummer,
+    posyAutumn,
+    doorSwag,
+    doorSwagAccentMat,
+    autumnLeaves,
+    springPetals,
+  };
+
   return {
     group,
     hitProxies,
@@ -1378,6 +1555,7 @@ export function buildWillowCottageInterior(
     moteMaterial: moteMat,
     curtainPanels: { north: curtainNorth, south: curtainSouth },
     homeMementos,
+    seasonLife,
     update,
     dispose,
   };

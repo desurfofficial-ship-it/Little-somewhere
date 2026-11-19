@@ -419,3 +419,57 @@ test('Pass 13: the home remembers — lived progress reveals each memento at its
   rig.dispose();
   palette.disposeAll();
 });
+
+test('Pass 14: seasons of home — sill posy, swag accent, floor scatter and glass tint follow the season', () => {
+  const palette = new MaterialPalette();
+  const rig = buildWillowCottageInterior(palette, new THREE.Texture());
+  const base = createFreshWorldState();
+  const glass = rig.group.getObjectByName('westWindowGlass') as THREE.Mesh;
+  assert.ok(glass, 'West window glass is name-tagged for observation');
+  const glassMat = glass.material as THREE.MeshStandardMaterial;
+
+  // Spring: chamomile posy on the sill, petals by the window, blossom swag accent
+  rig.update({ ...base, season: 'spring' }, 'morning', 1.0);
+  assert.equal(rig.seasonLife.posySpring.visible, true, 'Spring posy fills the sill bottle');
+  assert.equal(rig.seasonLife.posySummer.visible, false);
+  assert.equal(rig.seasonLife.posyAutumn.visible, false);
+  assert.equal(rig.seasonLife.springPetals.visible, true, 'Spring petals drift in by the window');
+  assert.equal(rig.seasonLife.autumnLeaves.visible, false);
+  assert.equal(rig.seasonLife.doorSwag.visible, true, 'The lintel swag hangs in every season');
+  const springAccent = rig.seasonLife.doorSwagAccentMat.color.getHexString();
+  const springGlass = glassMat.emissive.getHexString();
+
+  // Summer: lavender posy, lavender swag accent, no petals or leaves
+  rig.update({ ...base, season: 'summer' }, 'afternoon', 1.0);
+  assert.equal(rig.seasonLife.posySummer.visible, true, 'Summer lavender fills the sill bottle');
+  assert.equal(rig.seasonLife.springPetals.visible, false);
+  const summerAccent = rig.seasonLife.doorSwagAccentMat.color.getHexString();
+  assert.notEqual(summerAccent, springAccent, 'Swag accent swaps with the season');
+
+  // Autumn: marigold/red leaf posy, leaves by the door, warm accent
+  rig.update({ ...base, season: 'autumn' }, 'afternoon', 1.0);
+  assert.equal(rig.seasonLife.posyAutumn.visible, true, 'Autumn leaf posy fills the sill bottle');
+  assert.equal(rig.seasonLife.autumnLeaves.visible, true, 'Fallen leaves gather by the door');
+  assert.equal(rig.seasonLife.springPetals.visible, false);
+  const autumnAccent = rig.seasonLife.doorSwagAccentMat.color.getHexString();
+  assert.notEqual(autumnAccent, summerAccent);
+
+  // Winter: frost owns the sill (no posy), brass bell accent, cool glass tint
+  rig.update({ ...base, season: 'winter' }, 'afternoon', 1.0);
+  assert.equal(rig.seasonLife.posySpring.visible, false, 'Winter hides the sill posies');
+  assert.equal(rig.seasonLife.posySummer.visible, false);
+  assert.equal(rig.seasonLife.posyAutumn.visible, false);
+  assert.equal(rig.seasonLife.springPetals.visible, false);
+  assert.equal(rig.seasonLife.autumnLeaves.visible, false);
+  const winterAccent = rig.seasonLife.doorSwagAccentMat.color.getHexString();
+  assert.notEqual(winterAccent, autumnAccent, 'Winter swag carries a distinct bell accent');
+  const winterGlass = glassMat.emissive.getHexString();
+  assert.notEqual(winterGlass, springGlass, 'Winter glass tints cool vs spring warmth');
+
+  // The dressed seasons never inflate the diorama envelope
+  const box = new THREE.Box3().setFromObject(rig.group);
+  assert.ok(box.min.y >= -0.35 && box.max.y <= 3.6, `Bounds y: ${box.min.y.toFixed(2)}..${box.max.y.toFixed(2)}`);
+
+  rig.dispose();
+  palette.disposeAll();
+});
