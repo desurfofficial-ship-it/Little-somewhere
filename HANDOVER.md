@@ -39,7 +39,7 @@ The **Player & Character Excellence Upgrade** (Phases 1–12) plus the **Bench S
 
 ## 4. Verification Status (2026-11-19)
 
-- `npm test` (`tsx --test src/game/*.test.ts src/scene/*.test.ts`) — **53/53 passing** on the merged tree (`0` failures; see WORKLOG Entry 016 for the post-merge verification run)
+- `npm test` (`tsx --test src/game/*.test.ts src/scene/*.test.ts`) — **55/55 passing** on the merged tree (`0` failures; see WORKLOG Entry 016 for the post-merge verification run)
 - `npm run lint` (`tsc --noEmit`) — **Passing (0 errors)**
 - `npm run build` (`vite build`) & `compile_applet` — **Passing**
 - Browser QA (headless Chromium on `1440×900` Desktop & `390×844` Mobile): branch QA — morning dressing pass, dusk festoon/fireflies/window glow, rain-day puddles & rain streaks, `+2h` phase advance; main-line QA — bench sitting clearance, repaired Fountain coin-wish ripple & cascades, Mirror Pond Lantern Dusk stone-skip ripple + west brook + pier & sailboat — **0 console errors, 0 console warnings**

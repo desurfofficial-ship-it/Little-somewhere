@@ -180,3 +180,18 @@ All ten P0 defects from the 2026-11-18 audit are verified fixed in code and live
 | Prior-P0 regression sweep | All 10 items from 2026-11-18 audit verified fixed |
 
 **Assumptions / Unknowns**: draw-call totals were not sampled live from `renderer.info` (no global handle exposed); budget compliance (≤140) is inferred from architecture counts (5 grove + 5 dressing + ~40 building/prop groups + FX pools) and prior verified audits. Rain-day and carry/sit interaction flows were verified by the branch's own QA log and were not re-driven end-to-end here (require save patching); no visual defects surfaced in any captured state that would suggest otherwise.
+
+---
+
+## Addendum — Post-Merge Re-Verification (2026-11-19, same day)
+
+While this audit was being written, `main` advanced with a parallel visual assignment (**Entry 014, "Bench Back-Clipping Fix & Mirror Pond / Mossy Stone Fountain Full Upgrade"**: `src/scene/waterShaders.ts` PBR `onBeforeCompile` water materials with flowing caustics, depth gradation, lapping shoreline foam, raindrop rings, coin-wish/pebble-skip concentric waves, winter frost and dusk lantern reflections; spline-shoreline Mirror Pond with west culvert brook, sandy shoal, submerged pebbles, 3 articulated koi, blooming lily pads, swaying cattails/iris, skimming dragonflies, viewing pier + moored sailboat; fountain with carved double-moulded basin, moss, valve wheel, wishing coins, cascades, splash rings, 20 pooled droplets; plus a bench back-clipping fix). The feature branch and this audit forked from an older main point, so the branch-tree captures above predate those upgrades.
+
+**Actions taken**:
+1. The branch was merged with the advanced `main`; conflicts in `src/scene/environmentRenderer.ts`, `WORKLOG.md`, `HANDOVER.md` were resolved keeping **both** feature sets (reactive rigs + water shaders coexist in one controller).
+2. Merged-tree verification: `npm test` **55/55**, `tsc --noEmit` **0 errors**, `vite build` pass; live headless Chromium desktop `1440×900` and dusk re-capture — **0 console errors, 0 page errors**; botanical dressing, pooled micro-life, shader water, koi and fountain debris all confirmed coexisting visually.
+
+**Roadmap impact**:
+- **R-02 (water materials) is substantially delivered by main's Entry 014** and narrows to: cross-phase visual confirmation (morning/golden/dusk/rain/winter), fountain basin readability from the default isometric angle, and pond-shore blend polish where the new shader meets the cobble/ground planes. Re-classified **P1 → P2 (polish)**; the remaining P1 items are **R-01 (golden/dusk lighting drama)** and **R-03 (touch-only VirtualJoystick)** — both re-confirmed unchanged on the merged tree.
+- P2 items R-04..R-09 stand as written (grass-tuft cones, meadow tiling, Copperwheel dressing, legacy dead builders — note the `buildStoneFountain` legacy copy in `models.ts` remains and is still only reachable from the equivalence test).
+- The category-matrix "water" row and finding #1 in Phase 2 describe the **branch-tree baseline** and are superseded by this addendum for the pond/fountain materials specifically.

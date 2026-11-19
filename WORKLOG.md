@@ -313,6 +313,7 @@ Chronological log of design decisions, implementation milestones, verification r
   - The scene is 100% procedural in-house (zero imported models/textures), palette-cached, instanced where repeated, zero-GC in the frame loop, software-GL parity maintained.
   - Remaining priorities: **P1** R-01 golden/dusk lighting drama (phases read under-differentiated), R-02 water materials (pond + fountain are the flattest materials in the scene), R-03 desktop VirtualJoystick visibility; **P2** grass-tuft cone readability, meadow texture tiling, Copperwheel dressing depth, ~370 lines of dead legacy builders in `models.ts` (`buildClayCottage`/`buildGreenhouse` unreferenced; `buildStoneFountain` kept alive only by a legacy test), title overlay framing, three.js bundle code-splitting.
 - **Verification**:
-  - `npm test` **50/50**, `npm run lint` **0 errors**, `npm run build` pass.
+  - `npm test` **50/50**, `npm run lint` **0 errors**, `npm run build` pass on the audited branch tree (`f2a53f2`).
   - Live headless Chromium on the audit branch: desktop 1440×900 title / morning / golden 4:24 PM / dusk 9:30 PM and mobile 390×844 — **0 console errors, 0 page errors**; window glow, festoon gating, clapper gating, fireflies, contact shadows, and botanical dressing all confirmed visually.
+  - Post-audit the branch was rebased onto the advanced `main` (which had gained the Entry-014 water-shader/pond/fountain upgrade in parallel). Merge conflicts in `environmentRenderer.ts` / `WORKLOG.md` / `HANDOVER.md` were resolved keeping **both** feature sets; merged tree re-verified: `npm test` **55/55**, lint **0 errors**, build pass, live Chromium re-capture **0 console/page errors**, botanical dressing + micro-life + shader water coexisting.
 
