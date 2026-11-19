@@ -1,6 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { applyDialogueChoice } from './actions';
+import {
+  applyDialogueChoice,
+  cookRecipeAction,
+  giveInventoryItemAction,
+  placeFlowerInVaseAction,
+  toggleDisplayedKeepsakeAction,
+} from './actions';
 import {
   JOURNAL_READ_STORAGE_KEY,
   buildPocketJournalView,

@@ -3,6 +3,8 @@ import { ComposedEnvironmentState } from '../game/environment';
 import { SeasonType, Vec2, WorldState } from '../game/types';
 import { GazeboRig, FountainRig, MirrorPondRig } from './models';
 import { NoticeboardRig } from './builders/landmarks';
+import { OrchardRig } from './builders/orchard';
+import { OrchardMicroLifeRig } from './builders/orchardMicroLife';
 import { GroveTreesRig } from './builders/vegetation';
 import { ReactiveVisualRigs } from './builders/reactiveProps';
 import { getWaterShaderUniforms } from './waterShaders';
@@ -55,6 +57,10 @@ export interface EnvironmentRendererDeps {
   reactiveRigs?: ReactiveVisualRigs;
   /** Optional parent group for exterior-only meshes (rain/petals) when toggling interior rooms. */
   exteriorRoot?: THREE.Group;
+  /** Optional Fern Hollow Orchard rig for wind-driven crown & fruit sway. */
+  orchardRig?: OrchardRig;
+  /** Optional Fern Hollow Orchard micro-life rig (blossom butterflies & skep bees). */
+  orchardMicroLife?: OrchardMicroLifeRig;
 }
 
 export class EnvironmentVisualController {
@@ -540,6 +546,26 @@ export class EnvironmentVisualController {
       }
       rigs.chimneyWisps.update(elapsed, this.wispMask);
       rigs.chimneyWisps.mesh.visible = true;
+    }
+
+    // 6. Fern Hollow Orchard wind sway & micro-life (butterflies & skep bees)
+    if (this.deps.orchardRig) {
+      this.deps.orchardRig.updateWind(elapsed, windStrength);
+    }
+    if (this.deps.orchardMicroLife) {
+      const orchardButterfliesActive =
+        (effWeather === 'sunlit' || effWeather === 'breezy') &&
+        composed.timeOfDay.phase !== 'dusk' &&
+        composed.season.season !== 'winter';
+      const orchardBeesActive =
+        effWeather !== 'light_rain' &&
+        composed.timeOfDay.phase !== 'dusk' &&
+        composed.season.season !== 'winter';
+      this.deps.orchardMicroLife.update(elapsed, {
+        butterfliesActive: orchardButterfliesActive,
+        beesActive: orchardBeesActive,
+        windStrength,
+      });
     }
   }
 

@@ -260,6 +260,10 @@ export const RESIDENT_GIFT_PREFS: Record<
     loved: ['crabapple_tart', 'wild_honey', 'smooth_river_glass'],
     liked: ['lavender_shortbread', 'crabapple', 'heron_feather'],
   },
+  rowan: {
+    loved: ['wild_honey', 'crabapple_tart', 'pressed_fern'],
+    liked: ['crabapple', 'chamomile_pear_tea', 'lavender_sprig'],
+  },
 };
 
 export interface NeighborKeepsakeReward {

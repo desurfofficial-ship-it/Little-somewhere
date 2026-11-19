@@ -193,6 +193,82 @@ export function resolveInteriorMovement(current: Vec2, desired: Vec2, actorRadiu
   return current;
 }
 
+const INTERIOR_HUBS: readonly Vec2[] = [
+  { x: 0.25, z: -0.45 }, // Center-north open rug space above oak dining table
+  { x: -1.15, z: -0.35 }, // West hearth / planter corridor north of bed
+  { x: 1.65, z: -0.35 }, // North-east doorway vestibule corner clear of table
+  { x: 1.65, z: 0.95 }, // East doorway / desk corridor
+  { x: 0.25, z: 2.22 }, // South passage below table
+];
+
+function isInteriorSegmentWalkable(a: Vec2, b: Vec2, actorRadius = 0.42): boolean {
+  const dist = distance2D(a, b);
+  const steps = Math.max(4, Math.ceil(dist / 0.2));
+  for (let i = 1; i < steps; i++) {
+    const t = i / steps;
+    if (
+      !isInteriorPointWalkable(
+        a.x + (b.x - a.x) * t,
+        a.z + (b.z - a.z) * t,
+        actorRadius,
+      )
+    ) {
+      return false;
+    }
+  }
+  return true;
+}
+
+export function computeInteriorWaypoints(
+  from: Vec2,
+  to: Vec2,
+  actorRadius = 0.42,
+): Vec2[] {
+  if (isInteriorSegmentWalkable(from, to, actorRadius)) {
+    return [to];
+  }
+
+  let bestSingle: Vec2[] | null = null;
+  let bestSingleCost = Infinity;
+  for (const hub of INTERIOR_HUBS) {
+    if (!isInteriorPointWalkable(hub.x, hub.z, actorRadius)) continue;
+    if (
+      isInteriorSegmentWalkable(from, hub, actorRadius) &&
+      isInteriorSegmentWalkable(hub, to, actorRadius)
+    ) {
+      const cost = distance2D(from, hub) + distance2D(hub, to);
+      if (cost < bestSingleCost) {
+        bestSingleCost = cost;
+        bestSingle = [hub, to];
+      }
+    }
+  }
+  if (bestSingle) return bestSingle;
+
+  let bestPair: Vec2[] | null = null;
+  let bestPairCost = Infinity;
+  for (const h1 of INTERIOR_HUBS) {
+    if (!isInteriorPointWalkable(h1.x, h1.z, actorRadius)) continue;
+    if (!isInteriorSegmentWalkable(from, h1, actorRadius)) continue;
+    for (const h2 of INTERIOR_HUBS) {
+      if (h1 === h2) continue;
+      if (!isInteriorPointWalkable(h2.x, h2.z, actorRadius)) continue;
+      if (
+        isInteriorSegmentWalkable(h1, h2, actorRadius) &&
+        isInteriorSegmentWalkable(h2, to, actorRadius)
+      ) {
+        const cost = distance2D(from, h1) + distance2D(h1, h2) + distance2D(h2, to);
+        if (cost < bestPairCost) {
+          bestPairCost = cost;
+          bestPair = [h1, h2, to];
+        }
+      }
+    }
+  }
+
+  return bestPair ?? [to];
+}
+
 export function selectBestInteriorTarget(world: WorldState): InteractiveTarget | null {
   let bestTarget: InteractiveTarget | null = null;
   let bestScore = Infinity;

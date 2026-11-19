@@ -6,11 +6,13 @@ import {
   DialogueTopic,
   EnvironmentalState,
   JournalMemory,
+  PersonalItemId,
   ResidentId,
   StoryFlags,
   TimePhase,
   WorldState,
 } from './types';
+import { PERSONAL_ITEM_MAP } from './inventory';
 import { RESIDENTS } from './residents';
 import { getNpcRelation, getRelationshipTier } from './relationships';
 import {
@@ -2776,9 +2778,12 @@ export const DIALOGUE_TOPICS: readonly DialogueTopic[] = [
           });
         const recipientId = mem?.subjectResidents[0];
         const recipientName = recipientId ? RESIDENTS[recipientId]?.name : undefined;
-        const itemText = mem?.detail?.itemId
-          ? mem.detail.itemId.replace(/_/g, ' ')
-          : 'thoughtful bundle';
+        const personalLabel = mem?.detail?.personalItemId
+          ? PERSONAL_ITEM_MAP[mem.detail.personalItemId as PersonalItemId]?.label
+          : undefined;
+        const itemText =
+          personalLabel ??
+          (mem?.detail?.itemId ? mem.detail.itemId.replace(/_/g, ' ') : 'thoughtful bundle');
 
         if (mem && mem.tag === 'player_gift' && mem.provenance === 'firsthand') {
           return `Still thinking about that ${itemText} you carried right over to me—${RESIDENTS[id].traits.temperament === 'whimsical' ? 'you’re a real lane sprite!' : 'that kind of thoughtfulness sticks with a neighbor.'}`;
@@ -3639,8 +3644,15 @@ export const DIALOGUE_TOPICS: readonly DialogueTopic[] = [
     {
       moodLabel: 'Grateful',
       buildText: (id, w) => {
-        const mem = w.npcMemories?.[id]?.find((m) => m.tag === 'player_gift' && m.detail?.personalItemId);
-        const itemLabel = mem?.detail?.personalItemId?.replace(/_/g, ' ') ?? 'your thoughtful gift';
+        const mem = w.npcMemories?.[id]?.find(
+          (m) => m.tag === 'player_gift' && (m.detail?.personalItemId || m.detail?.itemId),
+        );
+        const personalLabel = mem?.detail?.personalItemId
+          ? PERSONAL_ITEM_MAP[mem.detail.personalItemId as PersonalItemId]?.label
+          : undefined;
+        const itemLabel =
+          personalLabel ??
+          (mem?.detail?.itemId ? mem.detail.itemId.replace(/_/g, ' ') : 'your thoughtful gift');
         return id === 'clara'
           ? `That ${itemLabel} you brought by still sits right near the warming rack—it made my whole afternoon!`
           : `I still smile thinking of the ${itemLabel} you brought over earlier. Neighbors like you make Willow Lane feel lived-in.`;

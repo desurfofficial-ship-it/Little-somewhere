@@ -715,6 +715,92 @@ test('sanitizeStorylines clamps bad entries, preserves cooldowns, and computeWor
   assert.equal(roundTrip.state.storylines.conflict_plaza_lanterns.cooldownUntilDay, 5);
 });
 
+test('v5->v6 migration upgrades cleanly with backup and computeWorldSaveRevision tracks v6 cottage & satchel edits', () => {
+  const v5Save = {
+    schemaVersion: 5,
+    day: 4,
+    minuteOfDay: 840,
+    playerPos: { x: 0, z: 4.5 },
+    flags: { heardBellMystery: true, bellRestored: true },
+    storylines: {
+      side_pip_zine: { id: 'side_pip_zine', stage: 2, status: 'active' },
+    },
+    residents: {
+      rowan: { trust: 2, met: true, talkedToday: false, mood: 'warm', lastDialogueId: null },
+    },
+  };
+
+  const res = deserializeWorldState(JSON.stringify(v5Save));
+  assert.equal(res.migratedFromVersion, 5);
+  assert.equal(res.state.schemaVersion, CURRENT_SCHEMA_VERSION);
+  assert.equal(res.state.playerLocation, 'exterior');
+  assert.equal(res.state.inventory.chamomile_blossom, 1);
+  assert.equal(res.state.inventory.lemon_thyme, 1);
+  assert.ok(res.state.discoveredItemIds.includes('chamomile_blossom'));
+  assert.equal(res.state.cottageState.placedFlowerId, null);
+  assert.equal(res.state.dailyActivities.bakedCountToday, 0);
+  assert.equal(res.state.storylines.side_pip_zine.stage, 2);
+  assert.equal(res.state.residents.rowan.trust, 2);
+
+  withMockLocalStorage((store) => {
+    const rawV5 = JSON.stringify(v5Save);
+    store.set(STORAGE_KEY, rawV5);
+    const loaded = loadWorldState();
+    assert.equal(loaded.schemaVersion, CURRENT_SCHEMA_VERSION);
+    assert.equal(store.get(STORAGE_BACKUP_KEY), rawV5);
+  });
+
+  // Save revision tracks Milestone 2C mutations
+  const base = createFreshWorldState();
+  const rev0 = computeWorldSaveRevision(base);
+
+  const invEdited = structuredClone(base);
+  invEdited.inventory.crabapple = 2;
+  invEdited.discoveredItemIds.push('crabapple');
+  assert.notEqual(computeWorldSaveRevision(invEdited), rev0);
+
+  const vaseEdited = structuredClone(base);
+  vaseEdited.cottageState.placedFlowerId = 'chamomile_blossom';
+  assert.notEqual(computeWorldSaveRevision(vaseEdited), rev0);
+
+  const keepsakeEdited = structuredClone(base);
+  keepsakeEdited.cottageState.displayedKeepsakeIds = ['willow_zine_copy'];
+  assert.notEqual(computeWorldSaveRevision(keepsakeEdited), rev0);
+
+  const locationEdited = structuredClone(base);
+  locationEdited.playerLocation = 'cottage_interior';
+  assert.notEqual(computeWorldSaveRevision(locationEdited), rev0);
+
+  const activityEdited = structuredClone(base);
+  activityEdited.dailyActivities.giftedResidentsToday = ['clara'];
+  assert.notEqual(computeWorldSaveRevision(activityEdited), rev0);
+
+  // Rolling over a day preserves home decor and satchel while resetting daily activities
+  const decorated = {
+    ...vaseEdited,
+    inventory: { ...vaseEdited.inventory, willow_zine_copy: 1 },
+    cottageState: {
+      ...vaseEdited.cottageState,
+      displayedKeepsakeIds: ['willow_zine_copy' as const],
+      almanacReadToday: true,
+    },
+    dailyActivities: {
+      ...vaseEdited.dailyActivities,
+      bakedCountToday: 2,
+      orchardHarvestedToday: true,
+      giftedResidentsToday: ['clara' as const],
+    },
+  };
+  const nextDay = advanceToNextDay(decorated);
+  assert.equal(nextDay.cottageState.placedFlowerId, 'chamomile_blossom');
+  assert.deepEqual(nextDay.cottageState.displayedKeepsakeIds, ['willow_zine_copy']);
+  assert.equal(nextDay.inventory.willow_zine_copy, 1);
+  assert.equal(nextDay.cottageState.almanacReadToday, false);
+  assert.equal(nextDay.dailyActivities.bakedCountToday, 0);
+  assert.equal(nextDay.dailyActivities.orchardHarvestedToday, false);
+  assert.deepEqual(nextDay.dailyActivities.giftedResidentsToday, []);
+});
+
 
 
 

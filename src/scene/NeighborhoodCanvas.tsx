@@ -46,6 +46,7 @@ import {
 import {
   COTTAGE_BOUNDS,
   COTTAGE_INTERACTABLES,
+  computeInteriorWaypoints,
   isInteriorPointWalkable,
 } from '../game/cottage';
 import { computeWaypointPath } from '../game/navigation';
@@ -429,7 +430,7 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
     // Fern Hollow micro-life: blossom butterflies + skep bees (weather-gated
     // by the environment controller, updated in its section 6)
     const orchardMicroLifeRig = buildOrchardMicroLife({ isSoftwareGl });
-    scene.add(orchardMicroLifeRig.group);
+    exteriorRoot.add(orchardMicroLifeRig.group);
 
     const willowProtoCtx = {
       palette,
@@ -979,6 +980,11 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
                 ? 'Ring Bell'
                 : pid === 'player_door'
                 ? 'Enter Cottage'
+                : pid === 'cottage_window_box' ||
+                  pid === 'greenhouse_planters' ||
+                  pid === 'orchard_harvest' ||
+                  pid === 'pond_driftwood'
+                ? prop.name
                 : `Inspect ${prop.name}`;
             scoreDist = metrics.scoreDistance;
             isImmediate = metrics.inRange;
@@ -1007,7 +1013,7 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
             ? dest
             : findNearestInteriorWalkablePoint(dest.x, dest.z) ?? dest;
           tapWalkDest = walkableDest;
-          tapWalkWaypoints = [walkableDest];
+          tapWalkWaypoints = computeInteriorWaypoints(pPos, walkableDest, 0.42);
           tapStuckSeconds = 0;
           pendingTargetAfterWalk = targetObj;
         } else {
@@ -1029,7 +1035,7 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
           const walkableDest = findNearestInteriorWalkablePoint(_vec3A.x, _vec3A.z);
           if (walkableDest) {
             tapWalkDest = walkableDest;
-            tapWalkWaypoints = [walkableDest];
+            tapWalkWaypoints = computeInteriorWaypoints(worldRef.current.playerPos, walkableDest, 0.42);
             tapStuckSeconds = 0;
             pendingTargetAfterWalk = null;
           }

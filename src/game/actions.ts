@@ -1863,6 +1863,8 @@ function buildGiftReactionLine(
         return `${def.label}… how remarkably thoughtful of you. I’ll tuck this right beside my favorite bookmark.`;
       case 'pip':
         return `WHOA!! ${def.label}?! Are you serious?! Best neighbor on Willow Lane EVER!`;
+      case 'rowan':
+        return `Well look at that—${def.label}! Straight from bright mornings into good hands. Thank you kindly, neighbor.`;
     }
   }
   if (tier === 'liked') {

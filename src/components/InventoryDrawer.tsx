@@ -110,7 +110,7 @@ export const InventoryDrawer: React.FC<InventoryDrawerProps> = ({
                 role="tab"
                 aria-selected={active}
                 onClick={() => setFilter(tab.id)}
-                className={`min-h-[44px] px-3 sm:px-3.5 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
+                className={`min-h-[44px] min-w-[44px] px-3 sm:px-3.5 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
                   active
                     ? 'bg-[#C86446] text-[#FAF5EC]'
                     : 'bg-[#F1E8D9] text-[#4E4036] hover:bg-[#E7DAC5]'

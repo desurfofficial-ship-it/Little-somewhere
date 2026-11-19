@@ -8,10 +8,12 @@ import {
   NpcMemorySourceKind,
   NpcMemoryValence,
   NpcNpcRelation,
+  PersonalItemId,
   ResidentId,
   Vec2,
   WorldState,
 } from './types';
+import { PERSONAL_ITEM_MAP } from './inventory';
 import {
   RESIDENTS,
   RESIDENT_EXTRA_ACTIVITIES,
@@ -964,7 +966,13 @@ export function formatNpcMemorySummary(entry: NpcMemoryEntry): string {
       return 'Saw the restored brass Gazebo Bell swing and echo over the square.';
     }
     if (entry.tag === 'player_gift') {
-      return `Received ${entry.detail?.itemId ? entry.detail.itemId.replace('_', ' ') : 'a thoughtful gift'} directly from the newcomer.`;
+      const personalLabel = entry.detail?.personalItemId
+        ? PERSONAL_ITEM_MAP[entry.detail.personalItemId as PersonalItemId]?.label
+        : undefined;
+      const giftText =
+        personalLabel ??
+        (entry.detail?.itemId ? entry.detail.itemId.replace(/_/g, ' ') : 'a thoughtful gift');
+      return `Received ${giftText} directly from the newcomer.`;
     }
     if (entry.tag === 'player_help_observed') {
       return `Saw the newcomer carrying helpful parcels for ${subjects || 'a neighbor'}.`;

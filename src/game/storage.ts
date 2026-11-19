@@ -40,7 +40,7 @@ export function deserializeWorldState(rawJson: string): MigrationResult {
     return {
       state: createDefaultWorldState(),
       migratedFromVersion: null,
-      warnings: ['corrupt JSON payload; created fresh WorldState v5'],
+      warnings: ['corrupt JSON payload; created fresh WorldState v6'],
     };
   }
 }

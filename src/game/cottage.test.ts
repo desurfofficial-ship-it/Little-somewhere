@@ -13,16 +13,18 @@ import {
   COTTAGE_DOOR_SPAWN,
   COTTAGE_INTERACTABLES,
   COTTAGE_INTERIOR_OBSTACLES,
+  COTTAGE_PORCH_EXIT_POS,
   COTTAGE_WAKE_SPAWN,
+  computeInteriorWaypoints,
   isInteriorPointWalkable,
   resolveInteriorMovement,
   selectBestInteriorTarget,
 } from './cottage';
 import { getItemCount } from './inventory';
-import { stepPlayerMovement } from './playerController';
+import { createInitialPlayerMotion, stepPlayerMovement } from './playerController';
 import { stepSimulation } from './simulation';
 import { advanceToNextDay, createFreshWorldState } from './storage';
-import { isPointWalkable } from './worldMap';
+import { PROP_INTERACTABLES, getPropInteractionMetrics, isPointWalkable } from './worldMap';
 
 test('cottage interior walkability, obstacle bounds, spawns, and interactable stand spots are valid', () => {
   assert.equal(isInteriorPointWalkable(COTTAGE_DOOR_SPAWN.x, COTTAGE_DOOR_SPAWN.z, 0.42), true);
@@ -58,14 +60,22 @@ test('cottage interior walkability, obstacle bounds, spawns, and interactable st
   const blocked = resolveInteriorMovement({ x: 0, z: -0.4 }, { x: 0.25, z: 0.6 }, 0.42);
   assert.ok(isInteriorPointWalkable(blocked.x, blocked.z, 0.42));
 
-  const indoorStep = stepPlayerMovement(
-    { ...createFreshWorldState(), playerLocation: 'cottage_interior', playerPos: { ...COTTAGE_DOOR_SPAWN } },
-    { velocity: { x: 0, z: 0 }, groundY: 0, stepAccum: 0, isMoving: false, speed: 0 },
-    { inputX: -1, inputZ: 0, sprint: false },
-    0.2,
-  );
-  assert.ok(indoorStep.nextPos.x < COTTAGE_DOOR_SPAWN.x);
-  assert.equal(isInteriorPointWalkable(indoorStep.nextPos.x, indoorStep.nextPos.z, 0.42), true);
+  const indoorStep = stepPlayerMovement({
+    pos: { ...COTTAGE_DOOR_SPAWN },
+    facing: -Math.PI * 0.5,
+    motion: createInitialPlayerMotion(COTTAGE_DOOR_SPAWN),
+    moveDirX: -1,
+    moveDirZ: 0,
+    inputMagnitude: 1,
+    sprintHeld: false,
+    carryingItem: false,
+    posture: 'standing',
+    seatId: null,
+    location: 'cottage_interior',
+    dt: 0.05,
+  });
+  assert.ok(indoorStep.pos.x < COTTAGE_DOOR_SPAWN.x);
+  assert.equal(isInteriorPointWalkable(indoorStep.pos.x, indoorStep.pos.z, 0.42), true);
 });
 
 test('entering and leaving Willow Step Cottage preserves exterior position and suspends outdoor greetings indoors', () => {
@@ -191,4 +201,35 @@ test('outdoor gathering props grant daily items cleanly and respect once-per-day
       getItemCount(world.inventory, 'pressed_fern') +
       getItemCount(world.inventory, 'cedar_shaving_rose') === 1,
   );
+});
+
+test('interior table-bypass waypoints and outdoor daily gathering prop approach positions stay walkable', () => {
+  const bedSpot = COTTAGE_INTERACTABLES.find((p) => p.id === 'cottage_bed')!;
+  const deskSpot = COTTAGE_INTERACTABLES.find((p) => p.id === 'cottage_desk')!;
+  const waypoints = computeInteriorWaypoints(
+    { x: bedSpot.x, z: bedSpot.z },
+    { x: deskSpot.x, z: deskSpot.z },
+    0.42,
+  );
+  assert.ok(waypoints.length >= 2, 'Should route around center table when walking from bed to desk');
+  for (const wp of waypoints) {
+    assert.equal(isInteriorPointWalkable(wp.x, wp.z, 0.42), true);
+  }
+
+  assert.equal(isPointWalkable(COTTAGE_PORCH_EXIT_POS.x, COTTAGE_PORCH_EXIT_POS.z, 0.48), true);
+  const dailyProps = [
+    'cottage_window_box',
+    'greenhouse_planters',
+    'orchard_harvest',
+    'pond_driftwood',
+  ] as const;
+  for (const pid of dailyProps) {
+    const prop = PROP_INTERACTABLES.find((p) => p.id === pid)!;
+    const metrics = getPropInteractionMetrics(pid, { x: prop.x, z: prop.z });
+    assert.equal(
+      isPointWalkable(metrics.approachPos.x, metrics.approachPos.z, 0.48),
+      true,
+      `Outdoor daily prop ${pid} approachPos (${metrics.approachPos.x}, ${metrics.approachPos.z}) must be walkable`,
+    );
+  }
 });

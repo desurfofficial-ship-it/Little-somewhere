@@ -1,8 +1,20 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { applyDialogueChoice, interactWithProp, performRingBellAction, pickupWorldPropAction } from './actions';
+import {
+  applyDialogueChoice,
+  giveInventoryItemAction,
+  interactWithProp,
+  performRingBellAction,
+  pickupWorldPropAction,
+} from './actions';
 import { evaluateDialogueCondition, isChoiceAvailable } from './dialogueEngine';
-import { createNpcMemoryEntry, propagateEncounterGossipInPlace, recordNpcMemoryInPlace } from './memories';
+import { PERSONAL_ITEM_MAP } from './inventory';
+import {
+  createNpcMemoryEntry,
+  formatNpcMemorySummary,
+  propagateEncounterGossipInPlace,
+  recordNpcMemoryInPlace,
+} from './memories';
 import { DIALOGUE_TOPICS, buildResidentDialogue, getResidentAvailableQuestCue } from './narrative';
 import { getNpcRelation } from './relationships';
 import { RESIDENT_ORDER } from './residents';
@@ -955,6 +967,80 @@ test('Step 3.7: descriptive rumor distortion appears in third-party gossip with 
   // Strictly descriptive — no player clarification / correction choices injected
   assert.equal(session.nodes.root.choices.length, 1);
   assert.equal(session.nodes.root.choices[0].id, 'gossip_tp_kindred_warm');
+});
+
+test('Milestone 2C satchel gifting honors Rowan loved reactions, daily cap, keepsake rewards, and clean item labels in dialogue & memories', () => {
+  let world = createFreshWorldState();
+  // Give player wild_honey (loved by Rowan) and chamomile_pear_tea (loved by Arthur) + place Clara near Rowan as witness
+  world = {
+    ...world,
+    flags: { ...world.flags, heardBellMystery: true, claraArthurReconciled: true },
+    inventory: {
+      ...world.inventory,
+      wild_honey: 2,
+      chamomile_pear_tea: 1,
+      chamomile_blossom: 1,
+    },
+    playerRelations: {
+      ...world.playerRelations,
+      mina: { ...world.playerRelations.mina, affinity: 36 }, // crosses Mina's 40 keepsake threshold on loved gift
+    },
+    npcRuntime: {
+      ...world.npcRuntime,
+      rowan: { ...world.npcRuntime.rowan, position: { x: -3.5, z: -18.5 } },
+      pip: { ...world.npcRuntime.pip, position: { x: -2.0, z: -18.0 } },
+    },
+  };
+
+  const rowanSession = buildResidentDialogue('rowan', world, 'morning');
+  const giftRes = giveInventoryItemAction(world, 'rowan', 'wild_honey', rowanSession);
+  assert.equal(giftRes.ok, true);
+  assert.equal(giftRes.reactionTier, 'loved');
+  assert.ok(
+    giftRes.nextSession.nodes.gift_reaction.text.includes('Orchard Honeycomb') &&
+      giftRes.nextSession.nodes.gift_reaction.text.includes('bright mornings'),
+  );
+  assert.equal(giftRes.nextWorld.inventory.wild_honey, 1);
+  assert.equal(giftRes.nextWorld.playerRelations.rowan.giftsGiven, 1);
+  assert.ok(giftRes.nextWorld.dailyActivities.giftedResidentsToday.includes('rowan'));
+
+  // Witness Pip observed the gift
+  assert.ok(
+    giftRes.nextWorld.npcMemories.pip.some((m) => m.tag === 'player_help_observed' && m.subjectResidents[0] === 'rowan'),
+  );
+
+  // formatNpcMemorySummary renders clean catalog label instead of fallback or underscore slug
+  const rowanMem = giftRes.nextWorld.npcMemories.rowan.find((m) => m.tag === 'player_gift')!;
+  const summary = formatNpcMemorySummary(rowanMem);
+  assert.ok(summary.includes(PERSONAL_ITEM_MAP.wild_honey.label), `Expected formatted label in "${summary}"`);
+
+  // event_gift_thanks formats personalItemId cleanly with catalog label
+  const thanksSession = buildResidentDialogue('rowan', giftRes.nextWorld, 'afternoon');
+  assert.equal(thanksSession.topicId, 'event_gift_thanks');
+  assert.ok(thanksSession.nodes.root.text.includes('Orchard Honeycomb'));
+
+  // everyday_cottage_hearth formats personalItemId cleanly when mentioned
+  const afterThanks = applyDialogueChoice(
+    giftRes.nextWorld,
+    thanksSession,
+    thanksSession.nodes.root.choices[0],
+  ).nextWorld;
+  const hearthSession = buildResidentDialogue('rowan', { ...afterThanks, day: afterThanks.day + 1 }, 'afternoon');
+  if (hearthSession.topicId === 'everyday_cottage_hearth') {
+    assert.ok(hearthSession.nodes.root.text.includes('Orchard Honeycomb'));
+  }
+
+  // Same-day double gift to Rowan is blocked
+  const secondTry = giveInventoryItemAction(giftRes.nextWorld, 'rowan', 'wild_honey', rowanSession);
+  assert.equal(secondTry.ok, false);
+
+  // Loved gift to Mina pushes affinity past 40 and awards her neighbor keepsake without duplicating
+  const minaSession = buildResidentDialogue('mina', giftRes.nextWorld, 'afternoon');
+  const minaGift = giveInventoryItemAction(giftRes.nextWorld, 'mina', 'chamomile_blossom', minaSession);
+  assert.equal(minaGift.ok, true);
+  assert.equal(minaGift.keepsakeAwardedId, 'woven_herb_wreath');
+  assert.equal(minaGift.nextWorld.inventory.woven_herb_wreath, 1);
+  assert.ok(minaGift.nextWorld.neighborGiftsReceived.includes('mina'));
 });
 
 
