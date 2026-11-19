@@ -245,3 +245,36 @@ Chronological log of design decisions, implementation milestones, verification r
   - `npm run lint` (`tsc --noEmit`), `compile_applet`, and `npm run build` all pass with **0 errors**.
   - Live Chromium (`1440×900` & `390×844`): **0 console errors, 0 console warnings**; verified Title screen, WASD + Shift sprint, Jun dialogue framing & reply/wave close, carryable `Copper Water Pail` cradle & sage gift ring around Arthur, `Mirror Pond Bench` flush sitting pose, `Pocket Journal` tabs, `390×844` circular `VirtualJoystick` drag with zero horizontal overflow, and `v2 -> v3` Day 3 state migration.
 
+
+---
+
+## Entry 014 — Botanical Dressing, Reactive Environment Hooks & Pooled Micro-Life (Visual Elevation Pass)
+- **Date**: 2026-11-19
+- **Status**: Completed & Verified
+- **Key Deliverables**:
+  - **Instanced Botanical Dressing (`src/scene/builders/botanicalDressing.ts`, new)**:
+    - Deterministic seeded placement of clover cushions, grass tufts, wildflower clumps (2–5 tone palette per VISUAL_IDENTITY botanical rules), and fieldstone pebbles across the open meadow margins (104 tufts / 44 flowers / 32 pebbles on GPU; 64 / 28 / 20 under `isSoftwareGl`).
+    - Placement is collision-aware: every final jittered coordinate is validated against `isPointWalkable(0.34)` + the shared `COBBLE_LANE_RECTS` lane network (padding >= 0.55m) + a calm 4.5m fountain-plaza heart, so zero dressing sits on walkable lanes or inside obstacles (enforced by unit test).
+    - 5 draw calls total (5 `InstancedMesh` layers), `castShadow` off, seeded `±8–15%` asymmetric rotation/scale per storybook handcrafted-imperfection rule.
+  - **Reactive Environment Hooks (`src/scene/builders/reactiveProps.ts`, new)** — the four previously computed-but-unhooked `composeEnvironmentState` outputs now have visual layers:
+    - `claraPastryBasketVisible` -> woven pastry basket with mini loaves + linen cloth on the west Hearth & Crumb café table (revision-gated visibility).
+    - `minaGreenhouseStage` -> moon-petal planter trays on the greenhouse bench (stage 2 = potted buds, stage 3 = glowing pale-lavender blooms + soft cool light pool on the shelf).
+    - `arthurEarlyPorchLamp` -> wall-mounted brass porch lantern beside Copperwheel Cottage's south door (permanent fixture; glass glow + warm halo activate during rain / golden / dusk).
+    - `weather.puddlesActive` -> 7 soft reflective rain-film puddles on plaza/lane cobble tops (y = 0.058, above the 0.05 slab top; minute-sensitive visibility because puddles dry mid-morning without a revision bump).
+  - **Pooled Ambient Micro-Life (`reactiveProps.ts`)**:
+    - Butterflies (2–3 anchored to pond / greenhouse / willow courtyard): instanced wing pairs + capsule bodies flapping at 16 Hz with seeded Lissajous wander; hidden at dusk, rain, and winter.
+    - Dusk fireflies (8–14): instanced ember motes drifting over meadow margins with per-instance twinkle + global glow pulse; dusk/tNorm > 0.84 only.
+    - Mirror Pond sun shimmer (5–8 instanced flecks) drifting slowly on the water surface at all times.
+    - Chimney hearth wisps (12 instanced puffs over bakery / Copperwheel / woodshop) with per-resident work-schedule phase masks (bakery bakes morning/afternoon; Arthur benches afternoon–dusk; Barnaby saws afternoon/golden) — parked far below the scene when inactive.
+  - **Scene Integration (`src/scene/NeighborhoodCanvas.tsx`, `src/scene/environmentRenderer.ts`)**:
+    - `EnvironmentRendererDeps` gained optional `reactiveRigs`; the controller toggles micro-props inside its dirty-flagged static block (revision-gated) and animates micro-life in its continuous zero-GC section (reusable `wispMask`, pre-allocated scratch quaternion/matrix/pose objects; no per-frame allocations).
+    - All reactive rigs mount once at scene build and dispose through `EnvironmentVisualController.dispose()`; meadow dressing disposes its own geometries in the canvas cleanup.
+  - **Material & Texture Polish (`src/scene/textures.ts`, `src/scene/builders/vegetation.ts`)**:
+    - Contact-shadow texture softened (0.42 -> 0.34 core alpha, longer multi-stop falloff) so grounded AO discs no longer read as grey stains on pale cobblestone.
+    - Meadow texture deepened (base `#678E4D` -> `#61884A`, deeper patch tones, faint warm dry-grass streak ellipses) to preserve figure-ground contrast against cream cottages under `ACESFilmicToneMapping`.
+    - Grove `InstancedMesh` trunks now carry 4-tone per-instance bark color variation (previously a single uniform oak brown).
+- **Verification**:
+  - `npm test`: **50/50 passing** (46 prior + 4 new `src/scene/botanicalDressing.test.ts` suites covering dressing placement legality, software-GL budget scaling, puddle film elevation, pooled rig determinism, and frame-0 reactive hook drives on a rain/dusk/stage-3 world).
+  - `npm run lint` (`tsc --noEmit`) and `npm run build` pass with **0 errors**.
+  - Live headless Chromium captures: desktop `1440×900` morning (dressing visible on margins, lanes clean, softer contact shadows), dusk (festoon + window glow + fireflies confirmed via crop), rain day 3 (grey sky, rain streaks, puddle films on plaza — planted by patching the app's own serialized save), and mobile `390×844` dusk — **0 console errors, 0 warnings**.
+  - Draw-call delta: +12 max (5 dressing layers + 3 butterfly layers + fireflies + sparkles + puddles + wisps, all instanced), keeping the diorama inside the <= 140 budget; software-GL particle caps unchanged.

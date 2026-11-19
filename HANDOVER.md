@@ -29,17 +29,19 @@ The **Player & Character Excellence Upgrade** (Phases 1–12) on top of Mileston
 
 1. **Software WebGL Timing (`isSoftwareGl`) & Layout Rules**:
    - Headless browsers pace via `afterDraw(tick)` with `dt` clamped to `0.05s`. Never use `backdrop-filter` / `backdrop-blur` over WebGL, keep `VirtualJoystick` `shrink-0` on mobile, and always run `npm test` after touching `worldMap.ts`, `residents.ts`, `storage.ts`, or `environmentRenderer.ts`.
-2. **Remaining Optional Visual Hooks (Non-Blocking)**:
-   - Future Milestone 3 polish can hook optional 3D meshes for `puddlesActive`, `claraPastryBasketVisible`, `minaGreenhouseStage`, and `arthurEarlyPorchLamp` into `environmentRenderer.ts`, plus multi-region expansion.
+2. **Environmental Hooks Now Wired (Milestone 3 polish foundation)**:
+   - `puddlesActive`, `claraPastryBasketVisible`, `minaGreenhouseStage`, and `arthurEarlyPorchLamp` all have 3D visual layers in `src/scene/builders/reactiveProps.ts` (built once in `NeighborhoodCanvas.tsx`, toggled/animated by `environmentRenderer.ts`).
+   - Meadow margins additionally carry instanced botanical dressing (`src/scene/builders/botanicalDressing.ts`); when adding lanes or obstacles, keep `COBBLE_LANE_RECTS` in sync with the cobble strips and the dressing placement tests will guard walkability.
+   - Remaining Milestone 3 work: multi-region map expansion, walkable interiors, and additional residents.
 
 ---
 
-## 4. Verification Status (2026-11-18)
+## 4. Verification Status (2026-11-19)
 
-- `npm test` (`tsx --test src/game/*.test.ts src/scene/*.test.ts`) — **46/46 passing** (`0` failures)
+- `npm test` (`tsx --test src/game/*.test.ts src/scene/*.test.ts`) — **50/50 passing** (`0` failures)
 - `npm run lint` (`tsc --noEmit`) — **Passing (0 errors)**
-- `npm run build` (`vite build`) & `compile_applet` — **Passing**
-- Browser QA (`playwright-cli` on `1440×900` Desktop & `390×844` Mobile: Title, WASD/Sprint, Jun Dialogue framing & close wave, Copper Water Pail carry cradle & sage gift ring, Mirror Pond Bench sit alignment, Pocket Journal tabs, circular VirtualJoystick drag, & `v2 -> v3` migration) — **0 console errors, 0 console warnings**
+- `npm run build` (`vite build`) — **Passing**
+- Browser QA (headless Chromium on `1440×900` Desktop & `390×844` Mobile: morning dressing pass, dusk festoon/fireflies/window glow, rain-day puddles & rain streaks via patched serialized save, `+2h` phase advance) — **0 console errors, 0 console warnings**
 
 
 

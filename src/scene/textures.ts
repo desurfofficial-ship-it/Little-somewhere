@@ -16,23 +16,34 @@ export function createMeadowTexture(maxAnisotropy: number): THREE.CanvasTexture 
   const rand = makeSeededRandom(42);
 
   // Warm sunlit meadow base (calibrated mid-tone green for ACESFilmicToneMapping)
-  ctx.fillStyle = '#678E4D';
+  ctx.fillStyle = '#61884A';
   ctx.fillRect(0, 0, 512, 512);
 
-  // Soft painterly grass patches
-  const tones = ['#5B8242', '#719856', '#608846', '#7AA05C'];
-  for (let i = 0; i < 220; i++) {
+  // Soft painterly grass patches (deeper mid-tones so the field keeps
+  // figure-ground contrast against cream cottages and pale lanes)
+  const tones = ['#527B3D', '#6C9450', '#59823F', '#75A057', '#4E7439'];
+  for (let i = 0; i < 240; i++) {
     ctx.fillStyle = tones[Math.floor(rand() * tones.length)];
     const x = rand() * 512;
     const y = rand() * 512;
     const r = 10 + rand() * 26;
-    ctx.globalAlpha = 0.28;
+    ctx.globalAlpha = 0.3;
     ctx.beginPath();
     ctx.arc(x, y, r, 0, Math.PI * 2);
     ctx.fill();
   }
 
-  // Tiny clover & meadow daisy speckles
+  // Faint warm dry-grass streaks for painterly depth
+  ctx.globalAlpha = 0.12;
+  ctx.fillStyle = '#95A25C';
+  for (let i = 0; i < 26; i++) {
+    const x = rand() * 512;
+    const y = rand() * 512;
+    const w = 30 + rand() * 70;
+    ctx.beginPath();
+    ctx.ellipse(x, y, w, 8 + rand() * 10, rand() * Math.PI, 0, Math.PI * 2);
+    ctx.fill();
+  }
   ctx.globalAlpha = 0.68;
   for (let i = 0; i < 160; i++) {
     const x = rand() * 512;
@@ -140,9 +151,12 @@ export function createContactShadowTexture(): THREE.CanvasTexture {
   canvas.width = 128;
   canvas.height = 128;
   const ctx = canvas.getContext('2d')!;
-  const grad = ctx.createRadialGradient(64, 64, 8, 64, 64, 60);
-  grad.addColorStop(0, 'rgba(45, 36, 30, 0.42)');
-  grad.addColorStop(0.65, 'rgba(45, 36, 30, 0.16)');
+  // Softer, longer falloff so grounded contact discs read as gentle ambient
+  // occlusion instead of hard grey stains on pale cobblestone.
+  const grad = ctx.createRadialGradient(64, 64, 4, 64, 64, 62);
+  grad.addColorStop(0, 'rgba(45, 36, 30, 0.34)');
+  grad.addColorStop(0.42, 'rgba(45, 36, 30, 0.2)');
+  grad.addColorStop(0.78, 'rgba(45, 36, 30, 0.07)');
   grad.addColorStop(1, 'rgba(45, 36, 30, 0)');
   ctx.fillStyle = grad;
   ctx.fillRect(0, 0, 128, 128);
