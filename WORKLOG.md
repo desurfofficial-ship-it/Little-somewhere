@@ -166,4 +166,23 @@ Chronological log of design decisions, implementation milestones, verification r
   - `npm run lint` (`tsc --noEmit`) and `npm run build` (`vite build`) passed with `0` errors.
   - Headless Chromium (`1440×900` and `390×844`) verified live `v1 -> v2` localStorage migration (Day 24 Autumn, restored plaza, `little_somewhere_world_v1_backup` creation), `light_rain` / seasonal rendering, mobile layout, Pocket Journal, and `0` console errors / `0` console warnings.
 
+---
 
+## Entry 010 — Milestone 2A Independent Audit, Validation & Milestone 2B Readiness
+- **Date**: 2026-11-18
+- **Status**: Completed (Audit & Readiness Only — No Feature Code Changes)
+- **Key Deliverables**:
+  - Authored `docs/audits/07-milestone-2a-final-validation.md` with explicit verification statuses (`Verified`, `Partially verified`, `Not verified`, `Failed`) across Phases 1–4, persistence, performance, software WebGL, desktop/mobile rendering, and prototype extensibility.
+  - Authored `docs/audits/08-milestone-2b-readiness.md` detailing Wave 0 pre-2B defect fixes, declarative `dialogueEngine.ts` + `DialogueTopic` extraction, `topicHistory` & `v2 -> v3` migration plan, relationship tiers, generalized conflict/reconciliation mechanics, multi-beat personal storylines, Pocket Journal history upgrades, tests, risks, and Milestone 3+ deferrals.
+  - Updated `HANDOVER.md` with verified `28/28` test status, accurate confirmed defects/limitations, and Milestone 2B next steps.
+- **Independent Audit Verification Results**:
+  - `npm test` (`tsx --test src/game/*.test.ts`): **28/28 passing** (`0` failures, `731.5ms` across 6 test suites; corrects `27/27` / `5/5` references in Entry 009 & `HANDOVER.md`).
+  - `npm run lint` (`tsc --noEmit`): **0 errors**.
+  - `npm run build` (`vite build`): **Clean** (`1,690` modules).
+  - Live Chromium (`1440×900` & `390×844`): **0 console errors, 0 console warnings**; verified Title, Day 1 gameplay, WASD + Jun dialogue, Pocket Journal (`Neighbors`, `World & Time`), reload persistence, `v1 -> v2` Day 24 Autumn migration + `little_somewhere_world_v1_backup`, `Summer · Light Rain`, `Winter · Misty Morning` clearing after `10:30 AM`, `Lantern Dusk`, and clean `titleLsAfterPagehide === null`.
+- **Confirmed Milestone 2A Defects & Gaps Identified**:
+  1. **Frame-0 Pre-Update Render (`src/scene/NeighborhoodCanvas.tsx:934-937`)**: Initial synchronous `renderer.render()` executes before `envController.update()`, showing uninitialized Spring/Morning defaults and unrestored props under SwiftShader until `tick()` #1 finishes.
+  2. **Fountain Water Occlusion (`src/scene/builders/landmarks.ts:283-368`, `models.ts:435-466`)**: Solid `outerWall` cylinder (`top = 0.70`) buries `dryFloor` (`0.52`) and `waterMesh` (`0.62`), leaving restored fountain basin looking dry even while `spoutParticles` animate above it.
+  3. **Mobile `JournalDrawer` Tab Clipping (`src/components/JournalDrawer.tsx:92-129`)**: On `390×844`, `whitespace-nowrap shrink-0` tabs clip `"Story & Memories (5/5)"` and push `"World & Time"` off-screen with no scroll indicator.
+  4. **Prototype Count Hardcode (`src/components/PauseModal.tsx:43`)**: Still displays `{metCount}/9` instead of `{metCount}/${RESIDENT_ORDER.length}`.
+  5. **Documented Scope Gaps**: `puddlesActive`, `claraPastryBasketVisible`, `minaGreenhouseStage`, and `arthurEarlyPorchLamp` have no 3D mesh hookups in `environmentRenderer.ts`; `willowLaneDiorama.ts` hero trees lack seasonal tinting; calm `sunlit` autumn/winter days do not emit leaves/snow (`showPetals`); `src/game/dialogueEngine.ts` remains scheduled for Milestone 2B; `getSaveStamp()` excludes `npcRuntime`/`flags`/`residents`.
