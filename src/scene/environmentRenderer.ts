@@ -10,23 +10,23 @@ import { getWaterShaderUniforms } from './waterShaders';
 // Pre-allocated scratch helpers (zero per-frame heap allocations)
 const _skyMorning = new THREE.Color('#DCEBF2');
 const _skyAfternoon = new THREE.Color('#D9ECF5');
-const _skyGolden = new THREE.Color('#F5CFA0');
-const _skyDusk = new THREE.Color('#6F7FA8');
+const _skyGolden = new THREE.Color('#F2C28C');
+const _skyDusk = new THREE.Color('#4C5B8F');
 const _skyRain = new THREE.Color('#BAC9D4');
 const _skyMist = new THREE.Color('#E3ECEF');
 const _skyWork = new THREE.Color();
 
 const _sunMorning = new THREE.Color('#FFF1D0');
 const _sunAfternoon = new THREE.Color('#FFF6DF');
-const _sunGolden = new THREE.Color('#FFB266');
-const _sunDusk = new THREE.Color('#97AEE0');
+const _sunGolden = new THREE.Color('#FF9D4A');
+const _sunDusk = new THREE.Color('#8099D8');
 const _sunRain = new THREE.Color('#D8E0E8');
 const _sunWork = new THREE.Color();
 
 const _hemiSkyMorning = new THREE.Color('#B5D7EB');
-const _hemiSkyDusk = new THREE.Color('#5B71A8');
+const _hemiSkyDusk = new THREE.Color('#47568C');
 const _hemiGroundMorning = new THREE.Color('#7A664E');
-const _hemiGroundDusk = new THREE.Color('#3F3D52');
+const _hemiGroundDusk = new THREE.Color('#34324A');
 
 const _seasonTint = new THREE.Color();
 const _dummy = new THREE.Object3D();
@@ -207,9 +207,9 @@ export class EnvironmentVisualController {
       const phase = composed.timeOfDay.phase;
       const windowGlow =
         phase === 'dusk'
-          ? 1.75
+          ? 2.1
           : phase === 'golden'
-          ? 0.78
+          ? 0.9
           : composed.weather.effective === 'light_rain'
           ? 0.45
           : 0.22;
@@ -217,9 +217,9 @@ export class EnvironmentVisualController {
         windowMaterials[i].emissiveIntensity = windowGlow;
       }
       lanternMat.emissiveIntensity =
-        phase === 'dusk' ? 1.85 : composed.timeOfDay.lanternScheduleActive ? 0.95 : 0.15;
+        phase === 'dusk' ? 2.15 : composed.timeOfDay.lanternScheduleActive ? 0.95 : 0.15;
       const protoGlow =
-        phase === 'dusk' ? 2.1 : composed.timeOfDay.lanternScheduleActive ? 0.95 : 0.22;
+        phase === 'dusk' ? 2.35 : composed.timeOfDay.lanternScheduleActive ? 0.95 : 0.22;
       for (let i = 0; i < prototypeLanternMats.length; i++) {
         prototypeLanternMats[i].emissiveIntensity = protoGlow;
       }
@@ -292,14 +292,17 @@ export class EnvironmentVisualController {
     const duskFactor = Math.max(0, (tNorm - 0.58) / 0.42);
     hemiLight.color.copy(_hemiSkyMorning).lerp(_hemiSkyDusk, duskFactor);
     hemiLight.groundColor.copy(_hemiGroundMorning).lerp(_hemiGroundDusk, duskFactor);
-    hemiLight.intensity = THREE.MathUtils.lerp(0.54, 0.34, duskFactor);
-    scene.environmentIntensity = THREE.MathUtils.lerp(0.68, 0.24, duskFactor);
+    hemiLight.intensity = THREE.MathUtils.lerp(0.54, 0.22, duskFactor);
+    scene.environmentIntensity = THREE.MathUtils.lerp(0.68, 0.15, duskFactor);
     const rainSunScale = effWeather === 'light_rain' ? 0.78 : 1.0;
     sunLight.intensity =
-      THREE.MathUtils.lerp(1.52, 0.58, Math.max(0, (tNorm - 0.62) / 0.38)) * rainSunScale;
+      THREE.MathUtils.lerp(1.52, 0.44, Math.max(0, (tNorm - 0.62) / 0.38)) * rainSunScale;
 
-    const sunAngle = THREE.MathUtils.lerp(0.5, 2.4, tNorm);
-    sunLight.position.set(Math.cos(sunAngle) * 26, 26 - Math.abs(tNorm - 0.5) * 10, 16);
+    // R-01: lengthened azimuth sweep + lower raking elevation so golden hour casts
+    // long shadows and dusk settles into genuine twilight (was 0.5..2.4 / flat 26-height arc)
+    const sunAngle = THREE.MathUtils.lerp(0.42, 2.6, tNorm);
+    const sunHeight = Math.max(8, 24 - Math.abs(tNorm - 0.44) * 30);
+    sunLight.position.set(Math.cos(sunAngle) * 26, sunHeight, 16);
 
     // 4. Continuous Ambient Motion (Oak Glint, Fountain Cascades & Droplets, Mirror Pond Life, Bell Swing, Weather)
     this.fountainSplashAge = Math.min(99, this.fountainSplashAge + dt);

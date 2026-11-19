@@ -291,3 +291,21 @@ Chronological log of design decisions, implementation milestones, verification r
 
 
 
+
+---
+
+## Entry 017 — Roadmap Build 1: R-01 Golden/Dusk Lighting Drama + R-03 Touch-Only Thumbstick (P1 items)
+- **Date**: 2026-11-19
+- **Status**: Completed & Verified
+- **Key Deliverables** (per `docs/audits/09-comprehensive-asset-visual-audit.md` roadmap, user-approved "continue building"):
+  - **R-01 Golden & Dusk Lighting Drama (`src/scene/environmentRenderer.ts`)**:
+    - Deepened golden-hour warmth: sky `#F5CFA0` -> `#F2C28C`, sun `#FFB266` -> `#FF9D4A`; dusk deepened toward true twilight: sky `#6F7FA8` -> `#4C5B8F`, sun `#97AEE0` -> `#8099D8`, hemi sky `#5B71A8` -> `#47568C`, hemi ground `#3F3D52` -> `#34324A`.
+    - Ambient falloff at dusk hardened per audit targets: hemisphere intensity floor 0.34 -> **0.22**, IBL `environmentIntensity` floor 0.24 -> **0.15**, sun intensity floor 0.58 -> **0.44** — glowing windows, lanterns, festoon bulbs and fireflies now read against genuinely dim twilight instead of noon ambient.
+    - Sun path drama: azimuth sweep lengthened (0.5..2.4 -> 0.42..2.6 rad) and elevation curve lowered with a hard floor (`max(8, 24 - |tNorm-0.44|*30)`, was a flat `26 - |tNorm-0.5|*10`), so golden hour now casts long raking shadows and dusk sun sits low.
+    - Glow contrast raised: dusk window emissive 1.75 -> **2.1**, golden 0.78 -> **0.9**, dusk lantern 1.85 -> **2.15**, dusk prototype lanterns 2.1 -> **2.35**.
+    - Dusk assertions in `environmentRenderer.test.ts` updated to the new emissive targets (2.1 / 2.15).
+  - **R-03 Touch-Only VirtualJoystick (`src/App.tsx`)**:
+    - Added `hasTouchInput` gate: `(pointer: coarse)` media query OR `navigator.maxTouchPoints > 0`; the thumbstick now renders only on touch-capable devices, with an inert hidden spacer preserving the bottom-bar flex layout on desktop.
+- **Verification**:
+  - `npm test`: **55/55 passing**, `npm run lint`: **0 errors**, `npm run build`: pass.
+  - Live headless Chromium desktop `1440×900`: Golden Hour 4:18 PM capture shows warm amber cast + long shadows; Lantern Dusk 8:20 PM capture shows deep twilight with high-contrast window/lantern/festoon glow; thumbstick confirmed **absent** on desktop (`aria-label` probe); **0 console errors, 0 page errors**.

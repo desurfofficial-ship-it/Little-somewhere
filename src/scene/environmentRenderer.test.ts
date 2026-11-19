@@ -131,8 +131,8 @@ test('EnvironmentVisualController applies non-default season, weather, lighting,
   assert.equal(oakGlint.visible, false);
   assert.equal(mbFlag.rotation.z, -1.2);
   assert.equal(flyers.every((f) => f.visible), true);
-  assert.equal(windowMat.emissiveIntensity, 1.75);
-  assert.equal(lanternMat.emissiveIntensity, 1.85);
+  assert.equal(windowMat.emissiveIntensity, 2.1);
+  assert.equal(lanternMat.emissiveIntensity, 2.15);
   assert.equal((scene.fog as THREE.Fog).near, 32);
 
   controller.dispose();

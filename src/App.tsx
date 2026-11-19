@@ -103,6 +103,15 @@ export default function App() {
   const [toastText, setToastText] = useState<string | null>(null);
   const [playerActionPulse, setPlayerActionPulse] = useState<PlayerActionPulse | null>(null);
   const pulseSeqRef = useRef(0);
+  // R-03: touch-only thumbstick — the on-screen joystick is a touch affordance and must not
+  // render on mouse-first desktop viewports (primary pointer = fine, no touch digitizer).
+  const [hasTouchInput] = useState<boolean>(
+    () =>
+      typeof window !== 'undefined' &&
+      ((typeof window.matchMedia === 'function' &&
+        window.matchMedia('(pointer: coarse)').matches) ||
+        (typeof navigator !== 'undefined' && navigator.maxTouchPoints > 0)),
+  );
 
   const triggerPlayerPulse = useCallback((kind: PlayerActionPulse['kind'], focusPos?: Vec2) => {
     pulseSeqRef.current += 1;
@@ -622,10 +631,14 @@ export default function App() {
             )
           )}
 
-          {/* Bottom Controls: Left Thumbstick + Center/Right Contextual Interact & Held Item CTA */}
+          {/* Bottom Controls: Left Thumbstick (touch devices only) + Center/Right Contextual Interact & Held Item CTA */}
           {!isSheetOpen && !journalOpen && screenState === 'playing' && (
             <div className="flex items-end justify-between gap-3 sm:gap-4 pb-1">
-              <VirtualJoystick vectorRef={joystickVectorRef} />
+              {hasTouchInput ? (
+                <VirtualJoystick vectorRef={joystickVectorRef} />
+              ) : (
+                <div className="hidden" aria-hidden="true" />
+              )}
 
               <div className="flex flex-col items-end gap-2 pointer-events-auto min-w-0 max-w-[240px] sm:max-w-none">
                 {playerHeldItem && worldSnapshot.worldProps?.[playerHeldItem] && (
