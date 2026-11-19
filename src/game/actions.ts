@@ -20,7 +20,7 @@ import {
 import { RESIDENTS, getTimePhase } from './residents';
 import { advanceToNextDay } from './storage';
 import { isSeatOccupiedByNpc } from './playerController';
-import { getLandmarkAt, getSeatById, isPlayerInCottageInterior, isPointWalkable, resolveMovement } from './worldMap';
+import { getLandmarkAt, getSeatById, isPointWalkable, resolveMovement } from './worldMap';
 import {
   ACOUSTIC_BELL_RADIUS,
   LOCAL_WITNESS_RADIUS,
@@ -35,7 +35,8 @@ import {
   advanceStorylineInPlace,
   cloneStorylines,
 } from './storylines';
-import {  CarryableItemId,
+import {
+  CarryableItemId,
   DialogueChoice,
   DialogueSession,
   EnvironmentalState,
@@ -909,38 +910,12 @@ export function interactWithProp(
   }
 
   if (propId === 'player_door') {
-    const inside = isPlayerInCottageInterior(world.playerPos.x, world.playerPos.z);
-    return inside
-      ? {
-          nextWorld: world,
-          title: 'Willow Step Cottage Door',
-          body: 'The cedar door rests ajar behind you, its brass knob warm from the hearth. Step back onto the porch whenever the lane calls.',
-          actionLabel: 'Step Outside',
-        }
-      : {
-          nextWorld: world,
-          title: 'Willow Step Cottage Door',
-          body: 'The cedar door swings open at your touch, letting out the smell of warm cedar, dried lavender, and this morning’s kettle. Wander in — the hearth is yours.',
-          actionLabel: 'Step Inside',
-        };
-  }
-
-  if (propId === 'player_bed') {
     return {
       nextWorld: world,
-      title: 'Willow Quilt Bed',
-      body: `Day ${world.day} is winding softly down beyond the shutters. Slip under the moss-green quilt until tomorrow morning? All neighbor friendships, memories, and neighborhood changes will stay just as you shaped them.`,
+      title: 'Willow Step Cottage Porch',
+      body: `Day ${world.day} is winding softly down outside. Rest inside until tomorrow morning? All neighbor friendships, memories, and neighborhood changes will stay just as you shaped them.`,
       actionLabel: 'Rest Until Morning',
       actionType: 'rest_next_day',
-    };
-  }
-
-  if (propId === 'player_hearth') {
-    return {
-      nextWorld: world,
-      title: 'Cottage Hearth',
-      body: 'You cup your palms over the ember bed while the fieldstone breathes out its slow, dry warmth. Somewhere in the flue, a kettle hums a low evening note.',
-      actionLabel: 'Warm Hands',
     };
   }
 

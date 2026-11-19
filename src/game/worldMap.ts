@@ -65,22 +65,8 @@ export const PLAYER_SPAWN: Vec2 = { x: -8.5, z: 9.5 };
 export const PLAYER_DEFAULT_FACING = Math.PI * 0.75; // Facing northeast toward town square
 
 export const BOX_OBSTACLES: BoxObstacle[] = [
-  // Player Home (Willow Step Cottage) — walkable interior!
-  // Exterior wall segments leave a 1.4-wide east doorway gap (z 9.3..10.7) so the
-  // player (and A*) can walk through the porch door into the furnished room.
-  { id: 'cottage_wall_west', minX: -17.65, maxX: -17.25, minZ: 7.55, maxZ: 12.45 },
-  { id: 'cottage_wall_north', minX: -17.65, maxX: -12.65, minZ: 7.55, maxZ: 7.95 },
-  { id: 'cottage_wall_south', minX: -17.65, maxX: -12.65, minZ: 12.05, maxZ: 12.45 },
-  { id: 'cottage_wall_east_north', minX: -13.05, maxX: -12.65, minZ: 7.55, maxZ: 9.3 },
-  { id: 'cottage_wall_east_south', minX: -13.05, maxX: -12.65, minZ: 10.7, maxZ: 12.45 },
-  // Cottage furniture (mirrored by src/scene/builders/cottageInterior.ts)
-  { id: 'cottage_bed', minX: -17.2, maxX: -16.1, minZ: 7.95, maxZ: 9.55 },
-  { id: 'cottage_hearth', minX: -17.25, maxX: -16.55, minZ: 10.5, maxZ: 12.0 },
-  { id: 'cottage_bookshelf', minX: -15.95, maxX: -14.95, minZ: 7.95, maxZ: 8.55 },
-  { id: 'cottage_kitchenette', minX: -14.55, maxX: -13.15, minZ: 7.95, maxZ: 8.5 },
-  // Porch railings flanking the entry step (center gap stays open)
-  { id: 'cottage_porch_rail_north', minX: -11.45, maxX: -11.05, minZ: 8.0, maxZ: 9.2 },
-  { id: 'cottage_porch_rail_south', minX: -11.45, maxX: -11.05, minZ: 10.8, maxZ: 12.0 },
+  // Player Home (Willow Step Cottage)
+  { id: 'player_cottage', minX: -18.2, maxX: -10.8, minZ: 6.8, maxZ: 13.2 },
   // Hearth & Crumb Bakery
   { id: 'bakery', minX: -16.4, maxX: -8.4, minZ: -14.2, maxZ: -7.4 },
   // Linden Book Nook
@@ -126,109 +112,7 @@ export const CIRCLE_OBSTACLES: CircleObstacle[] = [
   { id: 'orchard_crates', x: -3.7, z: -20.3, radius: 0.55 },
   { id: 'orchard_skep', x: 4.9, z: -16.3, radius: 0.4 },
   { id: 'orchard_bench', x: -11.0, z: -20.6, radius: 0.42 },
-  // Willow Step Cottage interior furniture & porch dressing
-  { id: 'cottage_table', x: -14.35, z: 11.15, radius: 0.52 },
-  { id: 'cottage_stool_east', x: -13.8, z: 11.42, radius: 0.24 },
-  { id: 'cottage_stool_west', x: -15.1, z: 11.55, radius: 0.24 },
-  { id: 'cottage_porch_bench', x: -12.05, z: 11.5, radius: 0.45 },
-  { id: 'cottage_porch_pot', x: -12.1, z: 8.55, radius: 0.32 },
 ];
-
-/**
- * Willow Step Cottage walkable plates. Porch deck and interior floor are hard
- * plateaus (every non-entry edge is obstacle-blocked by walls, rails & props).
- * The entry ramp spans the open stair gap and eases lawn (0) up to deck (0.42)
- * with a smoothstep profile, so walkers climb the threshold without popping.
- */
-export interface CottagePlateauRect {
-  minX: number;
-  maxX: number;
-  minZ: number;
-  maxZ: number;
-  height: number;
-}
-
-/** Entry ramp band: lawn at x >= -10.34 rises to deck height at x <= -11.13. */
-export const COTTAGE_STEP_PLATEAU: CottagePlateauRect = {
-  minX: -11.13,
-  maxX: -10.34,
-  minZ: 9.125,
-  maxZ: 10.875,
-  height: 0.42,
-};
-
-export const COTTAGE_PORCH_PLATEAU: CottagePlateauRect = {
-  minX: -12.65,
-  maxX: -11.13,
-  minZ: 7.8,
-  maxZ: 12.2,
-  height: 0.42,
-};
-
-export const COTTAGE_INTERIOR_PLATEAU: CottagePlateauRect = {
-  minX: -17.65,
-  maxX: -12.65,
-  minZ: 7.55,
-  maxZ: 12.45,
-  height: 0.46,
-};
-
-/** Interior mode flips ON inside these rects (entry apron, porch deck or furnished room). */
-export const COTTAGE_INTERIOR_ON_RECT = {
-  minX: -17.65,
-  maxX: -10.6,
-  minZ: 7.55,
-  maxZ: 12.45,
-} as const;
-
-/** Interior mode flips OFF only once fully outside this wider hysteresis rect. */
-export const COTTAGE_INTERIOR_OFF_RECT = {
-  minX: -17.95,
-  maxX: -10.3,
-  minZ: 7.25,
-  maxZ: 12.75,
-} as const;
-
-const COTTAGE_DOOR_WAYPOINT: Vec2 = { x: -12.85, z: 10.0 };
-
-function cottageRectHeight(x: number, z: number, rect: CottagePlateauRect): number {
-  if (x < rect.minX || x > rect.maxX || z < rect.minZ || z > rect.maxZ) return 0;
-  return rect.height;
-}
-
-/**
- * Smooth entry ramp through the open stair gap: lawn level east of -10.34,
- * full deck height west of -11.13, eased with smoothstep; the band fades out
- * over a 0.15m shoulder north/south of the stair gap so edges stay soft.
- */
-function cottageEntryRampHeight(x: number, z: number): number {
-  const zGate = Math.min(1, Math.max(0, Math.min(z - 8.975, 11.025 - z) / 0.15));
-  if (zGate <= 0) return 0;
-  // t = 0 at the lawn edge (x = -10.34), 1 at the deck edge (x = -11.13)
-  const t = Math.min(1, Math.max(0, (-x - 10.34) / 0.79));
-  const eased = t * t * (3 - 2 * t);
-  return COTTAGE_STEP_PLATEAU.height * eased * zGate;
-}
-
-/**
- * True when the player stands on the cottage porch deck or inside the furnished
- * room — drives the dollhouse occlusion swap (roof & near walls hide) and the
- * proactive door swing.
- */
-export function isPlayerInCottageInterior(x: number, z: number, wasInside = false): boolean {
-  const inOnRect =
-    x >= COTTAGE_INTERIOR_ON_RECT.minX &&
-    x <= COTTAGE_INTERIOR_ON_RECT.maxX &&
-    z >= COTTAGE_INTERIOR_ON_RECT.minZ &&
-    z <= COTTAGE_INTERIOR_ON_RECT.maxZ;
-  if (inOnRect) return true;
-  const inOffRect =
-    x >= COTTAGE_INTERIOR_OFF_RECT.minX &&
-    x <= COTTAGE_INTERIOR_OFF_RECT.maxX &&
-    z >= COTTAGE_INTERIOR_OFF_RECT.minZ &&
-    z <= COTTAGE_INTERIOR_OFF_RECT.maxZ;
-  return wasInside && inOffRect;
-}
 
 export const SEAT_SPOTS: readonly SeatSpot[] = [
   {
@@ -336,7 +220,7 @@ export function createInitialWorldProps(): Record<CarryableItemId, WorldPropPlac
 }
 
 export const LANDMARK_ZONES: LandmarkZone[] = [
-  { id: 'home', name: 'Willow Step Cottage', subtitle: 'Your hearthlit one-room home', x: -10, z: 10, radius: 6.5 },
+  { id: 'home', name: 'Willow Step Cottage', subtitle: 'Your quiet porch & mailbox', x: -10, z: 10, radius: 6.5 },
   { id: 'square', name: 'Sunlit Fountain Plaza', subtitle: 'Heart of Little Somewhere', x: 0, z: 1.5, radius: 6.5 },
   { id: 'gazebo', name: 'Old Bell Gazebo', subtitle: 'Ivy-draped cedar spire', x: 0, z: -9.5, radius: 6.0 },
   { id: 'bakery', name: 'Hearth & Crumb Bakery', subtitle: 'Clara’s warm sourdough oven', x: -11, z: -7, radius: 6.0 },
@@ -350,8 +234,6 @@ export const LANDMARK_ZONES: LandmarkZone[] = [
 
 export const PROP_INTERACTABLES: PropInteractable[] = [
   { id: 'player_door', name: 'Cottage Porch Door', x: -10.3, z: 10.0, interactRadius: 2.5 },
-  { id: 'player_bed', name: 'Willow Quilt Bed', x: -16.6, z: 8.9, interactRadius: 1.7 },
-  { id: 'player_hearth', name: 'Cottage Hearth', x: -16.9, z: 11.25, interactRadius: 1.6 },
   { id: 'player_mailbox', name: 'Willow Mailbox', x: -9.8, z: 7.2, interactRadius: 2.3 },
   { id: 'gazebo_bell', name: 'Gazebo Bell Spire', x: 0, z: -6.8, interactRadius: 2.8 },
   { id: 'fountain_plaza', name: 'Mossy Stone Fountain', x: 0, z: 4.1, interactRadius: 2.6 },
@@ -476,26 +358,13 @@ export function getPropInteractionMetrics(
       ? { x: 4.4, z: -3.2 }
       : propId === 'player_door'
       ? { x: -10.8, z: 10.0 }
-      : propId === 'player_bed'
-      ? { x: -16.65, z: 8.75 }
-      : propId === 'player_hearth'
-      ? { x: -17.1, z: 11.25 }
-      : { x: def.x, z: def.z };
-
-  const approachPos: Vec2 =
-    propId === 'player_bed'
-      ? { x: -15.5, z: 9.3 }
-      : propId === 'player_hearth'
-      ? { x: -16.0, z: 11.25 }
-      : propId === 'player_door'
-      ? COTTAGE_DOOR_WAYPOINT
       : { x: def.x, z: def.z };
 
   return {
     inRange: dist <= def.interactRadius,
     scoreDistance: dist,
     focusPos,
-    approachPos,
+    approachPos: { x: def.x, z: def.z },
     splashPos: focusPos,
   };
 }
@@ -520,15 +389,6 @@ export function getGroundHeightAt(x: number, z: number): number {
     const edgeFeather = Math.max(0, Math.min(1, (2.6 - Math.abs(z - 14.0)) / 0.35));
     return arch * edgeFeather;
   }
-
-  // Willow Step Cottage: hard porch & interior plates + smooth entry ramp
-  const cottageH = Math.max(
-    cottageRectHeight(x, z, COTTAGE_PORCH_PLATEAU),
-    cottageRectHeight(x, z, COTTAGE_INTERIOR_PLATEAU),
-    cottageEntryRampHeight(x, z),
-  );
-  if (cottageH > 0) return cottageH;
-
   return 0;
 }
 

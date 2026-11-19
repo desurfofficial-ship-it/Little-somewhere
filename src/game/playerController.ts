@@ -14,11 +14,9 @@ import {
   getGroundHeightAt,
   getPropInteractionMetrics,
   getSeatById,
-  isPlayerInCottageInterior,
   isPointWalkable,
   resolveMovement,
 } from './worldMap';
-import { hasLineOfSight } from './navigation';
 
 export const PLAYER_WALK_SPEED = 3.6;
 export const PLAYER_RUN_SPEED = 5.4;
@@ -26,119 +24,6 @@ export const PLAYER_SPRINT_SPEED = 7.6;
 export const PLAYER_ACCEL_RATE = 16.0;
 export const PLAYER_DECEL_RATE = 14.0;
 export const PLAYER_TURN_RATE = 13.0;
-
-// Idle flourish tuning — after standing still for a cozy while the player does a
-// little life gesture (adjust beret / look around / stretch & admire) so the
-// character never feels frozen between inputs.
-export const PLAYER_IDLE_FLOURISH_MIN_SECONDS = 6.5;
-export const PLAYER_IDLE_FLOURISH_MAX_SECONDS = 10.0;
-export const PLAYER_IDLE_FLOURISH_DURATION = 1.5;
-
-export type PlayerIdleFlourish = 'adjust_hat' | 'look_around' | 'admire';
-
-export interface PlayerIdleFlourishRuntime {
-  idleSeconds: number;
-  nextFlourishAt: number;
-  activeFlourish: PlayerIdleFlourish | null;
-  flourishTimer: number;
-  lastFlourish: PlayerIdleFlourish | null;
-}
-
-export function createInitialIdleFlourish(): PlayerIdleFlourishRuntime {
-  return {
-    idleSeconds: 0,
-    nextFlourishAt: PLAYER_IDLE_FLOURISH_MIN_SECONDS,
-    activeFlourish: null,
-    flourishTimer: 0,
-    lastFlourish: null,
-  };
-}
-
-/**
- * Pure idle-flourish scheduler: counts quiet standing seconds (movement, sitting,
- * dialogue and gesture pulses all reset the timer), fires a non-repeating
- * flourish gesture, and holds it for PLAYER_IDLE_FLOURISH_DURATION seconds.
- * `rand01` should be a deterministic 0..1 sampler for testability.
- */
-export function stepIdleFlourish(
-  runtime: PlayerIdleFlourishRuntime,
-  opts: {
-    isMoving: boolean;
-    isSitting: boolean;
-    isDialogueOpen: boolean;
-    hasGesturePulse: boolean;
-    dt: number;
-    rand01: () => number;
-  },
-): PlayerIdleFlourishRuntime {
-  const next: PlayerIdleFlourishRuntime = {
-    idleSeconds: runtime.idleSeconds,
-    nextFlourishAt: runtime.nextFlourishAt,
-    activeFlourish: runtime.activeFlourish,
-    flourishTimer: runtime.flourishTimer,
-    lastFlourish: runtime.lastFlourish,
-  };
-
-  if (next.activeFlourish) {
-    next.flourishTimer = Math.max(0, next.flourishTimer - opts.dt);
-    if (next.flourishTimer <= 0) {
-      next.lastFlourish = next.activeFlourish;
-      next.activeFlourish = null;
-      next.flourishTimer = 0;
-      // Fresh randomized wait for the next quiet spell
-      next.nextFlourishAt =
-        PLAYER_IDLE_FLOURISH_MIN_SECONDS + opts.rand01() * (PLAYER_IDLE_FLOURISH_MAX_SECONDS - PLAYER_IDLE_FLOURISH_MIN_SECONDS);
-    }
-    return next;
-  }
-
-  if (opts.isMoving || opts.isSitting || opts.isDialogueOpen || opts.hasGesturePulse) {
-    next.idleSeconds = 0;
-    return next;
-  }
-
-  next.idleSeconds += opts.dt;
-  if (next.idleSeconds >= next.nextFlourishAt) {
-    const pool: PlayerIdleFlourish[] =
-      runtime.lastFlourish === 'adjust_hat'
-        ? ['look_around', 'admire']
-        : runtime.lastFlourish === 'look_around'
-        ? ['adjust_hat', 'admire']
-        : runtime.lastFlourish === 'admire'
-        ? ['adjust_hat', 'look_around']
-        : ['adjust_hat', 'look_around', 'admire'];
-    next.activeFlourish = pool[Math.min(pool.length - 1, Math.floor(opts.rand01() * pool.length))];
-    next.flourishTimer = PLAYER_IDLE_FLOURISH_DURATION;
-    next.idleSeconds = 0;
-    next.nextFlourishAt = PLAYER_IDLE_FLOURISH_MAX_SECONDS;
-  }
-  return next;
-}
-
-/**
- * Residents that wave back when the player waves hello: within `maxDistance`, on
- * their feet (or happy to wave from a bench), with clear line of sight so walls
- * and hedges feel solid. Returns ids ordered by proximity (closest first).
- */
-export function selectWaveBackResidents(
-  world: WorldState,
-  playerPos: Vec2,
-  maxDistance = 7.0,
-): ResidentId[] {
-  if (!world.npcRuntime) return [];
-  const candidates: Array<{ id: ResidentId; d: number }> = [];
-  for (const id of Object.keys(world.npcRuntime) as ResidentId[]) {
-    const rt = world.npcRuntime[id];
-    if (!rt) continue;
-    if (rt.socialPartnerId) continue; // mid-conversation residents keep chatting
-    const d = distance2D(playerPos, rt.position);
-    if (d > maxDistance) continue;
-    if (!hasLineOfSight(playerPos, rt.position, 0.38)) continue;
-    candidates.push({ id, d });
-  }
-  candidates.sort((a, b) => a.d - b.d);
-  return candidates.map((c) => c.id);
-}
 
 export interface PlayerMotionRuntime {
   vx: number;
@@ -477,18 +362,12 @@ export function selectBestInteractiveTarget(
   for (const prop of PROP_INTERACTABLES) {
     const metrics = getPropInteractionMetrics(prop.id, world.playerPos);
     if (metrics.inRange) {
-      let actionLabel = `Inspect ${prop.name}`;
-      if (prop.id === 'gazebo_bell' && world.flags.bellRestored) {
-        actionLabel = 'Ring Bell';
-      } else if (prop.id === 'player_door') {
-        actionLabel = isPlayerInCottageInterior(world.playerPos.x, world.playerPos.z)
-          ? 'Step Outside'
-          : 'Step Inside';
-      } else if (prop.id === 'player_bed') {
-        actionLabel = 'Rest Until Morning';
-      } else if (prop.id === 'player_hearth') {
-        actionLabel = 'Warm Hands';
-      }
+      const actionLabel =
+        prop.id === 'gazebo_bell' && world.flags.bellRestored
+          ? 'Ring Bell'
+          : prop.id === 'player_door'
+          ? 'Rest / Porch'
+          : `Inspect ${prop.name}`;
       evaluateCandidate(
         {
           kind: 'prop',

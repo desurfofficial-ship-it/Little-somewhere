@@ -1,14 +1,21 @@
-import React, { useState } from 'react';
-import { BookOpen, Check, Clock, Heart, MapPin, Users, X } from 'lucide-react';
-import { RESIDENTS, RESIDENT_ORDER, getResidentScheduleSlot, getTimePhase } from '../game/residents';
-import { getResidentAvailableQuestCue } from '../game/narrative';
-import { composeEnvironmentState, getWeatherLabel } from '../game/environment';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  getEmotionLabel,
-  getRelationshipTier,
-  getRelationshipTierLabel,
-  moodToEmotion,
-} from '../game/relationships';
+  BookOpen,
+  Check,
+  Clock,
+  Compass,
+  Feather,
+  Heart,
+  Sparkles,
+  Users,
+  X,
+} from 'lucide-react';
+import {
+  JournalTabId,
+  buildPocketJournalView,
+  loadJournalReadKeys,
+  saveJournalReadKeys,
+} from '../game/journal';
 import { WorldState } from '../game/types';
 
 interface JournalDrawerProps {
@@ -16,413 +23,665 @@ interface JournalDrawerProps {
   world: WorldState;
   onClose: () => void;
   onAdvanceTime: () => void;
+  initialTab?: JournalTabId;
 }
+
+const TAB_DEFS: ReadonlyArray<{
+  id: JournalTabId;
+  label: string;
+  Icon: React.ComponentType<{ className?: string }>;
+}> = [
+  { id: 'stories', label: 'Stories', Icon: BookOpen },
+  { id: 'memories', label: 'Memories', Icon: Feather },
+  { id: 'people', label: 'People', Icon: Users },
+  { id: 'discoveries', label: 'Discoveries', Icon: Compass },
+];
 
 export const JournalDrawer: React.FC<JournalDrawerProps> = ({
   open,
   world,
   onClose,
   onAdvanceTime,
+  initialTab = 'stories',
 }) => {
-  const [tab, setTab] = useState<'residents' | 'story' | 'guide'>('residents');
+  const [tab, setTab] = useState<JournalTabId>(initialTab);
+  const [seenKeys, setSeenKeys] = useState<Set<string>>(() => loadJournalReadKeys());
+  const wasOpenRef = useRef<boolean>(false);
+  const bodyScrollRef = useRef<HTMLDivElement | null>(null);
 
-  if (!open) return null;
+  const journal = useMemo(
+    () => buildPocketJournalView(world, seenKeys),
+    [world, seenKeys],
+  );
 
-  const phase = getTimePhase(world.minuteOfDay);
-  const composed = composeEnvironmentState(world);
-  const env = composed.playerChanges;
+  const markTabEntriesRead = useCallback(
+    (targetTab: JournalTabId) => {
+      const keysForTab = journal.tabEntryKeys[targetTab];
+      if (!keysForTab || keysForTab.length === 0) return;
+      setSeenKeys((prev) => {
+        let changed = false;
+        const next = new Set(prev);
+        for (const k of keysForTab) {
+          if (!next.has(k)) {
+            next.add(k);
+            changed = true;
+          }
+        }
+        if (!changed) return prev;
+        saveJournalReadKeys(next);
+        return next;
+      });
+    },
+    [journal.tabEntryKeys],
+  );
 
-  const storyThreads = [
-    {
-      id: 'mystery',
-      title: 'The Quiet Gazebo Bell',
-      done: world.flags.heardBellMystery,
-      hint: 'Speak with Pip in the plaza or Nora at Linden Book Nook.',
-    },
-    {
-      id: 'ivy',
-      title: 'Clear the Gazebo Rafters',
-      done: world.flags.clearedGazeboIvy,
-      hint: 'Ask Barnaby at Pinecone Woodshop about borrowing his cedar ladder.',
-    },
-    {
-      id: 'clapper',
-      title: 'Recover the Brass Clapper',
-      done: world.flags.foundBrassClapper,
-      hint: 'Follow Toby’s clue near the Hollow Oak root by Mirror Pond.',
-    },
-    {
-      id: 'bridge',
-      title: 'Soften Old Silences (Postcard or Tea)',
-      done: world.flags.deliveredPostcard || world.flags.brewedChamomileTea || world.flags.claraArthurReconciled,
-      hint: 'Help Jun deliver Nora’s coastal postcard, or ask Sora for chamomile-pear tea.',
-    },
-    {
-      id: 'bell',
-      title: 'Ring the Restored Bell Together',
-      done: world.flags.bellRestored,
-      hint: 'Bring the clapper & clear rafters news to Arthur at Copperwheel Cottage.',
-    },
-  ];
+  const markAllRead = useCallback(() => {
+    const allKeys = [
+      ...journal.tabEntryKeys.stories,
+      ...journal.tabEntryKeys.memories,
+      ...journal.tabEntryKeys.people,
+      ...journal.tabEntryKeys.discoveries,
+    ];
+    setSeenKeys((prev) => {
+      const next = new Set(prev);
+      let changed = false;
+      for (const k of allKeys) {
+        if (!next.has(k)) {
+          next.add(k);
+          changed = true;
+        }
+      }
+      if (!changed) return prev;
+      saveJournalReadKeys(next);
+      return next;
+    });
+  }, [journal.tabEntryKeys]);
 
-  const completedThreads = storyThreads.filter((t) => t.done).length;
-  const sf = world.sideFlags ?? {};
-  const personalThreads = [
-    {
-      id: 'side_zine',
-      title: 'Pip & Nora’s Willow Lane Zine',
-      done: Boolean(sf.pipZinePrinted),
-      started: Boolean(sf.pipZineStarted),
-      hint: sf.pipZineStarted
-        ? 'Check in with Nora at Linden Book Nook to stitch Issue #1.'
-        : 'Build a warm chat with Pip (1+ heart) to hear his zine idea.',
-    },
-    {
-      id: 'side_herbloaf',
-      title: 'Mina & Clara’s Lemon-Thyme Loaf',
-      done: Boolean(sf.herbLoafShared),
-      started: Boolean(sf.herbLoafStarted),
-      hint: sf.herbLoafStarted
-        ? 'Visit Clara at Hearth & Crumb to share the herb sourdough.'
-        : 'Chat with Mina (1+ heart) about her grafted lemon-thyme.',
-    },
-    {
-      id: 'side_stand',
-      title: 'Sora & Barnaby’s Pond Music Stand',
-      done: Boolean(sf.pondStandBuilt),
-      started: Boolean(sf.pondStandStarted),
-      hint: sf.pondStandStarted
-        ? 'Ask Barnaby at Pinecone Woodshop to plane the cedar stand.'
-        : 'Visit Sora (1+ heart) to hear why her sheet music drifts.',
-    },
-    {
-      id: 'side_watch',
-      title: 'Jun & Arthur’s Pocket Watch',
-      done: Boolean(sf.watchTuneFinished),
-      started: Boolean(sf.watchTuneStarted),
-      hint: sf.watchTuneStarted
-        ? 'Ask Arthur at Copperwheel Cottage to oil Jun’s brass escapement.'
-        : 'Chat with Jun after helping deliver Nora’s coastal postcard.',
-    },
-  ];
+  // Reset scroll position when switching tabs
+  useEffect(() => {
+    if (bodyScrollRef.current) {
+      bodyScrollRef.current.scrollTop = 0;
+    }
+  }, [tab]);
 
-  const tabIds: Array<'residents' | 'story' | 'guide'> = ['residents', 'story', 'guide'];
+  // When closing after having opened, mark the currently viewed tab's entries as previously read
+  useEffect(() => {
+    if (open) {
+      wasOpenRef.current = true;
+    } else if (wasOpenRef.current) {
+      wasOpenRef.current = false;
+      markTabEntriesRead(tab);
+    }
+  }, [open, tab, markTabEntriesRead]);
+
+  const handleSelectTab = (nextTab: JournalTabId) => {
+    if (nextTab === tab) return;
+    markTabEntriesRead(tab);
+    setTab(nextTab);
+  };
+
+  const handleClose = () => {
+    markTabEntriesRead(tab);
+    onClose();
+  };
 
   const handleTabKeyDown = (
     e: React.KeyboardEvent<HTMLButtonElement>,
     currentIdx: number,
   ) => {
     let nextIdx: number | null = null;
-    if (e.key === 'ArrowRight') nextIdx = (currentIdx + 1) % tabIds.length;
-    else if (e.key === 'ArrowLeft') nextIdx = (currentIdx - 1 + tabIds.length) % tabIds.length;
+    if (e.key === 'ArrowRight') nextIdx = (currentIdx + 1) % TAB_DEFS.length;
+    else if (e.key === 'ArrowLeft')
+      nextIdx = (currentIdx - 1 + TAB_DEFS.length) % TAB_DEFS.length;
     else if (e.key === 'Home') nextIdx = 0;
-    else if (e.key === 'End') nextIdx = tabIds.length - 1;
+    else if (e.key === 'End') nextIdx = TAB_DEFS.length - 1;
 
     if (nextIdx !== null) {
       e.preventDefault();
-      const nextTab = tabIds[nextIdx];
-      setTab(nextTab);
+      const nextTab = TAB_DEFS[nextIdx].id;
+      handleSelectTab(nextTab);
       const targetBtn = document.getElementById(`journal-tab-${nextTab}`);
       targetBtn?.focus();
     }
   };
 
+  if (!open) return null;
+
+  const totalUnread =
+    journal.newCounts.stories +
+    journal.newCounts.memories +
+    journal.newCounts.people +
+    journal.newCounts.discoveries;
+
+  const completedMainCount = journal.mainStorySteps.filter(
+    (s) => s.status === 'completed',
+  ).length;
+  const totalMainSteps = world.flags.heardBellMystery ? 5 : 1;
+
   return (
-    <div className="fixed inset-0 z-40 flex items-center justify-center p-2.5 sm:p-6 bg-[#2D241E]/45 pointer-events-auto">
+    <div
+      className="fixed inset-0 z-40 flex items-center justify-center p-2.5 sm:p-6 bg-[#2D241E]/45 pointer-events-auto"
+      onClick={handleClose}
+    >
       <div
         role="dialog"
         aria-label="Pocket Journal"
+        onClick={(e) => e.stopPropagation()}
         className="w-full max-w-3xl max-h-[86vh] bg-[#FAF5EC] border border-[#D4C4AE] rounded-2xl shadow-[0_20px_56px_rgba(45,36,30,0.28)] flex flex-col overflow-hidden"
       >
-        {/* Header */}
-        <div className="flex items-center justify-between gap-3 px-4 sm:px-5 py-3.5 sm:py-4 border-b border-[#E5D9C7]">
+        {/* Notebook Header */}
+        <div className="flex items-start justify-between gap-3 px-4 sm:px-5 py-3.5 sm:py-4 border-b border-[#E5D9C7]">
           <div className="min-w-0">
-            <h2 className="font-display text-xl sm:text-2xl font-bold text-[#2D241E]">
+            <h2 className="font-display text-xl sm:text-2xl font-bold text-[#2D241E] leading-tight">
               Pocket Journal
             </h2>
             <p className="text-xs text-[#6A5B50] mt-0.5 leading-snug">
-              Day {world.day} ({composed.season.seasonLabel}) · {phase.charAt(0).toUpperCase() + phase.slice(1)} · {getWeatherLabel(composed.weather.effective)} · {world.memories.length} {world.memories.length === 1 ? 'Memory' : 'Memories'} Saved
+              <span className="font-mono-nums">Day {journal.day}</span> ({journal.seasonLabel}) ·{' '}
+              {journal.phaseLabel} · {journal.weatherLabel} ·{' '}
+              <span className="font-mono-nums">{journal.memories.length}</span>{' '}
+              {journal.memories.length === 1 ? 'Memory' : 'Memories'} Saved
             </p>
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="Close journal"
-            className="min-h-[44px] min-w-[44px] shrink-0 flex items-center justify-center rounded-xl text-[#6A5B50] hover:bg-[#EFE5D5] transition-colors cursor-pointer"
-          >
-            <X className="w-5 h-5" />
-          </button>
+          <div className="flex items-center gap-1.5 shrink-0">
+            {totalUnread > 0 && (
+              <button
+                type="button"
+                onClick={markAllRead}
+                className="min-h-[44px] px-2.5 sm:px-3 py-2 rounded-xl text-xs font-medium text-[#5E5046] hover:bg-[#EFE5D5] transition-colors cursor-pointer whitespace-nowrap"
+              >
+                Mark read
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={handleClose}
+              aria-label="Close journal"
+              className="min-h-[44px] min-w-[44px] shrink-0 flex items-center justify-center rounded-xl text-[#6A5B50] hover:bg-[#EFE5D5] transition-colors cursor-pointer"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
         </div>
 
-        {/* Segmented Tab Controls */}
+        {/* Segmented Navigation Tabs (2x2 thumb grid on mobile, single-row on sm+) */}
         <div
           role="tablist"
           aria-label="Journal sections"
-          className="px-3 sm:px-5 pt-2.5 sm:pt-3 pb-2 border-b border-[#EFE5D6] grid grid-cols-3 gap-1.5 sm:flex sm:items-center sm:gap-2"
+          className="px-3 sm:px-5 pt-2.5 sm:pt-3 pb-2.5 border-b border-[#EFE5D6] grid grid-cols-2 sm:flex sm:items-center gap-1.5 sm:gap-2"
         >
-          <button
-            id="journal-tab-residents"
-            type="button"
-            role="tab"
-            aria-selected={tab === 'residents'}
-            aria-controls="journal-tabpanel"
-            tabIndex={tab === 'residents' ? 0 : -1}
-            onClick={() => setTab('residents')}
-            onKeyDown={(e) => handleTabKeyDown(e, 0)}
-            className={`min-w-0 w-full sm:w-auto min-h-[48px] sm:min-h-[44px] px-1.5 sm:px-4 py-1.5 sm:py-2 rounded-xl text-[11px] sm:text-sm leading-tight font-semibold flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-2 text-center transition-colors cursor-pointer sm:whitespace-nowrap sm:shrink-0 ${
-              tab === 'residents'
-                ? 'bg-[#C86446] text-[#FAF5EC]'
-                : 'bg-[#F1E8D9] text-[#4E4036] hover:bg-[#E7DAC5]'
-            }`}
-          >
-            <Users className="w-4 h-4 shrink-0" />
-            <span className="max-w-full">Neighbors ({RESIDENT_ORDER.length})</span>
-          </button>
-          <button
-            id="journal-tab-story"
-            type="button"
-            role="tab"
-            aria-selected={tab === 'story'}
-            aria-controls="journal-tabpanel"
-            tabIndex={tab === 'story' ? 0 : -1}
-            onClick={() => setTab('story')}
-            onKeyDown={(e) => handleTabKeyDown(e, 1)}
-            className={`min-w-0 w-full sm:w-auto min-h-[48px] sm:min-h-[44px] px-1.5 sm:px-4 py-1.5 sm:py-2 rounded-xl text-[11px] sm:text-sm leading-tight font-semibold flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-2 text-center transition-colors cursor-pointer sm:whitespace-nowrap sm:shrink-0 ${
-              tab === 'story'
-                ? 'bg-[#C86446] text-[#FAF5EC]'
-                : 'bg-[#F1E8D9] text-[#4E4036] hover:bg-[#E7DAC5]'
-            }`}
-          >
-            <BookOpen className="w-4 h-4 shrink-0" />
-            <span className="max-w-full">Story &amp; Memories ({completedThreads}/5)</span>
-          </button>
-          <button
-            id="journal-tab-guide"
-            type="button"
-            role="tab"
-            aria-selected={tab === 'guide'}
-            aria-controls="journal-tabpanel"
-            tabIndex={tab === 'guide' ? 0 : -1}
-            onClick={() => setTab('guide')}
-            onKeyDown={(e) => handleTabKeyDown(e, 2)}
-            className={`min-w-0 w-full sm:w-auto min-h-[48px] sm:min-h-[44px] px-1.5 sm:px-4 py-1.5 sm:py-2 rounded-xl text-[11px] sm:text-sm leading-tight font-semibold flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-2 text-center transition-colors cursor-pointer sm:whitespace-nowrap sm:shrink-0 ${
-              tab === 'guide'
-                ? 'bg-[#C86446] text-[#FAF5EC]'
-                : 'bg-[#F1E8D9] text-[#4E4036] hover:bg-[#E7DAC5]'
-            }`}
-          >
-            <MapPin className="w-4 h-4 shrink-0" />
-            <span className="max-w-full">World &amp; Time</span>
-          </button>
+          {TAB_DEFS.map((t, idx) => {
+            const Icon = t.Icon;
+            const active = tab === t.id;
+            const unreadCount = journal.newCounts[t.id];
+            return (
+              <button
+                key={t.id}
+                id={`journal-tab-${t.id}`}
+                type="button"
+                role="tab"
+                aria-selected={active}
+                aria-controls="journal-tabpanel"
+                tabIndex={active ? 0 : -1}
+                onClick={() => handleSelectTab(t.id)}
+                onKeyDown={(e) => handleTabKeyDown(e, idx)}
+                className={`min-w-0 w-full sm:w-auto min-h-[44px] px-3 sm:px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold flex items-center justify-center gap-1.5 sm:gap-2 cursor-pointer whitespace-nowrap sm:shrink-0 ${
+                  active
+                    ? 'bg-[#C86446] text-[#FAF5EC]'
+                    : 'bg-[#F1E8D9] text-[#4E4036] hover:bg-[#E7DAC5]'
+                }`}
+              >
+                <Icon className="w-4 h-4 shrink-0" />
+                <span>{t.label}</span>
+                {unreadCount > 0 && (
+                  <span
+                    className={`font-mono-nums text-[11px] font-semibold ${
+                      active ? 'text-[#FAF5EC]/90' : 'text-[#B45539]'
+                    }`}
+                    aria-label={`${unreadCount} new`}
+                  >
+                    · {unreadCount}
+                  </span>
+                )}
+              </button>
+            );
+          })}
         </div>
 
-        {/* Body */}
+        {/* Notebook Pages */}
         <div
+          ref={bodyScrollRef}
           id="journal-tabpanel"
           role="tabpanel"
           aria-labelledby={`journal-tab-${tab}`}
-          className="flex-1 overflow-y-auto storybook-scroll p-4 sm:p-5 space-y-4"
+          className="flex-1 overflow-y-auto overflow-x-hidden storybook-scroll p-4 sm:p-5 space-y-6"
         >
-          {tab === 'residents' && (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
-              {RESIDENT_ORDER.map((id) => {
-                const def = RESIDENTS[id];
-                const prog = world.residents[id];
-                const slot = getResidentScheduleSlot(id, phase, env.reconciledTogether);
-                const runtime = world.npcRuntime?.[id];
-                const rel = world.playerRelations?.[id];
-                const affinity = rel?.affinity ?? prog.trust * 20;
-                const tierLabel = getRelationshipTierLabel(getRelationshipTier(affinity));
-                const emotion = runtime?.emotion ?? rel?.lastEmotion ?? moodToEmotion(prog.mood);
-                const emotionLabel = getEmotionLabel(emotion);
-                const reliability = rel?.reliability ?? 25;
-                const cue = getResidentAvailableQuestCue(id, world);
-                return (
-                  <div
-                    key={id}
-                    className="p-4 rounded-xl bg-[#F4ECE0] border border-[#E2D4C0] flex flex-col justify-between gap-2.5"
+          {/* ================= 1. NEIGHBORHOOD STORIES ================= */}
+          {tab === 'stories' && (
+            <div className="space-y-6">
+              {/* Main Neighborhood Thread */}
+              <section aria-labelledby="journal-heading-main-story">
+                <div className="flex items-baseline justify-between gap-2 mb-3">
+                  <h3
+                    id="journal-heading-main-story"
+                    className="font-display text-lg font-semibold text-[#2D241E]"
                   >
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="flex items-center gap-3 min-w-0">
+                    {journal.mainStoryTitle}
+                  </h3>
+                  <span className="text-xs text-[#6A5B50] font-mono-nums shrink-0">
+                    {completedMainCount}/{totalMainSteps} Chapters
+                  </span>
+                </div>
+
+                <div className="space-y-2.5">
+                  {journal.mainStorySteps.map((step) => {
+                    const isCompleted = step.status === 'completed';
+                    return (
+                      <div
+                        key={step.id}
+                        className={`p-3.5 rounded-xl border flex items-start gap-3 ${
+                          step.isNew
+                            ? 'bg-[#F7EFE2] border-[#D9BC96]'
+                            : isCompleted
+                            ? 'bg-[#F3F5EE] border-[#CEDAC8]'
+                            : 'bg-[#F4ECE0] border-[#E2D4C0]'
+                        }`}
+                      >
                         <div
-                          className="w-10 h-10 rounded-full shrink-0 border-2 border-[#FAF5EC] flex items-center justify-center font-display font-bold text-[#FAF5EC]"
-                          style={{ backgroundColor: def.appearance.coatColor }}
+                          className={`w-6 h-6 rounded-full shrink-0 mt-0.5 flex items-center justify-center border ${
+                            isCompleted
+                              ? 'bg-[#5E8062] border-[#5E8062] text-[#FAF5EC]'
+                              : 'bg-[#FAF5EC] border-[#C9B8A3] text-[#C86446]'
+                          }`}
+                          aria-hidden="true"
                         >
-                          {def.name.charAt(0)}
+                          {isCompleted ? (
+                            <Check className="w-3.5 h-3.5" />
+                          ) : (
+                            <Sparkles className="w-3 h-3" />
+                          )}
                         </div>
-                        <div className="min-w-0">
-                          <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
-                            <h3 className="font-display text-lg font-semibold text-[#2D241E]">
-                              {def.name}
-                            </h3>
-                            {cue !== 'none' && (
-                              <span className="text-xs font-semibold text-[#B45539]">
-                                · Story waiting
-                              </span>
-                            )}
+                        <div className="min-w-0 flex-1">
+                          <div className="flex flex-wrap items-baseline justify-between gap-x-2 gap-y-0.5">
+                            <p
+                              className={`text-sm font-semibold ${
+                                isCompleted ? 'text-[#2D241E]' : 'text-[#3D3128]'
+                              }`}
+                            >
+                              {step.title}
+                            </p>
+                            <span className="text-[11px] font-medium text-[#6A5B50] shrink-0">
+                              {step.isNew ? (
+                                <span className="text-[#B45539] font-semibold">New · </span>
+                              ) : null}
+                              {isCompleted ? 'Completed' : 'Ongoing'}
+                            </span>
                           </div>
-                          <p className="text-xs text-[#6A5B50]">
-                            {def.role} · {prog.met ? def.homeName : 'New face'}
+                          <p className="text-xs sm:text-[13px] text-[#5E5046] mt-1 leading-relaxed">
+                            {step.detailText}
                           </p>
                         </div>
                       </div>
-
-                      <div className="flex items-center gap-0.5 shrink-0" aria-label={`Trust ${prog.trust} of 5`}>
-                        {[0, 1, 2, 3, 4].map((idx) => (
-                          <Heart
-                            key={idx}
-                            className={`w-3.5 h-3.5 ${
-                              idx < prog.trust
-                                ? 'fill-[#C86446] text-[#C86446]'
-                                : 'fill-transparent text-[#C7B7A2]'
-                            }`}
-                          />
-                        ))}
-                      </div>
-                    </div>
-
-                    <p className="text-sm text-[#3D3128] leading-snug">
-                      {def.personality}
-                    </p>
-
-                    <div className="pt-2 border-t border-[#E5D9C7] text-xs text-[#5E5046] flex flex-col gap-1">
-                      <div className="flex items-center justify-between gap-2 text-[#6A5B50]">
-                        <span>
-                          {tierLabel} · {emotionLabel}
-                        </span>
-                        <span className="font-mono-nums">Reliability {reliability}%</span>
-                      </div>
-                      <span className="font-medium truncate">
-                        Now: {runtime?.currentPlaceName ?? slot.placeName} — {runtime?.currentActivityLabel ?? slot.activity}
-                      </span>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-
-          {tab === 'story' && (
-            <div className="space-y-6">
-              <div>
-                <h3 className="font-display text-lg font-semibold text-[#2D241E] mb-3">
-                  The Silent Gazebo Bell — Neighborhood Storyline
-                </h3>
-                <div className="space-y-2.5">
-                  {storyThreads.map((step) => (
-                    <div
-                      key={step.id}
-                      className="p-3.5 rounded-xl bg-[#F4ECE0] border border-[#E2D4C0] flex items-start gap-3"
-                    >
-                      <div
-                        className={`w-6 h-6 rounded-full shrink-0 mt-0.5 flex items-center justify-center border ${
-                          step.done
-                            ? 'bg-[#5E8062] border-[#5E8062] text-[#FAF5EC]'
-                            : 'bg-[#FAF5EC] border-[#C9B8A3] text-transparent'
-                        }`}
-                      >
-                        <Check className="w-3.5 h-3.5" />
-                      </div>
-                      <div>
-                        <p className={`text-sm font-semibold ${step.done ? 'text-[#2D241E]' : 'text-[#4E4036]'}`}>
-                          {step.title}
-                        </p>
-                        <p className="text-xs text-[#6A5B50] mt-0.5">
-                          {step.done ? 'Completed in the neighborhood' : step.hint}
-                        </p>
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
-              </div>
+              </section>
 
-              <div>
-                <h3 className="font-display text-lg font-semibold text-[#2D241E] mb-3">
-                  Personal Stories &amp; Kindnesses
-                </h3>
-                <div className="space-y-2.5">
-                  {personalThreads.map((step) => (
-                    <div
-                      key={step.id}
-                      className="p-3.5 rounded-xl bg-[#F4ECE0] border border-[#E2D4C0] flex items-start gap-3"
-                    >
-                      <div
-                        className={`w-6 h-6 rounded-full shrink-0 mt-0.5 flex items-center justify-center border ${
-                          step.done
-                            ? 'bg-[#5E8062] border-[#5E8062] text-[#FAF5EC]'
-                            : step.started
-                            ? 'bg-[#E5A93C]/25 border-[#C86446] text-[#C86446]'
-                            : 'bg-[#FAF5EC] border-[#C9B8A3] text-transparent'
-                        }`}
-                      >
-                        <Check className="w-3.5 h-3.5" />
-                      </div>
-                      <div>
-                        <p className={`text-sm font-semibold ${step.done ? 'text-[#2D241E]' : 'text-[#4E4036]'}`}>
-                          {step.title}
-                        </p>
-                        <p className="text-xs text-[#6A5B50] mt-0.5">
-                          {step.done ? 'Shared along the lane' : step.hint}
-                        </p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              <div>
-                <h3 className="font-display text-lg font-semibold text-[#2D241E] mb-3">
-                  Recorded Memories
-                </h3>
-                <div className="space-y-2.5">
-                  {world.memories.map((mem) => (
-                    <div
-                      key={mem.id}
-                      className="p-3.5 rounded-xl bg-[#FAF5EC] border border-[#E2D4C0]"
-                    >
-                      <div className="flex items-center justify-between gap-2">
-                        <h4 className="font-display text-base font-semibold text-[#2D241E]">
-                          {mem.title}
-                        </h4>
-                        <span className="text-xs text-[#6A5B50] font-mono-nums shrink-0">
-                          Day {mem.day} · {mem.phase}
-                        </span>
-                      </div>
-                      <p className="text-sm text-[#4A3C32] mt-1 leading-relaxed">
-                        {mem.summary}
-                      </p>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {world.worldEvents && world.worldEvents.length > 0 && (
-                <div>
-                  <h3 className="font-display text-lg font-semibold text-[#2D241E] mb-3">
-                    Recent Lane Moments
+              {/* Ongoing Personal & Neighborhood Storylines */}
+              <section aria-labelledby="journal-heading-active-stories">
+                <div className="flex items-baseline justify-between gap-2 mb-3">
+                  <h3
+                    id="journal-heading-active-stories"
+                    className="font-display text-lg font-semibold text-[#2D241E]"
+                  >
+                    Ongoing Developments
                   </h3>
-                  <div className="space-y-2">
-                    {world.worldEvents.slice(0, 5).map((ev) => (
-                      <div
-                        key={ev.id}
-                        className="px-3.5 py-2.5 rounded-xl bg-[#F4ECE0] border border-[#E2D4C0] flex items-center justify-between gap-3"
+                  {journal.activeStorylines.length > 0 && (
+                    <span className="text-xs text-[#6A5B50] font-mono-nums shrink-0">
+                      {journal.activeStorylines.length} Active
+                    </span>
+                  )}
+                </div>
+
+                {journal.activeStorylines.length === 0 ? (
+                  <div className="p-4 rounded-xl bg-[#F4ECE0] border border-[#E2D4C0] text-sm text-[#5E5046] leading-relaxed">
+                    {journal.completedStorylines.length > 0
+                      ? 'Every thread you have begun along the lane is settled for now. Chat warmly with neighbors as the days turn to uncover new ones.'
+                      : 'No personal threads started yet. Keep chatting with neighbors around Willow Step Lane—new stories open up as friendships deepen.'}
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {journal.activeStorylines.map((story) => (
+                      <article
+                        key={story.id}
+                        className={`p-4 rounded-xl border space-y-2 ${
+                          story.isNew
+                            ? 'bg-[#F7EFE2] border-[#D9BC96]'
+                            : 'bg-[#F4ECE0] border-[#E2D4C0]'
+                        }`}
                       >
-                        <p className="text-xs sm:text-sm text-[#3D3128] leading-snug">
-                          {ev.summary}
+                        <div className="flex flex-wrap items-baseline justify-between gap-2">
+                          <h4 className="font-display text-base font-semibold text-[#2D241E]">
+                            {story.title}
+                          </h4>
+                          <span className="text-xs text-[#6A5B50] shrink-0">
+                            {story.isNew ? (
+                              <span className="text-[#B45539] font-semibold">New · </span>
+                            ) : null}
+                            Ongoing ·{' '}
+                            <span className="font-mono-nums">
+                              Part {story.stage}/{story.totalStages}
+                            </span>
+                          </span>
+                        </div>
+
+                        <p className="text-xs text-[#6A5B50]">
+                          {story.category === 'interconnected_conflict'
+                            ? 'Neighborhood matter'
+                            : 'Personal story'}{' '}
+                          · {story.stageTitle}
+                          {story.involvedNames.length > 0
+                            ? ` · With ${story.involvedNames.join(', ')}`
+                            : ''}
                         </p>
-                        <span className="text-xs text-[#6A5B50] font-mono-nums shrink-0">
-                          Day {ev.day}
-                        </span>
-                      </div>
+
+                        <p className="text-sm text-[#3D3128] leading-relaxed">
+                          {story.detailText}
+                        </p>
+
+                        {story.cooldownText && (
+                          <p className="text-xs font-medium text-[#9A5B32]">
+                            {story.cooldownText}
+                          </p>
+                        )}
+
+                        {story.notes.length > 0 && (
+                          <ul className="pt-2 border-t border-[#E5D9C7] space-y-1 text-xs text-[#5E5046]">
+                            {story.notes.map((note, idx) => (
+                              <li key={idx}>• {note}</li>
+                            ))}
+                          </ul>
+                        )}
+                      </article>
                     ))}
                   </div>
-                </div>
+                )}
+              </section>
+
+              {/* Completed Stories */}
+              {journal.completedStorylines.length > 0 && (
+                <section aria-labelledby="journal-heading-completed-stories">
+                  <div className="flex items-baseline justify-between gap-2 mb-3">
+                    <h3
+                      id="journal-heading-completed-stories"
+                      className="font-display text-lg font-semibold text-[#2D241E]"
+                    >
+                      Completed Stories
+                    </h3>
+                    <span className="text-xs text-[#5E8062] font-mono-nums shrink-0">
+                      {journal.completedStorylines.length} Settled
+                    </span>
+                  </div>
+
+                  <div className="space-y-3">
+                    {journal.completedStorylines.map((story) => (
+                      <article
+                        key={story.id}
+                        className={`p-4 rounded-xl border space-y-2 ${
+                          story.isNew
+                            ? 'bg-[#EEF3EC] border-[#A7C0A8]'
+                            : 'bg-[#F3F5EE] border-[#CEDAC8]'
+                        }`}
+                      >
+                        <div className="flex flex-wrap items-baseline justify-between gap-2">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <span
+                              className="w-5 h-5 rounded-full bg-[#5E8062] text-[#FAF5EC] flex items-center justify-center shrink-0"
+                              aria-hidden="true"
+                            >
+                              <Check className="w-3 h-3" />
+                            </span>
+                            <h4 className="font-display text-base font-semibold text-[#2D241E]">
+                              {story.title}
+                            </h4>
+                          </div>
+                          <span className="text-xs text-[#4B6B4F] shrink-0">
+                            {story.isNew ? (
+                              <span className="text-[#B45539] font-semibold">New · </span>
+                            ) : null}
+                            Completed
+                            {story.completedDay !== undefined ? (
+                              <span className="font-mono-nums"> · Day {story.completedDay}</span>
+                            ) : null}
+                          </span>
+                        </div>
+
+                        {story.outcomeLabel && (
+                          <p className="text-xs font-semibold text-[#4B6B4F]">
+                            Outcome: {story.outcomeLabel}
+                            {story.involvedNames.length > 0
+                              ? ` · With ${story.involvedNames.join(', ')}`
+                              : ''}
+                          </p>
+                        )}
+
+                        <p className="text-sm text-[#3D3128] leading-relaxed">
+                          {story.detailText}
+                        </p>
+
+                        {story.notes.length > 0 && (
+                          <ul className="pt-2 border-t border-[#D8E2D2] space-y-1 text-xs text-[#516051]">
+                            {story.notes.map((note, idx) => (
+                              <li key={idx}>• {note}</li>
+                            ))}
+                          </ul>
+                        )}
+                      </article>
+                    ))}
+                  </div>
+                </section>
               )}
             </div>
           )}
 
-          {tab === 'guide' && (
-            <div className="space-y-4">
+          {/* ================= 2. PERSONAL MEMORIES ================= */}
+          {tab === 'memories' && (
+            <section aria-labelledby="journal-heading-memories" className="space-y-3">
+              <div className="flex items-baseline justify-between gap-2">
+                <h3
+                  id="journal-heading-memories"
+                  className="font-display text-lg font-semibold text-[#2D241E]"
+                >
+                  Personal Memories
+                </h3>
+                <span className="text-xs text-[#6A5B50] font-mono-nums shrink-0">
+                  {journal.memories.length} Recorded
+                </span>
+              </div>
+
+              {journal.memories.length === 0 ? (
+                <div className="p-4 rounded-xl bg-[#F4ECE0] border border-[#E2D4C0] text-sm text-[#5E5046]">
+                  Your notebook pages are open and ready for your first shared moments along the lane.
+                </div>
+              ) : (
+                <div className="space-y-2.5">
+                  {journal.memories.map((mem) => (
+                    <article
+                      key={mem.id}
+                      className={`p-3.5 sm:p-4 rounded-xl border ${
+                        mem.isNew
+                          ? 'bg-[#F7EFE2] border-[#D9BC96]'
+                          : 'bg-[#FAF5EC] border-[#E2D4C0]'
+                      }`}
+                    >
+                      <div className="flex flex-wrap items-baseline justify-between gap-2">
+                        <h4 className="font-display text-base font-semibold text-[#2D241E]">
+                          {mem.title}
+                        </h4>
+                        <span className="text-xs text-[#6A5B50] shrink-0">
+                          {mem.isNew ? (
+                            <span className="text-[#B45539] font-semibold">New · </span>
+                          ) : (
+                            <span>Read · </span>
+                          )}
+                          <span className="font-mono-nums">Day {mem.day}</span> · {mem.phaseLabel}
+                          {mem.residentName ? ` · ${mem.residentName}` : ''}
+                        </span>
+                      </div>
+                      <p className="text-sm text-[#4A3C32] mt-1.5 leading-relaxed">
+                        {mem.summary}
+                      </p>
+                    </article>
+                  ))}
+                </div>
+              )}
+            </section>
+          )}
+
+          {/* ================= 3. PEOPLE ================= */}
+          {tab === 'people' && (
+            <section aria-labelledby="journal-heading-people" className="space-y-3.5">
+              <div className="flex items-baseline justify-between gap-2">
+                <h3
+                  id="journal-heading-people"
+                  className="font-display text-lg font-semibold text-[#2D241E]"
+                >
+                  Neighbors Around the Lane
+                </h3>
+                <span className="text-xs text-[#6A5B50] font-mono-nums shrink-0">
+                  {journal.people.filter((p) => p.met).length}/{journal.people.length} Met
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                {journal.people.map((person) => (
+                  <article
+                    key={person.id}
+                    className={`p-4 rounded-xl border flex flex-col justify-between gap-3 ${
+                      person.isNew
+                        ? 'bg-[#F7EFE2] border-[#D9BC96]'
+                        : 'bg-[#F4ECE0] border-[#E2D4C0]'
+                    }`}
+                  >
+                    <div className="space-y-2.5">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div
+                            className="w-10 h-10 rounded-full shrink-0 border-2 border-[#FAF5EC] flex items-center justify-center font-display font-bold text-[#FAF5EC]"
+                            style={{ backgroundColor: person.coatColor }}
+                            aria-hidden="true"
+                          >
+                            {person.name.charAt(0)}
+                          </div>
+                          <div className="min-w-0">
+                            <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+                              <h4 className="font-display text-lg font-semibold text-[#2D241E]">
+                                {person.name}
+                              </h4>
+                              {person.cueKind !== 'none' && (
+                                <span className="text-xs font-semibold text-[#B45539]">
+                                  · {person.cueTitle ?? 'Story waiting'}
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-xs text-[#6A5B50] leading-snug">
+                              {person.roleLabel}
+                            </p>
+                          </div>
+                        </div>
+
+                        {person.met && (
+                          <div
+                            className="flex items-center gap-0.5 shrink-0 pt-1"
+                            aria-label={`Trust ${person.trust} of 5`}
+                          >
+                            {[0, 1, 2, 3, 4].map((idx) => (
+                              <Heart
+                                key={idx}
+                                className={`w-3.5 h-3.5 ${
+                                  idx < person.trust
+                                    ? 'fill-[#C86446] text-[#C86446]'
+                                    : 'fill-transparent text-[#C7B7A2]'
+                                }`}
+                              />
+                            ))}
+                          </div>
+                        )}
+                      </div>
+
+                      {!person.met ? (
+                        <p className="text-sm text-[#5E5046] leading-relaxed">
+                          Haven’t introduced yourselves yet — stop by to say hello when you pass in the square.
+                        </p>
+                      ) : (
+                        <>
+                          {person.personality && (
+                            <p className="text-sm text-[#3D3128] leading-snug">
+                              {person.personality}
+                            </p>
+                          )}
+
+                          {person.knownNotes.length > 0 && (
+                            <div className="pt-2 border-t border-[#E5D9C7] space-y-1.5">
+                              <p className="text-[11px] font-semibold text-[#6A5B50]">
+                                Shared notes &amp; word heard
+                              </p>
+                              <ul className="space-y-1.5">
+                                {person.knownNotes.map((note) => (
+                                  <li
+                                    key={note.entryKey}
+                                    className="text-xs text-[#3D3128] leading-relaxed"
+                                  >
+                                    <span
+                                      className={`font-semibold ${
+                                        note.certaintyKind === 'rumor'
+                                          ? 'text-[#9A5B32]'
+                                          : note.certaintyKind === 'secondhand'
+                                          ? 'text-[#6A5B50]'
+                                          : 'text-[#5E8062]'
+                                      }`}
+                                    >
+                                      {note.isNew ? 'New · ' : ''}
+                                      {note.certaintyLabel}:{' '}
+                                    </span>
+                                    <span>{note.text}</span>
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
+
+                          {person.discoveredConnections.length > 0 && (
+                            <p className="text-xs text-[#6A5B50]">
+                              Connected with {person.discoveredConnections.join(', ')}
+                            </p>
+                          )}
+                        </>
+                      )}
+                    </div>
+
+                    <div className="pt-2 border-t border-[#E5D9C7] text-xs text-[#5E5046] flex flex-col gap-1">
+                      {person.met && person.tierLabel && person.emotionLabel && person.reliabilityLabel && (
+                        <div className="flex flex-wrap items-center justify-between gap-2 text-[#6A5B50]">
+                          <span>
+                            {person.tierLabel} · {person.emotionLabel}
+                          </span>
+                          <span>{person.reliabilityLabel}</span>
+                        </div>
+                      )}
+                      <span className="font-medium truncate">
+                        {person.met ? `Around: ${person.placeLabel}` : person.placeLabel}
+                      </span>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            </section>
+          )}
+
+          {/* ================= 4. DISCOVERIES ================= */}
+          {tab === 'discoveries' && (
+            <div className="space-y-6">
+              {/* Time Control Card */}
               <div className="p-4 rounded-xl bg-[#F4ECE0] border border-[#E2D4C0] flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div>
                   <h3 className="font-display text-lg font-semibold text-[#2D241E]">
@@ -435,6 +694,7 @@ export const JournalDrawer: React.FC<JournalDrawerProps> = ({
                 <button
                   type="button"
                   onClick={() => {
+                    markTabEntriesRead(tab);
                     onAdvanceTime();
                     onClose();
                   }}
@@ -445,67 +705,130 @@ export const JournalDrawer: React.FC<JournalDrawerProps> = ({
                 </button>
               </div>
 
-              <div className="p-4 rounded-xl bg-[#F4ECE0] border border-[#E2D4C0]">
-                <h3 className="font-display text-lg font-semibold text-[#2D241E] mb-2">
-                  Sky, Season & Neighborhood Rhythm
+              {/* Season & Sky */}
+              <section
+                aria-labelledby="journal-heading-sky"
+                className="p-4 rounded-xl bg-[#F4ECE0] border border-[#E2D4C0]"
+              >
+                <h3
+                  id="journal-heading-sky"
+                  className="font-display text-lg font-semibold text-[#2D241E] mb-2"
+                >
+                  Sky, Season &amp; Neighborhood Rhythm
                 </h3>
                 <ul className="text-sm text-[#3D3128] space-y-1.5">
                   <li>
                     Season:{' '}
                     <strong>
-                      {composed.season.seasonLabel} — Day {composed.season.dayOfSeason} of 10, Year{' '}
-                      {composed.season.year}
+                      {journal.seasonLabel} — Day{' '}
+                      <span className="font-mono-nums">{journal.dayOfSeason}</span> of 10, Year{' '}
+                      <span className="font-mono-nums">{journal.year}</span>
                     </strong>
                   </li>
                   <li>
-                    Today&apos;s sky:{' '}
-                    <strong>
-                      {getWeatherLabel(composed.weather.effective)}
-                      {composed.weather.current === 'misty_morning' &&
-                      composed.weather.effective === 'misty_morning'
-                        ? ' (clearing mid-morning)'
-                        : ''}
-                    </strong>
+                    Today&apos;s sky: <strong>{journal.weatherLabel}</strong>
                   </li>
                   <li>
-                    Tomorrow&apos;s forecast:{' '}
-                    <strong>{getWeatherLabel(composed.weather.tomorrowForecast)}</strong>
+                    Tomorrow&apos;s forecast: <strong>{journal.tomorrowForecastLabel}</strong>
                   </li>
                   <li>
                     Plaza noticeboard flyers:{' '}
-                    <strong className="font-mono-nums">
-                      {composed.npcTouches.noticeboardFlyerCount}/3
-                    </strong>{' '}
+                    <strong className="font-mono-nums">{journal.noticeboardFlyerCount}/3</strong>{' '}
                     posted
                   </li>
                   <li>
                     Sunbeam Greenhouse bloom stage:{' '}
-                    <strong className="font-mono-nums">
-                      Stage {composed.npcTouches.minaGreenhouseStage}/3
-                    </strong>
+                    <strong className="font-mono-nums">Stage {journal.greenhouseStage}/3</strong>
+                  </li>
+                  <li>
+                    Window-box planters blooming:{' '}
+                    <strong className="font-mono-nums">{journal.plantersBloomed}/3</strong>
                   </li>
                 </ul>
-              </div>
+              </section>
 
-              <div className="p-4 rounded-xl bg-[#F4ECE0] border border-[#E2D4C0]">
-                <h3 className="font-display text-lg font-semibold text-[#2D241E] mb-2">
-                  Environmental Reactivity
+              {/* Places & Landmarks */}
+              <section aria-labelledby="journal-heading-landmarks" className="space-y-3">
+                <h3
+                  id="journal-heading-landmarks"
+                  className="font-display text-lg font-semibold text-[#2D241E]"
+                >
+                  Neighborhood Places &amp; Landmarks
                 </h3>
-                <ul className="text-sm text-[#3D3128] space-y-1.5">
-                  <li>
-                    Window-box planters blooming: <strong className="font-mono-nums">{env.plantersBloomed}/3</strong>
-                  </li>
-                  <li>
-                    Stone plaza fountain: <strong>{env.fountainFlowing ? 'Flowing with clear water' : 'Quiet until valve is cleared'}</strong>
-                  </li>
-                  <li>
-                    Old Bell Gazebo: <strong>{env.bellGleaming ? 'Restored & chiming' : env.ivyCleared ? 'Ivy cleared, awaiting brass clapper' : 'Wrapped in creeping ivy'}</strong>
-                  </li>
-                  <li>
-                    Bakery café tables & plaza lanterns: <strong>{env.bakeryTablesOpen ? 'Open in the sunlit lane' : 'Waiting on Clara & Arthur'}</strong>
-                  </li>
-                </ul>
-              </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {journal.landmarks.map((lm) => (
+                    <article
+                      key={lm.id}
+                      className={`p-3.5 rounded-xl border ${
+                        lm.isNew
+                          ? 'bg-[#F7EFE2] border-[#D9BC96]'
+                          : lm.statusKind === 'transformed'
+                          ? 'bg-[#F3F5EE] border-[#CEDAC8]'
+                          : 'bg-[#FAF5EC] border-[#E2D4C0]'
+                      }`}
+                    >
+                      <div className="flex items-baseline justify-between gap-2">
+                        <h4 className="font-display text-base font-semibold text-[#2D241E]">
+                          {lm.name}
+                        </h4>
+                        <span
+                          className={`text-xs font-medium shrink-0 ${
+                            lm.statusKind === 'transformed'
+                              ? 'text-[#4B6B4F]'
+                              : 'text-[#6A5B50]'
+                          }`}
+                        >
+                          {lm.isNew ? (
+                            <span className="text-[#B45539] font-semibold">New · </span>
+                          ) : null}
+                          {lm.statusLabel}
+                        </span>
+                      </div>
+                      <p className="text-xs sm:text-[13px] text-[#4A3C32] mt-1 leading-relaxed">
+                        {lm.summary}
+                      </p>
+                    </article>
+                  ))}
+                </div>
+              </section>
+
+              {/* Player-Witnessed Moments */}
+              <section aria-labelledby="journal-heading-moments" className="space-y-2.5">
+                <h3
+                  id="journal-heading-moments"
+                  className="font-display text-lg font-semibold text-[#2D241E]"
+                >
+                  Recent Moments You Shaped
+                </h3>
+                {journal.laneMoments.length === 0 ? (
+                  <div className="p-3.5 rounded-xl bg-[#F4ECE0] border border-[#E2D4C0] text-sm text-[#5E5046]">
+                    Your footprints along the square, bell gazebo, and Mirror Pond will gather here as you lend a hand.
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {journal.laneMoments.map((ev) => (
+                      <div
+                        key={ev.id}
+                        className={`px-3.5 py-2.5 rounded-xl border flex items-baseline justify-between gap-3 ${
+                          ev.isNew
+                            ? 'bg-[#F7EFE2] border-[#D9BC96]'
+                            : 'bg-[#F4ECE0] border-[#E2D4C0]'
+                        }`}
+                      >
+                        <p className="text-xs sm:text-sm text-[#3D3128] leading-snug">
+                          {ev.isNew ? (
+                            <span className="text-[#B45539] font-semibold">New · </span>
+                          ) : null}
+                          {ev.summary}
+                        </p>
+                        <span className="text-xs text-[#6A5B50] font-mono-nums shrink-0">
+                          Day {ev.day}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </section>
             </div>
           )}
         </div>

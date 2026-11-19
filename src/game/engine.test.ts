@@ -34,20 +34,14 @@ test('player spawn sits on an open walkable lane with clear sightline', () => {
 });
 
 test('collision prevents walking into buildings or fountain while allowing axis sliding', () => {
-  // Walkable cottage interior: the furnished room center is now open
-  assert.equal(isPointWalkable(-14, 10), true);
-  // ...but the wall bands, furniture and other buildings stay solid
-  assert.equal(isPointWalkable(-12.85, 8.5), false);
-  assert.equal(isPointWalkable(-16.65, 8.75), false);
-  assert.equal(isPointWalkable(-14, -10), false);
+  // Inside player cottage should be blocked
+  assert.equal(isPointWalkable(-14, 10), false);
   // Inside pond water should be blocked
   assert.equal(isPointWalkable(2, 14), false);
-  // Sliding along cottage wall works on a clear axis — with walkable interiors,
-  // the corner slide now resolves onto the porch approach (z stays on open lane)
+  // Sliding along cottage wall works on clear axis
   const slid = resolveMovement({ x: -10.0, z: 10.0 }, { x: -11.5, z: 9.0 });
-  assert.equal(slid.x, -11.5);
-  assert.equal(slid.z, 10.0);
-  assert.equal(isPointWalkable(slid.x, slid.z), true);
+  assert.equal(slid.x, -10.0);
+  assert.equal(slid.z, 9.0);
 });
 
 test('all registered residents have valid walkable schedule slots across all 4 time phases', () => {

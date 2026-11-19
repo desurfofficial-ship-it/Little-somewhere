@@ -7,7 +7,7 @@ import { RESIDENTS } from '../game/residents';
 import { createFreshWorldState } from '../game/storage';
 import { getGroundHeightAt, isPointWalkable } from '../game/worldMap';
 import { EnvironmentVisualController } from './environmentRenderer';
-import { animateCharacterRig, buildStorybookCharacter, buildStorybookPlayer } from './builders/characters';
+import { animateCharacterRig, buildStorybookCharacter } from './builders/characters';
 import { buildStorybookBench, buildStorybookFountain } from './builders/landmarks';
 import { buildMirrorPondAndBridge } from './builders/vegetation';
 import { buildStorybookJun } from './prototypes/willowLaneDiorama';
@@ -202,24 +202,6 @@ test('seated characters sit cleanly in front of bench backrest with zero back cl
         palette,
         dummyTex,
         'player',
-      ),
-    },
-    {
-      label: 'player-bespoke',
-      scale: 1.0,
-      rig: buildStorybookPlayer(
-        {
-          coatColor: '#D46E51',
-          shirtColor: '#FAF4E8',
-          hairColor: '#433027',
-          skinColor: '#F0C5A7',
-          accentColor: '#6E9A74',
-          hatStyle: 'beret',
-          propType: 'none',
-          heightScale: 1.0,
-        },
-        palette,
-        dummyTex,
       ),
     },
     {

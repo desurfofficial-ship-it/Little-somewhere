@@ -7,17 +7,6 @@ export interface WillowCottageRig {
   group: THREE.Group;
   smokePuffs: THREE.Mesh[];
   lanternMesh: THREE.Mesh;
-  /** Roof + chimney + dormer + gable dressing — hidden during interior mode. */
-  roofAssembly: THREE.Group;
-  /** Sloped porch roof, posts & rafters — hidden during interior mode. */
-  porchRoofGroup: THREE.Group;
-  /** Solid plaster wall mass — replaced by the interior shell in interior mode. */
-  bodyMesh: THREE.Mesh;
-  /** Camera-side (south & east) windows — hidden with the body in interior mode. */
-  southWallWindows: THREE.Object3D[];
-  eastWallWindows: THREE.Object3D[];
-  /** Hinged porch door (hinge at the north jamb; swings into the room). */
-  doorPivot: THREE.Group;
 }
 
 export interface WillowMailboxRig {
@@ -163,11 +152,6 @@ export function buildWillowStepCottage(ctx: WillowPrototypeContext): WillowCotta
   // Soft AO shadow skirt covering cottage + covered porch (effective in software GL too)
   addContactShadow(group, shadowTex, 8.6, 7.2, 0.52, 0.016);
 
-  // Everything above the walls lives in one hideable roof assembly so the
-  // walkable-interior mode can lift the roof off the room in a single toggle.
-  const roofAssembly = new THREE.Group();
-  group.add(roofAssembly);
-
   // Main cottage mass shifted slightly west (-0.65) to house a true 1.45m East covered porch
   const wallCenterX = -0.65;
   const wallW = 5.0;
@@ -256,7 +240,7 @@ export function buildWillowStepCottage(ctx: WillowPrototypeContext): WillowCotta
   mainRoof.position.set(wallCenterX, roofBaseY, 0);
   mainRoof.castShadow = true;
   mainRoof.receiveShadow = true;
-  roofAssembly.add(mainRoof);
+  group.add(mainRoof);
 
   // Plaster gable wall infill triangles (clean joinery beneath bargeboards)
   const infillShape = new THREE.Shape();
@@ -271,7 +255,7 @@ export function buildWillowStepCottage(ctx: WillowPrototypeContext): WillowCotta
   infillGeo.translate(0, 0, -(wallD - 0.02) / 2);
   const gableInfill = new THREE.Mesh(infillGeo, plasterMat);
   gableInfill.position.set(wallCenterX, roofBaseY + 0.02, 0);
-  roofAssembly.add(gableInfill);
+  group.add(gableInfill);
 
   // Cream fascia bargeboards on North & South gable faces + cedar ridge beam + finial
   const slopeLen = Math.hypot(halfW + overhangX, roofH) + 0.16;
@@ -288,7 +272,7 @@ export function buildWillowStepCottage(ctx: WillowPrototypeContext): WillowCotta
         sz * (halfD + overhangZ + 0.06),
       );
       barge.rotation.z = -sx * slopeAngle;
-      roofAssembly.add(barge);
+      group.add(barge);
     }
   }
 
@@ -297,7 +281,7 @@ export function buildWillowStepCottage(ctx: WillowPrototypeContext): WillowCotta
     cedarDarkMat,
   );
   ridgeBeam.position.set(wallCenterX, roofBaseY + roofH + 0.06, 0);
-  roofAssembly.add(ridgeBeam);
+  group.add(ridgeBeam);
 
   // Turned wooden gable finials
   for (const sz of [-1, 1]) {
@@ -308,7 +292,7 @@ export function buildWillowStepCottage(ctx: WillowPrototypeContext): WillowCotta
     spire.position.set(wallCenterX, roofBaseY + roofH + 0.22, sz * (halfD + overhangZ + 0.08));
     const capBall = new THREE.Mesh(new THREE.SphereGeometry(0.08, 8, 8), brassMat);
     capBall.position.set(wallCenterX, roofBaseY + roofH + 0.45, sz * (halfD + overhangZ + 0.08));
-    roofAssembly.add(spire, capBall);
+    group.add(spire, capBall);
   }
 
   // 4. East Slope Storybook Dormer Window
@@ -345,7 +329,7 @@ export function buildWillowStepCottage(ctx: WillowPrototypeContext): WillowCotta
   const dMullionH = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.05, 0.5), creamTrimMat);
   dMullionH.position.set(0.58, 0.04, 0);
   dormerGroup.add(dFrame, dPane, dMullionV, dMullionH);
-  roofAssembly.add(dormerGroup);
+  group.add(dormerGroup);
 
   // 5. Tapered Fieldstone Chimney + Terracotta Chimney Pot + Pooled Smoke Puffs
   const chimX = wallCenterX - 1.35;
@@ -363,7 +347,7 @@ export function buildWillowStepCottage(ctx: WillowPrototypeContext): WillowCotta
     potMat,
   );
   chimPot.position.set(chimX, roofBaseY + 2.55, chimZ);
-  roofAssembly.add(chimBase, chimShaft, chimCrown, chimPot);
+  group.add(chimBase, chimShaft, chimCrown, chimPot);
 
   const smokeMat = palette.get('willow_chimney_smoke', {
     color: '#F7F1E5',
@@ -382,7 +366,7 @@ export function buildWillowStepCottage(ctx: WillowPrototypeContext): WillowCotta
     puff.userData.originZ = chimZ;
     puff.userData.phase = i * 0.25;
     puff.position.set(chimX, roofBaseY + 2.85 + i * 0.45, chimZ);
-    roofAssembly.add(puff);
+    group.add(puff);
     smokePuffs.push(puff);
   }
 
@@ -509,24 +493,16 @@ export function buildWillowStepCottage(ctx: WillowPrototypeContext): WillowCotta
   lanternBase.position.set(postX + 0.22, 1.76, -0.78);
   group.add(lanternBracket, lanternCap, lanternMesh, lanternBase);
 
-  // Recessed Paneled Cedar Door + Glazed Upper Light + Brass Knob.
-  // The leaf hangs from a pivot at its north jamb so it can swing into the
-  // room when the player approaches (updateWillowCottageInteriorMotion).
+  // Recessed Paneled Cedar Door + Glazed Upper Light + Brass Knob
   const doorFrame = new THREE.Mesh(new THREE.BoxGeometry(0.16, 1.98, 1.24), creamTrimMat);
   doorFrame.position.set(porchStartX + 0.02, deckY + 0.99, 0);
-  const doorPivot = new THREE.Group();
-  doorPivot.position.set(porchStartX + 0.03, deckY + 0.92, -0.48);
-  const doorLeafGeo = new THREE.BoxGeometry(0.18, 1.84, 0.96);
-  doorLeafGeo.translate(0, 0, 0.48);
-  const doorLeaf = new THREE.Mesh(doorLeafGeo, doorMat);
-  const doorGlassGeo = new THREE.BoxGeometry(0.2, 0.44, 0.46);
-  doorGlassGeo.translate(0, 0, 0.48);
-  const doorGlass = new THREE.Mesh(doorGlassGeo, winMat);
-  doorGlass.position.y = 0.4;
+  const doorLeaf = new THREE.Mesh(new THREE.BoxGeometry(0.18, 1.84, 0.96), doorMat);
+  doorLeaf.position.set(porchStartX + 0.03, deckY + 0.92, 0);
+  const doorGlass = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.44, 0.46), winMat);
+  doorGlass.position.set(porchStartX + 0.03, deckY + 1.32, 0);
   const doorHandle = new THREE.Mesh(new THREE.SphereGeometry(0.06, 8, 8), brassMat);
-  doorHandle.position.set(0.11, -0.02, 0.8);
-  doorPivot.add(doorLeaf, doorGlass, doorHandle);
-  group.add(doorFrame, doorPivot);
+  doorHandle.position.set(porchStartX + 0.14, deckY + 0.9, 0.32);
+  group.add(doorFrame, doorLeaf, doorGlass, doorHandle);
 
   // Porch Micro-Storytelling Props: Slatted Wooden Bench + Sage Throw + Tea Mug
   const benchGroup = new THREE.Group();
@@ -565,7 +541,7 @@ export function buildWillowStepCottage(ctx: WillowPrototypeContext): WillowCotta
     rotY: number,
     withShutters: boolean,
     withFlowerBox: boolean,
-  ): THREE.Group => {
+  ) => {
     const wg = new THREE.Group();
     const frame = new THREE.Mesh(new THREE.BoxGeometry(1.08, 1.08, 0.14), cedarDarkMat);
     const innerSash = new THREE.Mesh(new THREE.BoxGeometry(0.88, 0.88, 0.15), creamTrimMat);
@@ -612,18 +588,14 @@ export function buildWillowStepCottage(ctx: WillowPrototypeContext): WillowCotta
     wg.position.set(wx, wy, wz);
     wg.rotation.y = rotY;
     group.add(wg);
-    return wg;
   };
 
-  const southWallWindows: THREE.Object3D[] = [];
-  const eastWallWindows: THREE.Object3D[] = [];
-
   // South wall (facing foreground-left camera!): two shuttered windows + flower boxes
-  southWallWindows.push(addStorybookWindow(wallCenterX - 1.05, 1.72, halfD + 0.02, 0, true, true));
-  southWallWindows.push(addStorybookWindow(wallCenterX + 1.05, 1.72, halfD + 0.02, 0, true, true));
+  addStorybookWindow(wallCenterX - 1.05, 1.72, halfD + 0.02, 0, true, true);
+  addStorybookWindow(wallCenterX + 1.05, 1.72, halfD + 0.02, 0, true, true);
   // East wall porch windows flanking door
-  eastWallWindows.push(addStorybookWindow(porchStartX + 0.02, 1.72, -1.45, Math.PI / 2, false, false));
-  eastWallWindows.push(addStorybookWindow(porchStartX + 0.02, 1.72, 1.45, Math.PI / 2, false, false));
+  addStorybookWindow(porchStartX + 0.02, 1.72, -1.45, Math.PI / 2, false, false);
+  addStorybookWindow(porchStartX + 0.02, 1.72, 1.45, Math.PI / 2, false, false);
   // West wall window
   addStorybookWindow(wallCenterX - halfW - 0.02, 1.72, 0, -Math.PI / 2, true, true);
 
@@ -680,17 +652,7 @@ export function buildWillowStepCottage(ctx: WillowPrototypeContext): WillowCotta
     group.add(tuft);
   }
 
-  return {
-    group,
-    smokePuffs,
-    lanternMesh,
-    roofAssembly,
-    porchRoofGroup,
-    bodyMesh: body,
-    southWallWindows,
-    eastWallWindows,
-    doorPivot,
-  };
+  return { group, smokePuffs, lanternMesh };
 }
 
 /**

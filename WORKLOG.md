@@ -418,33 +418,7 @@ Chronological log of design decisions, implementation milestones, verification r
 
 ---
 
-## Entry 023 — Player Full-Capability Polish (Bespoke Rig, Dusk Lantern, Emotes, Feel)
-- **Date**: 2026-11-19
-- **Status**: Completed & Verified
-- **Scope**: A dedicated player-excellence pass building on Entry 013 — the player becomes the second bespoke rig in the cast (after Jun), gains a signature dusk pocket lantern, idle life gestures, a wave-hello emote with neighbor wave-back, footstep dust puffs with tiered audio, pinch-to-zoom on touch, and sprint camera micro-juice.
-- **Key Deliverables**:
-  - **Bespoke player rig (`src/scene/builders/characters.ts` `buildStorybookPlayer`, new)**:
-    - Layers onto the shared storybook body: moss knit scarf (collar + tail + knot), oat-canvas cross-body satchel on the right hip (brass buckle + peeking stamped postcard), leather strap, left elbow patch, and a brass pin on the sage beret — the beloved rust-coat/beret look now reads as its own character, distinct from every resident.
-    - `StorybookPlayerRig extends CharacterRig` with a `PlayerLanternRig`; `PLAYER_LANTERN_GLOW` constants (day 0.08 / golden 0.7 / dusk 1.45) follow the world's existing emissive lantern language (no extra scene light).
-    - `updatePlayerLantern()` damps glow toward the time-phase target, flickers the flame (dual-sine), hides the flame below 0.2 glow, and sways the lantern with stride speed (zero allocations).
-  - **Two new animation states (`NpcAnimationState` + `animateCharacterRig`)**: `adjust_hat` (fond beret pat — arm to head, head tilt, torso settle) and `look_around` (curious lane scan — head sweep + torso follow). 19 total states.
-  - **Idle flourish scheduler (`src/game/playerController.ts`, pure & tested)**: after 6.5–10 randomized quiet seconds the player plays a non-repeating flourish (`adjust_hat` / `look_around` / `admire`), held 1.5 s; movement, sitting, dialogue, and gesture pulses all reset the timer.
-  - **Wave hello emote + neighbor wave-back**: `H` key (edge-triggered) and a HUD `Wave [H]` button (desktop + touch) trigger a `wave` pulse with a two-note "hello" chime (`playWaveHello`); `selectWaveBackResidents()` picks residents within 7 m with A* line-of-sight (skipping mid-conversation partners), who damp-turn toward the player and wave back for 1.75 s with a soft reply chime. Wave pulses from dialogue close reuse the same greeting path.
-  - **Footstep feel**: `playFootstep('walk' | 'run' | 'sprint')` tiers frequency/volume so speed is audible; a 10-pooled cream dust-puff ring buffer (per-puff fading materials) blooms at each foot plant, doubles at sprint, and is disposed with the scene.
-  - **Pinch-to-zoom (touch)**: two-pointer tracking on the canvas (`activeTouchPointers` map) clamps the same 0.72–1.45 zoom range as the wheel/buttons; starting a pinch cleanly cancels pending tap-walk, and pointer listeners are fully torn down.
-  - **Sprint camera micro-juice**: `smoothedSprintZoom` damps to ×1.045 while sprinting for a breath of extra pull-back, multiplied into the dialogue/zoom chain.
-- **Tests**:
-  - `src/game/player.test.ts` (+2): idle flourish lifecycle (threshold fire, fresh timer, full suppression matrix, no back-to-back repeats, re-randomized bounds) and wave-back selection (LOS probe near Clara, radius gating, social-partner skip).
-  - `src/scene/playerRig.test.ts` (new, 3 suites): bespoke kit presence (scarf/satchel/postcard materials, lantern parentage, dark start), lantern glow convergence/dimming + walk sway + flame visibility, and `adjust_hat` / `look_around` / shared-state animation on the bespoke rig.
-  - `src/scene/environmentRenderer.test.ts`: bench back-clearance suite extended with the `player-bespoke` case (seated satchel + lantern clear the backrest).
-- **Verification** (build tree before merge; merged-tree numbers in HANDOVER §4):
-  - `npm test`: **69/69 passing** (64 prior + 5 new). `npm run lint`: **0 errors**. `npm run build`: pass (shell 422.03 kB + scene chunk 733.76 kB, +5.4 kB).
-  - Live headless Chromium desktop `1440×900` (injected dusk `WorldState v3`, zoomed camera): moss scarf + oat satchel + postcard read on the player; brass pocket lantern glows warm orange at Lantern Dusk and sways with the stride; H-key wave captured mid-gesture at 300 ms and lowering at 900 ms; HUD `Wave [H]` button live next to the interact CTA; **Barnaby waves back** (raised arm + turn toward player) within ~500 ms of the player's wave; footstep puff system active.
-  - Mobile `390×844` with injected dusk save: joystick bottom-left + `Wave` and `Sit` CTAs bottom-right render cleanly with zero horizontal overflow; simulated two-finger pinch-out zooms the camera in (~10–15% closer, player 70→85 px); **0 console errors, 0 page errors** on both viewports.
-
----
-
-## Entry 024 — Milestone 2B Phase 3 Blueprint: NPC Memory & Gossip Architecture
+## Entry 023 — Milestone 2B Phase 3 Blueprint: NPC Memory & Gossip Architecture
 - **Date**: 2026-11-19
 - **Status**: Completed — Architecture & Blueprint Only (Zero Code, Test, or Schema Changes)
 - **Scope**: Investigated the `v3` simulation, persistence, relationship, and dialogue systems and authored the complete Milestone 2B Phase 3 design package (`docs/milestones/10`–`15`) for review and approval prior to any implementation.
@@ -460,7 +434,7 @@ Chronological log of design decisions, implementation milestones, verification r
 
 ---
 
-## Entry 025 — Milestone 2B Phase 3: NPC Memory & Gossip System (`WorldState v4`)
+## Entry 024 — Milestone 2B Phase 3: NPC Memory & Gossip System (`WorldState v4`)
 - **Date**: 2026-11-19
 - **Status**: Completed & Verified (Phase 3 Only — Phase 4 Storylines & Phase 5 JournalDrawer Not Started)
 - **Key Deliverables**:
@@ -485,10 +459,8 @@ Chronological log of design decisions, implementation milestones, verification r
   - Live headless Chromium (`1440×900` & `390×844` via `?autostart=1`): verified playing world, interactive porch dialog sheet, zero horizontal overflow (`1440===1440`, `390===390`), `localStorage` persisting `schemaVersion: 4` with 9 resident `npcMemories` buckets, and **0 console errors / 0 warnings**.
 
 ---
-<<<<<<< HEAD
-=======
 
-## Entry 026 — Milestone 2B Phase 4: Multi-Stage Storylines & Conflict System (`WorldState v5`)
+## Entry 025 — Milestone 2B Phase 4: Multi-Stage Storylines & Conflict System (`WorldState v5`)
 - **Date**: 2026-11-19
 - **Status**: Completed & Verified (Phase 4 Only — Phase 5 `JournalDrawer.tsx` UI Left Untouched)
 - **Key Deliverables**:
@@ -508,27 +480,27 @@ Chronological log of design decisions, implementation milestones, verification r
   - `npm run lint` (`tsc --noEmit`), `compile_applet`, `lint_applet`, and `npm run build` (`vite build`): **Passing (`0` errors)**.
   - Verified `src/components/JournalDrawer.tsx` remains untouched pending Phase 5.
 
->>>>>>> origin/main
+---
 
-## Entry 027 — Milestone 3 Build 3: Walkable Cottage Interiors (Willow Step Dollhouse)
+## Entry 026 — Milestone 2B Phase 5: Pocket Journal Upgrade & Storyline Integration
 - **Date**: 2026-11-19
 - **Status**: Completed & Verified
-- **Scope**: The Willow Step Cottage becomes the neighborhood's first *walkable* building: the player (and A*) can stroll up the entry ramp, cross the porch, pass through the swinging porch door, and wander a fully furnished one-room interior with a hearth, bed, table, bookshelf, and kitchenette — with a dollhouse occlusion swap that lifts the roof and near walls the moment the player steps onto the porch.
 - **Key Deliverables**:
-  - **Game layer (`src/game/worldMap.ts`, `navigation.ts`, `types.ts`, `actions.ts`, `playerController.ts`)**:
-    - The solid `player_cottage` box became **5 wall-segment obstacles** leaving a 1.4-wide east doorway gap (z 9.3..10.7), plus furniture obstacles (bed, hearth, bookshelf, kitchenette, porch rails) and circle obstacles (table, 2 stools, porch bench, porch pot). All mirrored from `src/scene/builders/cottageInterior.ts` constants (scene tests assert exact sync, orchard-style).
-    - `getGroundHeightAt()` now composes **hard porch (0.42) / interior floor (0.46) plates** with a **smoothstep entry ramp** (lawn at x >= -10.34 rising to deck height at x <= -11.13, 0.15m z-shoulder) — walkers climb the threshold with zero popping.
-    - `isPlayerInCottageInterior()` (hysteresis ON rect = apron+porch+room, wider OFF rect) drives the dollhouse swap and the proactive door swing; exported for both canvas and action semantics.
-    - **5 new nav nodes** (`cottage_porch`, `cottage_door`, `cottage_room`, `cottage_bedside`, `cottage_hearth`) + 5 edges link `willow_porch` into the furnished room (38-node A* graph). Tap-to-walk routes through the doorway; wall bands block sightlines on every other axis (tested).
-    - **New prop interactables** `player_bed` ("Rest Until Morning", `rest_next_day` — rest moves from the porch door to the bed where it belongs) and `player_hearth` ("Warm Hands"); `player_door` becomes a cozy inside-aware flavor interaction ("Step Inside" / "Step Outside").
-  - **Scene layer (`src/scene/builders/cottageInterior.ts` new, `prototypes/willowLaneDiorama.ts`, `textures.ts`, `NeighborhoodCanvas.tsx`)**:
-    - `buildWillowCottageInterior()`: plank floor (new seeded `createCottageFloorTexture`), dollhouse shell (full-height west/north slabs + baseboards, low south/east stubs, cedar threshold strip), **bed** (moss-green quilt, pillow, headboard), **fieldstone hearth** aligned under the exterior chimney (ember bed + 3 flickering flames + mantel kettle/frame/jar + firewood basket), **round table** (vase bloom, journal, mug) with stools on a woven rug, **bookshelf** with three tinted book rows, **kitchenette** (counter, hanging shelf jars, brass kettle, loaf board), west-wall keepsake shelf + pinned postcards, and a brass sconce registered into `lanternMaterials` for free dusk glow. Zero lights added — emissive-only per the lantern language.
-    - `updateWillowCottageInteriorMotion()`: phase-aware ember glow (day 0.7 / golden 1.15 / dusk 1.6) with dual-sine flicker, flame dance, and the **door swing** — `doorPivot` (hinge at the north jamb, geometry offset so the leaf swings *into* the room) damps to -1.82 rad when the player is within 2.6m or in interior mode, closes softly on exit.
-    - `buildWillowStepCottage()` now returns `roofAssembly` (roof, gable infill, bargeboards, ridge, finials, dormer, chimney, smoke puffs), `porchRoofGroup`, `bodyMesh`, south/east window arrays, and `doorPivot` — the canvas toggles these plus `interiorOnly` each tick. Bed/hearth raycast proxies toggle with interior mode and pointer hits are filtered through `isObjectEffectivelyVisible()` so invisible-room props can never be clicked through walls.
-  - **Tests (`src/game/cottageInterior.test.ts` new 9 suites, `src/scene/cottageInterior.test.ts` new 7 suites)**:
-    - Doorway admits a 0.84-wide actor; room core walkable while wall/furniture mass blocks; sightlines blocked through walls and restored through the gap; A* from `south_prom_mid` reaches room/bedside/hearth with every leg LOS-clear; plateau heights + ramp monotonicity + shoulder falloff; interior-mode hysteresis semantics; bed/hearth prop metrics with walkable approaches; `player_bed` rest flow + door/hearth flavor text.
-    - Scene sync: wall/furniture/plateau/rect constants mirror worldMap exactly; rig contracts (hidden-at-build interiorOnly, floor top 0.46, no lights, 3 flames, door pivot geometry, hideable assemblies, 2+2 windows); motion suite (door opens near/closes far, ember dusk >> morning, no NaN).
-    - `engine.test.ts` collision suite updated for the new truth (room center open, wall bands solid, corner slide resolves onto the porch approach).
+  - **Pure Player-Knowledge Journal Projection (`src/game/journal.ts`)**:
+    - Built `buildPocketJournalView(world, seenKeys)` as a zero-DOM/zero-Three pure projection module reusing `projectStorylineForJournal()`, `STORYLINES`, `getStorylineProgress()`, `isStorylineOnCooldown()`, `getActiveStorylineCue()` from `src/game/storylines.ts`, `getResidentAvailableQuestCue()` from `src/game/narrative.ts`, and `composeEnvironmentState()` from `src/game/environment.ts` without modifying `src/game/storylines.ts` or bumping `CURRENT_SCHEMA_VERSION` (`5`).
+    - Preserved all existing `world.memories` entries and legacy `mem_side_*` memories (`isLegacySide: true`).
+    - Integrated active & completed `WorldState v5` storylines without duplicates, displaying current stage (`Part N/M`), stage hint, overnight cooldown pacing (`Settling overnight — check back on Day X.`), contributor notes, and completed outcomes—while strictly omitting hidden/unresolved `outcomeLabel` values prior to `status === 'completed'`, hiding undiscovered `locked` / stage-0 `available` storylines, and gating *The Silent Gazebo Bell* chapters 2–5 behind `world.flags.heardBellMystery`.
+    - Enforced strict player-knowledge boundaries via `isNpcMemoryKnownToPlayer()` (surfacing only `mentionedToPlayer`, `sourceKind === 'player_told'`, or `sourceKind === 'participant' && subjectPlayer`), hiding unmet resident details (`!prog.met`), hiding unmentioned NPC gossip / private lore (`lore_gazebo_rift`), and filtering out private `npc_social` records from `world.worldEvents`.
+    - Formatted NPC rumor and distorted memories (`provenance === 'rumor' || distorted`) in `formatNpcMemoryForPlayer()` with explicit `Unconfirmed rumor` / uncertainty-preserving wording across all distortion flavors (`uncertain`, `exaggerated`, `misattributed_motive`, `softened`), distinguishing `Secondhand word` and direct shared notes cleanly.
+    - Added qualitative `getReliabilityLabel()` phrasing (`Deeply trusted`, `Steady friend`, `Warming up`, `Still cautious`, `Guarded lately`) and browser-safe `little_somewhere_journal_read_v1` New vs Read helpers (`loadJournalReadKeys`, `saveJournalReadKeys`).
+  - **Notebook UI Upgrade (`src/components/JournalDrawer.tsx`)**:
+    - Evolved the Pocket Journal into 4 organized sections (`Stories`, `Memories`, `People`, `Discoveries`) preserving `JournalDrawerProps`, `"Advance 2 Hours"` action, `Fraunces` / `Plus Jakarta Sans` / `JetBrains Mono` typography, and warm linen surfaces (zero `backdrop-blur`, zero `border-l-*`, zero pill-badge sandwiches, zero telemetry `%` readouts).
+    - Added 2×2 mobile / single-row desktop segmented tablist with keyboard arrow navigation, crisp active-tab color swaps, `>= 44px` touch hitboxes, New vs Read visual states, and `"Mark read"` + automatic per-tab read marking on switch/close.
+  - **Unit Tests & Browser Verification (`src/game/journal.test.ts`)**:
+    - Added 7 deterministic test suites covering fresh-world gating, legacy `mem_side_*` saves (`v1..v5` migration compatibility), multi-stage storyline progression & deduplication, cooldown notes, strict non-omniscience boundaries, rumor/distortion uncertainty across all 4 flavors, and New vs Read tracking.
 - **Verification**:
-  - `npm test`: **88/88 passing** (`0` failures; 71 prior + 17 new cottage suites, engine collision suite refreshed). `npm run lint`: **0 errors**. `npm run build`: pass (shell 422.03 kB + scene chunk 744.70 kB, +10.9 kB for the whole interior system).
-  - Headless Chromium QA (desktop `1440×900` + mobile `390×844`, injected `WorldState v3` saves, `scripts/qa_cottage_interior.py`): exterior intact on the lane (roof/dormer/chimney smoke/closed door); dusk approach shows glowing windows + `Step Inside [E]`; interior overview reads bed/quilt, bookshelf, kitchenette, hearth ember, table/rug with the roof lifted; `Rest Until Morning [E]` live at the bedside; keyboard walk-in traversed lane -> ramp -> porch -> swinging door -> room with the dollhouse swap firing mid-approach; mobile interior clean with zero overflow; **0 console errors, 0 page errors across 10 scenarios**.
+  - `npm test`: **94/94 passing** (`0` failures across all `src/game/*.test.ts` and `src/scene/*.test.ts` suites).
+  - `npm run lint` (`tsc --noEmit`) & `compile_applet` (`vite build`): **Passing (`0` errors)**.
+  - Live headless Chromium (`1440×900` & `390×844` via `?autostart=1`): verified Pocket Journal open/close, all 4 tabs, `>= 44px` touch targets, zero horizontal overflow, `WorldState v5` + read-state persistence across reload, screenshot visual inspection, and **0 console errors / 0 page errors**.
+
+

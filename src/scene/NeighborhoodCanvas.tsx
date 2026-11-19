@@ -5,7 +5,6 @@ import {
   CarryableItemId,
   GameScreenState,
   InteractiveTarget,
-  NpcAnimationState,
   PlayerPosture,
   PropInteractableId,
   ResidentId,
@@ -33,7 +32,6 @@ import {
   getGroundHeightAt,
   getPropInteractionMetrics,
   getSeatById,
-  isPlayerInCottageInterior,
   isPointWalkable,
 } from '../game/worldMap';
 import {
@@ -47,17 +45,15 @@ import { computeWaypointPath } from '../game/navigation';
 import { getResidentAvailableQuestCue } from '../game/narrative';
 import { composeEnvironmentState } from '../game/environment';
 import { cozyAudio } from '../game/audio';
-import { mulberry32 } from '../game/rng';
-import { createInitialIdleFlourish, selectWaveBackResidents, stepIdleFlourish } from '../game/playerController';
 import { EnvironmentVisualController } from './environmentRenderer';
 import {
   CharacterRig,
   FountainRig,
   GazeboRig,
-} from './models';import {
+} from './models';
+import {
   createCobblestoneTexture,
   createContactShadowTexture,
-  createCottageFloorTexture,
   createMeadowMacroTexture,
   createMeadowTexture,
   createOrchardSignTexture,
@@ -80,10 +76,6 @@ import {
 } from './builders/vegetation';
 import { buildMeadowDressing } from './builders/botanicalDressing';
 import { buildFernHollowOrchard } from './builders/orchard';
-import {
-  buildWillowCottageInterior,
-  updateWillowCottageInteriorMotion,
-} from './builders/cottageInterior';
 import { buildAllReactiveRigs } from './builders/reactiveProps';
 import {
   buildCarryablePropMesh,
@@ -103,12 +95,8 @@ import {
 } from './builders/buildings';
 import {
   CharacterAnimationOptions,
-  PLAYER_LANTERN_GLOW,
-  StorybookPlayerRig,
   animateCharacterRig,
   buildStorybookCharacter,
-  buildStorybookPlayer,
-  updatePlayerLantern,
 } from './builders/characters';
 
 export interface HudBubbleSnapshot {
@@ -189,15 +177,6 @@ function findNearestWalkablePoint(x: number, z: number, playerPos: Vec2): Vec2 |
   const midX = (playerPos.x + cx) * 0.5;
   const midZ = (playerPos.z + cz) * 0.5;
   return isPointWalkable(midX, midZ, 0.48) ? { x: midX, z: midZ } : null;
-}
-
-function isObjectEffectivelyVisible(obj: THREE.Object3D | null): boolean {
-  let cursor = obj;
-  while (cursor) {
-    if (!cursor.visible) return false;
-    cursor = cursor.parent;
-  }
-  return true;
 }
 
 export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
@@ -346,7 +325,6 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
     const slateRoofTex = createRoofShingleTexture('#5D7082', '#73889C', maxAniso);
     const shadowTex = createContactShadowTexture();
     const orchardSignTex = createOrchardSignTexture();
-    const cottageFloorTex = createCottageFloorTexture(maxAniso);
 
     // Extended natural meadow floor (no boxed void)
     const groundMat = new THREE.MeshStandardMaterial({
@@ -442,17 +420,6 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
     const willowCottage = buildWillowStepCottage(willowProtoCtx);
     willowCottage.group.position.set(-14.5, 0, 10.0);
     scene.add(willowCottage.group);
-
-    // 1b. Walkable cottage interior: dollhouse shell + furniture. The shell is
-    // hidden until the player steps onto the porch (interior-mode occlusion).
-    const cottageInteriorRig = buildWillowCottageInterior({
-      palette,
-      shadowTex,
-      floorTex: cottageFloorTex,
-      lanternMaterials: prototypeLanternMats,
-    });
-    scene.add(cottageInteriorRig.interiorOnly);
-    scene.add(cottageInteriorRig.group);
 
     const willowCourtyard = buildWillowLaneCourtyardProps(willowProtoCtx);
     scene.add(willowCourtyard.group);
@@ -650,28 +617,8 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
       splashParticles.push({ mesh: m, vel: new THREE.Vector3(), life: 0, floorY: 0.1 });
     }
 
-    // Soft cream footstep dust puff ring buffer (Zero-GC pooled, per-puff material for fading)
-    const dustPoolCount = 10;
-    const dustGeo = new THREE.SphereGeometry(0.055, 6, 5);
-    const dustParticles: Array<{ mesh: THREE.Mesh; mat: THREE.MeshBasicMaterial; life: number }> = [];
-    for (let i = 0; i < dustPoolCount; i++) {
-      const mat = new THREE.MeshBasicMaterial({
-        color: '#EFE3C8',
-        transparent: true,
-        opacity: 0,
-        depthWrite: false,
-      });
-      const m = new THREE.Mesh(dustGeo, mat);
-      m.visible = false;
-      scene.add(m);
-      dustParticles.push({ mesh: m, mat, life: 0 });
-    }
-    let dustIdx = 0;
-
     // Build Player & 9 Resident Character Rigs (Storybook Diorama standard)
-    // The player wears the bespoke rig: moss knit scarf, oat-canvas satchel with
-    // peeking postcard, elbow patch, beret pin, and the dusk pocket lantern.
-    const playerRig: StorybookPlayerRig = buildStorybookPlayer(
+    const playerRig: CharacterRig = buildStorybookCharacter(
       {
         coatColor: '#D46E51',
         shirtColor: '#FAF4E8',
@@ -684,6 +631,7 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
       },
       palette,
       shadowTex,
+      'player',
     );
     playerRig.root.position.set(
       worldRef.current.playerPos.x,
@@ -729,7 +677,6 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
 
     // Add invisible raycast proxies for interactive landmark props (full-perimeter proxies for Fountain & Mirror Pond)
     const proxyMat = new THREE.MeshBasicMaterial({ visible: false });
-    const cottagePropProxies: THREE.Object3D[] = [];
     for (const prop of PROP_INTERACTABLES) {
       if (prop.id === 'fountain_plaza') {
         const hit = new THREE.Mesh(new THREE.CylinderGeometry(2.45, 2.55, 2.5, 12), proxyMat);
@@ -755,9 +702,6 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
         hit.userData = { targetKind: 'prop', targetId: prop.id };
         scene.add(hit);
         interactableMeshes.push(hit);
-        if (prop.id === 'player_bed' || prop.id === 'player_hearth') {
-          cottagePropProxies.push(hit);
-        }
       }
     }
 
@@ -816,18 +760,8 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
     let activePulseFocusZ = 0;
     let hasActivePulseFocus = false;
     let smoothedOcclusionLift = 0;
-    let cottageInteriorMode = false;
     let smoothedDialogueZoom = 1.0;
     let smoothedDialogueDropY = 0;
-    let smoothedSprintZoom = 1.0;
-    let pendingWaveEmote = false;
-    let idleFlourish = createInitialIdleFlourish();
-    const flourishPrng = mulberry32(0x5eed1a);
-    const waveBackTimers = {} as Record<ResidentId, number>;
-    const activeTouchPointers = new Map<number, { x: number; y: number }>();
-    let pinchActive = false;
-    let pinchStartDist = 1;
-    let pinchStartZoom = 1.0;
     let hudSyncAccum = 0;
     let hasSyncedInitialHud = false;
     let lastNearestId: string | null = null;
@@ -843,12 +777,6 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.code === 'Space' || e.code === 'Enter') {
         if (screenStateRef.current === 'title') return;
-      }
-      // H = wave hello emote (edge-triggered, consumed inside the tick)
-      if (e.code === 'KeyH' && !e.repeat) {
-        if (screenStateRef.current === 'playing' && !dialogueOpenRef.current) {
-          pendingWaveEmote = true;
-        }
       }
       keysDown.add(e.code);
     };
@@ -866,33 +794,14 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
       if (screenStateRef.current !== 'playing' || dialogueOpenRef.current) return;
       if (e.button !== 0 && e.pointerType === 'mouse') return;
 
-      // Track touch pointers for pinch-to-zoom; a second finger starts a pinch
-      // and cleanly cancels any pending tap-walk so the gesture feels deliberate.
-      if (e.pointerType !== 'mouse') {
-        activeTouchPointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
-        if (activeTouchPointers.size === 2) {
-          pinchActive = true;
-          const pts = [...activeTouchPointers.values()];
-          pinchStartDist = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y) || 1;
-          pinchStartZoom = zoomRef.current;
-          tapWalkDest = null;
-          tapWalkWaypoints = [];
-          tapStuckSeconds = 0;
-          pendingTargetAfterWalk = null;
-          return;
-        }
-      }
-      if (pinchActive) return;
-
       const rect = renderer.domElement.getBoundingClientRect();
       _pointer.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
       _pointer.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
       _raycaster.setFromCamera(_pointer, camera);
 
       const hits = _raycaster.intersectObjects(interactableMeshes, false);
-      const visibleHit = hits.find((h) => isObjectEffectivelyVisible(h.object));
-      if (visibleHit) {
-        const ud = visibleHit.object.userData as {
+      if (hits.length > 0) {
+        const ud = hits[0].object.userData as {
           targetKind: 'resident' | 'prop' | 'seat' | 'carryable';
           targetId: string;
         };
@@ -945,13 +854,7 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
               pid === 'gazebo_bell' && worldRef.current.flags.bellRestored
                 ? 'Ring Bell'
                 : pid === 'player_door'
-                ? isPlayerInCottageInterior(pPos.x, pPos.z)
-                  ? 'Step Outside'
-                  : 'Step Inside'
-                : pid === 'player_bed'
-                ? 'Rest Until Morning'
-                : pid === 'player_hearth'
-                ? 'Warm Hands'
+                ? 'Rest / Porch'
                 : `Inspect ${prop.name}`;
             scoreDist = metrics.scoreDistance;
             isImmediate = metrics.inRange;
@@ -997,29 +900,6 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
       }
     };
     renderer.domElement.addEventListener('pointerdown', handlePointerDown);
-
-    // Pinch-to-zoom (touch): spread fingers to lean in, pinch together to pull back
-    const handlePointerMove = (e: PointerEvent) => {
-      if (!activeTouchPointers.has(e.pointerId)) return;
-      activeTouchPointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
-      if (pinchActive && activeTouchPointers.size >= 2) {
-        const pts = [...activeTouchPointers.values()];
-        const dist = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y) || 1;
-        zoomRef.current = THREE.MathUtils.clamp(
-          pinchStartZoom * (pinchStartDist / dist),
-          0.72,
-          1.45,
-        );
-      }
-    };
-    const handlePointerEnd = (e: PointerEvent) => {
-      if (!activeTouchPointers.has(e.pointerId)) return;
-      activeTouchPointers.delete(e.pointerId);
-      if (activeTouchPointers.size < 2) pinchActive = false;
-    };
-    renderer.domElement.addEventListener('pointermove', handlePointerMove);
-    renderer.domElement.addEventListener('pointerup', handlePointerEnd);
-    renderer.domElement.addEventListener('pointercancel', handlePointerEnd);
 
     const handleWheel = (e: WheelEvent) => {
       if (screenStateRef.current !== 'playing') return;
@@ -1104,40 +984,6 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
       frameId = window.setTimeout(poll, 5);
     }
 
-    function spawnFootstepPuff(x: number, z: number, speed: number) {
-      const p = dustParticles[dustIdx];
-      dustIdx = (dustIdx + 1) % dustParticles.length;
-      p.life = 1;
-      p.mesh.visible = true;
-      p.mesh.position.set(
-        x + (Math.random() - 0.5) * 0.14,
-        getGroundHeightAt(x, z) + 0.07,
-        z + (Math.random() - 0.5) * 0.14,
-      );
-      p.mesh.scale.setScalar(speed > 5.6 ? 0.85 : 0.6);
-    }
-
-    /**
-     * Wave hello emote: player waves ahead, nearby residents (in sight, not
-     * mid-conversation) turn and wave back with a soft reply chime.
-     */
-    function triggerWaveEmote() {
-      const world = worldRef.current;
-      activePulseKind = 'wave';
-      activePulseTimer = 0.95;
-      activePulseFocusX = world.playerPos.x + Math.sin(world.playerFacing) * 2;
-      activePulseFocusZ = world.playerPos.z + Math.cos(world.playerFacing) * 2;
-      hasActivePulseFocus = true;
-      cozyAudio.playWaveHello();
-      const ids = selectWaveBackResidents(world, world.playerPos, 7.0);
-      for (const rid of ids) {
-        waveBackTimers[rid] = 1.75;
-      }
-      if (ids.length > 0) {
-        window.setTimeout(() => cozyAudio.playUiTap(1.25), 260);
-      }
-    }
-
     let prevBellCountLocal = bellRingCounter;
     let prevFountainWishLocal = fountainWishCounter;
     let prevPondSkipLocal = pondSkipCounter;
@@ -1151,30 +997,6 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
       const composed = composeEnvironmentState(world);
       envController.update(composed, world, world.playerPos, elapsed, dt);
       updateWillowPrototypeMotion(willowCottage, willowCourtyard, elapsed);
-
-      // Walkable cottage interior: hysteresis dollhouse swap + door swing + hearth ember
-      const cottagePhase = getTimePhase(world.minuteOfDay);
-      cottageInteriorMode = isPlayerInCottageInterior(
-        world.playerPos.x,
-        world.playerPos.z,
-        cottageInteriorMode,
-      );
-      const showCottageInterior = cottageInteriorMode;
-      willowCottage.roofAssembly.visible = !showCottageInterior;
-      willowCottage.bodyMesh.visible = !showCottageInterior;
-      willowCottage.porchRoofGroup.visible = !showCottageInterior;
-      for (const w of willowCottage.southWallWindows) w.visible = !showCottageInterior;
-      for (const w of willowCottage.eastWallWindows) w.visible = !showCottageInterior;
-      cottageInteriorRig.interiorOnly.visible = showCottageInterior;
-      for (const proxy of cottagePropProxies) proxy.visible = showCottageInterior;
-      updateWillowCottageInteriorMotion(cottageInteriorRig, willowCottage.doorPivot, {
-        playerX: world.playerPos.x,
-        playerZ: world.playerPos.z,
-        phase: cottagePhase,
-        interiorMode: cottageInteriorMode,
-        elapsed,
-        dt,
-      });
 
       // Update chime sparkle particles
       for (const p of chimeParticles) {
@@ -1199,22 +1021,6 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
           } else {
             p.mesh.scale.setScalar(Math.max(0.1, p.life));
           }
-        }
-      }
-
-      // Update soft footstep dust puffs
-      for (const p of dustParticles) {
-        if (p.life > 0) {
-          p.life -= dt * 1.8;
-          if (p.life <= 0) {
-            p.life = 0;
-            p.mesh.visible = false;
-            continue;
-          }
-          const t = 1 - p.life;
-          p.mesh.scale.setScalar(0.7 + t * 1.15);
-          p.mat.opacity = p.life * 0.36;
-          p.mesh.position.y += dt * 0.28;
         }
       }
 
@@ -1279,31 +1085,7 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
         _npcAnimOpts.bankAngle = 0;
         _npcAnimOpts.carrying = false;
         _npcAnimOpts.isMoving = rt.currentSpeed > 0.25;
-
-        // Wave-back greeting: residents the player just waved at turn and wave
-        let npcAnimOverride: NpcAnimationState | null = null;
-        const waveBackLeft = waveBackTimers[id] ?? 0;
-        if (waveBackLeft > 0) {
-          waveBackTimers[id] = Math.max(0, waveBackLeft - dt);
-          if (rt.currentSpeed < 0.25 && !rt.socialPartnerId) {
-            const yawToPlayer = Math.atan2(
-              world.playerPos.x - rt.position.x,
-              world.playerPos.z - rt.position.z,
-            );
-            rig.root.rotation.y += wrapAngleDelta(rig.root.rotation.y, yawToPlayer) * Math.min(1, dt * 10);
-            npcAnimOverride = 'wave';
-          }
-        }
-
-        animateCharacterRig(
-          rig,
-          npcAnimOverride ?? rt.animState,
-          rt.walkPhase,
-          elapsed,
-          dt,
-          i * 0.7,
-          _npcAnimOpts,
-        );
+        animateCharacterRig(rig, rt.animState, rt.walkPhase, elapsed, dt, i * 0.7, _npcAnimOpts);
 
         // Quest cue diamond
         const cue = getResidentAvailableQuestCue(id, world);
@@ -1439,23 +1221,6 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
         } else {
           hasActivePulseFocus = false;
         }
-        // Wave pulses (HUD button / dialogue close) also greet the neighbors
-        if (latestPulse.kind === 'wave') {
-          const worldNow = worldRef.current;
-          const ids = selectWaveBackResidents(worldNow, worldNow.playerPos, 7.0);
-          for (const rid of ids) {
-            waveBackTimers[rid] = 1.75;
-          }
-          cozyAudio.playWaveHello();
-          if (ids.length > 0) {
-            window.setTimeout(() => cozyAudio.playUiTap(1.25), 260);
-          }
-        }
-      }
-      // H-key wave hello emote (consumed here, one frame late at most)
-      if (pendingWaveEmote) {
-        pendingWaveEmote = false;
-        triggerWaveEmote();
       }
       if (activePulseTimer > 0) {
         activePulseTimer = Math.max(0, activePulseTimer - dt);
@@ -1607,14 +1372,7 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
       }
 
       if (playerMotion.footstepPending) {
-        cozyAudio.playFootstep(
-          playerMotion.mode === 'sprint' ? 'sprint' : playerMotion.mode === 'run' ? 'run' : 'walk',
-        );
-        spawnFootstepPuff(world.playerPos.x, world.playerPos.z, playerMotion.speed);
-        // Sprint kicks up a second trailing puff for a livelier stride
-        if (playerMotion.mode === 'sprint') {
-          spawnFootstepPuff(world.playerPos.x, world.playerPos.z, playerMotion.speed);
-        }
+        cozyAudio.playFootstep();
       }
 
       // Update tap destination ring
@@ -1697,20 +1455,6 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
       _playerAnimOpts.bankAngle = playerMotion.bankAngle;
       _playerAnimOpts.carrying = Boolean(world.playerHeldItem);
       _playerAnimOpts.isMoving = playerMotion.speed > 0.25;
-
-      // Idle flourish scheduler: a quiet player pats the beret, glances about, or admires the lane
-      idleFlourish = stepIdleFlourish(idleFlourish, {
-        isMoving: playerMotion.speed > 0.25,
-        isSitting: world.playerPosture === 'sitting',
-        isDialogueOpen: dialogueOpenRef.current || Boolean(dialogueResId),
-        hasGesturePulse: activePulseTimer > 0,
-        dt,
-        rand01: flourishPrng,
-      });
-      if (idleFlourish.activeFlourish && playerAnim === 'idle') {
-        playerAnim = idleFlourish.activeFlourish;
-      }
-
       animateCharacterRig(
         playerRig,
         playerAnim,
@@ -1720,15 +1464,6 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
         0,
         _playerAnimOpts,
       );
-
-      // Dusk pocket lantern: glows with the time phase, sways with the stride
-      const lanternTarget =
-        phase === 'dusk'
-          ? PLAYER_LANTERN_GLOW.dusk
-          : phase === 'golden'
-          ? PLAYER_LANTERN_GLOW.golden
-          : PLAYER_LANTERN_GLOW.day;
-      updatePlayerLantern(playerRig.lantern, lanternTarget, dt, elapsed, playerMotion.speed);
 
       // Update environment lighting, seasonal tints, reactive props, resident rigs & HUD
       syncVisualAndHud(world, elapsed, dt);
@@ -1760,15 +1495,8 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
           5.0,
           dt,
         );
-        // Sprint camera micro-juice: a breath of extra pull-back while sprinting
-        smoothedSprintZoom = THREE.MathUtils.damp(
-          smoothedSprintZoom,
-          playerMotion.mode === 'sprint' ? 1.045 : 1.0,
-          2.6,
-          dt,
-        );
 
-        const zoom = zoomRef.current * smoothedDialogueZoom * smoothedSprintZoom;
+        const zoom = zoomRef.current * smoothedDialogueZoom;
         let focusX = world.playerPos.x;
         let focusZ = world.playerPos.z;
         if (dialogueResId && world.npcRuntime?.[dialogueResId]) {
@@ -1817,9 +1545,6 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
       window.removeEventListener('keyup', handleKeyUp);
       window.removeEventListener('blur', clearInputs);
       renderer.domElement.removeEventListener('pointerdown', handlePointerDown);
-      renderer.domElement.removeEventListener('pointermove', handlePointerMove);
-      renderer.domElement.removeEventListener('pointerup', handlePointerEnd);
-      renderer.domElement.removeEventListener('pointercancel', handlePointerEnd);
       renderer.domElement.removeEventListener('wheel', handleWheel);
       envController.dispose();
       meadowDressing.dispose();
@@ -1832,10 +1557,6 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
       chimeMat.dispose();
       splashGeo.dispose();
       splashMat.dispose();
-      dustGeo.dispose();
-      for (const p of dustParticles) {
-        p.mat.dispose();
-      }
       meadowTex.dispose();
       meadowMacroTex.dispose();
       cobbleTex.dispose();
@@ -1844,7 +1565,6 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
       slateRoofTex.dispose();
       shadowTex.dispose();
       orchardSignTex.dispose();
-      cottageFloorTex.dispose();
       palette.disposeAll();
       timer.dispose();
       renderer.dispose();

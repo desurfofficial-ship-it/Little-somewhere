@@ -15,8 +15,6 @@ export type ResidentId =
 
 export type PropInteractableId =
   | 'player_door'
-  | 'player_bed'
-  | 'player_hearth'
   | 'player_mailbox'
   | 'gazebo_bell'
   | 'fountain_plaza'
@@ -175,9 +173,7 @@ export type NpcAnimationState =
   | 'sketch_read'
   | 'music'
   | 'converse'
-  | 'admire'
-  | 'adjust_hat'
-  | 'look_around';
+  | 'admire';
 
 export interface NpcNeeds {
   energy: number; // 0..100
