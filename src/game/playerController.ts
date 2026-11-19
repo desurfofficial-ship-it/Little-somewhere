@@ -26,6 +26,8 @@ import {
 export const PLAYER_WALK_SPEED = 3.6;
 export const PLAYER_RUN_SPEED = 5.4;
 export const PLAYER_SPRINT_SPEED = 7.6;
+/** Cozy top pace for the tight 7×5.4m cottage room — sprint input is trimmed indoors. */
+export const PLAYER_INDOOR_MAX_SPEED = 4.4;
 export const PLAYER_ACCEL_RATE = 16.0;
 export const PLAYER_DECEL_RATE = 14.0;
 export const PLAYER_TURN_RATE = 13.0;
@@ -178,13 +180,21 @@ export function stepPlayerMovement(input: StepPlayerMovementInput): StepPlayerMo
   }
 
   const activeLocomotionInput = hasMoveInput && !input.interactionActive;
-  // Carrying items trims top sprint pace slightly for cozy physical believability
+  const isInterior = input.location === 'cottage_interior';
+  // Carrying items trims top sprint pace slightly for cozy physical believability;
+  // the small cottage room also caps sprinting so approach points never get overshot.
   const rawDesiredSpeed = resolveDesiredSpeed(
     activeLocomotionInput ? Math.min(1, input.inputMagnitude) : 0,
     input.sprintHeld,
     input.walkHeld,
   );
-  const desiredSpeed = input.carryingItem ? Math.min(rawDesiredSpeed, PLAYER_RUN_SPEED) : rawDesiredSpeed;
+  let desiredSpeed = rawDesiredSpeed;
+  if (input.carryingItem) {
+    desiredSpeed = Math.min(desiredSpeed, PLAYER_RUN_SPEED);
+  }
+  if (isInterior) {
+    desiredSpeed = Math.min(desiredSpeed, PLAYER_INDOOR_MAX_SPEED);
+  }
 
   const targetVx = dirX * desiredSpeed;
   const targetVz = dirZ * desiredSpeed;
@@ -205,7 +215,6 @@ export function stepPlayerMovement(input: StepPlayerMovementInput): StepPlayerMo
     vz = 0;
   }
 
-  const isInterior = input.location === 'cottage_interior';
   const nextPosCandidate = {
     x: pos.x + vx * dt,
     z: pos.z + vz * dt,

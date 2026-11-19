@@ -124,6 +124,9 @@ export default function App() {
   const [pondSkipCounter, setPondSkipCounter] = useState<number>(0);
   const [toastText, setToastText] = useState<string | null>(null);
   const [playerActionPulse, setPlayerActionPulse] = useState<PlayerActionPulse | null>(null);
+  // Soft storybook veil for scene-level transitions (door enter/exit, bed rest).
+  const [veilActive, setVeilActive] = useState<boolean>(false);
+  const veilTimersRef = useRef<number[]>([]);
   const pulseSeqRef = useRef(0);
   const spawnPosRef = useRef<Vec2>(initialLoaded.playerPos);
   // R-03: touch-only thumbstick — the on-screen joystick is a touch affordance and must not
@@ -161,6 +164,15 @@ export default function App() {
 
   const showToast = useCallback((msg: string) => {
     setToastText(msg);
+  }, []);
+
+  // Fade to a warm linen veil, run the transition at the covered midpoint, then release.
+  const playSceneVeil = useCallback((midpoint: () => void) => {
+    for (const t of veilTimersRef.current) window.clearTimeout(t);
+    veilTimersRef.current = [];
+    setVeilActive(true);
+    veilTimersRef.current.push(window.setTimeout(midpoint, 250));
+    veilTimersRef.current.push(window.setTimeout(() => setVeilActive(false), 640));
   }, []);
 
   useEffect(() => {
@@ -275,9 +287,11 @@ export default function App() {
         const cid = target.cottagePropId ?? (target.id as CottageInteractableId);
         const res = interactWithCottageProp(current, cid);
         if (res.actionType === 'exit_cottage') {
-          commitWorld(res.nextWorld);
-          cozyAudio.playUiTap(0.98);
-          showToast('Stepped out onto Willow Step Porch.');
+          playSceneVeil(() => {
+            commitWorld(res.nextWorld);
+            cozyAudio.playUiTap(0.98);
+            showToast('Stepped out onto Willow Step Porch.');
+          });
           return;
         }
         if (res.actionType === 'hearth_panel') {
@@ -312,12 +326,14 @@ export default function App() {
       } else {
         const pid = target.id as PropInteractableId;
         if (pid === 'player_door') {
-          const entered = enterCottageAction(current);
-          commitWorld(entered.nextWorld);
-          cozyAudio.playUiTap(1.06);
-          if (entered.toast) {
-            showToast(entered.toast);
-          }
+          playSceneVeil(() => {
+            const enteredNow = enterCottageAction(worldRef.current);
+            commitWorld(enteredNow.nextWorld);
+            cozyAudio.playUiTap(1.06);
+            if (enteredNow.toast) {
+              showToast(enteredNow.toast);
+            }
+          });
           return;
         }
         const res = interactWithProp(current, pid);
@@ -429,7 +445,7 @@ export default function App() {
       if (res.ok) {
         commitWorld(res.nextWorld);
         triggerPlayerPulse('interact');
-        cozyAudio.playUiTap(1.06);
+        cozyAudio.playArrangePop();
       }
       if (res.toast) {
         showToast(res.toast);
@@ -444,38 +460,44 @@ export default function App() {
       if (res.ok) {
         commitWorld(res.nextWorld);
         triggerPlayerPulse('interact');
-        cozyAudio.playUiTap(1.06);
+        cozyAudio.playArrangePop();
       }
       if (res.toast) {
         showToast(res.toast);
       }
     },
-    [commitWorld, showToast, triggerPlayerPulse],
+    [commitWorld, showToast, triggerPlayerPulse, playSceneVeil],
   );
 
   const handlePropAction = useCallback(
     (actionType: NonNullable<PropInteractionResult['actionType']>) => {
       if (actionType === 'rest_next_day') {
-        const nextDayWorld = performNextDayRest(worldRef.current);
-        commitWorld(nextDayWorld);
-        setActivePropId(null);
-        setPropCard(null);
-        cozyAudio.playMemoryChime();
-        showToast(`Good morning! Day ${nextDayWorld.day} begins in Little Somewhere.`);
+        playSceneVeil(() => {
+          const nextDayWorld = performNextDayRest(worldRef.current);
+          commitWorld(nextDayWorld);
+          setActivePropId(null);
+          setPropCard(null);
+          cozyAudio.playMemoryChime();
+          showToast(`Good morning! Day ${nextDayWorld.day} begins in Little Somewhere.`);
+        });
       } else if (actionType === 'enter_cottage') {
-        const entered = enterCottageAction(worldRef.current);
-        commitWorld(entered.nextWorld);
-        setActivePropId(null);
-        setPropCard(null);
-        cozyAudio.playUiTap(1.06);
-        showToast(entered.toast);
+        playSceneVeil(() => {
+          const entered = enterCottageAction(worldRef.current);
+          commitWorld(entered.nextWorld);
+          setActivePropId(null);
+          setPropCard(null);
+          cozyAudio.playUiTap(1.06);
+          showToast(entered.toast);
+        });
       } else if (actionType === 'exit_cottage') {
-        const exited = exitCottageAction(worldRef.current);
-        commitWorld(exited.nextWorld);
-        setActivePropId(null);
-        setPropCard(null);
-        cozyAudio.playUiTap(0.98);
-        showToast(exited.toast);
+        playSceneVeil(() => {
+          const exited = exitCottageAction(worldRef.current);
+          commitWorld(exited.nextWorld);
+          setActivePropId(null);
+          setPropCard(null);
+          cozyAudio.playUiTap(0.98);
+          showToast(exited.toast);
+        });
       } else if (actionType === 'hearth_panel') {
         setActivePropId(null);
         setPropCard(null);
@@ -525,7 +547,7 @@ export default function App() {
         showToast(res.toast);
       }
     },
-    [commitWorld, showToast, triggerPlayerPulse],
+    [commitWorld, showToast, triggerPlayerPulse, playSceneVeil],
   );
 
   const handleAdvanceTwoHours = useCallback(() => {
@@ -1009,6 +1031,15 @@ export default function App() {
         world={worldSnapshot}
         onClose={() => setJournalOpen(false)}
         onAdvanceTime={handleAdvanceTwoHours}
+      />
+
+      {/* Soft storybook veil for door / rest scene transitions */}
+      <div
+        aria-hidden="true"
+        data-testid="scene-veil"
+        className={`fixed inset-0 z-[45] pointer-events-none bg-[#F6EEDF] transition-opacity duration-300 ${
+          veilActive ? 'opacity-100' : 'opacity-0'
+        }`}
       />
 
       {/* Pause Modal */}

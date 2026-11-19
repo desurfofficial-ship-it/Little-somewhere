@@ -220,6 +220,38 @@ export const HEARTH_RECIPES: readonly RecipeDef[] = [
   },
 ];
 
+/**
+ * Sensory staged labels for the hearth preparation moment (everyday-life polish).
+ * Each recipe plays three short steps in the station modal before the reducer commits,
+ * so brewing reads as an activity rather than a button. Pure data — unit-testable.
+ */
+export const RECIPE_ACTIVITY_STEPS: Record<string, readonly [string, string, string]> = {
+  recipe_chamomile_tea: [
+    'Filling the copper kettle from the rain barrel…',
+    'Steeping chamomile blossoms in honeyed water…',
+    'Warming the stoneware cup…',
+  ],
+  recipe_herb_loaf: [
+    'Kneading lemon thyme into soft dough…',
+    'Folding ribbons of orchard honey…',
+    'Tucking the boule beside warm embers…',
+  ],
+  recipe_crabapple_tart: [
+    'Slicing crisp orchard crabapples…',
+    'Glazing the pastry with spiced honey…',
+    'Setting the tart by the hearthstone…',
+  ],
+  recipe_lavender_shortbread: [
+    'Creaming butter with sweet lavender…',
+    'Folding in crisp orchard apple glaze…',
+    'Laying biscuits on the baking stone…',
+  ],
+};
+
+export function getRecipeActivitySteps(recipeId: string): readonly string[] {
+  return RECIPE_ACTIVITY_STEPS[recipeId] ?? ['Preparing at the hearth…', 'Working with warm hands…', 'Finishing with care…'];
+}
+
 export const RESIDENT_GIFT_PREFS: Record<
   ResidentId,
   { loved: readonly PersonalItemId[]; liked: readonly PersonalItemId[] }

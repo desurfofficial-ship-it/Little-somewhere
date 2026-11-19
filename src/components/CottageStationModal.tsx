@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Check, Flame, Flower2, Frame, Sparkles, X } from 'lucide-react';
 import {
   HEARTH_RECIPES,
@@ -7,8 +7,10 @@ import {
   getItemCount,
   getOwnedKeepsakeItems,
   getOwnedVaseFlowerItems,
+  getRecipeActivitySteps,
 } from '../game/inventory';
 import { describePlacedFlower } from '../game/cottage';
+import { cozyAudio } from '../game/audio';
 import { PersonalItemId, WorldState } from '../game/types';
 import { CottageStationMode } from './InventoryDrawer';
 
@@ -41,6 +43,47 @@ export const CottageStationModal: React.FC<CottageStationModalProps> = ({
   onPlaceFlower,
   onToggleKeepsake,
 }) => {
+  // Hearth preparation moment: three short sensory steps, then the reducer commits
+  // once and a completion card names what was made. Closing mid-activity cancels.
+  const [brewSteps, setBrewSteps] = useState<{ recipeId: string; stepIndex: number } | null>(null);
+  const [brewComplete, setBrewComplete] = useState<{
+    recipeId: string;
+    outputLabel: string;
+    minutes: number;
+  } | null>(null);
+
+  useEffect(() => {
+    if (!brewSteps) return;
+    const recipe = HEARTH_RECIPES.find((r) => r.id === brewSteps.recipeId);
+    if (!recipe) {
+      setBrewSteps(null);
+      return;
+    }
+    if (brewSteps.stepIndex >= getRecipeActivitySteps(recipe.id).length) {
+      onCookRecipe(recipe.id);
+      const outDef = PERSONAL_ITEM_MAP[recipe.outputItemId];
+      setBrewComplete({
+        recipeId: recipe.id,
+        outputLabel: outDef?.label ?? recipe.label,
+        minutes: recipe.minutesRequired,
+      });
+      setBrewSteps(null);
+      return;
+    }
+    const t = window.setTimeout(() => {
+      setBrewSteps((s) => (s ? { ...s, stepIndex: s.stepIndex + 1 } : s));
+    }, 640);
+    return () => window.clearTimeout(t);
+  }, [brewSteps, onCookRecipe]);
+
+  useEffect(() => {
+    if (!brewComplete) return;
+    const t = window.setTimeout(() => setBrewComplete(null), 3400);
+    return () => window.clearTimeout(t);
+  }, [brewComplete]);
+
+  const brewing = brewSteps !== null;
+
   if (!mode) return null;
 
   const cottage = world.cottageState;
@@ -64,7 +107,7 @@ export const CottageStationModal: React.FC<CottageStationModalProps> = ({
         role="dialog"
         aria-label={title}
         onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-2xl max-h-[85vh] bg-[#FAF5EC] border border-[#D4C4AE] rounded-2xl shadow-[0_20px_56px_rgba(45,36,30,0.28)] flex flex-col overflow-hidden"
+        className="relative w-full max-w-2xl max-h-[85vh] bg-[#FAF5EC] border border-[#D4C4AE] rounded-2xl shadow-[0_20px_56px_rgba(45,36,30,0.28)] flex flex-col overflow-hidden"
       >
         {/* Header */}
         <div className="flex items-start justify-between gap-3 px-4 sm:px-5 py-3.5 sm:py-4 border-b border-[#E5D9C7]">
@@ -169,15 +212,24 @@ export const CottageStationModal: React.FC<CottageStationModalProps> = ({
 
                       <button
                         type="button"
-                        disabled={!craftable}
-                        onClick={() => onCookRecipe(recipe.id)}
+                        disabled={!craftable || brewing}
+                        onClick={() => {
+                          if (!craftable || brewing) return;
+                          setBrewComplete(null);
+                          setBrewSteps({ recipeId: recipe.id, stepIndex: 0 });
+                          cozyAudio.playKettleSteam();
+                        }}
                         className={`min-h-[44px] px-4 py-2 rounded-xl text-sm font-semibold transition-colors whitespace-nowrap shrink-0 ${
-                          craftable
+                          craftable && !brewing
                             ? 'bg-[#C86446] hover:bg-[#B45539] text-[#FAF5EC] cursor-pointer'
                             : 'bg-[#E6DAC7] text-[#8C7D6F] cursor-not-allowed'
                         }`}
                       >
-                        {recipe.id === 'recipe_chamomile_tea' ? 'Steep Tea' : 'Bake Treat'}
+                        {brewing && brewSteps?.recipeId === recipe.id
+                          ? 'Preparing…'
+                          : recipe.id === 'recipe_chamomile_tea'
+                          ? 'Steep Tea'
+                          : 'Bake Treat'}
                       </button>
                     </article>
                   );
@@ -317,6 +369,53 @@ export const CottageStationModal: React.FC<CottageStationModalProps> = ({
             </>
           )}
         </div>
+
+        {/* Hearth activity overlay: staged preparation + completion card */}
+        {(brewSteps || brewComplete) && (
+          <div className="absolute inset-0 z-10 flex items-center justify-center bg-[#FAF5EC]/94 p-5">
+            {brewSteps ? (
+              <div className="w-full max-w-sm text-center space-y-3" aria-live="polite">
+                <Flame className="w-6 h-6 text-[#C86446] mx-auto animate-pulse" />
+                <h3 className="font-display text-lg font-semibold text-[#2D241E]">
+                  Hearth &amp; Kettle at work
+                </h3>
+                <div className="flex items-center justify-center gap-2" aria-hidden="true">
+                  {getRecipeActivitySteps(brewSteps.recipeId).map((_, idx) => (
+                    <span
+                      key={idx}
+                      className={`w-2.5 h-2.5 rounded-full transition-colors duration-300 ${
+                        idx <= brewSteps.stepIndex ? 'bg-[#C86446]' : 'bg-[#E2D4C0]'
+                      }`}
+                    />
+                  ))}
+                </div>
+                <p className="text-sm text-[#4A3C32] leading-relaxed min-h-[2.6em]">
+                  {getRecipeActivitySteps(brewSteps.recipeId)[Math.min(brewSteps.stepIndex, 2)]}
+                </p>
+              </div>
+            ) : (
+              brewComplete && (
+                <div className="w-full max-w-sm text-center space-y-2.5" aria-live="polite">
+                  <Sparkles className="w-6 h-6 text-[#E5A93C] mx-auto" />
+                  <h3 className="font-display text-lg font-semibold text-[#2D241E]">
+                    {brewComplete.outputLabel}
+                  </h3>
+                  <p className="text-sm text-[#4A3C32] leading-relaxed">
+                    Ready from your hearth — {brewComplete.minutes} minutes of gentle kitchen
+                    quiet, tucked warm into your satchel.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => setBrewComplete(null)}
+                    className="min-h-[44px] px-4 py-2 rounded-xl bg-[#C86446] hover:bg-[#B45539] text-sm font-semibold text-[#FAF5EC] transition-colors cursor-pointer"
+                  >
+                    Lovely — Done
+                  </button>
+                </div>
+              )
+            )}
+          </div>
+        )}
       </div>
     </div>
   );

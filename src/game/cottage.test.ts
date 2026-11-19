@@ -19,7 +19,12 @@ import {
   selectBestInteriorTarget,
 } from './cottage';
 import { getItemCount } from './inventory';
-import { createInitialPlayerMotion, stepPlayerMovement } from './playerController';
+import {
+  PLAYER_INDOOR_MAX_SPEED,
+  PLAYER_SPRINT_SPEED,
+  createInitialPlayerMotion,
+  stepPlayerMovement,
+} from './playerController';
 import { stepSimulation } from './simulation';
 import { advanceToNextDay, createFreshWorldState } from './storage';
 import { isPointWalkable } from './worldMap';
@@ -74,6 +79,51 @@ test('cottage interior walkability, obstacle bounds, spawns, and interactable st
   });
   assert.ok(indoorStep.pos.x < COTTAGE_DOOR_SPAWN.x);
   assert.equal(isInteriorPointWalkable(indoorStep.pos.x, indoorStep.pos.z, 0.42), true);
+});
+
+test('indoor sprint input is capped to the cozy room pace while outdoor speeds are untouched', () => {
+  // 16 steps (~0.53s) accelerate to terminal pace but stay clear of interior walls
+  const runSprintSteps = (location: 'exterior' | 'cottage_interior') => {
+    // z=-0.45 is the open west corridor: no furniture blocks a 2.3 m dash from the door
+    const start = location === 'cottage_interior' ? { x: 2.25, z: -0.45 } : { x: 2, z: -2 };
+    const motion = createInitialPlayerMotion(start);
+    let pos = { ...start };
+    let latest = motion;
+    for (let i = 0; i < 16; i++) {
+      const res = stepPlayerMovement({
+        pos,
+        facing: Math.PI,
+        motion: latest,
+        moveDirX: -1,
+        moveDirZ: 0,
+        inputMagnitude: 1,
+        sprintHeld: true,
+        carryingItem: false,
+        posture: 'standing',
+        seatId: null,
+        location,
+        dt: 1 / 30,
+      });
+      pos = res.pos;
+      latest = res.motion;
+    }
+    return latest.speed;
+  };
+
+  const indoorSpeed = runSprintSteps('cottage_interior');
+  const outdoorSpeed = runSprintSteps('exterior');
+  assert.ok(
+    indoorSpeed <= PLAYER_INDOOR_MAX_SPEED + 0.05,
+    `Indoor pace should trim to ${PLAYER_INDOOR_MAX_SPEED}, got ${indoorSpeed.toFixed(2)}`,
+  );
+  assert.ok(
+    indoorSpeed > 3.0,
+    `Indoor pace should still exceed a gentle walk, got ${indoorSpeed.toFixed(2)}`,
+  );
+  assert.ok(
+    outdoorSpeed >= PLAYER_SPRINT_SPEED - 0.6,
+    `Outdoor sprint should stay full-speed, got ${outdoorSpeed.toFixed(2)}`,
+  );
 });
 
 test('entering and leaving Willow Step Cottage preserves exterior position and suspends outdoor greetings indoors', () => {
@@ -199,4 +249,44 @@ test('outdoor gathering props grant daily items cleanly and respect once-per-day
       getItemCount(world.inventory, 'pressed_fern') +
       getItemCount(world.inventory, 'cedar_shaving_rose') === 1,
   );
+});
+
+test('gathering results carry explicit gainedItems chips matching the inventory deltas', () => {
+  let world = createFreshWorldState();
+
+  const box = interactWithProp(world, 'cottage_window_box');
+  world = box.nextWorld;
+  assert.ok(box.gainedItems, 'window box result exposes gainedItems');
+  const boxChamomile = box.gainedItems.find((c) => c.itemId === 'chamomile_blossom');
+  assert.equal(boxChamomile?.count, getItemCount(world.inventory, 'chamomile_blossom') - 1);
+
+  const greenhouse = interactWithProp(world, 'greenhouse_planters');
+  world = greenhouse.nextWorld;
+  assert.deepEqual(
+    [...greenhouse.gainedItems ?? []].sort((a, b) => a.itemId.localeCompare(b.itemId)),
+    [
+      { itemId: 'lavender_sprig', count: 1 },
+      { itemId: 'lemon_thyme', count: 1 },
+    ],
+  );
+
+  const orchard = interactWithProp(world, 'orchard_harvest');
+  world = orchard.nextWorld;
+  assert.deepEqual(orchard.gainedItems, [
+    { itemId: 'crabapple', count: 2 },
+    { itemId: 'wild_honey', count: 1 },
+  ]);
+
+  const pond = interactWithProp(world, 'pond_driftwood');
+  world = pond.nextWorld;
+  assert.equal(pond.gainedItems?.length, 1);
+  assert.equal(
+    getItemCount(world.inventory, pond.gainedItems![0].itemId),
+    pond.gainedItems![0].count,
+  );
+
+  // Second visit (already tended today) grants nothing and exposes no chips
+  const boxAgain = interactWithProp(world, 'cottage_window_box');
+  assert.equal(boxAgain.nextWorld, world);
+  assert.equal(boxAgain.gainedItems, undefined);
 });

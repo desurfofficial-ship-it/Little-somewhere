@@ -126,6 +126,79 @@ class CozyAudioEngine {
     }
   }
 
+  /**
+   * Soft kettle-steam swell for the hearth preparation moment: filtered noise
+   * breathing in and out over ~1.6s with a gentle whistle overtone.
+   */
+  public playKettleSteam(): void {
+    const ctx = this.ensureContext();
+    if (!ctx) return;
+    const now = ctx.currentTime;
+    const bufferSize = Math.floor(ctx.sampleRate * 1.7);
+    const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < bufferSize; i++) {
+      data[i] = (Math.random() * 2 - 1) * 0.5;
+    }
+    const noise = ctx.createBufferSource();
+    noise.buffer = buffer;
+    const filter = ctx.createBiquadFilter();
+    filter.type = 'bandpass';
+    filter.frequency.setValueAtTime(900, now);
+    filter.frequency.linearRampToValueAtTime(1500, now + 0.9);
+    filter.frequency.linearRampToValueAtTime(700, now + 1.65);
+    filter.Q.value = 1.4;
+    const gain = ctx.createGain();
+    gain.gain.setValueAtTime(0.001, now);
+    gain.gain.linearRampToValueAtTime(0.045, now + 0.5);
+    gain.gain.linearRampToValueAtTime(0.03, now + 1.1);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 1.65);
+    noise.connect(filter);
+    filter.connect(gain);
+    gain.connect(ctx.destination);
+    noise.start(now);
+    noise.stop(now + 1.7);
+    const whistle = ctx.createOscillator();
+    const whistleGain = ctx.createGain();
+    whistle.type = 'sine';
+    whistle.frequency.setValueAtTime(2093, now + 0.85);
+    whistleGain.gain.setValueAtTime(0.001, now);
+    whistleGain.gain.linearRampToValueAtTime(0.012, now + 1.0);
+    whistleGain.gain.exponentialRampToValueAtTime(0.001, now + 1.5);
+    whistle.connect(whistleGain);
+    whistleGain.connect(ctx.destination);
+    whistle.start(now + 0.8);
+    whistle.stop(now + 1.55);
+  }
+
+  /** Soft wooden arrange tick for vase / keepsake / satchel object handling. */
+  public playArrangePop(): void {
+    const ctx = this.ensureContext();
+    if (!ctx) return;
+    const now = ctx.currentTime;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'triangle';
+    osc.frequency.setValueAtTime(320, now);
+    osc.frequency.exponentialRampToValueAtTime(210, now + 0.07);
+    gain.gain.setValueAtTime(0.05, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.09);
+    const body = ctx.createOscillator();
+    const bodyGain = ctx.createGain();
+    body.type = 'sine';
+    body.frequency.setValueAtTime(165, now);
+    bodyGain.gain.setValueAtTime(0.03, now);
+    bodyGain.gain.exponentialRampToValueAtTime(0.001, now + 0.12);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    body.connect(bodyGain);
+    bodyGain.connect(ctx.destination);
+    osc.start(now);
+    osc.stop(now + 0.1);
+    body.start(now);
+    body.stop(now + 0.13);
+  }
+
   public playWaterSplash(): void {
     const ctx = this.ensureContext();
     if (!ctx) return;

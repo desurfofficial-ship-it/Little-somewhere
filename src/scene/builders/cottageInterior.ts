@@ -108,6 +108,16 @@ export function buildWillowCottageInterior(
       depthWrite: false,
     }),
   );
+  // Warm pendant-lantern shade — glows toward dusk so the room's center stays alive
+  const pendantLampMat = trackMat(
+    new THREE.MeshStandardMaterial({
+      color: '#FFE4AE',
+      emissive: '#FFC470',
+      emissiveIntensity: 0.2,
+      roughness: 0.4,
+      metalness: 0.04,
+    }),
+  );
   const hitProxyMat = trackMat(
     new THREE.MeshBasicMaterial({
       visible: false,
@@ -548,6 +558,277 @@ export function buildWillowCottageInterior(
   doorGroup.add(doorMatRug, doorJambN, doorJambS, doorLintel, doorLeaf, doorKnob);
   group.add(doorGroup);
 
+  // H. Lived-in dressing (Pass 1 — Everyday Life polish; all inside existing obstacle
+  //    footprints or wall planes so COTTAGE_INTERIOR_OBSTACLES stays untouched).
+
+  // H1. Dining stools tucked at the oak table (inside cottage_table footprint)
+  const stoolGroupWest = new THREE.Group();
+  stoolGroupWest.position.set(-0.62, 0, 0.04);
+  const stoolGroupEast = new THREE.Group();
+  stoolGroupEast.position.set(0.62, 0, -0.06);
+  for (const [stool, tilt] of [
+    [stoolGroupWest, 0.09],
+    [stoolGroupEast, -0.07],
+  ] as const) {
+    const seat = new THREE.Mesh(trackGeo(new THREE.CylinderGeometry(0.17, 0.15, 0.07, 12)), cedarWarmMat);
+    seat.position.y = 0.42;
+    seat.rotation.z = tilt;
+    for (const [lx, lz] of [
+      [-0.09, -0.09],
+      [0.09, -0.09],
+      [-0.09, 0.09],
+      [0.09, 0.09],
+    ]) {
+      const leg = new THREE.Mesh(trackGeo(new THREE.CylinderGeometry(0.022, 0.018, 0.4, 6)), cedarDarkMat);
+      leg.position.set(lx, 0.2, lz);
+      stool.add(leg);
+    }
+    const ring = new THREE.Mesh(trackGeo(new THREE.TorusGeometry(0.105, 0.012, 5, 12)), cedarDarkMat);
+    ring.rotation.x = Math.PI * 0.5;
+    ring.position.y = 0.14;
+    stool.add(seat, ring);
+    tableGroup.add(stool);
+  }
+
+  // H2. Linen curtains + brass rod dressing the west sunlit window
+  const curtainRod = new THREE.Mesh(trackGeo(new THREE.CylinderGeometry(0.022, 0.022, 1.98, 8)), brassMat);
+  curtainRod.rotation.x = Math.PI * 0.5;
+  curtainRod.position.set(-3.53, 2.16, 0);
+  group.add(curtainRod);
+  const curtainNorth = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(0.07, 1.16, 0.34)), linenMat);
+  curtainNorth.position.set(-3.52, 1.5, -0.86);
+  curtainNorth.rotation.z = 0.02;
+  const curtainSouth = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(0.07, 1.16, 0.34)), linenMat);
+  curtainSouth.position.set(-3.52, 1.5, 0.86);
+  curtainSouth.rotation.z = -0.02;
+  const curtainTieN = new THREE.Mesh(trackGeo(new THREE.TorusGeometry(0.075, 0.016, 5, 10)), brassMat);
+  curtainTieN.position.set(-3.51, 1.28, -0.83);
+  curtainTieN.rotation.y = Math.PI * 0.5;
+  const curtainTieS = new THREE.Mesh(trackGeo(new THREE.TorusGeometry(0.075, 0.016, 5, 10)), brassMat);
+  curtainTieS.position.set(-3.51, 1.28, 0.83);
+  curtainTieS.rotation.y = Math.PI * 0.5;
+  group.add(curtainNorth, curtainSouth, curtainTieN, curtainTieS);
+
+  // H3. Framed botanical prints on the north wall (either side of keepsake shelf clock)
+  const printFrameA = new THREE.Group();
+  printFrameA.position.set(-0.55, 1.72, -2.68);
+  const frameA = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(0.34, 0.44, 0.045)), cedarWarmMat);
+  const canvasA = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(0.28, 0.38, 0.05)), petalCreamMat);
+  const canvasLeafA = new THREE.Mesh(trackGeo(new THREE.CylinderGeometry(0.09, 0.13, 0.052, 7)), foliageMat);
+  canvasLeafA.scale.set(0.8, 1, 1);
+  canvasLeafA.rotation.x = Math.PI * 0.5;
+  canvasLeafA.position.y = -0.02;
+  printFrameA.add(frameA, canvasA, canvasLeafA);
+  const printFrameB = new THREE.Group();
+  printFrameB.position.set(2.52, 1.78, -2.68);
+  const frameB = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(0.3, 0.38, 0.045)), cedarDarkMat);
+  const canvasB = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(0.24, 0.32, 0.05)), petalLavenderMat);
+  printFrameB.add(frameB, canvasB);
+  group.add(printFrameA, printFrameB);
+
+  // H4. Round wall clock above the keepsake shelf
+  const clockFace = new THREE.Mesh(trackGeo(new THREE.CylinderGeometry(0.17, 0.17, 0.05, 18)), creamMat);
+  clockFace.rotation.x = Math.PI * 0.5;
+  const clockRim = new THREE.Mesh(trackGeo(new THREE.TorusGeometry(0.17, 0.02, 6, 18)), brassMat);
+  clockRim.position.set(1.3, 2.26, -2.66);
+  clockFace.position.set(1.3, 2.26, -2.675);
+  const clockHandH = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(0.016, 0.09, 0.02)), ironMat);
+  clockHandH.position.set(1.3, 2.3, -2.645);
+  const clockHandM = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(0.012, 0.13, 0.02)), ironMat);
+  clockHandM.position.set(1.3, 2.285, -2.645);
+  clockHandM.rotation.z = 2.1;
+  const clockPin = new THREE.Mesh(trackGeo(new THREE.SphereGeometry(0.02, 6, 6)), brassMat);
+  clockPin.position.set(1.3, 2.26, -2.64);
+  group.add(clockRim, clockFace, clockHandH, clockHandM, clockPin);
+
+  // H5. Dried-herb bundle hanging beside the chimney breast
+  const herbBundle = new THREE.Group();
+  herbBundle.position.set(-1.28, 1.5, -2.42);
+  const herbTwine = new THREE.Mesh(trackGeo(new THREE.TorusGeometry(0.045, 0.012, 5, 10)), cedarDarkMat);
+  for (let hi = 0; hi < 5; hi++) {
+    const ha = (hi / 5) * Math.PI * 2;
+    const stem = new THREE.Mesh(trackGeo(new THREE.CylinderGeometry(0.012, 0.006, 0.24, 5)), hi % 2 === 0 ? sageMat : petalLavenderMat);
+    stem.position.set(Math.cos(ha) * 0.035, -0.16, Math.sin(ha) * 0.035);
+    stem.rotation.z = Math.cos(ha) * 0.22;
+    stem.rotation.x = Math.sin(ha) * 0.22;
+    herbBundle.add(stem);
+  }
+  herbBundle.add(herbTwine);
+  group.add(herbBundle);
+
+  // H6. Firewood basket beside the hearth counter (inside cottage_hearth footprint)
+  const woodBasket = new THREE.Group();
+  woodBasket.position.set(-1.05, 0, -2.06);
+  const basketBody = new THREE.Mesh(trackGeo(new THREE.CylinderGeometry(0.17, 0.14, 0.2, 10)), terracottaMat);
+  basketBody.position.y = 0.1;
+  const basketRim = new THREE.Mesh(trackGeo(new THREE.TorusGeometry(0.165, 0.02, 6, 12)), cedarDarkMat);
+  basketRim.rotation.x = Math.PI * 0.5;
+  basketRim.position.y = 0.2;
+  woodBasket.add(basketBody, basketRim);
+  for (const [wx, wy, wr, wl] of [
+    [-0.04, 0.26, 0.032, 0.3],
+    [0.04, 0.27, 0.028, 0.26],
+    [0.0, 0.31, 0.026, 0.28],
+  ] as const) {
+    const log = new THREE.Mesh(trackGeo(new THREE.CylinderGeometry(wr, wr, wl, 7)), cedarWarmMat);
+    log.rotation.z = Math.PI * 0.5;
+    log.rotation.y = wx * 4;
+    log.position.set(wx * 1.6, wy, 0);
+    woodBasket.add(log);
+  }
+  group.add(woodBasket);
+
+  // H7. Sideboard life: book stack, teacup, small potted plant
+  const bookStack = new THREE.Group();
+  bookStack.position.set(0.82, 0.86, 0.04);
+  const bookBottom = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(0.24, 0.045, 0.17)), sageMat);
+  bookBottom.position.y = 0.023;
+  const bookMiddle = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(0.21, 0.04, 0.15)), terracottaMat);
+  bookMiddle.position.set(0.01, 0.065, 0.01);
+  bookMiddle.rotation.y = 0.18;
+  const bookTop = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(0.18, 0.035, 0.13)), linenMat);
+  bookTop.position.set(-0.01, 0.103, -0.005);
+  bookTop.rotation.y = -0.14;
+  bookStack.add(bookBottom, bookMiddle, bookTop);
+  const teacup = new THREE.Group();
+  teacup.position.set(-0.78, 0.86, 0.06);
+  const cupBody = new THREE.Mesh(trackGeo(new THREE.CylinderGeometry(0.05, 0.038, 0.07, 10)), ceramicMat);
+  cupBody.position.y = 0.035;
+  const cupHandle = new THREE.Mesh(trackGeo(new THREE.TorusGeometry(0.026, 0.008, 5, 10, Math.PI)), ceramicMat);
+  cupHandle.position.set(0.052, 0.04, 0);
+  cupHandle.rotation.z = -Math.PI * 0.5;
+  const saucer = new THREE.Mesh(trackGeo(new THREE.CylinderGeometry(0.07, 0.055, 0.018, 12)), ceramicMat);
+  saucer.position.y = 0.009;
+  teacup.add(cupBody, cupHandle, saucer);
+  const sillPot = new THREE.Group();
+  sillPot.position.set(0.52, 0.86, -0.16);
+  const sillPotBody = new THREE.Mesh(trackGeo(new THREE.CylinderGeometry(0.055, 0.042, 0.09, 9)), terracottaMat);
+  sillPotBody.position.y = 0.045;
+  const sillPotPlant = new THREE.Mesh(trackGeo(new THREE.DodecahedronGeometry(0.07, 0)), foliageMat);
+  sillPotPlant.position.y = 0.14;
+  sillPotPlant.scale.set(1, 0.85, 1);
+  sillPot.add(sillPotBody, sillPotPlant);
+  shelfGroup.add(bookStack, teacup, sillPot);
+
+  // H8. Rolled blanket at the bed foot (inside cottage_bed footprint)
+  const bedBlanket = new THREE.Group();
+  bedBlanket.position.set(0.42, 0.6, 0.5);
+  const blanketRoll = new THREE.Mesh(trackGeo(new THREE.CylinderGeometry(0.09, 0.09, 0.52, 10)), sageMat);
+  blanketRoll.rotation.x = Math.PI * 0.5;
+  const blanketBelt = new THREE.Mesh(trackGeo(new THREE.TorusGeometry(0.092, 0.014, 5, 12)), linenMat);
+  blanketBelt.rotation.y = Math.PI * 0.5;
+  blanketBelt.position.x = 0.1;
+  bedBlanket.add(blanketRoll, blanketBelt);
+  bedGroup.add(bedBlanket);
+
+  // H9. Umbrella by the door jamb + scarf peg on the north wall east end
+  const umbrella = new THREE.Group();
+  umbrella.position.set(3.42, 0, -0.86);
+  umbrella.rotation.z = -0.28;
+  const umbrellaPole = new THREE.Mesh(trackGeo(new THREE.CylinderGeometry(0.018, 0.018, 0.92, 6)), brassMat);
+  umbrellaPole.position.y = 0.46;
+  const umbrellaTop = new THREE.Mesh(trackGeo(new THREE.ConeGeometry(0.14, 0.14, 8)), sageMat);
+  umbrellaTop.position.y = 0.98;
+  const umbrellaHandle = new THREE.Mesh(trackGeo(new THREE.TorusGeometry(0.05, 0.014, 5, 9, Math.PI * 1.2)), cedarDarkMat);
+  umbrellaHandle.position.set(0, 0.05, 0);
+  umbrellaHandle.rotation.y = Math.PI * 0.5;
+  umbrella.add(umbrellaPole, umbrellaTop, umbrellaHandle);
+  group.add(umbrella);
+  const scarfPeg = new THREE.Group();
+  scarfPeg.position.set(3.02, 1.72, -2.68);
+  const pegPin = new THREE.Mesh(trackGeo(new THREE.SphereGeometry(0.032, 8, 8)), brassMat);
+  const scarfLoop = new THREE.Mesh(trackGeo(new THREE.TorusGeometry(0.075, 0.03, 6, 12)), terracottaMat);
+  scarfLoop.position.set(0.01, -0.05, 0.045);
+  const scarfCloth = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(0.11, 0.3, 0.05)), terracottaMat);
+  scarfCloth.position.set(0.02, -0.2, 0.05);
+  scarfCloth.rotation.z = 0.1;
+  const scarfTail = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(0.085, 0.22, 0.045)), linenMat);
+  scarfTail.position.set(-0.035, -0.16, 0.02);
+  scarfTail.rotation.z = -0.16;
+  scarfPeg.add(pegPin, scarfLoop, scarfCloth, scarfTail);
+  group.add(scarfPeg);
+
+  // H10. Hanging pendant lantern under the center beam (airborne — no walkability impact)
+  const pendantGroup = new THREE.Group();
+  pendantGroup.position.set(0.0, 0, -1.32);
+  const pendantCord = new THREE.Mesh(trackGeo(new THREE.CylinderGeometry(0.012, 0.012, 0.5, 5)), ironMat);
+  pendantCord.position.y = 2.36;
+  const pendantShade = new THREE.Mesh(trackGeo(new THREE.CylinderGeometry(0.13, 0.2, 0.2, 10, 1, true)), pendantLampMat);
+  pendantShade.position.y = 2.0;
+  const pendantBulb = new THREE.Mesh(trackGeo(new THREE.SphereGeometry(0.055, 8, 7)), pendantLampMat);
+  pendantBulb.position.y = 1.93;
+  const pendantRing = new THREE.Mesh(trackGeo(new THREE.TorusGeometry(0.035, 0.01, 5, 10)), brassMat);
+  pendantRing.position.y = 2.11;
+  pendantGroup.add(pendantCord, pendantShade, pendantBulb, pendantRing);
+  group.add(pendantGroup);
+
+  // H11. Stronger empty-vase cue: dry stems + a small paper tag on the empty pitcher
+  const dryStemA = new THREE.Mesh(trackGeo(new THREE.CylinderGeometry(0.008, 0.01, 0.2, 5)), foliageMat);
+  dryStemA.position.set(0.03, 0.36, -0.02);
+  dryStemA.rotation.z = -0.18;
+  const dryStemB = new THREE.Mesh(trackGeo(new THREE.CylinderGeometry(0.007, 0.009, 0.16, 5)), foliageMat);
+  dryStemB.position.set(-0.03, 0.34, 0.02);
+  dryStemB.rotation.z = 0.24;
+  vaseEmptyGroup.add(dryStemA, dryStemB);
+  const vaseTag = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(0.07, 0.09, 0.012)), linenMat);
+  vaseTag.position.set(0.12, 0.12, 0.09);
+  vaseTag.rotation.set(0.12, 0.4, -0.14);
+  vaseEmptyGroup.add(vaseTag);
+
+  // I. Interior atmosphere layer (Pass 2 — Everyday Life polish)
+  //    Hearth point light (no shadows, indoor-only via interiorRoot visibility),
+  //    a west-window daylight shaft, and drifting dust motes. All zero-allocation.
+  const hearthLight = new THREE.PointLight('#FFB46B', 0, 7.0, 1.7);
+  hearthLight.position.set(-1.9, 1.05, -1.75);
+  group.add(hearthLight);
+
+  const shaftMat = trackMat(
+    new THREE.MeshBasicMaterial({
+      color: '#FFF3D0',
+      transparent: true,
+      opacity: 0,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      side: THREE.DoubleSide,
+    }),
+  );
+  const windowShaft = new THREE.Mesh(trackGeo(new THREE.PlaneGeometry(1.3, 2.3)), shaftMat);
+  windowShaft.position.set(-2.48, 1.02, 0.02);
+  windowShaft.rotation.set(0, Math.PI * 0.5, -0.5);
+  group.add(windowShaft);
+
+  const MOTE_COUNT = 34;
+  const moteBase = new Float32Array(MOTE_COUNT * 3);
+  const moteGeo = trackGeo(new THREE.BufferGeometry());
+  {
+    const arr = new Float32Array(MOTE_COUNT * 3);
+    for (let i = 0; i < MOTE_COUNT; i++) {
+      const mx = -3.35 + (i % 6) * 0.34 + ((i * 7) % 5) * 0.045;
+      const my = 0.42 + ((i * 13) % 10) * 0.155;
+      const mz = -0.55 + ((i * 11) % 9) * 0.132;
+      arr[i * 3] = mx;
+      arr[i * 3 + 1] = my;
+      arr[i * 3 + 2] = mz;
+      moteBase[i * 3] = mx;
+      moteBase[i * 3 + 1] = my;
+      moteBase[i * 3 + 2] = mz;
+    }
+    moteGeo.setAttribute('position', new THREE.BufferAttribute(arr, 3));
+  }
+  const moteMat = trackMat(
+    new THREE.PointsMaterial({
+      color: '#FFF7E0',
+      size: 0.055,
+      transparent: true,
+      opacity: 0.32,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      sizeAttenuation: true,
+    }),
+  );
+  const dustMotes = new THREE.Points(moteGeo, moteMat);
+  group.add(dustMotes);
+
   // 4. Raycast Hit Proxies matching every entry in COTTAGE_INTERACTABLES (7 total)
   const hitProxies: THREE.Mesh[] = [];
   const proxyGeo = trackGeo(new THREE.BoxGeometry(1.15, 1.65, 1.15));
@@ -598,13 +879,37 @@ export function buildWillowCottageInterior(
     if (phase === 'dusk') {
       almanacLampMat.emissiveIntensity = 1.65;
       windowGlassMat.emissiveIntensity = 0.28;
+      pendantLampMat.emissiveIntensity = 1.45 + Math.sin(elapsed * 3.1) * 0.12;
     } else if (phase === 'golden') {
       almanacLampMat.emissiveIntensity = 0.95;
       windowGlassMat.emissiveIntensity = 0.75;
+      pendantLampMat.emissiveIntensity = 0.62;
     } else {
       almanacLampMat.emissiveIntensity = 0.35;
       windowGlassMat.emissiveIntensity = 0.55;
+      pendantLampMat.emissiveIntensity = 0.14;
     }
+
+    // Atmosphere: hearth key light, window daylight shaft, drifting dust motes
+    const hearthActive = (cs?.hearthLit ?? true) ? 1 : 0;
+    const hearthBase =
+      phase === 'dusk' ? 2.7 : phase === 'golden' ? 1.9 : phase === 'afternoon' ? 1.0 : 0.75;
+    hearthLight.intensity =
+      hearthBase *
+      hearthActive *
+      (1 + Math.sin(elapsed * 7.0) * 0.09 + Math.sin(elapsed * 12.7) * 0.05);
+    const shaftBase =
+      phase === 'morning' ? 0.33 : phase === 'afternoon' ? 0.21 : phase === 'golden' ? 0.28 : 0.07;
+    shaftMat.opacity = shaftBase * (0.92 + Math.sin(elapsed * 0.7) * 0.08);
+    moteMat.opacity = phase === 'dusk' ? 0.18 : 0.32;
+    const moteArr = moteGeo.attributes.position.array as Float32Array;
+    for (let i = 0; i < MOTE_COUNT; i++) {
+      const i3 = i * 3;
+      moteArr[i3] = moteBase[i3] + Math.sin(elapsed * 0.33 + i * 1.7) * 0.1;
+      moteArr[i3 + 1] = moteBase[i3 + 1] + Math.sin(elapsed * 0.5 + i) * 0.12;
+      moteArr[i3 + 2] = moteBase[i3 + 2] + Math.cos(elapsed * 0.41 + i * 2.3) * 0.08;
+    }
+    moteGeo.attributes.position.needsUpdate = true;
   }
 
   function dispose(): void {

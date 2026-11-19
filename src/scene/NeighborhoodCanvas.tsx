@@ -1165,14 +1165,16 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
         }
         // Phase-responsive indoor ambience: daylight floods the room in the
         // morning, then settles into warm lamp-and-ember twilight by dusk.
+        // (Dusk floor lifted in the 2C polish pass so plaster/wainscot never read mud;
+        // the hearth key light inside cottageInteriorRig now carries the dusk mood.)
         const indoorPhase = composed.timeOfDay.phase;
         hemiLight.color.set('#FBE7CC');
         hemiLight.groundColor.set('#6E523E');
-        hemiLight.intensity = indoorPhase === 'dusk' ? 0.58 : indoorPhase === 'golden' ? 0.72 : 0.85;
+        hemiLight.intensity = indoorPhase === 'dusk' ? 0.68 : indoorPhase === 'golden' ? 0.74 : 0.85;
         sunLight.color.set(indoorPhase === 'dusk' ? '#FFD9A6' : '#FFE9C2');
         sunLight.intensity = indoorPhase === 'dusk' ? 0.55 : indoorPhase === 'golden' ? 0.85 : 1.25;
         sunLight.position.set(10, 16, 11);
-        scene.environmentIntensity = indoorPhase === 'dusk' ? 0.42 : indoorPhase === 'golden' ? 0.52 : 0.65;
+        scene.environmentIntensity = indoorPhase === 'dusk' ? 0.52 : indoorPhase === 'golden' ? 0.54 : 0.65;
         cottageInteriorRig.update(world, composed.timeOfDay.phase, elapsed);
       } else {
         exteriorRoot.visible = true;

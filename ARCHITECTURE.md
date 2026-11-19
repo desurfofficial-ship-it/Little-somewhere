@@ -126,23 +126,24 @@ computeEnvironmentState(world.flags)
 | `src/game/types.ts` | Core domain interfaces (`WorldState` v6, `CottageHomeState`, `PersonalItemId`, `StoryFlags`, `StorylineProgress`, `NpcMemoryEntry`, `DialogueSession`) |
 | `src/game/time.ts`, `rng.ts` | Unified clock (`360–1290`), 10-day 4-season calendar, deterministic FNV/Mulberry PRNG |
 | `src/game/worldMap.ts`, `navigation.ts` | Neighborhood map, bounds, collision math, landmarks, daily gathering props, 33-node A* graph |
-| `src/game/cottage.ts`, `inventory.ts` | Willow Step Cottage cutaway bounds/stations/waypoints, 18 satchel items, hearth recipes, resident gift preferences |
+| `src/game/cottage.ts`, `inventory.ts` | Willow Step Cottage cutaway bounds/stations/waypoints, 18 satchel items, hearth recipes + staged `RECIPE_ACTIVITY_STEPS`, resident gift preferences |
 | `src/game/residents.ts`, `simulation.ts` | 10 founding resident definitions, traits, schedules, needs/emotions, encounters & gossip triggers |
 | `src/game/memories.ts`, `storylines.ts`, `journal.ts`, `relationships.ts` | Bounded per-NPC subjective memories/gossip, multi-stage personal/conflict storylines, player-knowledge Pocket Journal projection, tiers & events |
 | `src/game/dialogueEngine.ts`, `narrative.ts` | Declarative selector, knowledge-based gossip & reactions, Bell, 4 arcs + conflict, everyday life topics, `computeEnvironmentState()` |
-| `src/game/actions.ts`, `playerController.ts` | Pure state transition reducers (cottage cooking/vase/keepsakes, gifting, gathering, water), locomotion & bench logic |
+| `src/game/actions.ts`, `playerController.ts` | Pure state transition reducers (cottage cooking/vase/keepsakes, gifting, gathering with `gainedItems` chips, water), locomotion with indoor cozy-speed cap & bench logic |
 | `src/game/environment.ts` | Pure 5-Layer Environment Composer (time, seeded weather, season, flags, NPC touches) |
-| `src/game/migrations.ts`, `storage.ts`, `audio.ts` | `v1 -> v2 -> v3 -> v4 -> v5 -> v6` migrations, `localStorage` autosave + revision hash, Web Audio SFX |
+| `src/game/migrations.ts`, `storage.ts`, `audio.ts` | `v1 -> v2 -> v3 -> v4 -> v5 -> v6` migrations, `localStorage` autosave + revision hash, Web Audio SFX (footsteps, chimes, bell, kettle steam, arrange pop) |
 | `src/game/*.test.ts`, `src/scene/*.test.ts` | Deterministic `node:test` suites covering engine rules, cottage interior, satchel/gifting, journal knowledge boundaries, saves, and 3D contracts |
 | `src/scene/textures.ts`, `materials.ts` | Seeded procedural `CanvasTexture` surfaces & shared `MaterialPalette` cache |
 | `src/scene/models.ts`, `waterShaders.ts` | Shared rig type contracts (`GazeboRig`, `FountainRig`, `MirrorPondRig`, `CottageInteriorRig`, `CharacterRig`) & water shaders |
-| `src/scene/builders/*` | Composite clay buildings, cottage cutaway interior (`cottageInterior.ts`), landmarks, Mirror Pond/bridge/grove, Fern Hollow Orchard, characters, reactive props & meadow botanicals |
+| `src/scene/builders/*` | Composite clay buildings, cottage cutaway interior (`cottageInterior.ts` — lived-in dressing, hearth PointLight, window shaft, dust motes), landmarks, Mirror Pond/bridge/grove, Fern Hollow Orchard, characters, reactive props & meadow botanicals |
 | `src/scene/prototypes/willowLaneDiorama.ts` | Premium Handcrafted Storybook Diorama prototype (Willow Step Cottage, lane, foliage & Jun) |
 | `src/scene/environmentRenderer.ts` | Dirty-flagged lighting, weather FX, season palettes, and prop sync (`EnvironmentVisualController`) |
 | `src/scene/NeighborhoodCanvas.tsx` | Deferred (`React.lazy`) Three.js renderer, exterior/interior cutaway toggle, lighting cycle, movement, raycasting, animation loop |
-| `src/components/*` | `TitleOverlay`, `VirtualJoystick`, `DialogueSheet`, `InventoryDrawer`, `CottageStationModal`, `JournalDrawer`, `PauseModal` |
+| `src/components/*` | `TitleOverlay`, `VirtualJoystick`, `DialogueSheet` (with gathering item chips), `InventoryDrawer`, `CottageStationModal` (staged hearth activity overlay), `JournalDrawer`, `PauseModal` |
 | `src/App.tsx` | Top-level game shell, HUD bar, keyboard shortcuts, lazy canvas mount, persistence wiring |
 | `docs/art-direction/*` | Official **Premium Handcrafted Storybook Diorama** identity, standards, audit & roadmap |
+| `docs/production/*` | Milestone 2C everyday-life quality assessment, dependency-ordered polish roadmap, and interior visual direction |
 
 ---
 

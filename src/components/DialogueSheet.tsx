@@ -28,7 +28,7 @@ import {
   getRelationshipTier,
   getRelationshipTierLabel,
 } from '../game/relationships';
-import { getOwnedGiftableItems, PERSONAL_ITEM_CATEGORY_LABELS } from '../game/inventory';
+import { getOwnedGiftableItems, PERSONAL_ITEM_CATEGORY_LABELS, PERSONAL_ITEM_MAP } from '../game/inventory';
 import { RESIDENTS } from '../game/residents';
 import { PropInteractionResult } from '../game/actions';
 
@@ -157,9 +157,25 @@ export const DialogueSheet: React.FC<DialogueSheetProps> = ({
             </button>
           </div>
 
-          <p className="mt-2 text-sm sm:text-[15px] text-[#3D3128] leading-relaxed max-h-[26vh] overflow-y-auto storybook-scroll pr-1">
+          <div className="mt-2 text-sm sm:text-[15px] text-[#3D3128] leading-relaxed max-h-[26vh] overflow-y-auto storybook-scroll pr-1">
+            {propCard.gainedItems && propCard.gainedItems.length > 0 && (
+              <div
+                className="flex flex-wrap gap-1.5 mb-2.5"
+                aria-label="Tucked into your satchel"
+              >
+                {propCard.gainedItems.map((chip) => (
+                  <span
+                    key={`${chip.itemId}-${chip.count}`}
+                    className="inline-flex items-center gap-1 rounded-lg bg-[#EEF3EC] border border-[#A7C0A8] px-2 py-1 text-xs font-semibold text-[#38553C]"
+                  >
+                    <Sparkles className="w-3 h-3 text-[#5E8062]" aria-hidden="true" />
+                    +{chip.count} {PERSONAL_ITEM_MAP[chip.itemId]?.label ?? chip.itemId}
+                  </span>
+                ))}
+              </div>
+            )}
             {propCard.body}
-          </p>
+          </div>
 
           <div className="mt-3.5 flex flex-wrap items-center justify-end gap-2.5">
             <button

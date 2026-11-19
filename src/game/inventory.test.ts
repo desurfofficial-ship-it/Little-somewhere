@@ -6,6 +6,7 @@ import {
   NEIGHBOR_KEEPSAKE_REWARDS,
   PERSONAL_ITEMS,
   PERSONAL_ITEM_MAP,
+  RECIPE_ACTIVITY_STEPS,
   RESIDENT_GIFT_PREFS,
   addItemToInventory,
   canCraftRecipe,
@@ -16,6 +17,7 @@ import {
   getOwnedGiftableItems,
   getOwnedKeepsakeItems,
   getOwnedVaseFlowerItems,
+  getRecipeActivitySteps,
   getTotalItemCount,
 } from './inventory';
 import { RESIDENT_ORDER } from './residents';
@@ -112,4 +114,18 @@ test('hearth recipes, gift preferences, keepsake rewards, and category filters v
 
   const keepsakes = getOwnedKeepsakeItems(mixedInv).map((d) => d.id);
   assert.deepEqual(keepsakes, ['willow_zine_copy']);
+});
+
+test('hearth activity steps cover every recipe with three sensory stages', () => {
+  for (const recipe of HEARTH_RECIPES) {
+    const steps = getRecipeActivitySteps(recipe.id);
+    assert.equal(steps.length, 3, `Recipe ${recipe.id} needs 3 activity steps`);
+    for (const step of steps) {
+      assert.ok(step.length >= 10, `Step text for ${recipe.id} is descriptive`);
+      assert.ok(step.endsWith('…'), `Step text for ${recipe.id} trails with an ellipsis`);
+    }
+    assert.ok(RECIPE_ACTIVITY_STEPS[recipe.id], `Missing staged steps for ${recipe.id}`);
+  }
+  // Unknown recipe ids still receive a graceful fallback so the modal never blanks
+  assert.equal(getRecipeActivitySteps('recipe_unknown').length, 3);
 });

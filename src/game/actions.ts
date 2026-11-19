@@ -76,6 +76,11 @@ import {
   WorldState,
 } from './types';
 
+export interface GainedItemChip {
+  itemId: PersonalItemId;
+  count: number;
+}
+
 export interface PropInteractionResult {
   nextWorld: WorldState;
   title: string;
@@ -92,6 +97,8 @@ export interface PropInteractionResult {
     | 'vase_panel'
     | 'shelf_panel';
   memoryUnlockedTitle?: string;
+  /** Explicit item-gain readout rendered as chips above the prose (everyday-life polish). */
+  gainedItems?: GainedItemChip[];
 }
 
 export function applyDialogueChoice(
@@ -973,6 +980,12 @@ export function interactWithProp(
     if (bonusLavender) {
       invRes = addItemToInventory(invRes.inventory, invRes.discoveredItemIds, 'lavender_sprig', 1);
     }
+    const gainedItems: GainedItemChip[] = bonusLavender
+      ? [
+          { itemId: 'chamomile_blossom', count: 1 },
+          { itemId: 'lavender_sprig', count: 1 },
+        ]
+      : [{ itemId: 'chamomile_blossom', count: 1 }];
     const nextMin = Math.min(DAY_END_MINUTE, world.minuteOfDay + 12);
     return {
       nextWorld: {
@@ -986,6 +999,7 @@ export function interactWithProp(
       body: bonusLavender
         ? 'You brushed morning soil aside and clipped fresh Chamomile Blossoms alongside Sweet Lavender for your satchel (+12m).'
         : 'Warm sunlight scents the sill as you gather a handful of Chamomile Blossoms for your tea kettle or table vase (+12m).',
+      gainedItems,
     };
   }
 
@@ -1011,6 +1025,10 @@ export function interactWithProp(
       },
       title: 'Sunbeam Herb Planters',
       body: 'Mina left snipping shears out by the warm glasshouse trays. Gathered Lemon Thyme Sprig and Sweet Lavender (+15m).',
+      gainedItems: [
+        { itemId: 'lemon_thyme', count: 1 },
+        { itemId: 'lavender_sprig', count: 1 },
+      ],
     };
   }
 
@@ -1054,6 +1072,10 @@ export function interactWithProp(
       title: 'Fern Hollow Harvest Crates',
       body: 'Dappled shade smells of warm apples and clover. Gathered 2 Orchard Crabapples and 1 Orchard Honeycomb into your satchel (+20m).',
       memoryUnlockedTitle: hasMem ? undefined : 'Sunlit Boughs at Fern Hollow',
+      gainedItems: [
+        { itemId: 'crabapple', count: 2 },
+        { itemId: 'wild_honey', count: 1 },
+      ],
     };
   }
 
@@ -1081,6 +1103,7 @@ export function interactWithProp(
       },
       title: 'Mirror Pond Driftwood Nook',
       body: `While listening to water lap against the driftwood bank, you spotted ${foundDef.label} nestled beside the reeds and tucked it into your satchel (+15m).`,
+      gainedItems: [{ itemId: foundId, count: 1 }],
     };
   }
 
@@ -1650,6 +1673,7 @@ export function interactWithCottageProp(
     },
     title: 'Sunlit Sill Planter',
     body: 'Clipped fresh Chamomile Blossoms from the warm wooden sill box and tucked them into your satchel (+10m).',
+    gainedItems: [{ itemId: 'chamomile_blossom', count: 1 }],
   };
 }
 
