@@ -1,4 +1,4 @@
-import { Component, ErrorInfo, lazy, ReactNode, Suspense, useCallback, useEffect, useRef, useState } from 'react';
+import { Component, ErrorInfo, ReactNode, useCallback, useEffect, useRef, useState } from 'react';
 import {
   BookOpen,
   Clock,
@@ -96,7 +96,11 @@ import {
 } from './game/dialogue/assets';
 import { getLandmarkAt, getPropInteractionMetrics } from './game/worldMap';
 import { cozyAudio } from './game/audio';
-import type { HudBubbleSnapshot, PlayerActionPulse } from './scene/NeighborhoodCanvas';
+import {
+  NeighborhoodCanvas,
+  type HudBubbleSnapshot,
+  type PlayerActionPulse,
+} from './scene/NeighborhoodCanvas';
 import { TitleOverlay } from './components/TitleOverlay';
 import { VirtualJoystick } from './components/VirtualJoystick';
 import { DialogueSheet } from './components/DialogueSheet';
@@ -105,55 +109,6 @@ import { CottageStationMode, InventoryDrawer } from './components/InventoryDrawe
 import { CottageStationModal } from './components/CottageStationModal';
 import { GreenhousePanel, GreenhousePanelMode } from './components/GreenhousePanel';
 import { PauseModal } from './components/PauseModal';
-
-const CHUNK_RELOAD_KEY = 'ls_scene_chunk_reload_v1';
-
-function isModuleImportError(err: unknown): boolean {
-  const msg = err instanceof Error ? err.message : String(err ?? '');
-  return (
-    /importing a module script failed/i.test(msg) ||
-    /failed to fetch dynamically imported module/i.test(msg) ||
-    /error loading dynamically imported module/i.test(msg) ||
-    /loading chunk/i.test(msg)
-  );
-}
-
-// R-09: the whole Three.js scene stack (~1 MB) is code-split behind a dynamic import so
-// first paint (title screen shell) only parses React + game logic. Includes stale-hash
-// recovery so Vite dev restarts / deployments cannot leave the page in a failed lazy cache.
-const NeighborhoodCanvas = lazy(async () => {
-  try {
-    const mod = await import('./scene/NeighborhoodCanvas');
-    if (typeof window !== 'undefined') {
-      try {
-        window.sessionStorage.removeItem(CHUNK_RELOAD_KEY);
-      } catch {
-        // Ignore private-browsing storage restrictions
-      }
-    }
-    return { default: mod.NeighborhoodCanvas };
-  } catch (err) {
-    if (typeof window !== 'undefined' && isModuleImportError(err)) {
-      let alreadyReloaded = false;
-      try {
-        alreadyReloaded = window.sessionStorage.getItem(CHUNK_RELOAD_KEY) === '1';
-        if (!alreadyReloaded) {
-          window.sessionStorage.setItem(CHUNK_RELOAD_KEY, '1');
-        }
-      } catch {
-        // Ignore storage restrictions
-      }
-      if (!alreadyReloaded) {
-        window.location.reload();
-        // Keep Suspense fallback mounted while the reload navigates
-        return new Promise<{ default: typeof import('./scene/NeighborhoodCanvas').NeighborhoodCanvas }>(
-          () => {},
-        );
-      }
-    }
-    throw err;
-  }
-});
 
 interface SceneErrorBoundaryProps {
   children: ReactNode;
@@ -187,14 +142,7 @@ class SceneErrorBoundary extends Component<SceneErrorBoundaryProps, SceneErrorBo
             </p>
             <button
               type="button"
-              onClick={() => {
-                try {
-                  window.sessionStorage.removeItem(CHUNK_RELOAD_KEY);
-                } catch {
-                  // Ignore storage restrictions
-                }
-                window.location.reload();
-              }}
+              onClick={() => window.location.reload()}
               className="min-h-[44px] px-5 py-2.5 rounded-xl bg-[#C86446] hover:bg-[#B45539] text-[#FAF5EC] text-sm font-semibold cursor-pointer transition-colors"
             >
               Reload Neighborhood
@@ -1227,25 +1175,23 @@ export default function App() {
 
   return (
     <main className="relative w-full h-full overflow-hidden">
-      {/* Persistent 3D Isometric World Viewport (lazy chunk, R-09) */}
+      {/* Persistent 3D Isometric World Viewport */}
       <SceneErrorBoundary>
-        <Suspense fallback={<div className="absolute inset-0 bg-[#DCEBF2]" aria-hidden="true" />}>
-          <NeighborhoodCanvas
-            screenState={screenState}
-            worldRef={worldRef}
-            joystickVectorRef={joystickVectorRef}
-            zoomRef={zoomRef}
-            bellRingCounter={bellRingCounter}
-            fountainWishCounter={fountainWishCounter}
-            pondSkipCounter={pondSkipCounter}
-            isDialogueOpen={anyModalOpen}
-            activeDialogueResidentId={dialogueSession?.residentId ?? null}
-            activePropId={propCard ? activePropId : null}
-            playerActionPulse={playerActionPulse}
-            onHudSync={handleHudSync}
-            onSelectTarget={openTargetInteraction}
-          />
-        </Suspense>
+        <NeighborhoodCanvas
+          screenState={screenState}
+          worldRef={worldRef}
+          joystickVectorRef={joystickVectorRef}
+          zoomRef={zoomRef}
+          bellRingCounter={bellRingCounter}
+          fountainWishCounter={fountainWishCounter}
+          pondSkipCounter={pondSkipCounter}
+          isDialogueOpen={anyModalOpen}
+          activeDialogueResidentId={dialogueSession?.residentId ?? null}
+          activePropId={propCard ? activePropId : null}
+          playerActionPulse={playerActionPulse}
+          onHudSync={handleHudSync}
+          onSelectTarget={openTargetInteraction}
+        />
       </SceneErrorBoundary>
 
       {/* Title Screen */}
