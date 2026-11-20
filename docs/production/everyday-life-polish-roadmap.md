@@ -275,3 +275,64 @@ After each pass: rerun full gates, re-screenshot dusk + morning interiors and on
 ## Reassessment & iteration policy (round 4)
 
 Round 4 targeted personal-history and seasonality only — deliberately avoiding the Copperwheel Cottage build lane (types schema extension, new interior rig, dialogue/narrative additions). Remaining known items: EL-10 (chunk-size warning, track-only). Next everyday-life candidates: a shared-plate tea for a visiting neighbor (needs NPC interior visits — out of 2C scope), autumn herb-drying over the hearth (visual + one reducer), winter hearth-sock mantel dressing. Re-verify all gates and re-screenshot after any future pass.
+
+
+---
+
+## Pass 16 — The hearth wall keeps the seasons (Round-5; EL-21/EL-22 follow-through)
+
+**Outcome**: The chimney breast and mantel rotate with the calendar, completing the seasonal story the sill posy and door swag started — the room's primary activity anchor now carries the season.
+
+**Systems affected / files**: `src/scene/builders/cottageInterior.ts` + `src/scene/cottageInterior.test.ts` (visual-only; zero game-state changes; obstacles bit-identical).
+
+**Technical approach**: four season-gated groups mounted on the chimney flue face and mantel (hearthGroup-local, wall-plane):
+- **Spring** — first blossom branch in a ceramic jug on the mantel's west end.
+- **Summer** — a fresh herb bundle hanging from a brass flue peg with a linen tie.
+- **Autumn** — a cedar herb-drying rack on the flue's left face with three tied bundles (chamomile cream / lavender / autumn-leaf red) hanging clear of the mantel top.
+- **Winter** — a knitted hearth sock (wool red, cream cuff/heel/toe, hanging loop) over the mantel's front edge plus an evergreen mini-garland with brass bells along the mantel lip.
+
+**Dependencies**: none. **Tests**: new `cottageInterior.test.ts` suite — per-season visibility matrix (exactly one hearth group per season), rack stays on the flue face and clear of the mantel surface, sock hangs in the mantel zone, diorama envelope ≤ 3.6.
+**Perf**: ~45 shared-palette meshes + 2 tracked materials; visibility toggles only.
+
+**Acceptance criteria**: autumn interior shows the drying rack; winter shows sock + garland; gates green; 0 console errors. Verified: `download/asset-qa/round5/01|02|03-interior-*.png`.
+
+---
+
+## Pass 17 — Your windows answer the hearth (Round-5; exterior truth after Pass 10's chimney)
+
+**Outcome**: The Willow Step Cottage's exterior windows advertise the hearth's real state — glowing bright while lit, brightest when the kettle is warm, a dark home when the fire is cold — instead of the neighborhood-uniform window glow.
+
+**Systems affected / files**: `src/scene/prototypes/willowLaneDiorama.ts` (rig owns its window/door-glass material, kept OUT of the shared `windowMaterials` pool), `src/scene/environmentRenderer.ts` (optional `willowWindowMaterials` dep + hearth-truth glow), `src/scene/NeighborhoodCanvas.tsx` (passes `willowCottage.windowMats`).
+
+**Technical approach**: `computeChimneySmokeStrength` (single source of hearth truth: 0 / 1 / 1.3) drives `emissiveIntensity` per update — dusk: lit 2.5 / kettle 2.85 / cold 0.3; golden: ×1.39 lit / ×1.78 kettle / ×0.55 cold; lantern-schedule edge: ×1.25 / ×0.35; daytime phases keep neighborhood parity (fire glow cannot read through sunlit glass). Evaluated every update, NOT inside the revision-dirty block, because kettle warmth lives on the in-game clock which carries no world revision.
+
+**Dependencies**: none. **Tests**: 2 new `environmentRenderer.test.ts` suites — dusk lit/kettle/cold matrix with neighborhood parity, golden + morning parity.
+**Perf**: one scalar computation + N scalar material writes per frame; no lights, no shaders.
+
+**Acceptance criteria**: dusk-lit vs dusk-cold screenshots differ in exactly the window glow and chimney smoke; neighbors unaffected; gates green. Verified: `download/asset-qa/round5/04|05|06-exterior-dusk-*.png` (pixel-verified ordering: kettle > lit > cold in the window region; smoke lifts the chimney region).
+
+---
+
+## Pass 18 — The porch keeps the seasons (Round-5; exterior seasonal dressing)
+
+**Outcome**: The cottage exterior reads the calendar: the deck pot rotates its planting, step-side tufts drift in with the season, the door wears a wreath whose accent matches the interior lintel swag, and winter frosts the porch rails.
+
+**Systems affected / files**: `src/scene/prototypes/willowLaneDiorama.ts` + new `src/scene/willowDioramaSeasons.test.ts`, `src/scene/NeighborhoodCanvas.tsx` (passes `world.season` to the motion updater).
+
+**Technical approach**: `updateWillowPrototypeMotion` gains a `season` parameter (default 'spring', zero-allocation visibility gating):
+- **Deck pot** (north, existing location): spring rose/cream tufts · summer marigold (original tuft, re-parented into a gateable group) · autumn chrysanthemum + red-leaf sprig · winter evergreen + snow cap.
+- **Step-side tufts** beside the entrance step, off the approach line: spring cream/rose · summer marigold/lavender · autumn rust/marigold.
+- **Door wreath**: evergreen ring + linen bow above the door glass; accent dots swap per season (spring blossom `#F7EFD8` / summer lavender `#B9A3D6` / autumn berry `#D97F3E` / winter brass `#D9B36A` — the interior swag palette).
+- **Winter rail frost**: linen-white ridges on both porch rail tops.
+- **Window-box overlays**: autumn red-leaf sprigs; winter snow ridge + evergreen — tucked at the box ends so the progress-driven planter blooms (`flowerGroups` contract) are never hidden or repurposed.
+
+**Dependencies**: none. **Tests**: 5 new suites — pot/tuft/frost visibility matrix across all four seasons, wreath accent table (4 distinct colors matching the interior palette), overlay gating without `flowerGroups` impact (3 boxes, blooms untouched), chimney truth alongside the seasonal gate, envelope sanity.
+**Perf**: ~30 shared-palette meshes; per-frame scalar visibility writes only.
+
+**Acceptance criteria**: summer porch shows the marigold pot + lavender-accent wreath; winter shows evergreen pot, frost rails and box overlays; gates green; 0 console errors. Verified: `download/asset-qa/round5/07-exterior-summer-porch.png` + `02-interior-winter-hearth-sock.png`.
+
+---
+
+## Reassessment & iteration policy (round 5)
+
+Round 5 kept the everyday-life lane strictly inside the Willow Step Cottage envelope (interior hearth wall + exterior truth + porch) while the Copperwheel Cottage build proceeds in its parallel agent lane; every touched file is cottage-local and no save schema changed. Remaining tracked items: EL-10 (chunk warning, track-only). Next candidates if a round 6 is wanted: autumn herb-drying tied to a small reducer (harvest-preserving beat), a spring rain-barrel drip cue, or pond-side morning mist dressing — all visual-first, schema-free.

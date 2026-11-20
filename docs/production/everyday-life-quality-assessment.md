@@ -198,3 +198,24 @@ Severity scale: **P0** = broken/blocks the loop · **P1** = materially weakens t
 19. All four seasons reach the room: a seasonal sill posy (spring chamomile / summer lavender / autumn leaves), a door-lintel swag whose accent follows the season, season-tinted window glass, and spring petals / autumn leaves by the doorstep.
 20. The kettle brews a second sipable cup (Lavender Chamomile Tea), the tea table offers it while seated, and the Pocket Journal home card can count more than one quiet tea-table moment.
 21. All suites, `tsc`, and `vite build` stay green; obstacle/collision contracts bit-identical; no save-schema version bump; season remains calendar-locked."
+
+
+## 9. Round-5 verification (2026-11-20, after Passes 16–18)
+
+**Method**: the three Round-5 passes were implemented against the Round-4 baseline (`2e3bbd1` heritage; 218/218 suites before Pass 18) with the same gates: full `node:test` suite, `tsc --noEmit`, `vite build`, plus a purpose-built headless-Chromium screenshot pass (`scripts/make_round5_qa_saves.ts` — seven QA saves: three season interiors, three dusk hearth states, one summer porch) with 0 page errors / 0 console errors. Screenshots under `download/asset-qa/round5/`.
+
+**No new EL findings.** The three passes close the remaining named roadmap candidates (autumn herb-drying over the hearth; winter hearth-sock mantel dressing) and extend the "the exterior advertises the interior state" pillar from the chimney (Pass 10) to the windows (Pass 17) and the porch calendar (Pass 18). Healthy checks:
+
+- Pass 16: per-season hearth-wall matrix passes (exactly one seasonal group per season; rack clear of the mantel top; sock in the mantel zone; envelope ≤ 3.6; obstacles bit-identical).
+- Pass 17: dusk truth verified in-suite (lit 2.5 / kettle 2.85 / cold 0.3 with neighborhood parity at 2.1) and in-browser (pixel-verified window-region ordering kettle > lit > cold; chimney region lifted only while lit). Shared neighborhood windows never change with the player's hearth.
+- Pass 18: seasonal matrix passes for pot/tufts/frost/wreath accents (4 distinct hexes matching the interior swag palette); window-box overlays never touch the `flowerGroups` planter-progress contract; chimney smoke truth holds alongside the seasonal gate.
+- Save persistence (`WorldState v9`), NPC memory/gossip pipeline, mobile hit targets — unchanged; no schema bump.
+
+## 10. Production quality target (round 5 — measurable)
+
+"Willow Step Cottage answers the world outside when:
+
+22. The hearth wall keeps the seasons: spring's first blossom branch, summer's hanging herb bundle, autumn's drying rack with three kept bundles, winter's knitted hearth sock and evergreen garland with brass bells.
+23. The exterior windows tell the hearth's truth at dusk: glowing while lit, brightest while the kettle is warm, a dark home when the fire is cold — while every neighbor's windows stay on the shared rhythm.
+24. The porch keeps the calendar: a rotating pot planting, seasonal step tufts, a wreath whose accent matches the interior swag, winter rail frost, and window-box overlays that never hide the planter blooms that carry progress.
+25. All suites, `tsc`, and `vite build` stay green; obstacle/collision contracts bit-identical; no save-schema version bump.
