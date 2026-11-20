@@ -1,6 +1,6 @@
 # Build 10 — The Wild Hollows: World Expansion Design & Implementation Plan
 
-**Date**: 2026-11-21 · **Status**: Approved for implementation (World Expansion Initiative)
+**Date**: 2026-11-21 · **Status**: IMPLEMENTED & verified (Build 10, WORKLOG Entry 048 — passes A–D complete; QA evidence in `download/asset-qa/wilds/` + `scripts/qa_wilds.sh`)
 **Mission**: Turn the empty meadow ring of `willow_square` into an explorable wild geography with real destinations, discoveries and interconnections — *architectural richness of the landscape, not map bloat*.
 
 ---

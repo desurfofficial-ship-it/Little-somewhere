@@ -180,12 +180,15 @@ export class EnvironmentVisualController {
       _seasonTint.set(composed.season.groveTopTintHex);
       groveRig.crownTopMat.color.copy(_seasonTint);
       if (this.deps.wildsRig) {
+        // The season hexes are near-white washes; untextured wilds materials must
+        // compose base × wash (same result a textured material gets for free).
+        const wilds = this.deps.wildsRig;
         _seasonTint.set(composed.season.meadowTintHex);
-        this.deps.wildsRig.moundMat.color.copy(_seasonTint);
+        wilds.moundMat.color.copy(wilds.baseColors.mound).multiply(_seasonTint);
         _seasonTint.set(composed.season.groveBaseTintHex);
-        this.deps.wildsRig.crownBaseMat.color.copy(_seasonTint);
+        wilds.crownBaseMat.color.copy(wilds.baseColors.crownBase).multiply(_seasonTint);
         _seasonTint.set(composed.season.groveTopTintHex);
-        this.deps.wildsRig.crownTopMat.color.copy(_seasonTint);
+        wilds.crownTopMat.color.copy(wilds.baseColors.crownTop).multiply(_seasonTint);
       }
 
       const petalMat = this.petalMesh.material as THREE.MeshBasicMaterial;

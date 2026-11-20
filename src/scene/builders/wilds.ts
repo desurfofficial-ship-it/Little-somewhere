@@ -25,11 +25,18 @@ import { addContactShadow } from './vegetation';
 
 export interface WildsRig {
   group: THREE.Group;
-  /** Tinted with `meadowTintHex` on season change (knoll grass + trail lawns). */
+  /** Tinted on season change (knoll grass): base color × season wash. */
   moundMat: THREE.MeshStandardMaterial;
-  /** Tinted with `groveBaseTintHex` / `groveTopTintHex` (birch + foxglove foliage). */
+  /** Tinted on season change (birch + foxglove foliage): base × wash. */
   crownBaseMat: THREE.MeshStandardMaterial;
   crownTopMat: THREE.MeshStandardMaterial;
+  /** Base colors preserved so the environment renderer can compose base × wash
+   *  (the season hexes are near-white washes, not final colors). */
+  baseColors: {
+    mound: THREE.Color;
+    crownBase: THREE.Color;
+    crownTop: THREE.Color;
+  };
   dispose(): void;
 }
 
@@ -70,18 +77,23 @@ export function buildWildHollows(
   const soilMat = palette.standard('#6E5240', 0.92, 0.0);
   const waterDarkMat = palette.standard('#7FA9B8', 0.3, 0.05);
 
+  // NOTE: the environment renderer's season tint hexes are near-white washes
+  // (spring meadowTintHex '#F3F7DE') layered OVER materials that carry their own
+  // base color — the ground plane does it via its grass texture, the grove via
+  // per-instance colors. The wilds materials therefore carry real storybook
+  // greens here and let the wash season-shift them.
   const moundMat = palette.get('wilds_mound', {
-    color: '#FFFFFF',
+    color: '#7CA85F',
     roughness: 0.9,
     metalness: 0.0,
   });
   const crownBaseMat = palette.get('wilds_crown_base', {
-    color: '#FFFFFF',
+    color: '#6B9556',
     roughness: 0.85,
     metalness: 0.0,
   });
   const crownTopMat = palette.get('wilds_crown_top', {
-    color: '#FFFFFF',
+    color: '#82AC68',
     roughness: 0.82,
     metalness: 0.0,
   });
@@ -109,9 +121,9 @@ export function buildWildHollows(
   // Z-scaled to 0.82 so the silhouette stays inside the rise_mound_* guard-box
   // union (world z 16.6..21.9 around the knoll center).
   const tiers: Array<{ r: number; h: number; top: number }> = [
-    { r: 2.9, h: 0.2, top: 0.2 },
-    { r: 2.45, h: 0.22, top: 0.42 },
-    { r: 2.05, h: 0.21, top: 0.63 },
+    { r: 3.0, h: 0.21, top: 0.21 },
+    { r: 2.5, h: 0.21, top: 0.42 },
+    { r: 2.1, h: 0.21, top: 0.63 },
   ];
   const TIER_Z_SCALE = 0.82;
   for (let i = 0; i < tiers.length; i++) {
@@ -124,7 +136,7 @@ export function buildWildHollows(
     tier.receiveShadow = true;
     tier.castShadow = castShadows;
     RISE.add(tier);
-    const rimGeo = own(new THREE.TorusGeometry(t.r + 0.04, 0.055, 6, 30));
+    const rimGeo = own(new THREE.TorusGeometry(t.r + 0.03, 0.042, 6, 30));
     rimGeo.scale(1, TIER_Z_SCALE, 1);
     const rim = new THREE.Mesh(rimGeo, i % 2 === 0 ? stoneMat : stoneDarkMat);
     rim.rotation.x = Math.PI / 2;
@@ -161,7 +173,7 @@ export function buildWildHollows(
   }
   const treadsMesh = new THREE.Mesh(
     own(mergeGeometries(stairTreads, false) ?? stairTreads[0]),
-    cedarDarkMat,
+    cedarMat,
   );
   treadsMesh.castShadow = castShadows;
   treadsMesh.receiveShadow = true;
@@ -278,17 +290,17 @@ export function buildWildHollows(
 
   // Wild foxgloves on the slopes (instanced spires + bells)
   const foxgloveSpots: Array<{ x: number; z: number; s: number }> = [];
-  for (let i = 0; i < 15; i++) {
+  for (let i = 0; i < 34; i++) {
     const a = rand() * Math.PI * 2;
-    const rr = 1.65 + rand() * 1.15;
+    const rr = 1.55 + rand() * 1.3;
     const fx = Math.cos(a) * rr;
     const fz = Math.sin(a) * rr * 0.92;
     // Keep off the deck footprint (local rect x -1.05..1.05, z -1.2..1.0)
-    if (fx > -1.15 && fx < 1.15 && fz > -1.3 && fz < 1.1) continue;
-    foxgloveSpots.push({ x: fx, z: fz, s: 0.75 + rand() * 0.5 });
+    if (fx > -1.2 && fx < 1.2 && fz > -1.35 && fz < 1.15) continue;
+    foxgloveSpots.push({ x: fx, z: fz, s: 0.9 + rand() * 0.7 });
   }
-  const foxSpireGeo = own(new THREE.CylinderGeometry(0.016, 0.03, 0.5, 5));
-  foxSpireGeo.translate(0, 0.25, 0);
+  const foxSpireGeo = own(new THREE.CylinderGeometry(0.018, 0.034, 0.62, 5));
+  foxSpireGeo.translate(0, 0.31, 0);
   const foxSpireMat = palette.get('wilds_fox_stem', { color: '#4F6E3F', roughness: 0.85, metalness: 0.0 });
   const foxSpires = new THREE.InstancedMesh(foxSpireGeo, foxSpireMat, foxgloveSpots.length);
   const foxBellGeo = own(new THREE.SphereGeometry(0.055, 6, 5, 0, Math.PI * 2, Math.PI * 0.5, Math.PI * 0.55));
@@ -308,7 +320,7 @@ export function buildWildHollows(
     const dist = Math.hypot(spot.x, spot.z);
     const zDist = Math.abs(spot.z) / TIER_Z_SCALE;
     const effDist = Math.max(dist, zDist);
-    const baseY = effDist > 2.45 ? 0.2 : effDist > 2.05 ? 0.42 : 0.63;
+    const baseY = effDist > 2.5 ? 0.21 : effDist > 2.1 ? 0.42 : 0.63;
     dummy.position.set(spot.x, baseY, spot.z);
     dummy.rotation.set(0, rand() * Math.PI * 2, 0);
     dummy.scale.setScalar(spot.s);
@@ -317,7 +329,7 @@ export function buildWildHollows(
     for (let b = 0; b < 4; b++) {
       const ang = rand() * Math.PI * 2;
       const rad = 0.05 + rand() * 0.06;
-      dummy.position.set(spot.x + Math.cos(ang) * rad * spot.s, baseY + (0.34 + rand() * 0.16) * spot.s, spot.z + Math.sin(ang) * rad * spot.s);
+      dummy.position.set(spot.x + Math.cos(ang) * rad * spot.s, baseY + (0.42 + rand() * 0.2) * spot.s, spot.z + Math.sin(ang) * rad * spot.s);
       dummy.rotation.set(rand() * 0.5 - 0.25, ang, 0);
       dummy.scale.setScalar(spot.s * (0.8 + rand() * 0.4));
       dummy.updateMatrix();
@@ -511,30 +523,31 @@ export function buildWildHollows(
   const brooklet = new THREE.Group();
   brooklet.position.set(-11.2, 0, 18.3);
   addContactShadow(brooklet, shadowTex, 3.4, 1.7, 1.6, 0.015);
-  const bedGeo = own(new THREE.CylinderGeometry(1.5, 1.6, 0.05, 18, 1, false, 0.5, Math.PI * 1.1));
-  bedGeo.rotateX(-Math.PI / 2);
-  bedGeo.scale(1.15, 0.05, 0.62);
-  bedGeo.rotateY(0.4);
+  // The raw cylinder already lies flat along Y (its height axis); scale gives a
+  // thin ellipse in XZ — no rotation needed.
+  const bedGeo = own(new THREE.CylinderGeometry(1.55, 1.7, 0.04, 20));
+  bedGeo.scale(1.15, 1.0, 0.62);
+  bedGeo.rotateY(Math.PI / 2);
   const bedMesh = new THREE.Mesh(bedGeo, waterDarkMat);
-  bedMesh.position.y = 0.03;
+  bedMesh.scale.y = 0.06;
+  bedMesh.position.y = 0.045;
   bedMesh.receiveShadow = true;
   brooklet.add(bedMesh);
   const bankStones: THREE.BufferGeometry[] = [];
-  for (let i = 0; i < 8; i++) {
-    const a = 0.7 + (i / 8) * Math.PI * 1.0;
-    const st = new THREE.IcosahedronGeometry(0.14, 0);
-    st.scale(1.1, 0.55, 0.85);
-    st.translate(Math.cos(a) * 1.5, 0.05, Math.sin(a) * 0.75);
+  for (let i = 0; i < 10; i++) {
+    const a = (i / 10) * Math.PI * 2;
+    const st = new THREE.IcosahedronGeometry(0.13, 0);
+    st.scale(1.1, 0.5, 0.85);
+    st.translate(Math.cos(a) * 1.15, 0.05, Math.sin(a) * 0.62);
     bankStones.push(st);
   }
   const bankMesh = new THREE.Mesh(own(mergeGeometries(bankStones, false) ?? bankStones[0]), stoneDarkMat);
   bankMesh.castShadow = castShadows;
   brooklet.add(bankMesh);
-  const footlogGeo = own(new THREE.CylinderGeometry(0.14, 0.16, 1.7, 9));
+  const footlogGeo = own(new THREE.CylinderGeometry(0.15, 0.17, 1.35, 9));
   footlogGeo.rotateZ(Math.PI / 2);
-  footlogGeo.rotateY(0.4);
   const footlog = new THREE.Mesh(footlogGeo, cedarDarkMat);
-  footlog.position.y = 0.14;
+  footlog.position.y = 0.17;
   footlog.castShadow = castShadows;
   brooklet.add(footlog);
   const footlogMoss = new THREE.Mesh(own(new THREE.SphereGeometry(0.12, 6, 5)), mossMat);
@@ -547,7 +560,7 @@ export function buildWildHollows(
   // 5. Marigold Lane — wildflower drifts, boulders, signpost, stepping stones
   // ------------------------------------------------------------------
   const laneFlowerSpecs: Array<{ x: number; z: number; kind: number }> = [];
-  for (let i = 0; i < 68; i++) {
+  for (let i = 0; i < 116; i++) {
     // Drift along the trail edges with clustered pulls
     const z = 1.6 + rand() * 13.6;
     const side = rand() < 0.5 ? -1 : 1;
@@ -556,15 +569,15 @@ export function buildWildHollows(
     if (Math.abs(x - 21.9) < 0.85 && Math.abs(z - 10.8) < 0.85) continue; // boulder_s
     laneFlowerSpecs.push({ x, z, kind: Math.floor(rand() * 3) });
   }
-  for (let i = 0; i < 26; i++) {
+  for (let i = 0; i < 44; i++) {
     // Dense drift around the wildflower bank (interactable at 20.3, 2.5)
     const a = rand() * Math.PI * 2;
-    const rr = rand() * 1.5;
+    const rr = rand() * 1.9;
     laneFlowerSpecs.push({ x: 20.3 + Math.cos(a) * rr * 1.3, z: 2.5 + Math.sin(a) * rr, kind: Math.floor(rand() * 3) });
   }
-  const stemGeo = own(new THREE.CylinderGeometry(0.012, 0.02, 0.2, 4));
-  stemGeo.translate(0, 0.1, 0);
-  const headGeo = own(new THREE.IcosahedronGeometry(0.055, 0));
+  const stemGeo = own(new THREE.CylinderGeometry(0.014, 0.024, 0.28, 4));
+  stemGeo.translate(0, 0.14, 0);
+  const headGeo = own(new THREE.IcosahedronGeometry(0.085, 0));
   const flowerMatSpecs = [
     { mat: palette.get('wilds_marigold', { color: '#E5A93C', roughness: 0.62, metalness: 0.0 }), tint: '#E5A93C' },
     { mat: palette.get('wilds_cornflower', { color: '#7B9EC7', roughness: 0.62, metalness: 0.0 }), tint: '#7B9EC7' },
@@ -594,7 +607,7 @@ export function buildWildHollows(
     dummy.scale.setScalar(s);
     dummy.updateMatrix();
     stemMats[k].setMatrixAt(idx, dummy.matrix);
-    dummy.position.y = 0.21 * s;
+    dummy.position.y = 0.29 * s;
     dummy.updateMatrix();
     headMats[k].setMatrixAt(idx, dummy.matrix);
   }
@@ -776,6 +789,11 @@ export function buildWildHollows(
     moundMat,
     crownBaseMat,
     crownTopMat,
+    baseColors: {
+      mound: new THREE.Color('#7CA85F'),
+      crownBase: new THREE.Color('#6B9556'),
+      crownTop: new THREE.Color('#82AC68'),
+    },
     dispose() {
       group.removeFromParent();
       for (const geo of ownedGeos) geo.dispose();
