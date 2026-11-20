@@ -33,6 +33,19 @@ export default defineConfig(() => {
         '@': path.resolve(__dirname, '.'),
       },
     },
+    optimizeDeps: {
+      include: [
+        'react',
+        'react-dom',
+        'react-dom/client',
+        'react/jsx-runtime',
+        'react/jsx-dev-runtime',
+        'lucide-react',
+        'three',
+        'three/addons/environments/RoomEnvironment.js',
+        'three/addons/utils/BufferGeometryUtils.js',
+      ],
+    },
     server: {
       host: '0.0.0.0',
       port: 3000,

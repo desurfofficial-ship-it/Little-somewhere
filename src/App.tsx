@@ -1,4 +1,4 @@
-import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
+import { Component, ErrorInfo, lazy, ReactNode, Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import {
   BookOpen,
   Clock,
@@ -96,12 +96,6 @@ import {
 } from './game/dialogue/assets';
 import { getLandmarkAt, getPropInteractionMetrics } from './game/worldMap';
 import { cozyAudio } from './game/audio';
-// R-09: the whole Three.js scene stack (~1 MB) is code-split behind a dynamic import so
-// first paint (title screen shell) only parses React + game logic. The canvas keeps its
-// single-mount lifecycle — Suspense merely defers the first mount until the chunk arrives.
-const NeighborhoodCanvas = lazy(() =>
-  import('./scene/NeighborhoodCanvas').then((m) => ({ default: m.NeighborhoodCanvas })),
-);
 import type { HudBubbleSnapshot, PlayerActionPulse } from './scene/NeighborhoodCanvas';
 import { TitleOverlay } from './components/TitleOverlay';
 import { VirtualJoystick } from './components/VirtualJoystick';
@@ -111,6 +105,107 @@ import { CottageStationMode, InventoryDrawer } from './components/InventoryDrawe
 import { CottageStationModal } from './components/CottageStationModal';
 import { GreenhousePanel, GreenhousePanelMode } from './components/GreenhousePanel';
 import { PauseModal } from './components/PauseModal';
+
+const CHUNK_RELOAD_KEY = 'ls_scene_chunk_reload_v1';
+
+function isModuleImportError(err: unknown): boolean {
+  const msg = err instanceof Error ? err.message : String(err ?? '');
+  return (
+    /importing a module script failed/i.test(msg) ||
+    /failed to fetch dynamically imported module/i.test(msg) ||
+    /error loading dynamically imported module/i.test(msg) ||
+    /loading chunk/i.test(msg)
+  );
+}
+
+// R-09: the whole Three.js scene stack (~1 MB) is code-split behind a dynamic import so
+// first paint (title screen shell) only parses React + game logic. Includes stale-hash
+// recovery so Vite dev restarts / deployments cannot leave the page in a failed lazy cache.
+const NeighborhoodCanvas = lazy(async () => {
+  try {
+    const mod = await import('./scene/NeighborhoodCanvas');
+    if (typeof window !== 'undefined') {
+      try {
+        window.sessionStorage.removeItem(CHUNK_RELOAD_KEY);
+      } catch {
+        // Ignore private-browsing storage restrictions
+      }
+    }
+    return { default: mod.NeighborhoodCanvas };
+  } catch (err) {
+    if (typeof window !== 'undefined' && isModuleImportError(err)) {
+      let alreadyReloaded = false;
+      try {
+        alreadyReloaded = window.sessionStorage.getItem(CHUNK_RELOAD_KEY) === '1';
+        if (!alreadyReloaded) {
+          window.sessionStorage.setItem(CHUNK_RELOAD_KEY, '1');
+        }
+      } catch {
+        // Ignore storage restrictions
+      }
+      if (!alreadyReloaded) {
+        window.location.reload();
+        // Keep Suspense fallback mounted while the reload navigates
+        return new Promise<{ default: typeof import('./scene/NeighborhoodCanvas').NeighborhoodCanvas }>(
+          () => {},
+        );
+      }
+    }
+    throw err;
+  }
+});
+
+interface SceneErrorBoundaryProps {
+  children: ReactNode;
+}
+
+interface SceneErrorBoundaryState {
+  hasError: boolean;
+}
+
+class SceneErrorBoundary extends Component<SceneErrorBoundaryProps, SceneErrorBoundaryState> {
+  state: SceneErrorBoundaryState = { hasError: false };
+
+  static getDerivedStateFromError(): SceneErrorBoundaryState {
+    return { hasError: true };
+  }
+
+  componentDidCatch(error: Error, info: ErrorInfo): void {
+    console.error('NeighborhoodCanvas failed to load:', error, info);
+  }
+
+  render(): ReactNode {
+    if (this.state.hasError) {
+      return (
+        <div className="absolute inset-0 bg-[#DCEBF2] flex items-center justify-center p-6">
+          <div className="bg-[#FAF5EC] border border-[#D4C4AE] rounded-2xl p-6 max-w-sm text-center shadow-[0_12px_32px_rgba(45,36,30,0.14)]">
+            <h2 className="font-display text-lg font-semibold text-[#2D241E] mb-2">
+              Willow Lane Needs a Fresh Breeze
+            </h2>
+            <p className="text-sm text-[#6A5B50] mb-4">
+              The 3D neighborhood view couldn’t finish loading. Reload to reconnect cleanly.
+            </p>
+            <button
+              type="button"
+              onClick={() => {
+                try {
+                  window.sessionStorage.removeItem(CHUNK_RELOAD_KEY);
+                } catch {
+                  // Ignore storage restrictions
+                }
+                window.location.reload();
+              }}
+              className="min-h-[44px] px-5 py-2.5 rounded-xl bg-[#C86446] hover:bg-[#B45539] text-[#FAF5EC] text-sm font-semibold cursor-pointer transition-colors"
+            >
+              Reload Neighborhood
+            </button>
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
 
 const getSaveStamp = computeWorldSaveRevision;
 
@@ -1133,23 +1228,25 @@ export default function App() {
   return (
     <main className="relative w-full h-full overflow-hidden">
       {/* Persistent 3D Isometric World Viewport (lazy chunk, R-09) */}
-      <Suspense fallback={<div className="absolute inset-0 bg-[#DCEBF2]" aria-hidden="true" />}>
-        <NeighborhoodCanvas
-          screenState={screenState}
-          worldRef={worldRef}
-          joystickVectorRef={joystickVectorRef}
-          zoomRef={zoomRef}
-          bellRingCounter={bellRingCounter}
-          fountainWishCounter={fountainWishCounter}
-          pondSkipCounter={pondSkipCounter}
-          isDialogueOpen={anyModalOpen}
-          activeDialogueResidentId={dialogueSession?.residentId ?? null}
-          activePropId={propCard ? activePropId : null}
-          playerActionPulse={playerActionPulse}
-          onHudSync={handleHudSync}
-          onSelectTarget={openTargetInteraction}
-        />
-      </Suspense>
+      <SceneErrorBoundary>
+        <Suspense fallback={<div className="absolute inset-0 bg-[#DCEBF2]" aria-hidden="true" />}>
+          <NeighborhoodCanvas
+            screenState={screenState}
+            worldRef={worldRef}
+            joystickVectorRef={joystickVectorRef}
+            zoomRef={zoomRef}
+            bellRingCounter={bellRingCounter}
+            fountainWishCounter={fountainWishCounter}
+            pondSkipCounter={pondSkipCounter}
+            isDialogueOpen={anyModalOpen}
+            activeDialogueResidentId={dialogueSession?.residentId ?? null}
+            activePropId={propCard ? activePropId : null}
+            playerActionPulse={playerActionPulse}
+            onHudSync={handleHudSync}
+            onSelectTarget={openTargetInteraction}
+          />
+        </Suspense>
+      </SceneErrorBoundary>
 
       {/* Title Screen */}
       {screenState === 'title' && (
