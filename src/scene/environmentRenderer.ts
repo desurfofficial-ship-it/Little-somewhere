@@ -11,6 +11,7 @@ import {
 import { GroveTreesRig } from './builders/vegetation';
 import { ReactiveVisualRigs } from './builders/reactiveProps';
 import { getWaterShaderUniforms } from './waterShaders';
+import { computeChimneySmokeStrength } from '../game/cottage';
 
 // Pre-allocated scratch helpers (zero per-frame heap allocations)
 const _skyMorning = new THREE.Color('#DCEBF2');
@@ -45,6 +46,13 @@ export interface EnvironmentRendererDeps {
   windowMaterials: THREE.MeshStandardMaterial[];
   lanternMat: THREE.MeshStandardMaterial;
   prototypeLanternMats: THREE.MeshStandardMaterial[];
+  /**
+   * R5 Pass 17: the Willow Step Cottage's own window/door-glass materials.
+   * Optional so existing mock constructions keep compiling. When present,
+   * they receive a hearth-truth glow instead of the neighborhood-uniform
+   * windowGlow: bright while the fire is lit, dark home when it is cold.
+   */
+  willowWindowMaterials?: THREE.MeshStandardMaterial[];
   flowerGroups: THREE.Group[];
   gazeboRig: GazeboRig;
   fountainRig: FountainRig;
@@ -267,6 +275,41 @@ export class EnvironmentVisualController {
     const rigsNow = this.deps.reactiveRigs;
     if (rigsNow) {
       rigsNow.puddles.mesh.visible = composed.weather.puddlesActive;
+    }
+
+    // 2.6. R5 Pass 17: your windows answer the hearth — the player cottage's
+    // glass glows with the fire's truth instead of the neighborhood-uniform
+    // windowGlow. computeChimneySmokeStrength is the single source of hearth
+    // state (0 = cold · 1 = lit · 1.3 = lit + kettle warm). Evaluated every
+    // update (NOT revision-gated) because the kettle warms and expires with
+    // the in-game clock, which carries no world revision. Daytime phases keep
+    // neighborhood parity: fire glow cannot read through sunlit glass.
+    {
+      const willowWindows = this.deps.willowWindowMaterials;
+      if (willowWindows && willowWindows.length > 0) {
+        const phaseNow = composed.timeOfDay.phase;
+        const baseGlow =
+          phaseNow === 'dusk'
+            ? 2.1
+            : phaseNow === 'golden'
+            ? 0.9
+            : composed.weather.effective === 'light_rain'
+            ? 0.45
+            : 0.22;
+        const smoke = computeChimneySmokeStrength(world);
+        let willowGlow = baseGlow;
+        if (phaseNow === 'dusk') {
+          willowGlow = smoke === 0 ? 0.3 : smoke > 1 ? 2.85 : 2.5;
+        } else if (phaseNow === 'golden') {
+          willowGlow =
+            smoke === 0 ? baseGlow * 0.55 : baseGlow * (smoke > 1 ? 1.78 : 1.39);
+        } else if (composed.timeOfDay.lanternScheduleActive) {
+          willowGlow = smoke === 0 ? baseGlow * 0.35 : baseGlow * 1.25;
+        }
+        for (let i = 0; i < willowWindows.length; i++) {
+          willowWindows[i].emissiveIntensity = willowGlow;
+        }
+      }
     }
 
     // 3. Continuous Time-of-Day + Weather Atmosphere Curves (zero GC)

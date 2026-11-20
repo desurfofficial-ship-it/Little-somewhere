@@ -7,6 +7,12 @@ export interface WillowCottageRig {
   group: THREE.Group;
   smokePuffs: THREE.Mesh[];
   lanternMesh: THREE.Mesh;
+  /**
+   * R5 Pass 17: the cottage's own window/door-glass material, kept OUT of the
+   * shared neighborhood windowMaterials pool so the exterior renderer can glow
+   * it to the hearth's truth (bright while lit — dark when the fire is cold).
+   */
+  windowMats: THREE.MeshStandardMaterial[];
 }
 
 export interface WillowMailboxRig {
@@ -138,7 +144,8 @@ export function buildWillowStepCottage(ctx: WillowPrototypeContext): WillowCotta
     roughness: 0.16,
     metalness: 0.08,
   });
-  windowMaterials.push(winMat);
+  // R5 Pass 17: NOT pushed into the shared windowMaterials pool — the home's
+  // own glass follows its hearth state (see EnvironmentVisualController).
 
   const porchLanternMat = new THREE.MeshStandardMaterial({
     color: '#FFE9AF',
@@ -652,7 +659,7 @@ export function buildWillowStepCottage(ctx: WillowPrototypeContext): WillowCotta
     group.add(tuft);
   }
 
-  return { group, smokePuffs, lanternMesh };
+  return { group, smokePuffs, lanternMesh, windowMats: [winMat] };
 }
 
 /**

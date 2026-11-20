@@ -163,6 +163,60 @@ test('cottage interior lived-in dressing exists without inflating the diorama bo
   palette.disposeAll();
 });
 
+test('R5 Pass 16: the hearth wall keeps the seasons — rack, sock, jug and herb bundle rotate with the calendar', () => {
+  const palette = new MaterialPalette();
+  const rig = buildWillowCottageInterior(palette, new THREE.Texture());
+  const base = createFreshWorldState();
+
+  // Spring: first blossom branch in a jug; no summer/autumn/winter hearth dressing
+  rig.update({ ...base, season: 'spring' }, 'morning', 1.0);
+  assert.equal(rig.seasonLife.hearthSpring.visible, true, 'Spring puts a blossom branch on the mantel');
+  assert.equal(rig.seasonLife.hearthSummer.visible, false);
+  assert.equal(rig.seasonLife.hearthAutumn.visible, false);
+  assert.equal(rig.seasonLife.hearthWinter.visible, false);
+
+  // Summer: fresh herb bundle on the flue peg
+  rig.update({ ...base, season: 'summer' }, 'afternoon', 1.0);
+  assert.equal(rig.seasonLife.hearthSummer.visible, true, 'Summer hangs a fresh herb bundle');
+  assert.equal(rig.seasonLife.hearthSpring.visible, false);
+  assert.equal(rig.seasonLife.hearthAutumn.visible, false);
+  assert.equal(rig.seasonLife.hearthWinter.visible, false);
+
+  // Autumn: the herb-drying rack owns the chimney breast
+  rig.update({ ...base, season: 'autumn' }, 'afternoon', 1.0);
+  assert.equal(rig.seasonLife.hearthAutumn.visible, true, 'Autumn raises the herb-drying rack');
+  assert.equal(rig.seasonLife.hearthSpring.visible, false);
+  assert.equal(rig.seasonLife.hearthSummer.visible, false);
+  assert.equal(rig.seasonLife.hearthWinter.visible, false);
+  rig.group.updateMatrixWorld(true);
+  const rackBox = new THREE.Box3().setFromObject(rig.seasonLife.hearthAutumn);
+  assert.ok(
+    rackBox.min.x > -3.2 && rackBox.max.x < -2.0,
+    `Autumn rack sits on the flue face (x ${rackBox.min.x.toFixed(2)}..${rackBox.max.x.toFixed(2)})`,
+  );
+  assert.ok(rackBox.min.y > 1.55, 'Rack hangs clear of the mantel surface');
+
+  // Winter: knitted hearth sock + evergreen garland replace the rack
+  rig.update({ ...base, season: 'winter' }, 'afternoon', 1.0);
+  assert.equal(rig.seasonLife.hearthWinter.visible, true, 'Winter dresses the mantel with a hearth sock');
+  assert.equal(rig.seasonLife.hearthSpring.visible, false);
+  assert.equal(rig.seasonLife.hearthSummer.visible, false);
+  assert.equal(rig.seasonLife.hearthAutumn.visible, false);
+  const sockBox = new THREE.Box3().setFromObject(rig.seasonLife.hearthWinter);
+  assert.ok(
+    sockBox.min.y > 1.2 && sockBox.max.y < 1.75,
+    `Sock hangs from the mantel edge (y ${sockBox.min.y.toFixed(2)}..${sockBox.max.y.toFixed(2)})`,
+  );
+  assert.ok(sockBox.max.x < -1.3, 'Sock stays on the chimney mantel zone');
+
+  // The seasonal hearth dressing never inflates the diorama envelope
+  const box = new THREE.Box3().setFromObject(rig.group);
+  assert.ok(box.min.y >= -0.35 && box.max.y <= 3.6, `Bounds y: ${box.min.y.toFixed(2)}..${box.max.y.toFixed(2)}`);
+
+  rig.dispose();
+  palette.disposeAll();
+});
+
 test('cottage interior tea-table moment: reactive teacup appears only while seated at a cottage seat', () => {
   const palette = new MaterialPalette();
   const rig = buildWillowCottageInterior(palette, new THREE.Texture());

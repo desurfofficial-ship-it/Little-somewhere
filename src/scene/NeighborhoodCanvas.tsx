@@ -733,6 +733,7 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
       hemiLight,
       sunLight,
       windowMaterials,
+      willowWindowMaterials: willowCottage.windowMats,
       lanternMat,
       prototypeLanternMats,
       flowerGroups,

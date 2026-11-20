@@ -85,6 +85,11 @@ export interface WillowCottageInteriorRig {
     doorSwagAccentMat: THREE.MeshStandardMaterial;
     autumnLeaves: THREE.Group;
     springPetals: THREE.Group;
+    /** R5 Pass 16: the hearth wall keeps the seasons (wall-plane dressings). */
+    hearthSpring: THREE.Group;
+    hearthSummer: THREE.Group;
+    hearthAutumn: THREE.Group;
+    hearthWinter: THREE.Group;
   };
   update(world: WorldState, phase: TimePhase, elapsed: number): void;
   dispose(): void;
@@ -438,6 +443,159 @@ export function buildWillowCottageInterior(
   cardLineC.position.set(0.0, -0.03, 0.008);
   bakeryCard.add(cardSheet, cardLineA, cardLineB, cardLineC);
   hearthGroup.add(bakeryCard);
+
+  // R5 (Round-5 Pass 16). The hearth wall keeps the seasons — the chimney breast
+  // and mantel change with the calendar so the room's primary anchor reads the
+  // same seasonal story the sill posy and door swag already tell. All groups are
+  // wall-plane mounted inside existing footprints; visibility gated in rig.update
+  // from world.season (visual-only, zero game-state changes):
+  //   spring  — first blossom branch in a ceramic jug on the mantel's west end
+  //   summer  — a fresh herb bundle hanging from a brass peg on the flue
+  //   autumn  — a cedar herb-drying rack with three tied bundles (the harvest kept)
+  //   winter  — a knitted hearth sock over the mantel edge + evergreen garland
+  const hearthWoolMat = trackMat(palette.standard('#B8544A', 0.95, 0.0));
+  const hearthKnitCreamMat = trackMat(palette.standard('#EFE3CE', 0.95, 0.0));
+
+  const hearthSpring = new THREE.Group();
+  {
+    const jug = new THREE.Mesh(trackGeo(new THREE.CylinderGeometry(0.052, 0.066, 0.13, 10)), ceramicMat);
+    jug.position.set(-0.72, 1.645, 0.14);
+    const jugLip = new THREE.Mesh(trackGeo(new THREE.TorusGeometry(0.05, 0.011, 6, 12)), ceramicMat);
+    jugLip.rotation.x = Math.PI * 0.5;
+    jugLip.position.set(-0.72, 1.712, 0.14);
+    hearthSpring.add(jug, jugLip);
+    const branch = new THREE.Mesh(trackGeo(new THREE.CylinderGeometry(0.007, 0.009, 0.3, 5)), cedarDarkMat);
+    branch.position.set(-0.7, 1.86, 0.14);
+    branch.rotation.z = -0.16;
+    hearthSpring.add(branch);
+    const twig = new THREE.Mesh(trackGeo(new THREE.CylinderGeometry(0.005, 0.007, 0.17, 5)), cedarDarkMat);
+    twig.position.set(-0.745, 1.8, 0.14);
+    twig.rotation.z = 0.55;
+    hearthSpring.add(twig);
+    const blossomSpecs: Array<[number, number, number, THREE.Material]> = [
+      [-0.66, 1.98, 0.14, petalCreamMat],
+      [-0.76, 1.9, 0.14, petalCreamMat],
+      [-0.79, 1.83, 0.145, petalCreamMat],
+      [-0.63, 1.9, 0.138, petalCreamMat],
+    ];
+    for (const [bx, by, bz, mat] of blossomSpecs) {
+      const bloom = new THREE.Mesh(trackGeo(new THREE.SphereGeometry(0.03, 7, 6)), mat);
+      bloom.position.set(bx, by, bz);
+      bloom.scale.set(1, 0.82, 1);
+      hearthSpring.add(bloom);
+    }
+  }
+  hearthSpring.visible = false;
+  hearthGroup.add(hearthSpring);
+
+  const hearthSummer = new THREE.Group();
+  {
+    const peg = new THREE.Mesh(trackGeo(new THREE.CylinderGeometry(0.014, 0.014, 0.05, 6)), brassMat);
+    peg.rotation.x = Math.PI * 0.5;
+    peg.position.set(0.42, 2.02, 0.21);
+    const pegBall = new THREE.Mesh(trackGeo(new THREE.SphereGeometry(0.02, 7, 6)), brassMat);
+    pegBall.position.set(0.42, 2.02, 0.24);
+    hearthSummer.add(peg, pegBall);
+    const twine = new THREE.Mesh(trackGeo(new THREE.CylinderGeometry(0.006, 0.006, 0.07, 5)), linenMat);
+    twine.position.set(0.42, 1.965, 0.22);
+    hearthSummer.add(twine);
+    const bundle = new THREE.Mesh(trackGeo(new THREE.CylinderGeometry(0.036, 0.05, 0.16, 8)), foliageMat);
+    bundle.position.set(0.42, 1.85, 0.22);
+    bundle.rotation.z = 0.06;
+    hearthSummer.add(bundle);
+    const mintTipA = new THREE.Mesh(trackGeo(new THREE.DodecahedronGeometry(0.032, 0)), foliageMat);
+    mintTipA.position.set(0.395, 1.755, 0.22);
+    mintTipA.rotation.z = -0.3;
+    const mintTipB = new THREE.Mesh(trackGeo(new THREE.DodecahedronGeometry(0.028, 0)), foliageMat);
+    mintTipB.position.set(0.445, 1.765, 0.22);
+    mintTipB.rotation.z = 0.34;
+    hearthSummer.add(mintTipA, mintTipB);
+    const tie = new THREE.Mesh(trackGeo(new THREE.TorusGeometry(0.038, 0.007, 6, 12)), linenMat);
+    tie.position.set(0.42, 1.925, 0.22);
+    hearthSummer.add(tie);
+  }
+  hearthSummer.visible = false;
+  hearthGroup.add(hearthSummer);
+
+  const hearthAutumn = new THREE.Group();
+  {
+    // Cedar ladder rack flat against the flue's left face (local: flue front z 0.17)
+    const rackRailL = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(0.045, 0.46, 0.03)), cedarWarmMat);
+    rackRailL.position.set(-0.5, 2.02, 0.2);
+    const rackRailR = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(0.045, 0.46, 0.03)), cedarWarmMat);
+    rackRailR.position.set(-0.22, 2.02, 0.2);
+    hearthAutumn.add(rackRailL, rackRailR);
+    for (const [rx, ry, len] of [
+      [-0.36, 2.2, 0.3],
+      [-0.36, 2.02, 0.3],
+      [-0.36, 1.84, 0.3],
+    ] as const) {
+      const rung = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(len, 0.032, 0.026)), cedarWarmMat);
+      rung.position.set(rx, ry, 0.2);
+      hearthAutumn.add(rung);
+    }
+    // Three tied bundles hang from the rungs — chamomile, lavender, autumn leaves
+    const bundleSpecs: Array<[number, number, THREE.Material, THREE.Material]> = [
+      [-0.45, 2.2, petalCreamMat, cedarDarkMat],
+      [-0.36, 2.02, petalLavenderMat, cedarDarkMat],
+      [-0.27, 1.84, appleRedMat, cedarDarkMat],
+    ];
+    for (const [bx, rungY, mat, stemMat] of bundleSpecs) {
+      const cord = new THREE.Mesh(trackGeo(new THREE.CylinderGeometry(0.005, 0.005, 0.1, 5)), linenMat);
+      cord.position.set(bx, rungY - 0.05, 0.205);
+      const bundle = new THREE.Mesh(trackGeo(new THREE.CylinderGeometry(0.032, 0.046, 0.15, 8)), mat);
+      bundle.position.set(bx, rungY - 0.155, 0.21);
+      bundle.rotation.z = bx < -0.36 ? 0.07 : bx > -0.36 ? -0.07 : 0.0;
+      const tie = new THREE.Mesh(trackGeo(new THREE.TorusGeometry(0.034, 0.006, 6, 12)), linenMat);
+      tie.position.set(bx, rungY - 0.095, 0.21);
+      const stemPeek = new THREE.Mesh(trackGeo(new THREE.CylinderGeometry(0.006, 0.008, 0.04, 5)), stemMat);
+      stemPeek.position.set(bx, rungY - 0.225, 0.21);
+      stemPeek.rotation.z = bx < -0.36 ? -0.2 : bx > -0.36 ? 0.2 : 0.05;
+      hearthAutumn.add(cord, bundle, tie, stemPeek);
+    }
+  }
+  hearthAutumn.visible = false;
+  hearthGroup.add(hearthAutumn);
+
+  const hearthWinter = new THREE.Group();
+  {
+    // Knitted sock hung over the mantel's front edge, east of the terracotta sprig pot
+    const cuff = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(0.1, 0.045, 0.03)), hearthKnitCreamMat);
+    cuff.position.set(0.64, 1.555, 0.45);
+    const leg = new THREE.Mesh(trackGeo(new THREE.CylinderGeometry(0.043, 0.038, 0.14, 8)), hearthWoolMat);
+    leg.position.set(0.64, 1.4, 0.455);
+    const heel = new THREE.Mesh(trackGeo(new THREE.SphereGeometry(0.04, 7, 6)), hearthWoolMat);
+    heel.scale.set(0.8, 0.9, 0.6);
+    heel.position.set(0.605, 1.315, 0.44);
+    const toe = new THREE.Mesh(trackGeo(new THREE.SphereGeometry(0.042, 7, 6)), hearthKnitCreamMat);
+    toe.scale.set(0.85, 0.8, 0.6);
+    toe.position.set(0.678, 1.318, 0.455);
+    const loop = new THREE.Mesh(trackGeo(new THREE.TorusGeometry(0.02, 0.005, 6, 10)), hearthKnitCreamMat);
+    loop.position.set(0.64, 1.588, 0.44);
+    hearthWinter.add(cuff, leg, heel, toe, loop);
+    // Evergreen mini-garland draped along the mantel's front edge with brass bells
+    for (const [gx, drop] of [
+      [-0.82, 0.0],
+      [-0.6, 0.018],
+      [-0.38, 0.03],
+      [-0.16, 0.036],
+      [0.06, 0.03],
+      [0.28, 0.018],
+      [0.86, 0.0],
+    ] as const) {
+      const sprig = new THREE.Mesh(trackGeo(new THREE.SphereGeometry(0.055, 7, 6)), foliageMat);
+      sprig.scale.set(0.5, 0.32, 0.72);
+      sprig.position.set(gx, 1.575 - drop, 0.47);
+      hearthWinter.add(sprig);
+      if (Math.abs(gx + 0.16) < 0.01 || Math.abs(gx - 0.28) < 0.01) {
+        const bell = new THREE.Mesh(trackGeo(new THREE.SphereGeometry(0.018, 8, 6)), brassMat);
+        bell.position.set(gx, 1.53 - drop, 0.48);
+        hearthWinter.add(bell);
+      }
+    }
+  }
+  hearthWinter.visible = false;
+  hearthGroup.add(hearthWinter);
 
   // H8 (Pass 6). Kitchen counter sign-of-use: crock + spoons, bread board + slice, folded cloth
   // (hearthGroup local: counter top surface y 0.96, spans x 0.69..1.47, z -0.42..0.46)
@@ -1404,6 +1562,11 @@ export function buildWillowCottageInterior(
     seasonLife.posyAutumn.visible = season === 'autumn';
     seasonLife.autumnLeaves.visible = season === 'autumn';
     seasonLife.springPetals.visible = season === 'spring';
+    // R5 Pass 16: the hearth wall keeps the seasons
+    seasonLife.hearthSpring.visible = season === 'spring';
+    seasonLife.hearthSummer.visible = season === 'summer';
+    seasonLife.hearthAutumn.visible = season === 'autumn';
+    seasonLife.hearthWinter.visible = season === 'winter';
     const accent = seasonSwagAccents[season] ?? seasonSwagAccents.spring;
     seasonLife.doorSwagAccentMat.color.copy(accent);
     const glassTint = seasonGlassTints[season] ?? seasonGlassTints.spring;
@@ -1537,6 +1700,10 @@ export function buildWillowCottageInterior(
     doorSwagAccentMat,
     autumnLeaves,
     springPetals,
+    hearthSpring,
+    hearthSummer,
+    hearthAutumn,
+    hearthWinter,
   };
 
   return {

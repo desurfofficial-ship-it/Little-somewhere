@@ -578,3 +578,143 @@ test('EnvironmentVisualController drives orchardRig.setGatheringVisual and orcha
   controller.dispose();
 });
 
+
+// ─── R5 Pass 17: your windows answer the hearth ──────────────────────────────
+
+interface Pass17Harness {
+  controller: EnvironmentVisualController;
+  windowMat: THREE.MeshStandardMaterial;
+  willowMat: THREE.MeshStandardMaterial;
+  dispose(): void;
+}
+
+function buildPass17Harness(): Pass17Harness {
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color('#DCEBF2');
+  const groundMat = new THREE.MeshStandardMaterial({ color: '#FFFFFF' });
+  const groveBaseMat = new THREE.MeshStandardMaterial({ color: '#FFFFFF' });
+  const groveTopMat = new THREE.MeshStandardMaterial({ color: '#FFFFFF' });
+  const hemiLight = new THREE.HemisphereLight('#B5D7EB', '#7A664E', 0.54);
+  const sunLight = new THREE.DirectionalLight('#FFF1D0', 1.52);
+  const windowMat = new THREE.MeshStandardMaterial({ emissiveIntensity: 0.22 });
+  const willowMat = new THREE.MeshStandardMaterial({ emissiveIntensity: 0.22 });
+  const lanternMat = new THREE.MeshStandardMaterial({ emissiveIntensity: 0.15 });
+  const protoLanternMat = new THREE.MeshStandardMaterial({ emissiveIntensity: 0.22 });
+  const flowerA = new THREE.Group();
+  const ivyGroup = new THREE.Group();
+  const clapperMesh = new THREE.Mesh();
+  const ribbonMesh = new THREE.Mesh();
+  ribbonMesh.visible = false;
+  const waterMesh = new THREE.Mesh();
+  waterMesh.visible = false;
+  const spoutParticles = new THREE.Group();
+  spoutParticles.visible = false;
+  const bakeryTablesGroup = new THREE.Group();
+  bakeryTablesGroup.visible = false;
+  const festoonGroup = new THREE.Group();
+  festoonGroup.visible = false;
+  const flyers = [new THREE.Mesh(), new THREE.Mesh(), new THREE.Mesh()];
+  const oakGlint = new THREE.Mesh();
+  const mbFlag = new THREE.Mesh();
+  const controller = new EnvironmentVisualController({
+    scene,
+    groundMat,
+    groveRig: { group: new THREE.Group(), crownBaseMat: groveBaseMat, crownTopMat: groveTopMat },
+    hemiLight,
+    sunLight,
+    windowMaterials: [windowMat],
+    willowWindowMaterials: [willowMat],
+    lanternMat,
+    prototypeLanternMats: [protoLanternMat],
+    flowerGroups: [flowerA],
+    gazeboRig: {
+      group: new THREE.Group(),
+      bellPivot: new THREE.Group(),
+      bellMesh: new THREE.Mesh(),
+      clapperMesh,
+      ivyGroup,
+      ribbonMesh,
+    },
+    fountainRig: { group: new THREE.Group(), waterMesh, spoutParticles },
+    bakeryTablesGroup,
+    festoonGroup,
+    noticeboardRig: { group: new THREE.Group(), flyers },
+    oakGlint,
+    mbFlag,
+    bellSwingVelRef: { current: 0 },
+    isSoftwareGl: true,
+  });
+  return {
+    controller,
+    windowMat,
+    willowMat,
+    dispose() {
+      controller.dispose();
+    },
+  };
+}
+
+function duskWorld(overrides: { hearthLit?: boolean; kettleWarmUntilMinute?: number }) {
+  const base = createFreshWorldState();
+  return {
+    ...base,
+    minuteOfDay: 1180,
+    cottageState: {
+      ...base.cottageState,
+      hearthLit: overrides.hearthLit ?? true,
+      kettleWarmUntilMinute: overrides.kettleWarmUntilMinute ?? 0,
+    },
+  };
+}
+
+test('R5 Pass 17: at dusk the cottage windows glow bright with a lit hearth, brighter with the kettle warm', () => {
+  const h = buildPass17Harness();
+  const lit = duskWorld({ hearthLit: true });
+  h.controller.update(composeEnvironmentState(lit), lit, lit.playerPos, 0, 0);
+  assert.equal(h.windowMat.emissiveIntensity, 2.1, 'Neighborhood windows keep the uniform dusk glow');
+  assert.equal(h.willowMat.emissiveIntensity, 2.5, 'A lit hearth glows warmer than the neighborhood');
+
+  const kettle = duskWorld({ hearthLit: true, kettleWarmUntilMinute: 1180 });
+  h.controller.update(composeEnvironmentState(kettle), kettle, kettle.playerPos, 0, 0);
+  assert.equal(h.willowMat.emissiveIntensity, 2.85, 'Kettle-warm windows breathe brighter');
+
+  const cold = duskWorld({ hearthLit: false });
+  h.controller.update(composeEnvironmentState(cold), cold, cold.playerPos, 0, 0);
+  assert.equal(h.willowMat.emissiveIntensity, 0.3, 'A cold hearth reads as a dark home at dusk');
+  assert.equal(h.windowMat.emissiveIntensity, 2.1, 'Neighbors are unaffected by the cold hearth');
+  h.dispose();
+});
+
+test('R5 Pass 17: golden hour lifts a lit home and dims a cold one; daytime keeps neighborhood parity', () => {
+  const h = buildPass17Harness();
+  const golden = duskWorld({ hearthLit: true });
+  golden.minuteOfDay = 1010; // golden hour
+  h.controller.update(composeEnvironmentState(golden), golden, golden.playerPos, 0, 0);
+  assert.equal(h.windowMat.emissiveIntensity, 0.9, 'Neighborhood golden glow unchanged');
+  assert.ok(
+    Math.abs(h.willowMat.emissiveIntensity - 0.9 * 1.39) < 1e-9,
+    `A lit home reads warmer at golden hour (got ${h.willowMat.emissiveIntensity})`,
+  );
+
+  const goldenCold = duskWorld({ hearthLit: false });
+  goldenCold.minuteOfDay = 1010;
+  h.controller.update(composeEnvironmentState(goldenCold), goldenCold, goldenCold.playerPos, 0, 0);
+  assert.ok(
+    Math.abs(h.willowMat.emissiveIntensity - 0.9 * 0.55) < 1e-9,
+    `Cold hearth dims golden windows but never black (got ${h.willowMat.emissiveIntensity})`,
+  );
+
+  const morning = duskWorld({ hearthLit: true });
+  morning.minuteOfDay = 500;
+  h.controller.update(composeEnvironmentState(morning), morning, morning.playerPos, 0, 0);
+  assert.equal(h.willowMat.emissiveIntensity, h.windowMat.emissiveIntensity, 'Morning keeps parity');
+  const morningCold = duskWorld({ hearthLit: false });
+  morningCold.minuteOfDay = 500;
+  h.controller.update(composeEnvironmentState(morningCold), morningCold, morningCold.playerPos, 0, 0);
+  assert.equal(
+    h.willowMat.emissiveIntensity,
+    h.windowMat.emissiveIntensity,
+    'Morning parity is hearth-independent',
+  );
+  h.dispose();
+});
