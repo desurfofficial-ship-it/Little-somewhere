@@ -117,6 +117,7 @@ import {
   buildPerimeterBorder,
 } from './builders/vegetation';
 import { buildMeadowDressing } from './builders/botanicalDressing';
+import { buildWildHollows } from './builders/wilds';
 import { buildFernHollowOrchard } from './builders/orchard';
 import { buildOrchardAmbientExtras, buildOrchardMicroLife } from './builders/orchardMicroLife';
 import { buildAllReactiveRigs } from './builders/reactiveProps';
@@ -622,6 +623,11 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
     exteriorRoot.add(hollowOakRig.group);
     const oakGlint = hollowOakRig.oakGlint;
 
+    // 10c. The Wild Hollows — Foxglove Rise, Sorrel Hollow, Marigold Lane, Bee Line
+    //      (Build 10; obstacle twins live in worldMap CIRCLE/BOX_OBSTACLES)
+    const wildsRig = buildWildHollows(palette, shadowTex, isSoftwareGl);
+    exteriorRoot.add(wildsRig.group);
+
     // 10b. Everyday Life Outdoor Activity Props (porch herb box, greenhouse herb tray, pond driftwood nook)
     {
       const cedarMat = palette.standard(STORYBOOK_PALETTE.cedarWarm, 0.72, 0.02);
@@ -789,6 +795,7 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
       orchardRig,
       orchardMicroLife: orchardMicroLifeRig,
       orchardAmbientExtras: orchardAmbientExtrasRig,
+      wildsRig,
     });
 
     // Willow Step Cottage Interior Cutaway Diorama (toggles cleanly via interiorRoot)
@@ -1055,10 +1062,32 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
       }
     }
 
+    // 11b. Wild Hollows interactable tap proxies (Build 10)
+    {
+      const wildProxyMat = new THREE.MeshBasicMaterial({ visible: false });
+      const wildProxies: Array<{ x: number; y: number; z: number; r: number; id: string }> = [
+        { x: -21.4, y: 1.1, z: 19.0, r: 0.85, id: 'old_stone_well' },
+        { x: 21.45, y: 1.25, z: 19.1, r: 0.8, id: 'rise_vista' },
+        { x: 20.3, y: 0.45, z: 2.5, r: 0.85, id: 'marigold_bank' },
+        { x: 11.0, y: 0.5, z: -19.7, r: 0.8, id: 'wild_bee_log' },
+      ];
+      for (const wp of wildProxies) {
+        const hit = new THREE.Mesh(new THREE.CylinderGeometry(wp.r, wp.r, 1.5, 8), wildProxyMat);
+        hit.position.set(wp.x, wp.y, wp.z);
+        hit.userData = { targetKind: 'prop', targetId: wp.id };
+        exteriorRoot.add(hit);
+        interactableMeshes.push(hit);
+      }
+    }
+
     // 12. Handcrafted Cedar Benches at SEAT_SPOTS + raycast proxies
     for (const seat of SEAT_SPOTS) {
       const bench = buildStorybookBench(palette, shadowTex);
-      bench.position.set(seat.seatPos.x, 0, seat.seatPos.z);
+      bench.position.set(
+        seat.seatPos.x,
+        getGroundHeightAt(seat.seatPos.x, seat.seatPos.z),
+        seat.seatPos.z,
+      );
       bench.rotation.y = seat.facingAngle;
       exteriorRoot.add(bench);
 
@@ -1066,7 +1095,11 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
         new THREE.CylinderGeometry(0.68, 0.68, 1.0, 8),
         new THREE.MeshBasicMaterial({ visible: false }),
       );
-      seatHit.position.set(seat.seatPos.x, 0.5, seat.seatPos.z);
+      seatHit.position.set(
+        seat.seatPos.x,
+        getGroundHeightAt(seat.seatPos.x, seat.seatPos.z) + 0.5,
+        seat.seatPos.z,
+      );
       seatHit.userData = { targetKind: 'seat', targetId: seat.id };
       exteriorRoot.add(seatHit);
       interactableMeshes.push(seatHit);

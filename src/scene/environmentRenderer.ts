@@ -9,6 +9,7 @@ import {
   OrchardMicroLifeRig,
 } from './builders/orchardMicroLife';
 import { GroveTreesRig } from './builders/vegetation';
+import { WildsRig } from './builders/wilds';
 import { ReactiveVisualRigs } from './builders/reactiveProps';
 import { getWaterShaderUniforms } from './waterShaders';
 import { computeChimneySmokeStrength } from '../game/cottage';
@@ -74,6 +75,8 @@ export interface EnvironmentRendererDeps {
   orchardMicroLife?: OrchardMicroLifeRig;
   /** Optional Fern Hollow Orchard extras rig (songbirds & seasonal blossom/leaf drift). */
   orchardAmbientExtras?: OrchardAmbientExtrasRig;
+  /** Optional Wild Hollows rig (Build 10) for seasonal crown/knoll tints. */
+  wildsRig?: WildsRig;
 }
 
 export class EnvironmentVisualController {
@@ -176,6 +179,14 @@ export class EnvironmentVisualController {
       groveRig.crownBaseMat.color.copy(_seasonTint);
       _seasonTint.set(composed.season.groveTopTintHex);
       groveRig.crownTopMat.color.copy(_seasonTint);
+      if (this.deps.wildsRig) {
+        _seasonTint.set(composed.season.meadowTintHex);
+        this.deps.wildsRig.moundMat.color.copy(_seasonTint);
+        _seasonTint.set(composed.season.groveBaseTintHex);
+        this.deps.wildsRig.crownBaseMat.color.copy(_seasonTint);
+        _seasonTint.set(composed.season.groveTopTintHex);
+        this.deps.wildsRig.crownTopMat.color.copy(_seasonTint);
+      }
 
       const petalMat = this.petalMesh.material as THREE.MeshBasicMaterial;
       if (composed.season.season === 'autumn') {
