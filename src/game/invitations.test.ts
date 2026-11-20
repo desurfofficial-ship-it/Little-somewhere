@@ -42,8 +42,12 @@ import { NOOK_PORCH_EXIT_POS } from './bookNook';
 import type { WorldState } from './types';
 
 // ---------------------------------------------------------------------------
-// Loose test-side views of the PROPOSED LR-1 slices (doc 14 §2/§4, doc 16 §0.1).
+// Loose test-side views of the LR-1 slices (doc 14 §2/§4, doc 16 §0.1).
 // These interfaces are test fixtures only — they do not modify WorldState.
+// Now that production WorldState v11 exists, the fixture view omits the four
+// implemented slices from the base type and re-declares them loosely, so the
+// tolerant adapters keep compiling against the real shapes. Assertions bind to
+// doc-16 observables and are unchanged.
 // ---------------------------------------------------------------------------
 
 interface LrInvitation {
@@ -71,7 +75,8 @@ interface LrInvitationState {
   lastOfferDayByHost?: Record<string, number>;
 }
 
-interface LrWorld extends WorldState {
+interface LrWorld
+  extends Omit<WorldState, 'invitations' | 'occupancy' | 'teaching' | 'activeActivity'> {
   invitations?: LrInvitationState;
   occupancy?: unknown;
   teaching?: { known?: unknown[] };

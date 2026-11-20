@@ -37,7 +37,7 @@ import {
   createFreshWorldState,
   serializeWorldState,
 } from './storage';
-import { migrateWorldState } from './migrations';
+import { CURRENT_SCHEMA_VERSION, migrateWorldState } from './migrations';
 import { WorldState } from './types';
 
 function freshInsideCopperwheel(day = 1, minuteOfDay = 540): WorldState {
@@ -310,7 +310,9 @@ test('v9 saves migrate to v10 with a fresh copperwheelState and interior locatio
   const v9Raw = { ...parsed, schemaVersion: 9 } as Record<string, unknown>;
   delete v9Raw.copperwheelState;
   const result = migrateWorldState(v9Raw);
-  assert.equal(result.state.schemaVersion, 10);
+  // LR-1 (WorldState v11) keeps the invariant: the v9 save chains v9→v10→<current>;
+  // copperwheelState stays fresh from its own step and interior state is preserved.
+  assert.equal(result.state.schemaVersion, CURRENT_SCHEMA_VERSION);
   assert.ok(result.state.copperwheelState);
   assert.equal(result.state.copperwheelState.windingSessions, 0);
   assert.ok(result.state.nookState, 'v9 nookState preserved through the chain');
@@ -387,7 +389,7 @@ test('copperwheel state round-trips through serialize + migrate without loss', (
   };
   const serialized = serializeWorldState(world);
   const migrated = migrateWorldState(JSON.parse(serialized));
-  assert.equal(migrated.state.schemaVersion, 10);
+  assert.equal(migrated.state.schemaVersion, CURRENT_SCHEMA_VERSION);
   assert.deepEqual(migrated.state.copperwheelState, world.copperwheelState);
   assert.equal(migrated.state.playerLocation, 'copperwheel_interior');
   assert.deepEqual(migrated.state.playerPos, { x: -1.5, z: 0.25 });

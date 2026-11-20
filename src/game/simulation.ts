@@ -19,6 +19,7 @@ import {
   getResidentScheduleSlot,
 } from './residents';
 import { DAY_END_MINUTE, advanceSimulationClock, getTimePhase } from './time';
+import { expireInvitationsAt } from './invitations';
 import { hashSeed, mulberry32, seededInt } from './rng';
 import {
   applyNpcSocialRelationInPlace,
@@ -618,6 +619,11 @@ export function stepSimulationInPlace(
   const dtMinutes = !paused && !dialogueOpen ? dt * clockRate : 0;
   if (dtMinutes > 0) {
     world.minuteOfDay = advanceSimulationClock(world.minuteOfDay, dtMinutes);
+    // Living Relationships LR-1 (doc 14 §2.4 call sites; doc 19 #4): every minute
+    // mutation reconciles invitation expiry in the same step. The tick itself never
+    // creates or moves occupants (doc 14 §1) — the reconcile may only archive the
+    // invite and CLEAR occupancy via the owner functions.
+    expireInvitationsAt(world, world.day, world.minuteOfDay);
   }
 
   if (paused) return;
