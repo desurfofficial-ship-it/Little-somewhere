@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   createResidentFeelState,
+  deriveResidentPoofCues,
   updateResidentMotionFeel,
   type ResidentFeelState,
 } from './residentFeel';
@@ -17,6 +18,23 @@ function drive(
     updateResidentMotionFeel(state, facing, speed, dt);
   }
   return state;
+}
+
+/**
+ * Pass 26 poof-cue script: feed (dt, facing, speed, walkPhase) frames through
+ * the same derive -> update call order the canvas uses each frame.
+ */
+function drivePoofs(
+  state: ResidentFeelState,
+  frames: Array<[number, number, number, number]>,
+): Array<{ footstep: boolean; skid: boolean }> {
+  const cues: Array<{ footstep: boolean; skid: boolean }> = [];
+  for (const [dt, facing, speed, walkPhase] of frames) {
+    deriveResidentPoofCues(state, facing, speed, walkPhase, dt);
+    cues.push({ footstep: state.poofFootstep, skid: state.poofSkid });
+    updateResidentMotionFeel(state, facing, speed, dt);
+  }
+  return cues;
 }
 
 test('resident feel: first observation snaps baselines — no spawn-yaw bank spike', () => {
@@ -146,4 +164,113 @@ test('resident feel: deterministic — identical frame scripts produce identical
   assert.equal(a.bank, b.bank);
   assert.equal(a.lean, b.lean);
   assert.equal(a.squash, b.squash);
+});
+
+/* ------------------------------------------------------------------ */
+/* Pass 26: footstep-timed dust-poof cues (deriveResidentPoofCues)     */
+/* ------------------------------------------------------------------ */
+
+test('resident poofs: full-stride footsteps cue on alternating feet only', () => {
+  // Walk at the resident's full stride (2.3 u/s); the walkPhase script jumps
+  // across π (frame 7) and 2π (frame 14) — the two stride crossings.
+  const frames: Array<[number, number, number, number]> = [
+    [DT, 0, 2.3, 0.1],
+    [DT, 0, 2.3, 0.5],
+    [DT, 0, 2.3, 0.9],
+    [DT, 0, 2.3, 1.4],
+    [DT, 0, 2.3, 1.9],
+    [DT, 0, 2.3, 2.4],
+    [DT, 0, 2.3, 3.0], // sin > 0 (0.141)
+    [DT, 0, 2.3, 3.3], // sin < 0 (-0.158) — crosses π
+    [DT, 0, 2.3, 3.7],
+    [DT, 0, 2.3, 4.1],
+    [DT, 0, 2.3, 4.5],
+    [DT, 0, 2.3, 5.0],
+    [DT, 0, 2.3, 5.6],
+    [DT, 0, 2.3, 6.1], // sin < 0 (-0.182)
+    [DT, 0, 2.3, 6.4], // sin > 0 (0.117) — crosses 2π
+    [DT, 0, 2.3, 6.8],
+  ];
+  const cues = drivePoofs(createResidentFeelState(), frames);
+  const cueIdx = cues.map((c, i) => (c.footstep ? i : -1)).filter((i) => i >= 0);
+  assert.deepEqual(cueIdx, [7], 'exactly the π-crossing frame cues (alternating feet)');
+  assert.ok(!cues[14].footstep, 'the 2π crossing is the other foot — no cue');
+});
+
+test('resident poofs: slow steps and gentle pacing never cue dust', () => {
+  const frames: Array<[number, number, number, number]> = [
+    [DT, 0, 1.2, 0.1],
+    [DT, 0, 1.2, 0.5],
+    [DT, 0, 1.2, 1.4],
+    [DT, 0, 1.2, 3.0],
+    [DT, 0, 1.2, 3.3], // crossing while below the 2.0 stride gate
+    [DT, 0, 1.2, 3.7],
+    [DT, 0, 1.2, 4.5],
+    [DT, 0, 1.2, 6.1],
+    [DT, 0, 1.2, 6.4], // second crossing, still slow
+  ];
+  const cues = drivePoofs(createResidentFeelState(), frames);
+  assert.ok(cues.every((c) => !c.footstep && !c.skid), 'no dust at a gentle pace');
+});
+
+test('resident poofs: hard arrivals plant a skid burst exactly once', () => {
+  const frames: Array<[number, number, number, number]> = [
+    [DT, 0, 2.3, 0.1],
+    [DT, 0, 2.3, 0.5],
+    [DT, 0, 0.4, 0.5], // 2.3 -> 0.4 in one frame: planted-heel arrival
+    [DT, 0, 0.4, 0.5],
+    [DT, 0, 0.0, 0.5],
+  ];
+  const cues = drivePoofs(createResidentFeelState(), frames);
+  const skidIdx = cues.map((c, i) => (c.skid ? i : -1)).filter((i) => i >= 0);
+  assert.deepEqual(skidIdx, [2], 'the arrival frame cues one burst');
+});
+
+test('resident poofs: sharp speed-carrying pivots kick dust; in-place turns do not', () => {
+  // Pivot while carrying speed
+  const pivot = drivePoofs(createResidentFeelState(), [
+    [DT, 0, 2.0, 0.1],
+    [DT, 2.5, 2.0, 0.5], // yawRate 75 rad/s at full stride
+    [DT, 2.5, 2.0, 0.9],
+  ]);
+  assert.ok(pivot[1].skid, 'speed-carrying pivot cues a skid burst');
+  // Same pivot at a standstill (dialogue look-at turn) — nothing
+  const inPlace = drivePoofs(createResidentFeelState(), [
+    [DT, 0, 0.05, 0.1],
+    [DT, 2.5, 0.05, 0.1],
+    [DT, 2.5, 0.05, 0.1],
+  ]);
+  assert.ok(inPlace.every((c) => !c.skid), 'in-place pivot cues nothing');
+});
+
+test('resident poofs: first frame, frozen clock and hostile dt stay cue-free and finite', () => {
+  const state = createResidentFeelState();
+  // First observation must snap silently (no spawn poof storm)
+  const first = drivePoofs(state, [[DT, 1.2, 2.3, 3.0]]);
+  assert.ok(!first[0].footstep && !first[0].skid, 'first frame cues nothing');
+  // dt <= 0 clears cues instead of dividing
+  const frozen = drivePoofs(state, [
+    [0, 1.2, 2.3, 3.3],
+    [-DT, 1.2, 2.3, 3.7],
+  ]);
+  assert.ok(frozen.every((c) => !c.footstep && !c.skid), 'frozen/hostile clock cues nothing');
+  assert.ok(Number.isFinite(state.prevWalkSin), 'poof baseline stays finite');
+  // Sequence continues working afterwards
+  const after = drivePoofs(state, [[DT, 1.2, 2.3, 6.1]]);
+  assert.equal(typeof after[0].footstep, 'boolean');
+});
+
+test('resident poofs: deterministic — identical scripts produce identical cue streams', () => {
+  const frames: Array<[number, number, number, number]> = [
+    [DT, 0, 2.3, 0.1],
+    [DT, 0, 2.3, 2.4],
+    [DT, 0, 2.3, 3.0],
+    [DT, 0, 2.3, 3.3],
+    [DT, 0, 0.4, 3.3],
+    [DT, 2.5, 2.0, 3.3],
+    [DT, 2.5, 2.0, 3.7],
+  ];
+  const a = drivePoofs(createResidentFeelState(), frames);
+  const b = drivePoofs(createResidentFeelState(), frames);
+  assert.deepEqual(a, b, 'cue streams match frame for frame');
 });

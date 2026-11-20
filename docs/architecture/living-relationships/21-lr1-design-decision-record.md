@@ -79,7 +79,7 @@ The invariant LR2-04b protects is **not** affected: doc 14 §4.2 — occupancy i
 |---|---|---|
 | **A. Re-anchor the staging (recommended)** | Author LR2-04b as *"player already inside `nook_interior` when the invite is created"*: offer at minute 495 while the player is inside (anchored window `[495, 780]`, live at creation), advance time inside the window, assert no retroactive occupant; exit + re-enter while live → occupant set. | Fully production-reachable through `offerInvitation` + a production clock path; tests the identical invariant with the identical Pass/Fail criteria ("Occupancy still empty… After exit and a new `enterNookAction` while the invite is live, occupant is set"). |
 | **B. Adversarial staged variant (optional companion)** | Hand-stage `windowStartMinute` in the future and jump the clock past it in one step; assert no retroactive occupant (and, for tick-based paths, that the pre-window reconcile expires the invite first). | Guards the reducer against corrupted/hand-edited state; coherent only with jump paths (a tick path expires the invite pre-window per §2.4). Useful but fragile; record as optional, not required. |
-| **C. Reverse the anchoring (canonical start, pending exception)** | Restore canonical `windowStartMinute = 600` and exempt pending invites from the predicate. | Rejected in doc 20 §4 with recorded rationale (destroys valid pending state on the next tick; invents a pending-state exception to the sole predicate); would contradict the decision recorded in doc 20 §4, WORKLOG Entry 046, and HANDOVER §15; would break `verify_lr1.ts` live-at-creation pins. Rejected. |
+| **C. Reverse the anchoring (canonical start, pending exception)** | Restore canonical `windowStartMinute = 600` and exempt pending invites from the predicate. | Rejected in doc 20 §4 with recorded rationale (destroys valid pending state on the next tick; invents a pending-state exception to the sole predicate); would contradict the decision recorded in doc 20 §4, WORKLOG Entry 048, and HANDOVER §16; would break `verify_lr1.ts` live-at-creation pins. Rejected. |
 
 ### 2.4 Decision
 
@@ -102,7 +102,7 @@ The invariant LR2-04b protects is **not** affected: doc 14 §4.2 — occupancy i
 | Doc 14 §2.3 | Clarifying decision note appended (this document is authoritative for sentence 2's scope) | Prevents re-litigation at the spec-of-record level |
 | Doc 16 LR2-03 / LR2-04b | Additive staging notes | LR-2 test authors stage through reachable production paths |
 | Doc 20 §8 | Gate-4 bullet marked resolved (pointer here) | Limitation list stays truthful |
-| HANDOVER / WORKLOG | Pointer + Entry 047 | Handover accuracy and worklog continuity |
+| HANDOVER / WORKLOG | Pointer + Entry 049 | Handover accuracy and worklog continuity |
 
 ## 4. Verification of preserved invariants
 

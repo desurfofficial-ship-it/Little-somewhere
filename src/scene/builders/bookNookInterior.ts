@@ -4,6 +4,7 @@ import { TimePhase, WorldState } from '../../game/types';
 import { getSeasonForDay } from '../../game/time';
 import { MaterialPalette, STORYBOOK_PALETTE } from '../materials';
 import { addContactShadow } from './vegetation';
+import { attachPorchSeasonLife, createPorchSeasonLife } from './porchSeasonLife';
 
 /**
  * Linden Book Nook Interior Cutaway Diorama (Milestone 3 Build 8).
@@ -209,6 +210,50 @@ export function buildLindenBookNookInterior(
   const shelfCrown = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(3.7, 0.1, 0.24)), cedarDarkMat);
   shelfCrown.position.set(-0.68, 2.52, -2.34);
   group.add(shelfCrown);
+
+  // Phase B implied-space architecture (audit §7.3): a closed STACKS door on the
+  // north wall's free east segment (east of the bookshelf wall) implying the archive
+  // room behind it, with a small returns-stack on the wainscot ledge beside it.
+  // Wall-mounted visual only: no obstacle, interactable, or bounds change.
+  const stacksDoor = new THREE.Group();
+  stacksDoor.position.set(1.75, 0, -2.38);
+  for (const fx of [-0.5, 0.5]) {
+    const post = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(0.11, 2.14, 0.15)), cedarDarkMat);
+    post.position.set(fx, 1.07, 0.02);
+    stacksDoor.add(post);
+  }
+  const stacksLintel = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(1.12, 0.13, 0.17)), cedarDarkMat);
+  stacksLintel.position.set(0, 2.2, 0.02);
+  stacksDoor.add(stacksLintel);
+  const stacksLeaf = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(0.9, 1.92, 0.08)), doorMat);
+  stacksLeaf.position.set(0, 0.97, 0.06);
+  stacksLeaf.castShadow = true;
+  stacksDoor.add(stacksLeaf);
+  const stacksRailGeo = trackGeo(new THREE.BoxGeometry(0.8, 0.08, 0.1));
+  for (const ry of [0.48, 1.28]) {
+    const rail = new THREE.Mesh(stacksRailGeo, cedarDarkMat);
+    rail.position.set(0, ry, 0.09);
+    stacksDoor.add(rail);
+  }
+  const stacksKnob = new THREE.Mesh(trackGeo(new THREE.SphereGeometry(0.042, 8, 7)), brassMat);
+  stacksKnob.position.set(-0.32, 1.0, 0.12);
+  stacksDoor.add(stacksKnob);
+  group.add(stacksDoor);
+  // Returns stack: two leaning books + a folded lending slip on the wainscot ledge
+  const returnsStack = new THREE.Group();
+  returnsStack.position.set(2.3, 0, -2.36);
+  const slip = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(0.16, 0.015, 0.22)), linenMat);
+  slip.position.set(0, 0.745, 0.02);
+  slip.rotation.y = 0.3;
+  returnsStack.add(slip);
+  const rbA = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(0.09, 0.24, 0.14)), bookMats[0]);
+  rbA.position.set(-0.03, 0.87, 0.01);
+  rbA.rotation.z = 0.08;
+  const rbB = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(0.09, 0.22, 0.13)), bookMats[2]);
+  rbB.position.set(0.05, 0.85, 0.03);
+  rbB.rotation.z = -0.14;
+  returnsStack.add(rbA, rbB);
+  group.add(returnsStack);
 
   // West wall (x = -2.5) with a reading window above the tea console
   const westWall = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(0.16, wallHeight, 4.9)), plasterMat);
@@ -947,6 +992,136 @@ export function buildLindenBookNookPorchDressing(
     bk.rotation.y = 0.5 - i * 0.4;
     group.add(bk);
   }
+
+  // Pass 26 "Doorways of the Lane": the reading porch keeps the seasons like the
+  // cottage and bakery porches do. Pieces hug the step, the book basket, or the
+  // wall bracket inside the dressing's existing footprint (local x 0..0.95,
+  // z -0.95..0.95, y <= 2.3) — the lane walk band reads unchanged.
+  const porchLife = createPorchSeasonLife('linden_nook');
+  const soilMat = palette.standard('#4A3527', 0.92, 0.0);
+  const blossomMat = palette.standard('#EFA7B4', 0.72, 0.0);
+  const leafMat = palette.standard('#5F8F5C', 0.78, 0.0);
+  const frostMat = palette.standard('#EAF2F6', 0.5, 0.06);
+  const snowMat = palette.standard('#F4F8FA', 0.62, 0.04);
+  const evergreenMat = palette.standard('#3F6B4F', 0.8, 0.0);
+  const copperMat = palette.standard('#A96B4C', 0.5, 0.72);
+  const cushionMat = palette.standard('#8E5D74', 0.86, 0.0);
+
+  // Spring: a copper bud vase with a blossom sprig on the step's north end.
+  {
+    const vase = new THREE.Mesh(trackGeo(new THREE.CylinderGeometry(0.055, 0.07, 0.15, 8)), copperMat);
+    vase.name = 'nook_porch_spring_bud_vase';
+    vase.position.set(0.55, 0.165, -0.42);
+    porchLife.spring.add(vase);
+    const sprigStem = new THREE.Mesh(trackGeo(new THREE.CylinderGeometry(0.01, 0.01, 0.13, 5)), evergreenMat);
+    sprigStem.position.set(0.55, 0.28, -0.42);
+    sprigStem.rotation.z = 0.18;
+    porchLife.spring.add(sprigStem);
+    for (let b = 0; b < 4; b++) {
+      const bloom = new THREE.Mesh(trackGeo(new THREE.SphereGeometry(0.04, 6, 5)), blossomMat);
+      bloom.name = `nook_porch_spring_bloom_${b}`;
+      bloom.position.set(0.55 + (b - 1.5) * 0.055, 0.35 + (b % 2) * 0.035, -0.42 + (b - 1.5) * 0.025);
+      porchLife.spring.add(bloom);
+    }
+  }
+
+  // Summer: a potted mini fern + a small reading cushion on the step's south end.
+  {
+    const pot = new THREE.Mesh(trackGeo(new THREE.CylinderGeometry(0.075, 0.06, 0.11, 8)), palette.standard('#B96A4B', 0.82, 0.0));
+    pot.name = 'nook_porch_summer_fern_pot';
+    pot.position.set(0.84, 0.145, -0.4);
+    pot.castShadow = true;
+    porchLife.summer.add(pot);
+    const soil = new THREE.Mesh(trackGeo(new THREE.CylinderGeometry(0.06, 0.06, 0.02, 8)), soilMat);
+    soil.position.set(0.84, 0.2, -0.4);
+    porchLife.summer.add(soil);
+    for (let f = 0; f < 4; f++) {
+      const frond = new THREE.Mesh(trackGeo(new THREE.ConeGeometry(0.022, 0.13, 5)), leafMat);
+      frond.name = `nook_porch_summer_frond_${f}`;
+      frond.position.set(0.84 + (f % 2 === 0 ? -0.02 : 0.02), 0.26, -0.4 + (f < 2 ? -0.02 : 0.02));
+      frond.rotation.set((f - 1.5) * 0.22, f * 1.6, (f - 1.5) * -0.18);
+      porchLife.summer.add(frond);
+    }
+    const cushion = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(0.26, 0.06, 0.2)), cushionMat);
+    cushion.name = 'nook_porch_summer_reading_cushion';
+    cushion.position.set(0.3, 0.12, 0.42);
+    cushion.rotation.y = 0.3;
+    porchLife.summer.add(cushion);
+  }
+
+  // Autumn: leaf scatter around the basket + a tiny pumpkin bookend guard.
+  {
+    const leafGeo = trackGeo(new THREE.SphereGeometry(0.04, 5, 4));
+    const leafAutumnMat = palette.standard('#C97B3E', 0.82, 0.0);
+    const leafSpots: Array<[number, number]> = [
+      [0.34, 0.6],
+      [0.86, 0.56],
+      [0.58, 0.9],
+      [0.62, -0.5],
+    ];
+    leafSpots.forEach(([lx, lz], li) => {
+      const leaf = new THREE.Mesh(leafGeo, leafAutumnMat);
+      leaf.name = `nook_porch_autumn_leaf_${li}`;
+      leaf.scale.set(1.25, 0.35, 0.9);
+      leaf.rotation.y = li * 1.1;
+      leaf.position.set(lx, 0.105, lz);
+      porchLife.autumn.add(leaf);
+    });
+    const bookend = new THREE.Mesh(trackGeo(new THREE.SphereGeometry(0.085, 8, 6)), palette.standard('#D98A3D', 0.78, 0.0));
+    bookend.name = 'nook_porch_autumn_pumpkin_bookend';
+    bookend.scale.set(1.1, 0.72, 1.1);
+    bookend.position.set(0.3, 0.1, -0.3);
+    porchLife.autumn.add(bookend);
+  }
+
+  // Winter: frost ferns on the step corners, a snow cap on the returned books,
+  // a berry evergreen sprig on the bracket, and a plum knit scarf on the step.
+  {
+    const fernGeo = trackGeo(new THREE.ConeGeometry(0.038, 0.17, 5));
+    const fernSpots: Array<[number, number]> = [
+      [0.28, -0.52],
+      [0.84, -0.5],
+      [0.28, 0.5],
+    ];
+    fernSpots.forEach(([fx, fz], fi) => {
+      const fern = new THREE.Mesh(fernGeo, frostMat);
+      fern.name = `nook_porch_winter_frost_fern_${fi}`;
+      fern.rotation.set((fi - 1) * 0.3, fi * 1.7, (fi - 1) * -0.25);
+      fern.position.set(fx, 0.14, fz);
+      porchLife.winter.add(fern);
+    });
+    const bookSnow = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(0.19, 0.07, 0.15)), snowMat);
+    bookSnow.name = 'nook_porch_winter_book_snow';
+    bookSnow.position.set(0.6, 0.475, 0.62);
+    bookSnow.rotation.y = -0.3;
+    porchLife.winter.add(bookSnow);
+    const sprig = new THREE.Mesh(trackGeo(new THREE.ConeGeometry(0.038, 0.18, 5)), evergreenMat);
+    sprig.name = 'nook_porch_winter_evergreen_sprig';
+    sprig.position.set(0.1, 2.03, -0.85);
+    sprig.rotation.set(0.4, 0.5, 0.25);
+    porchLife.winter.add(sprig);
+    const berryMat = palette.standard('#C94F4F', 0.6, 0.0);
+    for (let b = 0; b < 2; b++) {
+      const berry = new THREE.Mesh(trackGeo(new THREE.SphereGeometry(0.02, 6, 5)), berryMat);
+      berry.name = `nook_porch_winter_sprig_berry_${b}`;
+      berry.position.set(0.13 + b * 0.035, 2.09 - b * 0.03, -0.83);
+      porchLife.winter.add(berry);
+    }
+    // Plum knit scarf folded on the step's lane edge (the reader's own wool).
+    const scarfMat = palette.standard('#8E5D74', 0.86, 0.0);
+    const scarfStripe = palette.standard('#E8DCC8', 0.86, 0.0);
+    const scarf = new THREE.Group();
+    scarf.name = 'nook_porch_winter_knit_scarf';
+    for (let m = 0; m < 3; m++) {
+      const band = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(0.3, 0.03, 0.16 - m * 0.03)), m % 2 === 0 ? scarfMat : scarfStripe);
+      band.position.set(0.55, 0.105 + m * 0.032, 0.16);
+      band.rotation.y = 0.06 * m;
+      scarf.add(band);
+    }
+    porchLife.winter.add(scarf);
+  }
+
+  attachPorchSeasonLife(group, porchLife);
 
   addContactShadow(group, shadowTex, 1.6, 2.0, 0.4, 0.018);
 

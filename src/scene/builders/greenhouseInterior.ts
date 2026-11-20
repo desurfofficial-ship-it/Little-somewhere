@@ -15,10 +15,13 @@ import { addContactShadow } from './vegetation';
  *
  * Mirrors `GREENHOUSE_BOUNDS` (-3.02..3.02 x -2.62..2.62) and the exact furniture footprints
  * of `GREENHOUSE_INTERIOR_OBSTACLES` & `GREENHOUSE_INTERACTABLES` in `src/game/greenhouse.ts`.
- * North + West walls rise as timber-framed glass with tall sunlit panes; South + East edges step
- * down to cutaway dwarf-stone wainscoting so the isometric camera reads cleanly into every corner.
- * The four shared terracotta pots on the west growing shelf render the live crop growth stages
- * from `world.greenhouseState` (soil mound → sprout → leafy → blooming/fruiting, per-crop tint).
+ * Building-audit Phase A door-side reconciliation: the interior door now sits in the WEST
+ * glass wall (door opening z 0.9..2.1, spawn (-2.3, 1.5)) agreeing with the exterior west
+ * vestibule doorway, instead of teleporting the player across the room. The east glass wall
+ * rises taller for the growing shelf light (shelf moved from west to east with the four
+ * shared plot pots; registry `GREENHOUSE_PLOT_SHELF_Z` z values are unchanged). North + East
+ * walls rise as timber-framed glass with tall sunlit panes; South + West edges step down to
+ * cutaway dwarf-stone wainscoting so the isometric camera reads cleanly into every corner.
  */
 export interface SunbeamGreenhouseInteriorRig {
   group: THREE.Group;
@@ -223,12 +226,13 @@ export function buildSunbeamGreenhouseInterior(
   }
 
   const doorMat2 = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(1.15, 0.025, 0.62)), mossMat);
-  doorMat2.position.set(2.15, 0.015, -0.4);
+  doorMat2.position.set(-2.15, 0.015, 1.5);
   doorMat2.receiveShadow = true;
   group.add(doorMat2);
 
   // ---------------------------------------------------------------------
-  // 2. Glasshouse shell: north/west glass walls + dwarf-stone south/east wainscot
+  // 2. Glasshouse shell: north/east glass walls + dwarf-stone south/west wainscot
+  //    (Phase A door-side reconciliation: door opening now in the west wall at z 1.5)
   // ---------------------------------------------------------------------
   const glassHeight = 2.5;
   // North glass wall (z = -2.62)
@@ -243,44 +247,44 @@ export function buildSunbeamGreenhouseInterior(
   northSill.position.set(0, 0.82, -2.58);
   group.add(northSill);
 
-  // West glass wall (x = -3.02) — taller for the growing shelf light
-  const westGlass = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(0.06, glassHeight + 0.3, 5.3)), glassPaneMat);
-  westGlass.position.set(-3.03, 1.0 + (glassHeight + 0.3) / 2, 0);
-  group.add(westGlass);
-  const westDwarf = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(0.18, 0.72, 5.3)), darkStoneMat);
-  westDwarf.position.set(-2.99, 0.42, 0);
-  westDwarf.castShadow = true;
-  group.add(westDwarf);
-  const westSill = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(0.26, 0.1, 5.42)), limestoneMat);
-  westSill.position.set(-2.97, 0.82, 0);
-  group.add(westSill);
-
-  // East glass wall with door opening (door occupies z -1.0..0.2)
+  // East glass wall (x = 3.02) — taller for the growing shelf light
+  const eastGlass = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(0.06, glassHeight + 0.3, 5.3)), glassPaneMat);
+  eastGlass.position.set(3.03, 1.0 + (glassHeight + 0.3) / 2, 0);
+  group.add(eastGlass);
   const eastDwarf = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(0.18, 0.72, 5.3)), darkStoneMat);
   eastDwarf.position.set(2.99, 0.42, 0);
   eastDwarf.castShadow = true;
   group.add(eastDwarf);
-  const eastGlassNorth = new THREE.Mesh(
-    trackGeo(new THREE.BoxGeometry(0.06, glassHeight, 1.62)),
+  const eastSill = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(0.26, 0.1, 5.42)), limestoneMat);
+  eastSill.position.set(2.97, 0.82, 0);
+  group.add(eastSill);
+
+  // West glass wall with door opening (door occupies z 0.9..2.1)
+  const westDwarf = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(0.18, 0.72, 5.3)), darkStoneMat);
+  westDwarf.position.set(-2.99, 0.42, 0);
+  westDwarf.castShadow = true;
+  group.add(westDwarf);
+  const westGlassNorth = new THREE.Mesh(
+    trackGeo(new THREE.BoxGeometry(0.06, glassHeight, 3.52)),
     glassPaneMat,
   );
-  eastGlassNorth.position.set(3.03, 0.95 + glassHeight / 2, -1.81);
-  group.add(eastGlassNorth);
-  const eastGlassSouth = new THREE.Mesh(
-    trackGeo(new THREE.BoxGeometry(0.06, glassHeight, 2.42)),
+  westGlassNorth.position.set(-3.03, 0.95 + glassHeight / 2, -0.86);
+  group.add(westGlassNorth);
+  const westGlassSouth = new THREE.Mesh(
+    trackGeo(new THREE.BoxGeometry(0.06, glassHeight, 0.52)),
     glassPaneMat,
   );
-  eastGlassSouth.position.set(3.03, 0.95 + glassHeight / 2, 1.41);
-  group.add(eastGlassSouth);
-  const eastHeader = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(0.1, 0.55, 1.6)), cedarWarmMat);
-  eastHeader.position.set(3.01, 2.95, -0.4);
-  group.add(eastHeader);
+  westGlassSouth.position.set(-3.03, 0.95 + glassHeight / 2, 2.36);
+  group.add(westGlassSouth);
+  const westHeader = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(0.1, 0.55, 1.6)), cedarWarmMat);
+  westHeader.position.set(-3.01, 2.95, 1.5);
+  group.add(westHeader);
   // Glass above the door opening
   const doorHeaderGlass = new THREE.Mesh(
     trackGeo(new THREE.BoxGeometry(0.06, 1.0, 1.26)),
     glassPaneMat,
   );
-  doorHeaderGlass.position.set(3.03, 1.95, -0.4);
+  doorHeaderGlass.position.set(-3.03, 1.95, 1.5);
   group.add(doorHeaderGlass);
 
   // South wall (z = +2.62) — cutaway dwarf stone + low glass so camera reads in
@@ -311,10 +315,10 @@ export function buildSunbeamGreenhouseInterior(
     const rib = new THREE.Mesh(ribGeoN, cedarWarmMat);
     rib.position.set(x, 1.6, -2.58);
     group.add(rib);
-    const ribW = new THREE.Mesh(ribGeoN, cedarWarmMat);
-    ribW.position.set(-2.96, 1.6, x * 0.9);
-    ribW.rotation.y = Math.PI / 2;
-    group.add(ribW);
+    const ribE = new THREE.Mesh(ribGeoN, cedarWarmMat);
+    ribE.position.set(2.96, 1.6, x * 0.9);
+    ribE.rotation.y = Math.PI / 2;
+    group.add(ribE);
   }
 
   // Pitched glass roof with ridge cap (ridge runs along X at y≈3.5)
@@ -423,10 +427,11 @@ export function buildSunbeamGreenhouseInterior(
   group.add(pottingGroup);
 
   // ---------------------------------------------------------------------
-  // 4. Growing shelf (west wall) with the four shared terracotta pots
+  // 4. Growing shelf (east wall) with the four shared terracotta pots
+  //    (Phase A: shelf mirrored west -> east with the door-side flip)
   // ---------------------------------------------------------------------
   const shelfGroup = new THREE.Group();
-  shelfGroup.position.set(-2.62, 0, 0.05);
+  shelfGroup.position.set(2.62, 0, 0.05);
   addContactShadow(shelfGroup, shadowTex, 1.0, 2.7, 0.4, 0.018);
 
   const shelfLong = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(0.68, 0.07, 2.5)), cedarWarmMat);
@@ -449,18 +454,18 @@ export function buildSunbeamGreenhouseInterior(
   tinCan.position.set(0.0, 0.47, 0.9);
   shelfGroup.add(tinCan);
 
-  // Jars + folded notes on a small wall shelf above
+  // Jars + folded notes on a small wall shelf above (mounted toward the east glass)
   const upperShelf = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(0.4, 0.05, 1.6)), cedarWarmMat);
-  upperShelf.position.set(-0.22, 1.72, 0.1);
+  upperShelf.position.set(0.22, 1.72, 0.1);
   shelfGroup.add(upperShelf);
   const jarGeo = trackGeo(new THREE.CylinderGeometry(0.07, 0.07, 0.18, 8));
   for (const jz of [-0.5, -0.28, 0.42]) {
     const jar = new THREE.Mesh(jarGeo, ceramicMat);
-    jar.position.set(-0.22, 1.84, jz);
+    jar.position.set(0.22, 1.84, jz);
     shelfGroup.add(jar);
   }
   const noteFold = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(0.16, 0.015, 0.2)), linenMat);
-  noteFold.position.set(-0.22, 1.76, 0.05);
+  noteFold.position.set(0.22, 1.76, 0.05);
   noteFold.rotation.y = 0.4;
   shelfGroup.add(noteFold);
 
@@ -699,10 +704,12 @@ export function buildSunbeamGreenhouseInterior(
   group.add(tableGroup);
 
   // ---------------------------------------------------------------------
-  // 7. Interior door (east wall) + brass lantern above the mat
+  // 7. Interior door (west wall, agreeing with the exterior vestibule door)
+  //    + brass lantern above the mat
   // ---------------------------------------------------------------------
   const doorGroup = new THREE.Group();
-  doorGroup.position.set(2.92, 0, -0.4);
+  doorGroup.position.set(-2.92, 0, 1.5);
+  doorGroup.rotation.y = Math.PI; // knob faces into the room (east)
   const doorPanel = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(0.08, 1.9, 1.05)), doorMat);
   doorPanel.position.set(0.02, 0.97, 0);
   doorPanel.castShadow = true;
@@ -771,7 +778,8 @@ export function buildSunbeamGreenhouseInterior(
 
   // — Winter: tin paraffin heater by the door + burlap rolls on the bench + glass frost —
   {
-    // Heater hugs the east dwarf wall north of the door mat (door focus (3.1, -0.4))
+    // Heater tucked in the north-east corner between the rain barrel and the
+    // growing shelf (was beside the old east door; interior door now opens west)
     const heater = new THREE.Group();
     heater.name = 'winter_paraffin_heater';
     heater.position.set(2.6, 0, -1.5);
@@ -829,15 +837,15 @@ export function buildSunbeamGreenhouseInterior(
 
   // — Spring: seedling tray with sprouted cells on the growing shelf's lower board —
   {
-    // Shelf group origin (-2.62, 0, 0.05); lower board top y 0.365
+    // Shelf group origin (2.62, 0, 0.05) after the door-side mirror; lower board top y 0.365
     const tray = new THREE.Group();
     tray.name = 'spring_seedling_tray';
-    tray.position.set(-2.62, 0, 0.05);
+    tray.position.set(2.62, 0, 0.05);
     const frame = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(0.44, 0.06, 0.26)), cedarDarkMat);
-    frame.position.set(0.02, 0.395, -0.25);
+    frame.position.set(-0.02, 0.395, -0.25);
     tray.add(frame);
     for (let c = 0; c < 6; c++) {
-      const cx = 0.02 - 0.15 + (c % 3) * 0.15;
+      const cx = -0.02 - 0.15 + (c % 3) * 0.15;
       const cz = -0.25 - 0.06 + Math.floor(c / 3) * 0.12;
       const cell = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(0.1, 0.045, 0.085)), soilDryMat);
       cell.position.set(cx, 0.425, cz);
@@ -928,7 +936,7 @@ export function buildSunbeamGreenhouseInterior(
       proxyGeoCache.set(key, proxyGeo);
     }
     const proxy = new THREE.Mesh(proxyGeo, hitProxyMat);
-    proxy.position.set(prop.focusX, prop.focusX === 3.1 ? 1.05 : 0.72, prop.focusZ);
+    proxy.position.set(prop.focusX, Math.abs(prop.focusX) === 3.1 ? 1.05 : 0.72, prop.focusZ);
     proxy.userData = { targetKind: 'greenhouse_prop', targetId: prop.id };
     group.add(proxy);
     hitProxies.push(proxy);
@@ -1027,7 +1035,8 @@ export function buildSunbeamGreenhouseInterior(
 /**
  * Exterior Sunbeam Greenhouse doorway: cedar door in the west glass wall with brass knob,
  * step stone, hanging lantern and a small planted sign. Positioned by the canvas at the
- * west wall face (x ≈ 11.16, z = 3.2) facing the plaza, with its raycast proxy mounted separately.
+ * west glazing plane (x ≈ 11.53, z = 3.2) facing the plaza, with its raycast proxy mounted
+ * separately. The planted sign sits inside the vestibule's north edge (local x 0.85).
  */
 export function buildSunbeamGreenhouseDoorway(
   palette: MaterialPalette,
@@ -1106,13 +1115,13 @@ export function buildSunbeamGreenhouseDoorway(
   lantern.position.set(-0.92, 1.95, 0.06);
   group.add(lantern);
 
-  // Planted sign with sage frame
+  // Planted sign with sage frame (tucked inside the vestibule's north post line)
   const signBoard = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(0.52, 0.2, 0.04)), sageMat);
-  signBoard.position.set(0.95, 1.14, 0.05);
+  signBoard.position.set(0.85, 1.14, 0.05);
   signBoard.rotation.z = 0.03;
   group.add(signBoard);
   const signPost = new THREE.Mesh(trackGeo(new THREE.CylinderGeometry(0.03, 0.035, 1.1, 6)), cedarDarkMat);
-  signPost.position.set(0.95, 0.55, 0.05);
+  signPost.position.set(0.85, 0.55, 0.05);
   group.add(signPost);
 
   // Step stone + a pair of potted starts flanking the entrance

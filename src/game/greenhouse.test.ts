@@ -91,12 +91,11 @@ test('greenhouse interior walkability, obstacle bounds, spawns, and interactable
 });
 
 test('greenhouse hub waypoints route from the door to every station and never leave the room', () => {
-  const stations = [
-    { x: -1.5, z: -1.1 },
-    { x: -1.7, z: 0.1 },
-    { x: 2.05, z: -1.15 },
-    { x: 0.1, z: 1.1 },
-  ];
+  // Stations derive from the registry stand spots so future layout moves cannot desync
+  const stations = GREENHOUSE_INTERACTABLES.filter((p) => p.id !== 'greenhouse_door').map((p) => ({
+    x: p.x,
+    z: p.z,
+  }));
   for (const station of stations) {
     const path = computeGreenhouseWaypoints(GREENHOUSE_DOOR_SPAWN, station, 0.42);
     assert.ok(path.length >= 1);
