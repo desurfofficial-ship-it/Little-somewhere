@@ -156,6 +156,7 @@ import {
   applyCharacterWinterTint,
   buildStorybookCharacter,
 } from './builders/characters';
+import { createResidentFeelState, updateResidentMotionFeel } from './residentFeel';
 
 export interface HudBubbleSnapshot {
   residentId: ResidentId;
@@ -219,6 +220,10 @@ const _npcAnimOpts: CharacterAnimationOptions = {
   carrying: false,
   isMoving: false,
 };
+
+// Pass 25: per-resident motion feel slots (bank/lean/squash), created once at
+// module load — the resident animation loop mutates them in place, zero alloc.
+const _residentFeelStates = RESIDENT_ORDER.map(() => createResidentFeelState());
 
 function findNearestWalkablePoint(x: number, z: number, playerPos: Vec2): Vec2 | null {
   const cx = THREE.MathUtils.clamp(x, -23, 23);
@@ -1761,7 +1766,13 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
         _npcAnimOpts.emotion = rt.emotion;
         _npcAnimOpts.lookYaw = lookYaw;
         _npcAnimOpts.lookPitch = 0;
-        _npcAnimOpts.bankAngle = 0;
+        // Pass 25: residents get the player's motion feel (bank/lean/squash)
+        // derived from the same facing/speed stream the simulation already owns.
+        const feel = _residentFeelStates[i];
+        updateResidentMotionFeel(feel, rt.facing, rt.currentSpeed, dt);
+        _npcAnimOpts.bankAngle = feel.bank;
+        _npcAnimOpts.accelLean = feel.lean;
+        _npcAnimOpts.squash = feel.squash;
         _npcAnimOpts.carrying = false;
         _npcAnimOpts.isMoving = rt.currentSpeed > 0.25;
         animateCharacterRig(rig, rt.animState, rt.walkPhase, elapsed, dt, i * 0.7, _npcAnimOpts);

@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { BAKERY_BOUNDS, BAKERY_INTERACTABLES, getBakeForDay } from '../../game/bakery';
 import { TimePhase, WorldState } from '../../game/types';
+import { getSeasonForDay } from '../../game/time';
 import { MaterialPalette, STORYBOOK_PALETTE } from '../materials';
 import { addContactShadow } from './vegetation';
 
@@ -24,6 +25,17 @@ export interface HearthCrumbInteriorRig {
   bakeSteamGroup: THREE.Group;
   /** Counter loaf-row visibility flips on oven-rest days (nothing to share). */
   counterLoafGroup: THREE.Group;
+  /**
+   * Pass 22 "Seasons of the Crumb": per-season dressing groups, all built hidden
+   * and gated by `world.season` inside `update()`. Visual-only — no obstacle,
+   * interactable, or seat position is touched.
+   */
+  seasonLife: {
+    spring: THREE.Group;
+    summer: THREE.Group;
+    autumn: THREE.Group;
+    winter: THREE.Group;
+  };
   update(world: WorldState, phase: TimePhase, elapsed: number): void;
   dispose(): void;
 }
@@ -125,6 +137,21 @@ export function buildHearthCrumbInterior(
       depthWrite: false,
     }),
   );
+  // Pass 22 seasonal accents (registry-cached + one tracked translucent frost)
+  const frostMat = trackMat(
+    new THREE.MeshStandardMaterial({
+      color: '#EAF4F1',
+      roughness: 0.42,
+      metalness: 0.0,
+      transparent: true,
+      opacity: 0.62,
+      depthWrite: false,
+    }),
+  );
+  const berryMat = palette.standard('#A64B3C', 0.6, 0.0);
+  const blossomMat = palette.standard('#F2C4CC', 0.6, 0.0);
+  const leafAutumnMat = palette.standard('#C4762F', 0.8, 0.0);
+  const leafRustMat = palette.standard('#A85030', 0.8, 0.0);
   const hitProxyMat = trackMat(new THREE.MeshBasicMaterial({ visible: false }));
 
   // Warm ember light inside the oven + dusk lantern fallback light
@@ -657,6 +684,203 @@ export function buildHearthCrumbInterior(
   ovenGroup.add(bakeSteamGroup);
 
   // ---------------------------------------------------------------------
+  // 10.5 Pass 22 "Seasons of the Crumb" — per-season dressing, all built
+  //      hidden and gated by world.season in update(). Every piece hugs a
+  //      wall / sill / beam plane or sits at y ≤ 0.2 so the walkable floor,
+  //      obstacle table, interactables and the café seat read unchanged.
+  // ---------------------------------------------------------------------
+  const seasonLife = {
+    spring: new THREE.Group(),
+    summer: new THREE.Group(),
+    autumn: new THREE.Group(),
+    winter: new THREE.Group(),
+  };
+  seasonLife.spring.name = 'bakery_season_spring';
+  seasonLife.summer.name = 'bakery_season_summer';
+  seasonLife.autumn.name = 'bakery_season_autumn';
+  seasonLife.winter.name = 'bakery_season_winter';
+
+  // — Winter: evergreen swag + brass bell over the door lintel beam —
+  {
+    const swag = new THREE.Group();
+    swag.name = 'winter_swag';
+    swag.position.set(0, 2.3, 2.38);
+    for (const [tx, ty, ts] of [
+      [-0.62, -0.03, 0.8],
+      [-0.31, -0.1, 1.0],
+      [0.0, -0.13, 1.05],
+      [0.31, -0.1, 1.0],
+      [0.62, -0.03, 0.8],
+    ] as Array<[number, number, number]>) {
+      const tuft = new THREE.Mesh(trackGeo(new THREE.SphereGeometry(0.11, 7, 6)), mossMat);
+      tuft.position.set(tx, ty, 0);
+      tuft.scale.set(1.15, 0.55 * ts, 0.62);
+      swag.add(tuft);
+    }
+    for (const [bx, by] of [
+      [-0.45, -0.07],
+      [-0.12, -0.12],
+      [0.2, -0.09],
+      [0.5, -0.04],
+    ] as Array<[number, number]>) {
+      const berry = new THREE.Mesh(trackGeo(new THREE.SphereGeometry(0.024, 6, 5)), berryMat);
+      berry.position.set(bx, by + 0.02, 0.06);
+      swag.add(berry);
+    }
+    const bellYoke = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(0.05, 0.02, 0.05)), brassMat);
+    bellYoke.position.set(0, -0.19, 0.04);
+    const bellBody = new THREE.Mesh(trackGeo(new THREE.CylinderGeometry(0.035, 0.055, 0.07, 8)), brassMat);
+    bellBody.position.set(0, -0.25, 0.04);
+    swag.add(bellYoke, bellBody);
+    seasonLife.winter.add(swag);
+
+    // Knit wool runner draped on the service counter's customer face
+    // (counter group origin is (-2.55, 0, 0.2); its front face sits at x ≈ -2.18)
+    const runner = new THREE.Group();
+    runner.name = 'winter_counter_runner';
+    runner.position.set(-2.55, 0, 0.2);
+    const runnerBase = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(0.045, 0.4, 1.42)), linenMat);
+    runnerBase.position.set(0.38, 0.58, 0);
+    runner.add(runnerBase);
+    for (const rz of [-0.15, -0.05, 0.05, 0.15]) {
+      const stripe = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(0.05, 0.06, 1.43)), linenRedMat);
+      stripe.position.set(0.382, 0.58 + rz, 0);
+      runner.add(stripe);
+    }
+    for (const fz of [-0.66, -0.22, 0.22, 0.66]) {
+      const fringe = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(0.045, 0.075, 0.022)), linenMat);
+      fringe.position.set(0.38, 0.345, fz);
+      runner.add(fringe);
+    }
+    seasonLife.winter.add(runner);
+
+    // Mince pie cooling on the west windowsill
+    const sillPie = new THREE.Group();
+    sillPie.name = 'winter_sill_pie';
+    sillPie.position.set(-2.94, 1.245, 0.62);
+    const plate = new THREE.Mesh(trackGeo(new THREE.CylinderGeometry(0.095, 0.085, 0.02, 10)), ceramicMat);
+    plate.position.y = 0.01;
+    const pie = new THREE.Mesh(trackGeo(new THREE.CylinderGeometry(0.062, 0.055, 0.05, 9)), loafDeepMat);
+    pie.position.y = 0.045;
+    const latticeA = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(0.115, 0.008, 0.02)), flourMat);
+    latticeA.position.set(0, 0.075, 0);
+    const latticeB = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(0.02, 0.008, 0.115)), flourMat);
+    latticeB.position.set(0, 0.075, 0);
+    sillPie.add(plate, pie, latticeA, latticeB);
+    seasonLife.winter.add(sillPie);
+
+    // Frost tracery wedges at the west window corners
+    const frost = new THREE.Group();
+    frost.name = 'winter_frost_wedges';
+    for (const [fy, fz, r] of [
+      [2.13, -0.26, 0.55],
+      [2.13, 0.76, -0.55],
+      [1.37, -0.26, -0.5],
+      [1.37, 0.76, 0.5],
+    ] as Array<[number, number, number]>) {
+      const wedge = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(0.02, 0.2, 0.3)), frostMat);
+      wedge.position.set(-3.0, fy, fz);
+      wedge.rotation.z = r;
+      frost.add(wedge);
+    }
+    seasonLife.winter.add(frost);
+  }
+
+  // — Spring: blossom-branch jug on the west windowsill —
+  {
+    const jug = new THREE.Group();
+    jug.name = 'spring_sill_jug';
+    jug.position.set(-2.94, 1.245, -0.14);
+    const body = new THREE.Mesh(trackGeo(new THREE.CylinderGeometry(0.05, 0.042, 0.12, 8)), ceramicMat);
+    body.position.y = 0.06;
+    jug.add(body);
+    const branch = new THREE.Mesh(trackGeo(new THREE.CylinderGeometry(0.008, 0.011, 0.3, 5)), cedarWarmMat);
+    branch.position.set(0.01, 0.24, 0);
+    branch.rotation.z = -0.24;
+    jug.add(branch);
+    for (const [fx, fy, fz, fs] of [
+      [0.06, 0.35, 0.01, 1.0],
+      [-0.03, 0.4, 0.02, 0.8],
+      [0.03, 0.28, 0.03, 0.7],
+    ] as Array<[number, number, number, number]>) {
+      const bloom = new THREE.Mesh(trackGeo(new THREE.SphereGeometry(0.032, 6, 5)), blossomMat);
+      bloom.position.set(fx, fy, fz);
+      bloom.scale.setScalar(fs);
+      jug.add(bloom);
+    }
+    seasonLife.spring.add(jug);
+  }
+
+  // — Summer: two basil & mint pots on the west windowsill —
+  {
+    const herbs = new THREE.Group();
+    herbs.name = 'summer_sill_herbs';
+    for (const [hz, hs] of [
+      [1.05, 1.0],
+      [0.5, 0.85],
+    ] as Array<[number, number]>) {
+      const pot = new THREE.Mesh(trackGeo(new THREE.CylinderGeometry(0.052, 0.042, 0.09, 8)), terracottaMat);
+      pot.position.set(-2.94, 1.245 + 0.045, hz);
+      herbs.add(pot);
+      const tuft = new THREE.Mesh(trackGeo(new THREE.SphereGeometry(0.05, 6, 5)), mossMat);
+      tuft.position.set(-2.94, 1.245 + 0.115, hz);
+      tuft.scale.set(1, hs, 1);
+      herbs.add(tuft);
+    }
+    seasonLife.summer.add(herbs);
+  }
+
+  // — Autumn: dried-leaf garland on the ceiling beam + harvest basket hugging the east wall —
+  {
+    const garland = new THREE.Group();
+    garland.name = 'autumn_beam_garland';
+    for (let i = 0; i < 8; i++) {
+      const gx = -1.8 + i * 0.62;
+      const leaf = new THREE.Mesh(
+        trackGeo(new THREE.BoxGeometry(0.085, 0.012, 0.12)),
+        i % 2 === 0 ? leafAutumnMat : leafRustMat,
+      );
+      leaf.position.set(gx, 2.33 - (i % 3) * 0.015, 0.4);
+      leaf.rotation.y = (i * 1.9) % Math.PI;
+      garland.add(leaf);
+      const stem = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(0.014, 0.05, 0.02)), cedarWarmMat);
+      stem.position.set(gx, 2.365, 0.4);
+      garland.add(stem);
+    }
+    seasonLife.autumn.add(garland);
+
+    const basket = new THREE.Group();
+    basket.name = 'autumn_harvest_basket';
+    basket.position.set(2.7, 0, 0.95);
+    const bin = new THREE.Mesh(trackGeo(new THREE.CylinderGeometry(0.17, 0.14, 0.14, 9)), cedarDarkMat);
+    bin.position.y = 0.07;
+    basket.add(bin);
+    const basketRim = new THREE.Mesh(trackGeo(new THREE.TorusGeometry(0.165, 0.016, 5, 12)), cedarWarmMat);
+    basketRim.rotation.x = Math.PI / 2;
+    basketRim.position.y = 0.14;
+    basket.add(basketRim);
+    const handle = new THREE.Mesh(trackGeo(new THREE.TorusGeometry(0.1, 0.012, 5, 12, Math.PI)), cedarWarmMat);
+    handle.position.y = 0.14;
+    basket.add(handle);
+    for (const [ax, az] of [
+      [-0.05, 0.02],
+      [0.06, -0.04],
+      [0.0, 0.06],
+    ] as Array<[number, number]>) {
+      const apple = new THREE.Mesh(trackGeo(new THREE.SphereGeometry(0.045, 7, 6)), berryMat);
+      apple.position.set(ax, 0.15, az);
+      basket.add(apple);
+    }
+    seasonLife.autumn.add(basket);
+  }
+
+  seasonLife.spring.visible = false;
+  seasonLife.summer.visible = false;
+  seasonLife.autumn.visible = false;
+  seasonLife.winter.visible = false;
+  group.add(seasonLife.spring, seasonLife.summer, seasonLife.autumn, seasonLife.winter);
+
+  // ---------------------------------------------------------------------
   // 11. Contact shadows + interaction hit proxies (stations + café seat)
   // ---------------------------------------------------------------------
   const hitProxies: THREE.Mesh[] = [];
@@ -690,6 +914,13 @@ export function buildHearthCrumbInterior(
     const bakeCheckedToday = (bk?.bakeCheckedDay ?? 0) === world.day;
     const todayBake = getBakeForDay(world.day);
     const bakeActive = todayBake.id !== 'oven_rest';
+
+    // Pass 22: seasonal dressing answers the calendar (visual-only, zero alloc)
+    const season = world.season ?? getSeasonForDay(world.day).season;
+    seasonLife.spring.visible = season === 'spring';
+    seasonLife.summer.visible = season === 'summer';
+    seasonLife.autumn.visible = season === 'autumn';
+    seasonLife.winter.visible = season === 'winter';
 
     // Oven ember glow: full warmth on bake days, banked embers on rest days,
     // and a small extra lift once the morning bake has been revealed.
@@ -756,6 +987,7 @@ export function buildHearthCrumbInterior(
     ovenEmberLight,
     bakeSteamGroup,
     counterLoafGroup,
+    seasonLife,
     update,
     dispose,
   };

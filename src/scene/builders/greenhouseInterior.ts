@@ -6,6 +6,7 @@ import {
   GREENHOUSE_PLOT_SHELF_Z,
 } from '../../game/greenhouse';
 import { GreenhouseCropId, TimePhase, WorldState } from '../../game/types';
+import { getSeasonForDay } from '../../game/time';
 import { MaterialPalette, STORYBOOK_PALETTE } from '../materials';
 import { addContactShadow } from './vegetation';
 
@@ -30,6 +31,17 @@ export interface SunbeamGreenhouseInteriorRig {
   plotSproutGroups: THREE.Group[];
   /** Per-plot stage-2 leafy groups (index-aligned with `world.greenhouseState.plots`). */
   plotLeafyGroups: THREE.Group[];
+  /**
+   * Pass 24 "Growing Through Winter": per-season dressing groups, all built hidden
+   * and gated by `world.season` inside `update()`. Visual-only — no obstacle,
+   * interactable, or plot stage is touched.
+   */
+  seasonLife: {
+    spring: THREE.Group;
+    summer: THREE.Group;
+    autumn: THREE.Group;
+    winter: THREE.Group;
+  };
   update(world: WorldState, phase: TimePhase, elapsed: number): void;
   dispose(): void;
 }
@@ -147,6 +159,28 @@ export function buildSunbeamGreenhouseInterior(
     }),
   );
   const hitProxyMat = trackMat(new THREE.MeshBasicMaterial({ visible: false }));
+
+  // Pass 24 seasonal accents (registry-cached + two tracked emissive/translucent mats)
+  const frostMat = trackMat(
+    new THREE.MeshStandardMaterial({
+      color: '#EAF4F1',
+      roughness: 0.42,
+      metalness: 0.0,
+      transparent: true,
+      opacity: 0.58,
+      depthWrite: false,
+    }),
+  );
+  const heaterGlowMat = trackMat(
+    new THREE.MeshStandardMaterial({
+      color: '#FFD9A0',
+      emissive: '#FF9A3C',
+      emissiveIntensity: 0.55,
+      roughness: 0.5,
+      metalness: 0.0,
+    }),
+  );
+  const seedHeadMat = palette.standard('#C9A15A', 0.82, 0.0);
 
   // Warm interior lantern light (dusk fallback for the glass daylight)
   const lanternLight = new THREE.PointLight('#FFD9A0', 0, 7.5, 1.8);
@@ -719,6 +753,169 @@ export function buildSunbeamGreenhouseInterior(
   group.add(motes);
 
   // ---------------------------------------------------------------------
+  // 8.5 Pass 24 "Growing Through Winter" — per-season dressing, all built
+  //     hidden and gated by world.season in update(). Floor pieces hug walls
+  //     (heater), everything else lives on furniture tops / wall / ridge
+  //     planes; obstacles, interactables and the reactive plots read unchanged.
+  // ---------------------------------------------------------------------
+  const seasonLife = {
+    spring: new THREE.Group(),
+    summer: new THREE.Group(),
+    autumn: new THREE.Group(),
+    winter: new THREE.Group(),
+  };
+  seasonLife.spring.name = 'greenhouse_season_spring';
+  seasonLife.summer.name = 'greenhouse_season_summer';
+  seasonLife.autumn.name = 'greenhouse_season_autumn';
+  seasonLife.winter.name = 'greenhouse_season_winter';
+
+  // — Winter: tin paraffin heater by the door + burlap rolls on the bench + glass frost —
+  {
+    // Heater hugs the east dwarf wall north of the door mat (door focus (3.1, -0.4))
+    const heater = new THREE.Group();
+    heater.name = 'winter_paraffin_heater';
+    heater.position.set(2.6, 0, -1.5);
+    const body = new THREE.Mesh(trackGeo(new THREE.CylinderGeometry(0.16, 0.17, 0.34, 10)), ironMat);
+    body.position.y = 0.17;
+    body.castShadow = true;
+    heater.add(body);
+    const topPlate = new THREE.Mesh(trackGeo(new THREE.CylinderGeometry(0.18, 0.18, 0.03, 10)), ironMat);
+    topPlate.position.y = 0.355;
+    heater.add(topPlate);
+    const chimney = new THREE.Mesh(trackGeo(new THREE.CylinderGeometry(0.03, 0.036, 0.5, 7)), ironMat);
+    chimney.position.y = 0.62;
+    heater.add(chimney);
+    const flameWindow = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(0.02, 0.13, 0.1)), heaterGlowMat);
+    flameWindow.position.set(-0.16, 0.17, 0);
+    heater.add(flameWindow);
+    const baseRing = new THREE.Mesh(trackGeo(new THREE.TorusGeometry(0.16, 0.018, 5, 12)), ironMat);
+    baseRing.rotation.x = Math.PI / 2;
+    baseRing.position.y = 0.02;
+    heater.add(baseRing);
+    seasonLife.winter.add(heater);
+
+    // Burlap frost-cloth rolls lying on the potting bench top's free west end
+    // (bench group origin (-1.9, 0, -2.15); top y 0.86)
+    const rolls = new THREE.Group();
+    rolls.name = 'winter_burlap_rolls';
+    for (const [rx, rz, r] of [
+      [-0.72, -0.15, 0.1],
+      [-0.72, 0.08, -0.35],
+    ] as Array<[number, number, number]>) {
+      const roll = new THREE.Mesh(trackGeo(new THREE.CylinderGeometry(0.085, 0.085, 0.48, 8)), linenMat);
+      roll.position.set(rx, 0.945, rz);
+      roll.rotation.z = Math.PI / 2;
+      roll.rotation.y = r;
+      rolls.add(roll);
+      const tie = new THREE.Mesh(trackGeo(new THREE.TorusGeometry(0.088, 0.012, 5, 10)), brassMat);
+      tie.position.set(rx - 0.14, 0.945, rz);
+      tie.rotation.y = Math.PI / 2 + r;
+      rolls.add(tie);
+    }
+    seasonLife.winter.add(rolls);
+
+    // Frost feathers along the north glass sill line (glass wall at z ≈ -2.63)
+    const frost = new THREE.Group();
+    frost.name = 'winter_glass_frost';
+    for (let i = 0; i < 5; i++) {
+      const fx = -2.2 + i * 1.1;
+      const wedge = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(0.34, 0.3, 0.02)), frostMat);
+      wedge.position.set(fx, 1.02, -2.56);
+      wedge.rotation.z = i % 2 === 0 ? 0.45 : -0.45;
+      frost.add(wedge);
+    }
+    seasonLife.winter.add(frost);
+  }
+
+  // — Spring: seedling tray with sprouted cells on the growing shelf's lower board —
+  {
+    // Shelf group origin (-2.62, 0, 0.05); lower board top y 0.365
+    const tray = new THREE.Group();
+    tray.name = 'spring_seedling_tray';
+    tray.position.set(-2.62, 0, 0.05);
+    const frame = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(0.44, 0.06, 0.26)), cedarDarkMat);
+    frame.position.set(0.02, 0.395, -0.25);
+    tray.add(frame);
+    for (let c = 0; c < 6; c++) {
+      const cx = 0.02 - 0.15 + (c % 3) * 0.15;
+      const cz = -0.25 - 0.06 + Math.floor(c / 3) * 0.12;
+      const cell = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(0.1, 0.045, 0.085)), soilDryMat);
+      cell.position.set(cx, 0.425, cz);
+      tray.add(cell);
+      const sprout = new THREE.Mesh(trackGeo(new THREE.SphereGeometry(0.03, 6, 5)), foliageSunMat);
+      sprout.position.set(cx, 0.465, cz);
+      sprout.scale.set(1, 0.6, 1);
+      tray.add(sprout);
+    }
+    seasonLife.spring.add(tray);
+  }
+
+  // — Summer: trailing vine swag draped along the ridge beam between the herb bundles —
+  {
+    const vine = new THREE.Group();
+    vine.name = 'summer_ridge_vine';
+    for (let i = 0; i < 8; i++) {
+      const vx = -0.9 + i * 0.17;
+      const vy = 3.52 - Math.sin(((vx + 0.9) / 1.2) * Math.PI) * 0.1;
+      const bead = new THREE.Mesh(
+        trackGeo(new THREE.SphereGeometry(0.055, 6, 5)),
+        i % 2 === 0 ? foliageMat : foliageDeepMat,
+      );
+      bead.position.set(vx, vy, 0.15);
+      bead.scale.set(1, 0.72, 0.85);
+      vine.add(bead);
+    }
+    seasonLife.summer.add(vine);
+  }
+
+  // — Autumn: seed-head drying bundles at the ridge + harvest trug on the worktable —
+  {
+    const bundles = new THREE.Group();
+    bundles.name = 'autumn_seed_bundles';
+    for (const bx of [-1.0, 0.35, 1.4]) {
+      const bundle = new THREE.Group();
+      const head = new THREE.Mesh(trackGeo(new THREE.ConeGeometry(0.06, 0.26, 6)), seedHeadMat);
+      head.rotation.x = Math.PI;
+      head.position.y = -0.13;
+      bundle.add(head);
+      const tie = new THREE.Mesh(trackGeo(new THREE.TorusGeometry(0.045, 0.012, 5, 9)), brassMat);
+      tie.rotation.x = Math.PI / 2;
+      bundle.add(tie);
+      bundle.position.set(bx, 3.6, 0.15);
+      bundles.add(bundle);
+    }
+    seasonLife.autumn.add(bundles);
+
+    // Harvest trug of seed pods on the worktable's free north edge
+    // (table group origin (0.1, 0, 2.12); top y 0.84)
+    const trug = new THREE.Group();
+    trug.name = 'autumn_seed_trug';
+    trug.position.set(0.1, 0, 2.12);
+    const bin = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(0.34, 0.09, 0.2)), cedarDarkMat);
+    bin.position.set(0.35, 0.885, -0.22);
+    trug.add(bin);
+    const trugRim = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(0.37, 0.02, 0.23)), cedarWarmMat);
+    trugRim.position.set(0.35, 0.94, -0.22);
+    trug.add(trugRim);
+    for (const [px, pz] of [
+      [0.28, -0.2],
+      [0.4, -0.26],
+      [0.36, -0.16],
+    ] as Array<[number, number]>) {
+      const pod = new THREE.Mesh(trackGeo(new THREE.SphereGeometry(0.032, 6, 5)), seedHeadMat);
+      pod.position.set(px, 0.955, pz);
+      trug.add(pod);
+    }
+    seasonLife.autumn.add(trug);
+  }
+
+  seasonLife.spring.visible = false;
+  seasonLife.summer.visible = false;
+  seasonLife.autumn.visible = false;
+  seasonLife.winter.visible = false;
+  group.add(seasonLife.spring, seasonLife.summer, seasonLife.autumn, seasonLife.winter);
+
+  // ---------------------------------------------------------------------
   // 9. Contact shadows for stations + interaction hit proxies
   // ---------------------------------------------------------------------
   const hitProxies: THREE.Mesh[] = [];
@@ -742,6 +939,13 @@ export function buildSunbeamGreenhouseInterior(
   // ---------------------------------------------------------------------
   function update(world: WorldState, phase: TimePhase, elapsed: number): void {
     const gh = world.greenhouseState;
+
+    // Pass 24: seasonal dressing answers the calendar (visual-only, zero alloc)
+    const season = world.season ?? getSeasonForDay(world.day).season;
+    seasonLife.spring.visible = season === 'spring';
+    seasonLife.summer.visible = season === 'summer';
+    seasonLife.autumn.visible = season === 'autumn';
+    seasonLife.winter.visible = season === 'winter';
 
     for (let i = 0; i < GREENHOUSE_PLOT_COUNT; i++) {
       const plot = gh?.plots?.[i];
@@ -814,6 +1018,7 @@ export function buildSunbeamGreenhouseInterior(
     plotBloomGroups,
     plotSproutGroups,
     plotLeafyGroups,
+    seasonLife,
     update,
     dispose,
   };

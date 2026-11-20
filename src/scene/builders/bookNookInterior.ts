@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { NOOK_INTERACTABLES, NOOK_SEAT_SPOTS, getFeaturedBookForDay } from '../../game/bookNook';
 import { TimePhase, WorldState } from '../../game/types';
+import { getSeasonForDay } from '../../game/time';
 import { MaterialPalette, STORYBOOK_PALETTE } from '../materials';
 import { addContactShadow } from './vegetation';
 
@@ -24,6 +25,17 @@ export interface LindenBookNookInteriorRig {
   teaSteamGroup: THREE.Group;
   /** Open book on the armchair side table — visible after browsing the featured book. */
   openBookGroup: THREE.Group;
+  /**
+   * Pass 23 "Reading Seasons": per-season dressing groups, all built hidden and
+   * gated by `world.season` inside `update()`. Visual-only — no obstacle,
+   * interactable, or the reading-armchair seat is touched.
+   */
+  seasonLife: {
+    spring: THREE.Group;
+    summer: THREE.Group;
+    autumn: THREE.Group;
+    winter: THREE.Group;
+  };
   update(world: WorldState, phase: TimePhase, elapsed: number): void;
   dispose(): void;
 }
@@ -100,6 +112,21 @@ export function buildLindenBookNookInterior(
       depthWrite: false,
     }),
   );
+  // Pass 23 seasonal accents (registry-cached + one tracked translucent frost)
+  const frostMat = trackMat(
+    new THREE.MeshStandardMaterial({
+      color: '#EAF4F1',
+      roughness: 0.42,
+      metalness: 0.0,
+      transparent: true,
+      opacity: 0.62,
+      depthWrite: false,
+    }),
+  );
+  const blossomMat = palette.standard('#F2C4CC', 0.6, 0.0);
+  const sunflowerMat = palette.standard('#E9B23C', 0.72, 0.0);
+  const leafAutumnMat = palette.standard('#C4762F', 0.8, 0.0);
+  const leafRustMat = palette.standard('#A85030', 0.8, 0.0);
   const lampMat = trackMat(
     new THREE.MeshStandardMaterial({
       color: '#FFE8AD',
@@ -547,6 +574,184 @@ export function buildLindenBookNookInterior(
   group.add(motes);
 
   // ---------------------------------------------------------------------
+  // 8.5 Pass 23 "Reading Seasons" — per-season dressing, all built hidden and
+  //     gated by world.season in update(). Pieces hug wall/sill/beam planes or
+  //     rest on furniture tops; the walkable floor, obstacles, interactables
+  //     and the armchair seat read unchanged.
+  // ---------------------------------------------------------------------
+  const seasonLife = {
+    spring: new THREE.Group(),
+    summer: new THREE.Group(),
+    autumn: new THREE.Group(),
+    winter: new THREE.Group(),
+  };
+  seasonLife.spring.name = 'nook_season_spring';
+  seasonLife.summer.name = 'nook_season_summer';
+  seasonLife.autumn.name = 'nook_season_autumn';
+  seasonLife.winter.name = 'nook_season_winter';
+
+  // — Winter: plum knit blanket over the armchair's east arm + window frost + door swag —
+  {
+    // Armchair group origin is (-0.9, 0, 1.6); its east arm spans world x -0.56..-0.36
+    const blanket = new THREE.Group();
+    blanket.name = 'winter_arm_blanket';
+    blanket.position.set(-0.9, 0, 1.6);
+    const topSlab = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(0.26, 0.05, 0.6)), linenPlumMat);
+    topSlab.position.set(0.44, 0.765, 0);
+    blanket.add(topSlab);
+    const hangOuter = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(0.05, 0.28, 0.5)), linenPlumMat);
+    hangOuter.position.set(0.495, 0.61, 0);
+    blanket.add(hangOuter);
+    const hangInner = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(0.05, 0.22, 0.5)), linenPlumMat);
+    hangInner.position.set(0.39, 0.63, 0);
+    blanket.add(hangInner);
+    const band = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(0.27, 0.08, 0.61)), linenMat);
+    band.position.set(0.44, 0.71, 0);
+    blanket.add(band);
+    seasonLife.winter.add(blanket);
+
+    // Frost ferns at the west reading-window corners (glass at x ≈ -2.54, y 1.33..2.28)
+    const frost = new THREE.Group();
+    frost.name = 'winter_window_frost';
+    for (const [fy, fz, r] of [
+      [2.19, -0.18, 0.55],
+      [2.19, 0.78, -0.55],
+      [1.42, -0.18, -0.5],
+      [1.42, 0.78, 0.5],
+    ] as Array<[number, number, number]>) {
+      const wedge = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(0.02, 0.18, 0.28)), frostMat);
+      wedge.position.set(-2.49, fy, fz);
+      wedge.rotation.z = r;
+      frost.add(wedge);
+    }
+    seasonLife.winter.add(frost);
+
+    // Evergreen swag + brass bell over the east door header beam (2.5, 2.28, 0)
+    const swag = new THREE.Group();
+    swag.name = 'winter_door_swag';
+    swag.position.set(2.44, 2.24, 0);
+    for (const [tz, ty, ts] of [
+      [-0.5, -0.02, 0.8],
+      [-0.25, -0.09, 1.0],
+      [0.0, -0.12, 1.05],
+      [0.25, -0.09, 1.0],
+      [0.5, -0.02, 0.8],
+    ] as Array<[number, number, number]>) {
+      const tuft = new THREE.Mesh(trackGeo(new THREE.SphereGeometry(0.1, 7, 6)), mossMat);
+      tuft.position.set(0, ty, tz);
+      tuft.scale.set(0.62, 0.55 * ts, 1.15);
+      swag.add(tuft);
+    }
+    for (const [bz, by] of [
+      [-0.36, -0.06],
+      [-0.1, -0.1],
+      [0.18, -0.08],
+      [0.42, -0.03],
+    ] as Array<[number, number]>) {
+      const berry = new THREE.Mesh(
+        trackGeo(new THREE.SphereGeometry(0.022, 6, 5)),
+        palette.standard('#A64B3C', 0.6, 0.0),
+      );
+      berry.position.set(0.06, by + 0.02, bz);
+      swag.add(berry);
+    }
+    const bellYoke = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(0.05, 0.02, 0.05)), brassMat);
+    bellYoke.position.set(0.04, -0.18, 0);
+    const bellBody = new THREE.Mesh(trackGeo(new THREE.CylinderGeometry(0.032, 0.05, 0.065, 8)), brassMat);
+    bellBody.position.set(0.04, -0.24, 0);
+    swag.add(bellYoke, bellBody);
+    seasonLife.winter.add(swag);
+  }
+
+  // — Spring: bud bottle with a blossom sprig on the west sill —
+  {
+    const bud = new THREE.Group();
+    bud.name = 'spring_sill_bud';
+    bud.position.set(-2.47, 1.31, -0.16);
+    const bottle = new THREE.Mesh(trackGeo(new THREE.CylinderGeometry(0.04, 0.035, 0.11, 8)), ceramicMat);
+    bottle.position.y = 0.055;
+    bud.add(bottle);
+    const stem = new THREE.Mesh(trackGeo(new THREE.CylinderGeometry(0.007, 0.009, 0.26, 5)), cedarWarmMat);
+    stem.position.set(0.01, 0.21, 0);
+    stem.rotation.z = -0.2;
+    bud.add(stem);
+    for (const [fx, fy, fz, fs] of [
+      [0.05, 0.3, 0.01, 1.0],
+      [-0.02, 0.35, 0.02, 0.78],
+      [0.02, 0.25, 0.03, 0.68],
+    ] as Array<[number, number, number, number]>) {
+      const bloom = new THREE.Mesh(trackGeo(new THREE.SphereGeometry(0.03, 6, 5)), blossomMat);
+      bloom.position.set(fx, fy, fz);
+      bloom.scale.setScalar(fs);
+      bud.add(bloom);
+    }
+    seasonLife.spring.add(bud);
+  }
+
+  // — Summer: potted mini-sunflower on the shelf top (east of the bookend owl) —
+  {
+    const flower = new THREE.Group();
+    flower.name = 'summer_shelf_sunflower';
+    flower.position.set(-0.68 + 0.75, 2.0, -2.0);
+    const pot = new THREE.Mesh(trackGeo(new THREE.CylinderGeometry(0.055, 0.045, 0.1, 8)), terracottaSafe(palette));
+    pot.position.y = 0.05;
+    flower.add(pot);
+    const stem = new THREE.Mesh(trackGeo(new THREE.CylinderGeometry(0.012, 0.016, 0.24, 5)), mossMat);
+    stem.position.y = 0.21;
+    flower.add(stem);
+    const center = new THREE.Mesh(trackGeo(new THREE.SphereGeometry(0.045, 7, 6)), palette.standard('#8A5A28', 0.8, 0.0));
+    center.position.y = 0.36;
+    flower.add(center);
+    for (let p = 0; p < 7; p++) {
+      const ang = (p / 7) * Math.PI * 2;
+      const petal = new THREE.Mesh(trackGeo(new THREE.SphereGeometry(0.035, 6, 5)), sunflowerMat);
+      petal.position.set(Math.cos(ang) * 0.075, 0.36, Math.sin(ang) * 0.075);
+      petal.scale.set(1.0, 0.55, 1.0);
+      flower.add(petal);
+    }
+    seasonLife.summer.add(flower);
+  }
+
+  // — Autumn: leaf garland on the ceiling beam + two leaves resting on the desk —
+  {
+    const garland = new THREE.Group();
+    garland.name = 'autumn_beam_garland';
+    for (let i = 0; i < 8; i++) {
+      const gx = -2.1 + i * 0.6;
+      const leaf = new THREE.Mesh(
+        trackGeo(new THREE.BoxGeometry(0.08, 0.012, 0.11)),
+        i % 2 === 0 ? leafAutumnMat : leafRustMat,
+      );
+      leaf.position.set(gx, 2.33 - (i % 3) * 0.014, -0.5);
+      leaf.rotation.y = (i * 2.1) % Math.PI;
+      garland.add(leaf);
+      const stem = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(0.014, 0.05, 0.02)), cedarWarmMat);
+      stem.position.set(gx, 2.365, -0.5);
+      garland.add(stem);
+    }
+    seasonLife.autumn.add(garland);
+
+    const deskLeaves = new THREE.Group();
+    deskLeaves.name = 'autumn_desk_leaves';
+    for (const [lx, lz, r] of [
+      [0.72, 1.78, 0.4],
+      [0.9, 1.95, -0.7],
+    ] as Array<[number, number, number]>) {
+      const leaf = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(0.09, 0.008, 0.12)), leafAutumnMat);
+      leaf.position.set(lx, 0.887, lz);
+      leaf.rotation.y = r;
+      deskLeaves.add(leaf);
+    }
+    seasonLife.autumn.add(deskLeaves);
+  }
+
+  seasonLife.spring.visible = false;
+  seasonLife.summer.visible = false;
+  seasonLife.autumn.visible = false;
+  seasonLife.winter.visible = false;
+  group.add(seasonLife.spring, seasonLife.summer, seasonLife.autumn, seasonLife.winter);
+
+  // ---------------------------------------------------------------------
   // 9. Interaction hit proxies (stations + reading armchair seat)
   // ---------------------------------------------------------------------
   const hitProxies: THREE.Mesh[] = [];
@@ -580,6 +785,13 @@ export function buildLindenBookNookInterior(
     const browsedToday = (nk?.shelfBrowsedDay ?? 0) === world.day;
     const teaPouredToday = (nk?.teaSharedDay ?? 0) === world.day;
     const featured = getFeaturedBookForDay(world.day);
+
+    // Pass 23: seasonal dressing answers the calendar (visual-only, zero alloc)
+    const season = world.season ?? getSeasonForDay(world.day).season;
+    seasonLife.spring.visible = season === 'spring';
+    seasonLife.summer.visible = season === 'summer';
+    seasonLife.autumn.visible = season === 'autumn';
+    seasonLife.winter.visible = season === 'winter';
 
     // Open book beside the armchair appears only while the day's featured book is out
     openBookGroup.visible = browsedToday;
@@ -649,6 +861,7 @@ export function buildLindenBookNookInterior(
     readingLampLight,
     teaSteamGroup,
     openBookGroup,
+    seasonLife,
     update,
     dispose,
   };
