@@ -41,7 +41,7 @@ import {
   saveWorldState,
 } from './game/storage';
 import { formatClock, getTimePhase } from './game/residents';
-import { advanceSimulationClock } from './game/time';
+import { advanceClockAndReconcile } from './game/invitations';
 import { buildMorningWakeLine, buildResidentDialogue } from './game/narrative';
 import {
   composeEnvironmentState,
@@ -903,11 +903,14 @@ export default function App() {
   const handleAdvanceTwoHours = useCallback(() => {
     cozyAudio.playUiTap(1.02);
     const current = worldRef.current;
-    const nextMin = advanceSimulationClock(current.minuteOfDay, 120);
-    const next = { ...current, minuteOfDay: nextMin };
+    // Living Relationships LR-1 (doc 14 §1/§2.4; doc 16 §0.1): the +2h reducer routes
+    // through the shared minute-advance entry so expiry reconciliation is a consequence
+    // of the real clock write — never a manual expire call from the interaction layer.
+    const res = advanceClockAndReconcile(current, 120);
+    const next = { ...res.world };
     commitWorld(next);
-    const nextPhase = getTimePhase(nextMin);
-    showToast(`Time drifted forward to ${formatClock(nextMin)} (${nextPhase})`);
+    const nextPhase = getTimePhase(next.minuteOfDay);
+    showToast(`Time drifted forward to ${formatClock(next.minuteOfDay)} (${nextPhase})`);
   }, [commitWorld, showToast]);
 
   const handleToggleMute = useCallback(() => {

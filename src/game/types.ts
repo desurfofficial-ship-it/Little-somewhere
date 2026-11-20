@@ -676,6 +676,83 @@ export interface NpcRelationAdjustment {
   tag?: string;
 }
 
+// ---------------------------------------------------------------------------
+// Living Relationships LR-1 — invitation foundation (WorldState v11).
+// Spec of record: docs/architecture/living-relationships/14-revised-architecture.md
+// (§2 lifecycle, §4 occupancy model, §7 teaching). Ownership: src/game/invitations.ts
+// and src/game/occupancy.ts are the only writers of these slices.
+// ---------------------------------------------------------------------------
+
+/** Non-terminal invitation states that may occupy `invitations.active` (doc 14 §2.1). */
+export type InvitationStatus = 'offered' | 'accepted';
+
+/** Terminal outcomes exist only as history entries — never left in `active` (doc 14 §2.1). */
+export type InvitationOutcome = 'completed' | 'expired' | 'declined';
+
+/** A single live (non-terminal) invitation. `expiresDay` and the minute window are
+ * conjunctive bounds (doc 14 §2.4); there is no midnight crossing inside a day. */
+export interface InvitationRecord {
+  id: string;
+  status: InvitationStatus;
+  hostId: ResidentId;
+  activityId: string;
+  /** In-game day the offer was created; also stamps `lastOfferDayByHost` (doc 14 §2.1). */
+  offeredDay: number;
+  /** Last day the invitation may still be honored (same-day for LR-1). */
+  expiresDay: number;
+  /** Inclusive minute window [windowStartMinute, windowEndMinute] (doc 16 LR1-06/07). */
+  windowStartMinute: number;
+  windowEndMinute: number;
+}
+
+/** One archived terminal transition. Written only by the atomic archive in
+ * `invitations.ts`, capped by the exported `INVITATION_HISTORY_CAP` (doc 14 §2.1). */
+export interface InvitationHistoryEntry {
+  outcome: InvitationOutcome;
+  hostId: ResidentId;
+  /** In-game day the terminal transition happened. */
+  day: number;
+  invitationId: string;
+  /** Optional machine reason, e.g. 'host_unavailable' (doc 14 §2.3). */
+  reason?: string;
+}
+
+/** The Living Relationships invitation slice (doc 16 §0.1: `world.invitations`). */
+export interface InvitationState {
+  /** Only `offered` or `accepted` invitations occupy the active slot (doc 14 §2.1). */
+  active: InvitationRecord | null;
+  /** Bounded archive of terminal outcomes; oldest entries drop first on write. */
+  history: InvitationHistoryEntry[];
+  /** Per-host last offer day, stamped at offer time so decline/expire keep enforcing spacing. */
+  lastOfferDayByHost: Partial<Record<ResidentId, number>>;
+}
+
+/** A resident placed inside a visitable interior by a live accepted invitation
+ * (doc 14 §4.1). Occupancy exists only while the player is inside that location. */
+export interface InteriorOccupant {
+  residentId: ResidentId;
+  /** Must equal `world.playerLocation` while set (doc 14 §4.1). */
+  location: PlayerLocation;
+  stationId: string;
+  localPos: Vec2;
+  facing: number;
+  /** The accepted invitation that justifies presence (doc 14 §4.1). */
+  invitationId: string;
+}
+
+/** Knowledge flags granted only by shared-activity completion (LR-4 scope; the
+ * slice is seeded empty in LR-1 and simply persists, doc 14 §7). */
+export interface TeachingState {
+  known: string[];
+}
+
+/** The shared activity currently in progress, if any (doc 16 §0.1:
+ * `world.activeActivity`). Must never outlive a live accepted invitation. */
+export interface ActiveActivityState {
+  activityId: string;
+  invitationId?: string;
+}
+
 export interface WorldState {
   schemaVersion: number;
   // Milestone 3 Build 6 — Sunbeam Greenhouse shared growing corner (WorldState v7)
@@ -686,6 +763,14 @@ export interface WorldState {
   nookState: NookState;
   // Milestone 3 Build 9 — Copperwheel Cottage visitable interior (WorldState v10)
   copperwheelState: CopperwheelState;
+  // Living Relationships LR-1 — invitation foundation (WorldState v11, doc 16 §0.1)
+  invitations: InvitationState;
+  /** Occupant of the current interior while a live accepted visit is underway; null otherwise. */
+  occupancy: InteriorOccupant | null;
+  /** Knowledge flags seeded empty in LR-1; granted only by shared-activity completion (LR-4). */
+  teaching: TeachingState;
+  /** Shared activity in progress, or null. Must never outlive a live accepted invitation. */
+  activeActivity: ActiveActivityState | null;
   simSeed: number;
   regionId: string;
   day: number;

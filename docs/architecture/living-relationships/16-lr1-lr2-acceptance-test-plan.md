@@ -271,6 +271,8 @@ Calling `expireInvitationsAt` from a test does not satisfy LR1-05 or LR1-19.
 - **Expected**: Occupancy not set; invite archived `expired` with reason `host_unavailable`; result includes a player-visible line. No memory, no affinity change.
 - **Pass**: Explicit failure, not a silent empty room. **Fail**: empty room with invite still `accepted`.
 
+> **Staging note (doc 21 §1.6, 2026-11-20):** under the offer-time gate-4 reading, the "schedule is distant" precondition is reachable in production by offering in the morning phase (fresh world, minute 495 — Nora at home) and advancing the clock past minute 690 via a production path (`advanceClockAndReconcile` or `stepSimulationInPlace`) before entering; the invite stays live (window `[495/600…780]`) while her slot is West Bench (≈7.56 m > 6 m). Stage BOTH paths as required regression tests: (i) static schedule drift as above; (ii) dynamic drift — accept, pull Nora into `activeEncounters`, enter.
+
 ### LR2-04 Exit clears occupancy
 - **Preconditions**: LR2-01 state.
 - **Actions**: Exit reducer paired with `exit_nook`.
@@ -282,6 +284,8 @@ Calling `expireInvitationsAt` from a test does not satisfy LR1-05 or LR1-19.
 - **Actions**: Advance time into the window using the LR1-05 or LR1-19 path. Do not exit or re-enter.
 - **Expected**: Occupancy still empty. Nora does not appear retroactively. After `exit` and a new `enterNookAction` while the invite is live, occupant is set.
 - **Pass**: No retroactive occupancy. **Fail**: occupant appears without a new enter.
+
+> **Staging note (doc 21 §2, 2026-11-20 — precondition restaged, invariant unchanged):** the literal precondition `minuteOfDay < windowStartMinute` is unreachable through normal invitation creation: doc 14 §2.4's strict predicate expires a pre-window invite at the first reconcile, and the created-window anchoring (doc 20 §4) guarantees every offered invite is live at creation (`windowStartMinute ≤ offerMinute`). Restage the SAME invariant through a production-reachable path: player already inside `nook_interior`; `offerInvitation` at minute 495 (anchored window `[495…780]`, live at creation); advance into/through the window via a production clock path without exiting → occupancy stays empty at every step; exit + fresh `enterNookAction` while live → occupant set. Assertions and Pass/Fail criteria above are unchanged. Optional adversarial companion (doc 21 §2.5 Option B): in-memory fixture with a future `windowStartMinute` jumped past in one clock step — a tick-based path expires the invite pre-window (§2.4), so its expected outcome is "expired, no retroactive occupant".
 
 ### LR2-05 Shared read does not touch nook counters
 - **Preconditions**: Occupant present; record `shelfBrowsedDay`, `teaSharedDay`, `booksRead`, `teasShared`.

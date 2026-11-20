@@ -118,8 +118,22 @@ import {
   createInitialCopperwheelState,
   isCopperwheelInteriorWalkable,
 } from './copperwheel';
+import {
+  ActiveActivityState,
+  InvitationState,
+  InteriorOccupant,
+  TeachingState,
+} from './types';
+import {
+  createEmptyInvitationState,
+  createInitialTeachingState,
+  isInvitationLive,
+  sanitizeActiveActivitySlice,
+  sanitizeInvitationsSlice,
+} from './invitations';
+import { sanitizeOccupancySlice } from './occupancy';
 
-export const CURRENT_SCHEMA_VERSION = 10;
+export const CURRENT_SCHEMA_VERSION = 11;
 export const DEFAULT_SIM_SEED = 18042;
 
 export interface MigrationResult {
@@ -266,6 +280,11 @@ export function createDefaultWorldState(): WorldState {
     bakeryState: createInitialBakeryState(),
     nookState: createInitialNookState(),
     copperwheelState: createInitialCopperwheelState(),
+    // Living Relationships LR-1 (WorldState v11, doc 16 §0.1)
+    invitations: createEmptyInvitationState(),
+    occupancy: null,
+    teaching: createInitialTeachingState(),
+    activeActivity: null,
   };
 }
 
@@ -1300,6 +1319,37 @@ export function sanitizeWorldState(candidate: unknown, externalWarnings: string[
   const nookState = sanitizeNookState(candidate.nookState, warnings);
   const copperwheelState = sanitizeCopperwheelState(candidate.copperwheelState, warnings);
 
+  // Living Relationships LR-1 slices (WorldState v11) + doc 14 §4.3 load invariant.
+  // Invitation rules run first so a non-live active invite is archived as `expired`
+  // before the occupancy invariant reads the sanitized active slot.
+  const invitations: InvitationState = sanitizeInvitationsSlice(
+    candidate.invitations,
+    day,
+    minuteOfDay,
+    warnings,
+  );
+  let occupancy: InteriorOccupant | null = sanitizeOccupancySlice(candidate.occupancy, warnings);
+  if (occupancy) {
+    const active = invitations.active;
+    const activeLive = active ? isInvitationLive(active, day, minuteOfDay) : false;
+    if (
+      occupancy.location !== playerLocation ||
+      !active ||
+      !activeLive ||
+      active.status !== 'accepted' ||
+      occupancy.invitationId !== active.id
+    ) {
+      // Doc 14 §4.3: reload mid-visit restores the host only when the player is
+      // still inside, the invite is still live + accepted, and ids match.
+      occupancy = null;
+    }
+  }
+  const teaching: TeachingState = sanitizeTeachingSlice(candidate.teaching);
+  const activeActivity: ActiveActivityState | null = sanitizeActiveActivitySlice(
+    candidate.activeActivity,
+    invitations,
+  );
+
   return {
     schemaVersion: CURRENT_SCHEMA_VERSION,
     simSeed,
@@ -1343,7 +1393,25 @@ export function sanitizeWorldState(candidate: unknown, externalWarnings: string[
     bakeryState,
     nookState,
     copperwheelState,
+    invitations,
+    occupancy,
+    teaching,
+    activeActivity,
   };
+}
+
+/**
+ * Structural sanitize for the teaching knowledge slice (WorldState v11).
+ * LR-1 seeds it empty; ids are granted only by shared-activity completion
+ * (LR-2/LR-4), so validation here is structural: deduped non-empty strings.
+ */
+function sanitizeTeachingSlice(raw: unknown): TeachingState {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return { known: [] };
+  const t = raw as Record<string, unknown>;
+  const known = Array.isArray(t.known)
+    ? Array.from(new Set(t.known.filter((k): k is string => typeof k === 'string' && k !== '')))
+    : [];
+  return { known };
 }
 
 /**
@@ -1895,6 +1963,23 @@ export function migrateV9ToV10(v9Raw: Record<string, unknown>): Record<string, u
   };
 }
 
+/**
+ * Pure sequential v10 -> v11 save upgrader adding Living Relationships LR-1 fields
+ * (doc 14 §9 policy: copy all prior slices unchanged, then seed the LR slices empty):
+ * `invitations`, `occupancy`, `teaching`, `activeActivity`. Existing interior locations,
+ * day stamps, and all player/NPC progress are preserved untouched.
+ */
+export function migrateV10ToV11(v10Raw: Record<string, unknown>): Record<string, unknown> {
+  return {
+    ...v10Raw,
+    schemaVersion: 11,
+    invitations: createEmptyInvitationState(),
+    occupancy: null,
+    teaching: createInitialTeachingState(),
+    activeActivity: null,
+  };
+}
+
 export function migrateWorldState(raw: unknown): MigrationResult {
   const warnings: string[] = [];
   const detected = detectSchemaVersion(raw);
@@ -1953,6 +2038,11 @@ export function migrateWorldState(raw: unknown): MigrationResult {
   if (version === 9) {
     working = migrateV9ToV10(working);
     version = 10;
+  }
+
+  if (version === 10) {
+    working = migrateV10ToV11(working);
+    version = 11;
   }
 
   if (version > CURRENT_SCHEMA_VERSION) {

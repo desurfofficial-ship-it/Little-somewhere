@@ -32,6 +32,7 @@ import {
   COPPERWHEEL_PORCH_EXIT_POS,
   createInitialCopperwheelState,
 } from './copperwheel';
+import { reconcileLivingRelationshipsOnDayAdvance } from './invitations';
 import { WorldState } from './types';
 
 export const STORAGE_KEY = 'little_somewhere_world_v1';
@@ -413,6 +414,32 @@ export function computeWorldSaveRevision(state: WorldState): string {
     pushNum(cws.teasShared);
   }
 
+  // Living Relationships LR-1 — invitation/occupancy/teaching/activity slices (WorldState v11)
+  const inv = state.invitations;
+  if (inv) {
+    pushStr(inv.active?.id ?? '');
+    pushStr(inv.active?.status ?? '');
+    pushStr(inv.active?.hostId ?? '');
+    pushStr(inv.active?.activityId ?? '');
+    pushNum(inv.active?.expiresDay ?? -1);
+    pushNum(Math.round(inv.active?.windowStartMinute ?? -1));
+    pushNum(Math.round(inv.active?.windowEndMinute ?? -1));
+    pushNum(inv.history.length);
+    if (inv.history.length > 0) {
+      pushStr(inv.history[inv.history.length - 1].invitationId);
+      pushStr(inv.history[inv.history.length - 1].outcome);
+    }
+    pushNum(Object.keys(inv.lastOfferDayByHost).length);
+    for (const hostId of Object.keys(inv.lastOfferDayByHost).sort()) {
+      pushStr(hostId);
+      pushNum(inv.lastOfferDayByHost[hostId as keyof WorldState['invitations']['lastOfferDayByHost']] ?? -1);
+    }
+  }
+  pushStr(state.occupancy?.invitationId ?? '');
+  pushStr(state.occupancy?.residentId ?? '');
+  pushNum(state.teaching?.known.length ?? 0);
+  pushStr(state.activeActivity?.activityId ?? '');
+
   return `${h1.toString(36)}-${h2.toString(36)}`;
 }
 
@@ -517,7 +544,7 @@ export function advanceToNextDay(state: WorldState): WorldState {
     ? copperwheelExitPos
     : { ...COPPERWHEEL_PORCH_EXIT_POS };
 
-  return {
+  const next: WorldState = {
     ...state,
     day: nextDay,
     minuteOfDay: NEXT_DAY_WAKE_MINUTE, // 8:00 AM
@@ -585,4 +612,11 @@ export function advanceToNextDay(state: WorldState): WorldState {
     nookState: prevNook,
     copperwheelState: prevCopperwheel,
   };
+
+  // Living Relationships LR-1 (doc 14 §3): day-boundary reconciliation runs inside
+  // advanceToNextDay BEFORE the return — archive any active invite as `expired`,
+  // clear occupancy, null `activeActivity`. This call is part of the function, not
+  // a follow-up tick (doc 14 §3 "Required"); sleeping applies no penalty or reward.
+  reconcileLivingRelationshipsOnDayAdvance(next);
+  return next;
 }

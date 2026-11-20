@@ -72,6 +72,8 @@ offered ──acceptInvitation()──► accepted ──completeSharedActivity(
 
 If a previously accepted invite becomes incompatible at enter time (host pulled into an encounter after accept), enter does **not** silently no-op. It calls `expireInvitationsAt` with reason `host_unavailable` and returns a player-visible line. That is the empty-visit prevention rule.
 
+> **Decision record (doc 21 §1, 2026-11-20 — pre-merge, PR #3):** gate 4's second sentence constrains the **offer moment** — the host's current slot must sit within the home radius and the window must still be open today. It does **not** require forecasting every future schedule slot inside the created window. A forecast reading is rejected because (a) it makes §4.2's enter-time schedule re-check and doc 16 LR2-03's schedule branch dead provisions, (b) with the real schedule data it makes `share_featured_reading` un-offerable for its only host (Nora's canonical window 600–780 always overlaps her distant afternoon slot 690–780), and (c) it is incompatible with the frozen 24-test acceptance gate. Schedule drift inside a live window — static phase crossings and dynamic encounter pulls alike — is owned by the enter-time `host_unavailable` backstop with a player-visible line (§2.3 above, §4.2, §10; doc 16 LR2-03).
+
 ### 2.4 Expiry precedence
 
 **Decision — single predicate** `isInvitationLive(inv, day, minute)`:
