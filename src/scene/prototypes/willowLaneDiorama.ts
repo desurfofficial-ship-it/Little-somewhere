@@ -1369,15 +1369,19 @@ export function buildStorybookJun(
     torsoPivot.add(btn);
   }
 
-  // Knit Amber Scarf Wrap + Tail
+  // Knit Amber Scarf Wrap + Tail (tail hangs from a pivot so it sways with stride — Pass 20)
   const scarfCollar = new THREE.Mesh(new THREE.TorusGeometry(0.21, 0.065, 8, 14), scarfMat);
   scarfCollar.rotation.x = Math.PI / 2;
   scarfCollar.position.y = 0.6;
+  const scarfTailPivot = new THREE.Group();
+  scarfTailPivot.name = 'scarf_tail_pivot';
+  scarfTailPivot.position.set(0.12, 0.575, 0.235);
   const scarfTail = new THREE.Mesh(new THREE.BoxGeometry(0.11, 0.26, 0.05), scarfMat);
-  scarfTail.position.set(0.12, 0.45, 0.24);
+  scarfTail.position.set(0, -0.125, 0.005);
   scarfTail.rotation.z = -0.16;
   scarfTail.rotation.x = -0.12;
-  torsoPivot.add(scarfCollar, scarfTail);
+  scarfTailPivot.add(scarfTail);
+  torsoPivot.add(scarfCollar, scarfTailPivot);
 
   const carrySocket = new THREE.Group();
   carrySocket.position.set(0, 0.31, 0.37);
@@ -1478,6 +1482,21 @@ export function buildStorybookJun(
     }
   }
 
+  // Expressive mouth (Pass 20, universal) — same contract as the shared builder
+  const junMouthMat = palette.standard('#A85546', 0.62, 0.0);
+  const junMouthSmile = new THREE.Mesh(
+    new THREE.TorusGeometry(0.06, 0.0125, 6, 14, Math.PI * 0.72),
+    junMouthMat,
+  );
+  junMouthSmile.name = 'mouth_smile';
+  junMouthSmile.rotation.z = Math.PI * 1.14;
+  junMouthSmile.position.set(0, -0.118, 0.252);
+  const junMouthO = new THREE.Mesh(new THREE.TorusGeometry(0.032, 0.013, 6, 12), junMouthMat);
+  junMouthO.name = 'mouth_o';
+  junMouthO.position.set(0, -0.125, 0.25);
+  junMouthO.visible = false;
+  headGroup.add(junMouthSmile, junMouthO);
+
   // Sculpted back hair + bangs tufts under cap
   const hairBack = new THREE.Mesh(
     new THREE.SphereGeometry(0.3, 12, 10, 0, Math.PI * 2, 0, Math.PI * 0.6),
@@ -1543,6 +1562,9 @@ export function buildStorybookJun(
     carrySocket,
     ringMesh,
     questPip,
+    mouthSmile: junMouthSmile,
+    mouthO: junMouthO,
+    swayTail: scarfTailPivot,
   };
 }
 

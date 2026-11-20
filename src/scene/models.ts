@@ -77,6 +77,12 @@ export interface CharacterRig {
   scarfPivot?: THREE.Group;
   /** Player-only: the traveller satchel group (strap + hip pouch) for adorning/detail passes. */
   satchelGroup?: THREE.Group;
+  /** Universal (Pass 20): emotion-driven smile arc under the nose — every character reads mood. */
+  mouthSmile?: THREE.Mesh;
+  /** Universal (Pass 20): small "o" ring shown for the surprised emotion. */
+  mouthO?: THREE.Mesh;
+  /** NPC hanging-cloth accessory pivot (shawl/scarf tail) — sways with stride & rest breath. */
+  swayTail?: THREE.Group;
   /** Base height scale of bodyGroup — enables squash-&-stretch without losing proportions. */
   heightScale?: number;
 }

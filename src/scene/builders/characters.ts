@@ -121,8 +121,9 @@ export function buildStorybookCharacter(
   collar.position.y = 0.6;
   torsoPivot.add(collar);
 
-  // Player-only articulated extras (scarf tail pivot, satchel) — optional fields on the rig contract
-  const playerRigExtras: { scarfPivot?: THREE.Group; satchelGroup?: THREE.Group } = {};
+  // Articulated extras exposed as optional fields on the rig contract:
+  // scarf tail pivot + satchel are player-only; swayTail (hanging cloth) is NPC-facing.
+  const rigExtras: { scarfPivot?: THREE.Group; satchelGroup?: THREE.Group; swayTail?: THREE.Group } = {};
 
   // Bespoke chest/waist tailoring by character role
   if (characterId === 'player') {
@@ -167,8 +168,8 @@ export function buildStorybookCharacter(
     scarfPivot.add(scarfTailUpper, scarfTailLower, scarfFringe);
     torsoPivot.add(scarfPivot);
 
-    playerRigExtras.scarfPivot = scarfPivot;
-    playerRigExtras.satchelGroup = satchelGroup;
+    rigExtras.scarfPivot = scarfPivot;
+    rigExtras.satchelGroup = satchelGroup;
   } else if (characterId === 'clara' || characterId === 'mina') {
     const apronBib = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.26, 0.05), shirtMat);
     apronBib.position.set(0, 0.39, 0.24);
@@ -193,14 +194,103 @@ export function buildStorybookCharacter(
     watch.position.set(0.16, 0.23, 0.28);
     torsoPivot.add(pocketChain, watch);
   } else if (characterId === 'sora' || characterId === 'nora') {
+    // The shawl tail hangs from a pivot so it sways with each stride and at rest
+    // (Pass 20 secondary motion — cloth that answers movement reads alive).
+    const shawlPivot = new THREE.Group();
+    shawlPivot.name = 'shawl_tail_pivot';
+    shawlPivot.position.set(0.12, 0.575, 0.235);
     const shawlTail = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.28, 0.05), accentMat);
-    shawlTail.position.set(0.12, 0.44, 0.24);
+    shawlTail.position.set(0, -0.135, 0.005);
     shawlTail.rotation.z = -0.18;
-    torsoPivot.add(shawlTail);
+    shawlPivot.add(shawlTail);
+    torsoPivot.add(shawlPivot);
+    rigExtras.swayTail = shawlPivot;
+  } else if (characterId === 'toby') {
+    // The wandering sketcher (Pass 20 identity): paint smudges dot the coat, and a
+    // cross-body sketch strap carries a rolled canvas at the hip — makers never stay clean.
+    const smudges = new THREE.Group();
+    smudges.name = 'paint_smudges';
+    const smudgeSpecs: Array<[number, number, number, string, number]> = [
+      [0.11, 0.52, 0.235, '#7A9E76', 0.05],
+      [-0.09, 0.36, 0.245, '#C8764F', 0.042],
+      [0.06, 0.2, 0.25, '#7FA8C9', 0.036],
+    ];
+    for (const [px, py, pz, col, pr] of smudgeSpecs) {
+      const smudge = new THREE.Mesh(
+        new THREE.SphereGeometry(pr, 7, 6),
+        palette.standard(col, 0.85, 0.0),
+      );
+      smudge.scale.set(1.3, 0.8, 0.4);
+      smudge.position.set(px, py, pz);
+      smudges.add(smudge);
+    }
+    torsoPivot.add(smudges);
+
+    const sketchRoll = new THREE.Group();
+    sketchRoll.name = 'sketch_roll';
+    const sketchStrap = new THREE.Mesh(
+      new THREE.BoxGeometry(0.62, 0.05, 0.02),
+      palette.standard('#A99A82', 0.85, 0.0),
+    );
+    sketchStrap.position.set(0, 0.36, 0.255);
+    sketchStrap.rotation.z = 0.55;
+    const rollMat = palette.standard('#EFE6D2', 0.88, 0.0);
+    const roll = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.045, 0.24, 8), rollMat);
+    roll.rotation.z = Math.PI / 2;
+    roll.position.set(-0.26, 0.14, -0.08);
+    roll.castShadow = true;
+    const bandMat = palette.standard('#7A9E76', 0.85, 0.0);
+    const rollBandA = new THREE.Mesh(new THREE.CylinderGeometry(0.048, 0.048, 0.03, 8), bandMat);
+    rollBandA.rotation.z = Math.PI / 2;
+    rollBandA.position.set(-0.33, 0.14, -0.08);
+    const rollBandB = new THREE.Mesh(new THREE.CylinderGeometry(0.048, 0.048, 0.03, 8), bandMat);
+    rollBandB.rotation.z = Math.PI / 2;
+    rollBandB.position.set(-0.19, 0.14, -0.08);
+    sketchRoll.add(sketchStrap, roll, rollBandA, rollBandB);
+    torsoPivot.add(sketchRoll);
+  } else if (characterId === 'rowan') {
+    // The orchard keeper (Pass 20 identity): a working belt with a brass buckle,
+    // pruning shears hung at the hip, and a folded neckerchief at the collar.
+    const orchardBelt = new THREE.Group();
+    orchardBelt.name = 'orchard_belt';
+    const belt = new THREE.Mesh(new THREE.TorusGeometry(0.255, 0.03, 6, 14), leatherMat);
+    belt.rotation.x = Math.PI / 2;
+    belt.position.y = 0.275;
+    const buckle = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.062, 0.03), brassMat);
+    buckle.position.set(0, 0.275, 0.245);
+    orchardBelt.add(belt, buckle);
+    torsoPivot.add(orchardBelt);
+
+    const shears = new THREE.Group();
+    shears.name = 'pruning_shears';
+    const steelMat = palette.standard('#9AA3AB', 0.42, 0.55);
+    const bladeA = new THREE.Mesh(new THREE.BoxGeometry(0.028, 0.185, 0.012), steelMat);
+    bladeA.rotation.z = 0.3;
+    const bladeB = new THREE.Mesh(new THREE.BoxGeometry(0.028, 0.185, 0.012), steelMat);
+    bladeB.rotation.z = -0.3;
+    const pivotDot = new THREE.Mesh(new THREE.SphereGeometry(0.02, 6, 6), brassMat);
+    pivotDot.position.z = 0.01;
+    shears.add(bladeA, bladeB, pivotDot);
+    shears.position.set(0.23, 0.17, 0.1);
+    shears.rotation.y = 0.5;
+    torsoPivot.add(shears);
+
+    const neckerchief = new THREE.Mesh(new THREE.ConeGeometry(0.075, 0.15, 4), accentMat);
+    neckerchief.name = 'neckerchief';
+    neckerchief.scale.set(1.1, 1.0, 0.35);
+    neckerchief.position.set(0.04, 0.5, 0.255);
+    neckerchief.rotation.z = 0.12;
+    torsoPivot.add(neckerchief);
   } else if (characterId === 'pip') {
     const bib = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.28, 0.05), accentMat);
     bib.position.set(0, 0.37, 0.24);
     torsoPivot.add(bib);
+    // Pass 20: a patched knee on the trousers — the youngest resident plays hard.
+    const kneePatch = new THREE.Mesh(new THREE.CylinderGeometry(0.052, 0.052, 0.016, 7), accentMat);
+    kneePatch.name = 'knee_patch';
+    kneePatch.rotation.x = Math.PI / 2 - 0.2;
+    kneePatch.position.set(0, -0.17, 0.09);
+    rightLeg.add(kneePatch);
   } else {
     for (let b = 0; b < 3; b++) {
       const btn = new THREE.Mesh(new THREE.SphereGeometry(0.023, 6, 6), brassMat);
@@ -284,6 +374,23 @@ export function buildStorybookCharacter(
     }
   }
 
+  // Expressive mouth (Pass 20, universal): a soft smile arc that reads mood at
+  // gameplay camera distance, plus a small "o" ring for surprise. animateCharacterRig
+  // steers arc rotation (smile vs frown) and scale from the character's emotion.
+  const mouthMat = palette.standard('#A85546', 0.62, 0.0);
+  const mouthSmile = new THREE.Mesh(
+    new THREE.TorusGeometry(0.06, 0.0125, 6, 14, Math.PI * 0.72),
+    mouthMat,
+  );
+  mouthSmile.name = 'mouth_smile';
+  mouthSmile.rotation.z = Math.PI * 1.14;
+  mouthSmile.position.set(0, -0.118, 0.252);
+  const mouthO = new THREE.Mesh(new THREE.TorusGeometry(0.032, 0.013, 6, 12), mouthMat);
+  mouthO.name = 'mouth_o';
+  mouthO.position.set(0, -0.125, 0.25);
+  mouthO.visible = false;
+  headGroup.add(mouthSmile, mouthO);
+
   // Character-specific eyewear / mustache accents
   if (characterId === 'nora') {
     for (const sx of [-1, 1]) {
@@ -302,7 +409,57 @@ export function buildStorybookCharacter(
     const stache = new THREE.Mesh(new THREE.CapsuleGeometry(0.045, 0.14, 4, 6), hairMat);
     stache.rotation.z = Math.PI / 2;
     stache.position.set(0, -0.075, 0.26);
-    headGroup.add(stache);
+    // Pass 20: full smith's beard under the mustache + a soot smudge on the cheek —
+    // hours at the forge leave their mark.
+    const beard = new THREE.Mesh(new THREE.SphereGeometry(0.155, 10, 8), hairMat);
+    beard.name = 'beard';
+    beard.scale.set(1.2, 0.62, 0.55);
+    beard.position.set(0, -0.175, 0.16);
+    const soot = new THREE.Mesh(
+      new THREE.SphereGeometry(0.045, 7, 6),
+      palette.standard('#57514C', 0.9, 0.0),
+    );
+    soot.name = 'soot_smudge';
+    soot.scale.set(1.25, 0.75, 0.4);
+    soot.position.set(-0.16, 0.015, 0.235);
+    headGroup.add(stache, beard, soot);
+  } else if (characterId === 'rowan') {
+    // Weathered orchard-keeper beard framing the chin below the smile
+    const beard = new THREE.Mesh(new THREE.SphereGeometry(0.15, 10, 8), hairMat);
+    beard.name = 'beard';
+    beard.scale.set(1.15, 0.6, 0.55);
+    beard.position.set(0, -0.175, 0.165);
+    headGroup.add(beard);
+  } else if (characterId === 'toby') {
+    // Charcoal smudged on the sketcher's cheek — he wipes with the back of his hand
+    const charcoal = new THREE.Mesh(
+      new THREE.SphereGeometry(0.035, 7, 6),
+      palette.standard('#4E4844', 0.9, 0.0),
+    );
+    charcoal.name = 'charcoal_smudge';
+    charcoal.scale.set(1.3, 0.8, 0.4);
+    charcoal.position.set(0.165, -0.055, 0.225);
+    headGroup.add(charcoal);
+  } else if (characterId === 'pip') {
+    // Freckles scattered across cheeks and nose bridge — unmistakably the youngest
+    const freckles = new THREE.Group();
+    freckles.name = 'freckles';
+    const freckleMat = palette.standard('#D8997B', 0.75, 0.0);
+    const freckleSpecs: Array<[number, number]> = [
+      [-0.28, 0.02],
+      [-0.5, -0.07],
+      [-0.32, -0.16],
+      [0.28, 0.02],
+      [0.5, -0.07],
+      [0.32, -0.16],
+    ];
+    for (const [fx, fy] of freckleSpecs) {
+      const freckle = new THREE.Mesh(new THREE.SphereGeometry(0.014, 6, 5), freckleMat);
+      const fxLen = Math.hypot(fx, fy, 1);
+      freckle.position.set((fx / fxLen) * 0.282, (fy / fxLen) * 0.282, (1 / fxLen) * 0.282);
+      freckles.add(freckle);
+    }
+    headGroup.add(freckles);
   }
 
   // Hair cap + sculpted bangs
@@ -318,6 +475,49 @@ export function buildStorybookCharacter(
     bang.scale.set(1.1, 0.72, 0.8);
     bang.position.set(bx, 0.135, 0.24);
     headGroup.add(bang);
+  }
+
+  // Per-resident hair sculpting (Pass 20) — silhouette variety beyond the shared cap+bangs
+  if (characterId === 'mina' || characterId === 'sora') {
+    // Face-framing side locks falling from under the hat brim — Mina's reach her
+    // shoulders, Sora's stop at chin length for her bob.
+    const locks = new THREE.Group();
+    locks.name = 'hair_side_locks';
+    const lockLen = characterId === 'mina' ? 0.3 : 0.2;
+    for (const sx of [-1, 1]) {
+      const lock = new THREE.Mesh(new THREE.CapsuleGeometry(0.052, lockLen, 4, 6), hairMat);
+      lock.position.set(sx * 0.245, 0.02 - lockLen * 0.45, 0.04);
+      lock.rotation.z = sx * 0.05;
+      lock.castShadow = true;
+      locks.add(lock);
+    }
+    headGroup.add(locks);
+  } else if (characterId === 'nora') {
+    // The elder's silver hair sweeps softly down her back beneath the bun
+    const backFall = new THREE.Mesh(new THREE.SphereGeometry(0.24, 10, 8), hairMat);
+    backFall.name = 'hair_back_fall';
+    backFall.scale.set(0.85, 1.25, 0.5);
+    backFall.position.set(0, -0.14, -0.17);
+    headGroup.add(backFall);
+  } else if (characterId === 'clara') {
+    // Two neat temple strands framing the baker's bun
+    const strands = new THREE.Group();
+    strands.name = 'hair_temple_strands';
+    for (const sx of [-1, 1]) {
+      const strand = new THREE.Mesh(new THREE.CapsuleGeometry(0.026, 0.15, 4, 5), hairMat);
+      strand.position.set(sx * 0.225, -0.03, 0.12);
+      strand.rotation.z = sx * 0.1;
+      strands.add(strand);
+    }
+    headGroup.add(strands);
+  } else if (characterId === 'pip') {
+    // A messy tuft escapes the cap at the back — kid energy
+    const tuft = new THREE.Mesh(new THREE.DodecahedronGeometry(0.075, 0), hairMat);
+    tuft.name = 'hair_escaped_tuft';
+    tuft.scale.set(1.1, 0.8, 0.9);
+    tuft.position.set(0.02, 0.1, -0.24);
+    tuft.rotation.set(0.3, 0.5, 0.2);
+    headGroup.add(tuft);
   }
 
   // Hat / Hair Style Variants
@@ -337,6 +537,28 @@ export function buildStorybookCharacter(
     const ribbon = new THREE.Mesh(new THREE.CylinderGeometry(0.275, 0.275, 0.05, 14), accentMat);
     ribbon.position.y = 0.25;
     headGroup.add(brim, crown, ribbon);
+    if (characterId === 'mina') {
+      // Pass 20: a blossom tucked into the straw hat ribbon — the gardener wears
+      // her own flowerbed (five petals + a sun-gold center).
+      const flower = new THREE.Group();
+      flower.name = 'hat_flower';
+      const petalMat = palette.standard('#E48397', 0.7, 0.0);
+      const flowerCenterMat = palette.standard('#F6D26B', 0.7, 0.0);
+      for (let p = 0; p < 5; p++) {
+        const petal = new THREE.Mesh(new THREE.SphereGeometry(0.03, 6, 6), petalMat);
+        petal.scale.set(1.25, 0.55, 0.8);
+        const a = (p / 5) * Math.PI * 2;
+        petal.position.set(Math.cos(a) * 0.038, 0.012, Math.sin(a) * 0.038);
+        petal.rotation.y = -a;
+        flower.add(petal);
+      }
+      const flowerCenter = new THREE.Mesh(new THREE.SphereGeometry(0.022, 6, 6), flowerCenterMat);
+      flowerCenter.position.y = 0.022;
+      flower.add(flowerCenter);
+      flower.position.set(0.21, 0.27, 0.2);
+      flower.rotation.y = -0.75;
+      headGroup.add(flower);
+    }
   } else if (appearance.hatStyle === 'cap') {
     const capCrown = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.275, 0.15, 12), accentMat);
     capCrown.position.set(0, 0.21, -0.02);
@@ -482,8 +704,11 @@ export function buildStorybookCharacter(
     carrySocket,
     ringMesh,
     questPip,
-    scarfPivot: playerRigExtras.scarfPivot,
-    satchelGroup: playerRigExtras.satchelGroup,
+    scarfPivot: rigExtras.scarfPivot,
+    satchelGroup: rigExtras.satchelGroup,
+    mouthSmile,
+    mouthO,
+    swayTail: rigExtras.swayTail,
     heightScale: s,
   };
 }
@@ -788,6 +1013,77 @@ export function animateCharacterRig(
       Math.sin(elapsed * 2.3 + phaseSeed) * (moving ? 0.1 : 0.055) + bankAngle * 0.55;
     rig.scarfPivot.rotation.x = THREE.MathUtils.lerp(rig.scarfPivot.rotation.x, targetScarfX, dampSpeed);
     rig.scarfPivot.rotation.z = THREE.MathUtils.lerp(rig.scarfPivot.rotation.z, targetScarfZ, dampSpeed);
+  }
+
+  // Expressive mouth (Pass 20, universal): emotion steers smile ↔ frown ↔ surprised "o".
+  // The arc rotation lerps so a mood change visibly travels across the face.
+  if (rig.mouthSmile && rig.mouthO) {
+    const SMILE_RZ = Math.PI * 1.14;
+    const FROWN_RZ = Math.PI * 0.14;
+    let smileScaleT = 1;
+    let smileRzT = SMILE_RZ;
+    let showO = false;
+    switch (emotion) {
+      case 'happy':
+        smileScaleT = 1.22;
+        break;
+      case 'excited':
+        smileScaleT = 1.3;
+        break;
+      case 'curious':
+        smileScaleT = 0.88;
+        smileRzT = SMILE_RZ + 0.1;
+        break;
+      case 'sad':
+      case 'tired':
+        smileScaleT = 0.8;
+        smileRzT = FROWN_RZ;
+        break;
+      case 'frustrated':
+        smileScaleT = 0.9;
+        smileRzT = FROWN_RZ;
+        break;
+      case 'angry':
+        smileRzT = FROWN_RZ;
+        break;
+      case 'embarrassed':
+        smileScaleT = 0.7;
+        smileRzT = SMILE_RZ + 0.16;
+        break;
+      case 'surprised':
+        showO = true;
+        break;
+      default:
+        break;
+    }
+    rig.mouthSmile.visible = !showO;
+    rig.mouthO.visible = showO;
+    if (showO) {
+      // A little intake-of-breath pulse while the surprise holds
+      const oPulse = 1 + Math.sin(elapsed * 5.5 + phaseSeed) * 0.12;
+      const oScale = THREE.MathUtils.lerp(rig.mouthO.scale.x || 0.01, oPulse, dampSpeed);
+      rig.mouthO.scale.setScalar(oScale);
+    } else {
+      rig.mouthSmile.rotation.z = THREE.MathUtils.lerp(rig.mouthSmile.rotation.z, smileRzT, dampSpeed);
+      const mScale = THREE.MathUtils.lerp(rig.mouthSmile.scale.x, smileScaleT, dampSpeed);
+      rig.mouthSmile.scale.setScalar(mScale);
+    }
+  }
+
+  // Hanging cloth accessories on resident rigs (shawl/scarf tails): sway with the
+  // stride while walking, breathe gently at rest — cloth that answers motion reads alive.
+  if (rig.swayTail) {
+    const moving = opts?.isMoving ?? false;
+    const swayAmp =
+      animState === 'sprint' ? 0.26 : animState === 'run' ? 0.2 : animState === 'walk' ? 0.16 : 0.05;
+    const targetTailZ = moving
+      ? Math.sin(walkPhase) * swayAmp + bankAngle * 0.35
+      : Math.sin(elapsed * 1.6 + phaseSeed) * 0.05;
+    const targetTailX = moving
+      ? Math.abs(Math.sin(walkPhase)) * swayAmp * 0.5
+      : Math.sin(elapsed * 1.15 + phaseSeed) * 0.035;
+    rig.swayTail.rotation.z = THREE.MathUtils.lerp(rig.swayTail.rotation.z, targetTailZ, dampSpeed);
+    rig.swayTail.rotation.x = THREE.MathUtils.lerp(rig.swayTail.rotation.x, targetTailX, dampSpeed);
   }
 
   // Squash & stretch on the whole figure (rigs that expose their base height scale).
