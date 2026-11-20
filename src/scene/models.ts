@@ -73,4 +73,10 @@ export interface CharacterRig {
   carrySocket?: THREE.Group;
   ringMesh: THREE.Mesh;
   questPip: THREE.Mesh;
+  /** Player-only: knit-scarf tail pivot at the collar front — gets speed/wind sway. */
+  scarfPivot?: THREE.Group;
+  /** Player-only: the traveller satchel group (strap + hip pouch) for adorning/detail passes. */
+  satchelGroup?: THREE.Group;
+  /** Base height scale of bodyGroup — enables squash-&-stretch without losing proportions. */
+  heightScale?: number;
 }

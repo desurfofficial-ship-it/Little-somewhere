@@ -39,6 +39,7 @@ import {
 import {
   computeSitGroundY,
   createInitialPlayerMotion,
+  PLAYER_SPRINT_SPEED,
   selectBestInteractiveTarget,
   stepPlayerMovement,
   wrapAngleDelta,
@@ -94,6 +95,7 @@ import {
 import {
   createCobblestoneTexture,
   createContactShadowTexture,
+  createFootstepDustTexture,
   createMeadowMacroTexture,
   createMeadowTexture,
   createOrchardSignTexture,
@@ -874,6 +876,66 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
       splashParticles.push({ mesh: m, vel: new THREE.Vector3(), life: 0, floorY: 0.1 });
     }
 
+    // Soft footstep dust poof ring buffer (Zero-GC pooled sprites for run/sprint
+    // steps & hard-brake skids). Parented to the scene so a puff spawned at a
+    // doorway still fades cleanly even if the scene switches mid-life.
+    const dustTex = createFootstepDustTexture();
+    const dustParticles: Array<{
+      sprite: THREE.Sprite;
+      mat: THREE.SpriteMaterial;
+      vel: THREE.Vector3;
+      life: number;
+      maxLife: number;
+      maxOpacity: number;
+      baseScale: number;
+    }> = [];
+    for (let i = 0; i < 18; i++) {
+      const mat = new THREE.SpriteMaterial({
+        map: dustTex,
+        transparent: true,
+        opacity: 0,
+        depthWrite: false,
+      });
+      const sp = new THREE.Sprite(mat);
+      sp.visible = false;
+      sp.renderOrder = 5;
+      scene.add(sp);
+      dustParticles.push({
+        sprite: sp,
+        mat,
+        vel: new THREE.Vector3(),
+        life: 0,
+        maxLife: 0.42,
+        maxOpacity: 0.5,
+        baseScale: 0.22,
+      });
+    }
+    let dustFootSign = 1;
+    let prevSkidForDust = 0;
+    let impactSquashEnv = 0;
+
+    function spawnDustPoof(
+      x: number,
+      y: number,
+      z: number,
+      velX: number,
+      velZ: number,
+      strength: number,
+      indoor: boolean,
+    ): void {
+      for (const p of dustParticles) {
+        if (p.life > 0) continue;
+        p.maxLife = 0.34 + Math.random() * 0.12;
+        p.life = p.maxLife;
+        p.maxOpacity = (indoor ? 0.28 : 0.5) * (0.55 + strength * 0.45);
+        p.baseScale = 0.15 + strength * 0.15 + Math.random() * 0.05;
+        p.sprite.position.set(x + (Math.random() - 0.5) * 0.1, y + 0.07, z + (Math.random() - 0.5) * 0.1);
+        p.vel.set(velX + (Math.random() - 0.5) * 0.3, 0.5 + Math.random() * 0.3, velZ + (Math.random() - 0.5) * 0.3);
+        p.sprite.visible = true;
+        return;
+      }
+    }
+
     // Build Player & 9 Resident Character Rigs (Storybook Diorama standard)
     const playerRig: CharacterRig = buildStorybookCharacter(
       {
@@ -1624,6 +1686,21 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
         }
       }
 
+      // Update pooled footstep dust poofs (rise, drift, soften & fade)
+      for (const p of dustParticles) {
+        if (p.life > 0) {
+          p.life -= dt;
+          p.vel.y -= 1.05 * dt;
+          p.vel.x *= 1 - Math.min(0.9, 1.7 * dt);
+          p.vel.z *= 1 - Math.min(0.9, 1.7 * dt);
+          p.sprite.position.addScaledVector(p.vel, dt);
+          const t = Math.min(1, 1 - p.life / p.maxLife);
+          p.sprite.scale.setScalar(p.baseScale * (0.6 + t * 0.95));
+          p.mat.opacity = Math.max(0, p.maxOpacity * (1 - t * t));
+          if (p.life <= 0) p.sprite.visible = false;
+        }
+      }
+
       // Sync carryable world props (ground placement vs held in player carrySocket vs delivered)
       const playerSocket = playerRig.carrySocket ?? playerRig.bodyGroup;
       for (let i = 0; i < CARRYABLE_PROP_DEFS.length; i++) {
@@ -2001,6 +2078,44 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
         cozyAudio.playFootstep();
       }
 
+      // Player game-feel presentation: footstep dust poofs on fast steps, a soft
+      // burst on hard brakes / sharp reversals, and a step-impact squash envelope
+      // fed to the rig (production game-feel pass, per Game Feel & Mario-style poofs).
+      const indoorNow = curLocation !== 'exterior';
+      if (playerMotion.footstepPending && playerMotion.speed > 4.4) {
+        const f = world.playerFacing;
+        dustFootSign = -dustFootSign;
+        spawnDustPoof(
+          world.playerPos.x + Math.cos(f) * 0.13 * dustFootSign,
+          playerMotion.groundY,
+          world.playerPos.z - Math.sin(f) * 0.13 * dustFootSign,
+          -Math.sin(f) * 0.5,
+          -Math.cos(f) * 0.5,
+          Math.min(1, playerMotion.speed / PLAYER_SPRINT_SPEED),
+          indoorNow,
+        );
+      }
+      if (playerMotion.skidAmount > 0.4 && prevSkidForDust <= 0.4) {
+        const f = world.playerFacing;
+        const strength = Math.min(1, playerMotion.skidAmount + 0.3);
+        spawnDustPoof(world.playerPos.x, playerMotion.groundY, world.playerPos.z, -Math.sin(f) * 0.85, -Math.cos(f) * 0.85, strength, indoorNow);
+        spawnDustPoof(
+          world.playerPos.x + Math.cos(f) * 0.18,
+          playerMotion.groundY,
+          world.playerPos.z - Math.sin(f) * 0.18,
+          -Math.sin(f) * 0.6 + Math.cos(f) * 0.5,
+          -Math.cos(f) * 0.6 - Math.sin(f) * 0.5,
+          strength * 0.8,
+          indoorNow,
+        );
+      }
+      prevSkidForDust = playerMotion.skidAmount;
+      const footImpact =
+        playerMotion.footstepPending && playerMotion.speed > 2.2
+          ? 0.035 * Math.min(1, playerMotion.speed / 6)
+          : 0;
+      impactSquashEnv = Math.max(footImpact, impactSquashEnv * Math.exp(-9 * dt));
+
       // Update tap destination ring
       if (tapWalkDest) {
         destRing.visible = true;
@@ -2081,6 +2196,9 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
       _playerAnimOpts.bankAngle = playerMotion.bankAngle;
       _playerAnimOpts.carrying = Boolean(world.playerHeldItem);
       _playerAnimOpts.isMoving = playerMotion.speed > 0.25;
+      _playerAnimOpts.accelLean = playerMotion.accelAmount;
+      _playerAnimOpts.squash =
+        impactSquashEnv + playerMotion.skidAmount * 0.05 - playerMotion.accelAmount * 0.022;
       animateCharacterRig(
         playerRig,
         playerAnim,
@@ -2207,6 +2325,8 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
       chimeMat.dispose();
       splashGeo.dispose();
       splashMat.dispose();
+      dustTex.dispose();
+      for (const p of dustParticles) p.mat.dispose();
       meadowTex.dispose();
       meadowMacroTex.dispose();
       cobbleTex.dispose();

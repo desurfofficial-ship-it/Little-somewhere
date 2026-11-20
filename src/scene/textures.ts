@@ -216,6 +216,48 @@ export function createContactShadowTexture(): THREE.CanvasTexture {
 }
 
 /**
+ * Footstep dust poof: a soft irregular warm puff sprite for the pooled player
+ * footstep/skid particle system. Slightly lumpy radial falloff reads as kicked-up
+ * lane dust rather than a perfect fog circle, matching the storybook diorama look.
+ */
+export function createFootstepDustTexture(): THREE.CanvasTexture {
+  const canvas = document.createElement('canvas');
+  canvas.width = 64;
+  canvas.height = 64;
+  const ctx = canvas.getContext('2d')!;
+  const rand = makeSeededRandom(311);
+
+  // Three overlapping soft lobes give the puff a hand-drawn silhouette
+  const lobes: Array<[number, number, number, number]> = [
+    [32, 32, 26, 0.5],
+    [24, 30, 16, 0.34],
+    [40, 36, 15, 0.3],
+  ];
+  for (const [cx, cy, r, a] of lobes) {
+    const grad = ctx.createRadialGradient(cx, cy, 2, cx, cy, r);
+    grad.addColorStop(0, `rgba(226, 208, 178, ${a})`);
+    grad.addColorStop(0.55, `rgba(210, 190, 158, ${a * 0.55})`);
+    grad.addColorStop(1, 'rgba(198, 178, 146, 0)');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, 64, 64);
+  }
+
+  // A few tiny bright motes for sparkle in raking light
+  ctx.globalAlpha = 0.5;
+  for (let i = 0; i < 7; i++) {
+    ctx.fillStyle = '#EFE3C8';
+    ctx.beginPath();
+    ctx.arc(14 + rand() * 36, 16 + rand() * 34, 0.9 + rand() * 1.3, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
+
+/**
  * Fern Hollow Orchard gate sign: hand-lettered cream board with a fern sprig
  * motif, hanging beneath the orchard arch. Seeded so the grain stays stable.
  */

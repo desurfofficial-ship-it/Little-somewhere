@@ -18,6 +18,10 @@ export interface CharacterAnimationOptions {
   bankAngle?: number;
   carrying?: boolean;
   isMoving?: boolean;
+  /** 0..1 normalized launch acceleration — torso leans into the run before speed arrives. */
+  accelLean?: number;
+  /** Squash & stretch: positive compresses the figure (skid/step impact), negative stretches (launch). */
+  squash?: number;
 }
 
 /**
@@ -117,8 +121,55 @@ export function buildStorybookCharacter(
   collar.position.y = 0.6;
   torsoPivot.add(collar);
 
+  // Player-only articulated extras (scarf tail pivot, satchel) — optional fields on the rig contract
+  const playerRigExtras: { scarfPivot?: THREE.Group; satchelGroup?: THREE.Group } = {};
+
   // Bespoke chest/waist tailoring by character role
-  if (characterId === 'clara' || characterId === 'mina') {
+  if (characterId === 'player') {
+    // The player reads as a gentle wanderer: warm coat buttons, a cross-body
+    // traveller satchel (the same satchel the inventory UI speaks of), and a
+    // hand-knit scarf whose tail sways with speed & wind. Kept within the
+    // arm/nose silhouette envelope so prop-clearance guarantees hold.
+    for (let b = 0; b < 3; b++) {
+      const btn = new THREE.Mesh(new THREE.SphereGeometry(0.023, 6, 6), brassMat);
+      btn.position.set(0, 0.27 + b * 0.11, 0.26);
+      torsoPivot.add(btn);
+    }
+
+    const satchelGroup = new THREE.Group();
+    const strap = new THREE.Mesh(new THREE.BoxGeometry(0.66, 0.05, 0.02), leatherMat);
+    strap.position.set(0, 0.4, 0.26);
+    strap.rotation.z = 0.62;
+    const buckle = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.04, 0.026), brassMat);
+    buckle.position.set(-0.07, 0.47, 0.268);
+    const pouch = new THREE.Mesh(new THREE.BoxGeometry(0.17, 0.16, 0.09), leatherMat);
+    pouch.position.set(-0.19, 0.16, -0.27);
+    const pouchFlap = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.055, 0.1), bootMat);
+    pouchFlap.position.set(-0.19, 0.235, -0.27);
+    const pouchPin = new THREE.Mesh(new THREE.SphereGeometry(0.016, 6, 6), brassMat);
+    pouchPin.position.set(-0.19, 0.2, -0.322);
+    satchelGroup.add(strap, buckle, pouch, pouchFlap, pouchPin);
+    torsoPivot.add(satchelGroup);
+
+    const scarf = new THREE.Mesh(new THREE.TorusGeometry(0.205, 0.055, 7, 14), accentMat);
+    scarf.rotation.x = Math.PI / 2;
+    scarf.position.y = 0.585;
+    torsoPivot.add(scarf);
+
+    const scarfPivot = new THREE.Group();
+    scarfPivot.position.set(0.075, 0.545, 0.235);
+    const scarfTailUpper = new THREE.Mesh(new THREE.CapsuleGeometry(0.05, 0.1, 4, 7), accentMat);
+    scarfTailUpper.position.set(0, -0.08, 0.01);
+    const scarfTailLower = new THREE.Mesh(new THREE.CapsuleGeometry(0.045, 0.1, 4, 7), accentMat);
+    scarfTailLower.position.set(0.008, -0.19, 0.024);
+    const scarfFringe = new THREE.Mesh(new THREE.BoxGeometry(0.075, 0.045, 0.05), accentMat);
+    scarfFringe.position.set(0.01, -0.265, 0.03);
+    scarfPivot.add(scarfTailUpper, scarfTailLower, scarfFringe);
+    torsoPivot.add(scarfPivot);
+
+    playerRigExtras.scarfPivot = scarfPivot;
+    playerRigExtras.satchelGroup = satchelGroup;
+  } else if (characterId === 'clara' || characterId === 'mina') {
     const apronBib = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.26, 0.05), shirtMat);
     apronBib.position.set(0, 0.39, 0.24);
     const apronSkirt = new THREE.Mesh(
@@ -431,6 +482,9 @@ export function buildStorybookCharacter(
     carrySocket,
     ringMesh,
     questPip,
+    scarfPivot: playerRigExtras.scarfPivot,
+    satchelGroup: playerRigExtras.satchelGroup,
+    heightScale: s,
   };
 }
 
@@ -475,6 +529,14 @@ export function animateCharacterRig(
       targetTorsoZ = Math.sin(elapsed * 0.95 + phaseSeed) * 0.018;
     }
     targetHeadY = Math.sin(elapsed * 0.65 + phaseSeed * 1.3) * 0.045;
+    // Layered idle variety: an occasional unhurried glance + soft weight shift so
+    // long stands stay alive (deterministic window, zero allocations).
+    const glanceWave = Math.sin(elapsed * 0.52 + phaseSeed * 2.1);
+    if (glanceWave > 0.86) {
+      const glance = (glanceWave - 0.86) * 1.35;
+      targetHeadY += glance;
+      targetTorsoY += glance * 0.24;
+    }
   } else if (animState === 'walk') {
     const rSwing = Math.sin(walkPhase) * 0.48;
     targetLeftLegX = rSwing;
@@ -618,6 +680,14 @@ export function animateCharacterRig(
     targetRightArmZ = -0.14;
   }
 
+  // Player polish: lean into launch acceleration, keep the gaze level
+  const accelLean = opts?.accelLean ?? 0;
+  if (accelLean > 0) {
+    targetTorsoX += accelLean * 0.16;
+    targetHeadX -= accelLean * 0.07;
+  }
+  const squash = opts?.squash ?? 0;
+
   // Emotion posture & facial modifiers
   let eyelidScaleY = 0.2;
   let eyelidPosY = 0.056;
@@ -688,10 +758,12 @@ export function animateCharacterRig(
   // Smoothly damp joint rotations & waist pivot (zero allocations)
   rig.leftLeg.rotation.x = THREE.MathUtils.lerp(rig.leftLeg.rotation.x, targetLeftLegX, dampSpeed);
   rig.rightLeg.rotation.x = THREE.MathUtils.lerp(rig.rightLeg.rotation.x, targetRightLegX, dampSpeed);
-  rig.leftArm.rotation.x = THREE.MathUtils.lerp(rig.leftArm.rotation.x, targetLeftArmX, dampSpeed);
-  rig.rightArm.rotation.x = THREE.MathUtils.lerp(rig.rightArm.rotation.x, targetRightArmX, dampSpeed);
-  rig.leftArm.rotation.z = THREE.MathUtils.lerp(rig.leftArm.rotation.z, targetLeftArmZ, dampSpeed);
-  rig.rightArm.rotation.z = THREE.MathUtils.lerp(rig.rightArm.rotation.z, targetRightArmZ, dampSpeed);
+  // Arms trail the body slightly (follow-through overlap — production walk-cycle standard)
+  const armDamp = Math.min(1, dampSpeed * 0.82);
+  rig.leftArm.rotation.x = THREE.MathUtils.lerp(rig.leftArm.rotation.x, targetLeftArmX, armDamp);
+  rig.rightArm.rotation.x = THREE.MathUtils.lerp(rig.rightArm.rotation.x, targetRightArmX, armDamp);
+  rig.leftArm.rotation.z = THREE.MathUtils.lerp(rig.leftArm.rotation.z, targetLeftArmZ, armDamp);
+  rig.rightArm.rotation.z = THREE.MathUtils.lerp(rig.rightArm.rotation.z, targetRightArmZ, armDamp);
   rig.headGroup.rotation.x = THREE.MathUtils.lerp(rig.headGroup.rotation.x, targetHeadX, dampSpeed);
   rig.headGroup.rotation.y = THREE.MathUtils.lerp(rig.headGroup.rotation.y, targetHeadY, dampSpeed);
   rig.headGroup.rotation.z = THREE.MathUtils.lerp(rig.headGroup.rotation.z, targetHeadZ, dampSpeed);
@@ -702,6 +774,28 @@ export function animateCharacterRig(
     rig.torsoPivot.rotation.x = THREE.MathUtils.lerp(rig.torsoPivot.rotation.x, targetTorsoX, dampSpeed);
     rig.torsoPivot.rotation.y = THREE.MathUtils.lerp(rig.torsoPivot.rotation.y, targetTorsoY, dampSpeed);
     rig.torsoPivot.rotation.z = THREE.MathUtils.lerp(rig.torsoPivot.rotation.z, targetTorsoZ, dampSpeed);
+  }
+
+  // Knit-scarf secondary motion: trails behind while moving, flares on turns,
+  // breathes gently at rest. Positive rotation.x swings the hanging tail backward.
+  if (rig.scarfPivot) {
+    const moving = opts?.isMoving ?? false;
+    const trailBoost = animState === 'sprint' ? 0.24 : animState === 'run' ? 0.15 : 0;
+    const targetScarfX =
+      (moving ? 0.34 + trailBoost + accelLean * 0.3 : 0.08) +
+      Math.sin(walkPhase * (moving ? 1 : 0.8) + phaseSeed) * (moving ? 0.06 : 0.05);
+    const targetScarfZ =
+      Math.sin(elapsed * 2.3 + phaseSeed) * (moving ? 0.1 : 0.055) + bankAngle * 0.55;
+    rig.scarfPivot.rotation.x = THREE.MathUtils.lerp(rig.scarfPivot.rotation.x, targetScarfX, dampSpeed);
+    rig.scarfPivot.rotation.z = THREE.MathUtils.lerp(rig.scarfPivot.rotation.z, targetScarfZ, dampSpeed);
+  }
+
+  // Squash & stretch on the whole figure (rigs that expose their base height scale).
+  // Applied directly (not damped) — the value passed in is already a smoothed envelope.
+  if (rig.heightScale !== undefined) {
+    const s = rig.heightScale;
+    const sxz = s * (1 - squash * 0.55);
+    rig.bodyGroup.scale.set(sxz, s * (1 + squash), sxz);
   }
 
   if (rig.leftEyelid && rig.rightEyelid) {

@@ -54,6 +54,34 @@ export const PLAYER_ACCEL_RATE = 16.0;
 export const PLAYER_DECEL_RATE = 14.0;
 export const PLAYER_TURN_RATE = 13.0;
 
+/**
+ * Stride anchors tuned per speed tier (steps/sec of the full two-foot cycle).
+ * The curve between anchors is piecewise-linear and CONTINUOUS: legacy behavior
+ * snapped 8.5 → 11.5 → 14.5 exactly at the walk/run/sprint thresholds, which made
+ * the stride visibly pop (and feet slide) whenever actualSpeed sat between tiers
+ * while inertia blended. Anchors at the tier speeds match the legacy values so
+ * steady-state gait is unchanged; everything between now blends smoothly.
+ */
+export const STRIDE_FREQ_WALK = 8.5;
+export const STRIDE_FREQ_RUN = 11.5;
+export const STRIDE_FREQ_SPRINT = 14.5;
+
+export function computeStrideFrequency(speed: number): number {
+  if (speed <= PLAYER_WALK_SPEED) {
+    // Slow creep (0.35..3.6): shallow slope so gentle strolls keep a relaxed cadence
+    return STRIDE_FREQ_WALK - (PLAYER_WALK_SPEED - speed) * 1.4;
+  }
+  if (speed <= PLAYER_RUN_SPEED) {
+    const t = (speed - PLAYER_WALK_SPEED) / (PLAYER_RUN_SPEED - PLAYER_WALK_SPEED);
+    return STRIDE_FREQ_WALK + t * (STRIDE_FREQ_RUN - STRIDE_FREQ_WALK);
+  }
+  const t = Math.min(
+    1,
+    (speed - PLAYER_RUN_SPEED) / Math.max(0.001, PLAYER_SPRINT_SPEED - PLAYER_RUN_SPEED),
+  );
+  return STRIDE_FREQ_RUN + t * (STRIDE_FREQ_SPRINT - STRIDE_FREQ_RUN);
+}
+
 export interface PlayerMotionRuntime {
   vx: number;
   vz: number;
@@ -66,6 +94,10 @@ export interface PlayerMotionRuntime {
   groundY: number;
   footstepPending: boolean;
   wasAirOrStepApex: boolean;
+  /** 0..1 normalized launch acceleration — drives lean-into-speed torso pitch. */
+  accelAmount: number;
+  /** 0..1 hard-brake / direction-reversal skid envelope — drives dust poofs & squash. */
+  skidAmount: number;
 }
 
 export function createInitialPlayerMotion(pos: Vec2): PlayerMotionRuntime {
@@ -81,6 +113,8 @@ export function createInitialPlayerMotion(pos: Vec2): PlayerMotionRuntime {
     groundY: getGroundHeightAt(pos.x, pos.z),
     footstepPending: false,
     wasAirOrStepApex: false,
+    accelAmount: 0,
+    skidAmount: 0,
   };
 }
 
@@ -183,6 +217,8 @@ export function stepPlayerMovement(input: StepPlayerMovementInput): StepPlayerMo
         animState: 'sit',
         groundY: seat ? computeSitGroundY(seat.seatHeight, 1.0) : 0,
         footstepPending: false,
+        accelAmount: 0,
+        skidAmount: 0,
       };
       return {
         pos: seatPos,
@@ -298,10 +334,31 @@ export function stepPlayerMovement(input: StepPlayerMovementInput): StepPlayerMo
   else if (Math.abs(turnRateRadPerSec) > 3.2) animState = 'turn';
 
   const prevSin = Math.sin(input.motion.walkPhase);
-  const strideFreq = mode === 'sprint' ? 14.5 : mode === 'run' ? 11.5 : 8.5;
+  const strideFreq = computeStrideFrequency(actualSpeed);
   const walkPhase = actualSpeed >= 0.35 ? input.motion.walkPhase + dt * strideFreq : input.motion.walkPhase;
   const nextSin = Math.sin(walkPhase);
   const crossedFootstep = actualSpeed >= 0.5 && ((prevSin < 0 && nextSin >= 0) || (prevSin > 0 && nextSin <= 0));
+
+  // Launch acceleration envelope (lean into the run before speed catches up)
+  const accelAmount =
+    activeLocomotionInput && desiredSpeed > input.motion.speed + 0.08
+      ? Math.min(1, (desiredSpeed - input.motion.speed) / 3.2)
+      : 0;
+
+  // Skid envelope: fast travel with no input (planted-heel hard brake), or a sharp
+  // input reversal while still carrying speed. Decays smoothly so rising edges
+  // trigger exactly one dust burst and the squash eases back rather than snapping.
+  const reversingSkid =
+    activeLocomotionInput && dirX * input.motion.vx + dirZ * input.motion.vz < 0 && input.motion.speed > 3.0;
+  // Release skid keys off the PRE-slide speed: how fast the wanderer was going the
+  // instant the brake was asked for (post-slide speed already absorbed a decel frame).
+  const releaseSkid = !activeLocomotionInput && input.motion.speed > 4.6;
+  const rawSkid = reversingSkid
+    ? Math.min(1, input.motion.speed / PLAYER_SPRINT_SPEED)
+    : releaseSkid
+    ? Math.min(1, (input.motion.speed - 4.6) / 2.6)
+    : 0;
+  const skidAmount = Math.max(rawSkid, input.motion.skidAmount * Math.exp(-6 * dt));
 
   const groundY = isInterior ? 0 : getGroundHeightAt(resolvedPos.x, resolvedPos.z);
 
@@ -323,6 +380,8 @@ export function stepPlayerMovement(input: StepPlayerMovementInput): StepPlayerMo
       groundY,
       footstepPending: crossedFootstep,
       wasAirOrStepApex: stoodUpFromMove,
+      accelAmount,
+      skidAmount,
     },
   };
 }
