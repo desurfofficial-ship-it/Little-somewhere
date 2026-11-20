@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { ResidentAppearance } from '../../game/types';
+import { ResidentAppearance, SeasonType } from '../../game/types';
 import { CharacterRig } from '../models';
 import { MaterialPalette, STORYBOOK_PALETTE } from '../materials';
 
@@ -13,6 +13,26 @@ export interface WillowCottageRig {
    * it to the hearth's truth (bright while lit — dark when the fire is cold).
    */
   windowMats: THREE.MeshStandardMaterial[];
+  /**
+   * R5 Pass 18: the porch keeps the seasons — observation handles for the
+   * seasonal pot pair, step tufts, door wreath accent, winter rail frost and
+   * the window-box sprig overlays. Gated in updateWillowPrototypeMotion from
+   * world.season (visual-only; no collision or obstacle impact).
+   */
+  porchSeasonLife: {
+    potsSpring: THREE.Group;
+    potsSummer: THREE.Group;
+    potsAutumn: THREE.Group;
+    potsWinter: THREE.Group;
+    stepTuftsSpring: THREE.Group;
+    stepTuftsSummer: THREE.Group;
+    stepTuftsAutumn: THREE.Group;
+    wreathAccentMat: THREE.MeshStandardMaterial;
+    winterRailFrost: THREE.Group;
+    boxAutumnOverlays: THREE.Group[];
+    boxWinterOverlays: THREE.Group[];
+    marigoldBloom: THREE.Group;
+  };
 }
 
 export interface WillowMailboxRig {
@@ -538,9 +558,141 @@ export function buildWillowStepCottage(ctx: WillowPrototypeContext): WillowCotta
   porchPot.position.set(porchStartX + 0.52, deckY + 0.14, -1.46);
   const porchBloom = makeFlowerTuft(palette, STORYBOOK_PALETTE.petalMarigold, 1.15);
   porchBloom.position.set(porchStartX + 0.52, deckY + 0.28, -1.46);
-  group.add(porchPot, porchBloom);
+  group.add(porchPot);
+  // R5 Pass 18: the original marigold tuft becomes the SUMMER pot variant and
+  // is re-parented into its own gateable group.
+  const potsSummer = new THREE.Group();
+  potsSummer.add(porchBloom);
+  group.add(potsSummer);
+
+  // R5 Pass 18: the porch keeps the seasons. The north deck pot rotates with the
+  // calendar (summer keeps the original marigold tuft), step-side tufts drift in
+  // with the season, the door gains a wreath whose accent matches the interior
+  // lintel swag, and winter adds rail frost. Visual-only — no obstacle changes.
+  const potSeasonLoc = [porchStartX + 0.52, deckY + 0.28, -1.46] as const;
+  const potsSpring = new THREE.Group();
+  {
+    const tulipA = makeFlowerTuft(palette, STORYBOOK_PALETTE.petalRose, 1.0);
+    tulipA.position.set(...potSeasonLoc);
+    const tulipB = makeFlowerTuft(palette, STORYBOOK_PALETTE.petalCream, 0.85);
+    tulipB.position.set(potSeasonLoc[0] + 0.12, potSeasonLoc[1] - 0.02, potSeasonLoc[2] + 0.06);
+    tulipB.rotation.y = 1.2;
+    potsSpring.add(tulipA, tulipB);
+  }
+  potsSpring.visible = false;
+  group.add(potsSpring);
+  const potsAutumn = new THREE.Group();
+  {
+    const chrysA = makeFlowerTuft(palette, '#C9793C', 1.05);
+    chrysA.position.set(...potSeasonLoc);
+    const leafSprig = new THREE.Mesh(
+      new THREE.SphereGeometry(0.07, 6, 5),
+      palette.standard('#C6493E', 0.85, 0.0),
+    );
+    leafSprig.scale.set(0.6, 0.9, 0.5);
+    leafSprig.position.set(potSeasonLoc[0] + 0.13, potSeasonLoc[1] + 0.02, potSeasonLoc[2] + 0.05);
+    leafSprig.rotation.z = -0.3;
+    potsAutumn.add(chrysA, leafSprig);
+  }
+  potsAutumn.visible = false;
+  group.add(potsAutumn);
+  const potsWinter = new THREE.Group();
+  {
+    const evergreen = new THREE.Mesh(
+      new THREE.SphereGeometry(0.13, 7, 6),
+      palette.standard(STORYBOOK_PALETTE.foliageMid, 0.86, 0.0),
+    );
+    evergreen.scale.set(0.75, 1.15, 0.75);
+    evergreen.position.set(potSeasonLoc[0], potSeasonLoc[1] + 0.1, potSeasonLoc[2]);
+    const snowCap = new THREE.Mesh(
+      new THREE.SphereGeometry(0.085, 7, 5),
+      palette.standard('#EDF4F8', 0.92, 0.0),
+    );
+    snowCap.scale.set(0.85, 0.45, 0.85);
+    snowCap.position.set(potSeasonLoc[0], potSeasonLoc[1] + 0.21, potSeasonLoc[2]);
+    potsWinter.add(evergreen, snowCap);
+  }
+  potsWinter.visible = false;
+  group.add(potsWinter);
+
+  // Step-side seasonal tufts (ground level beside the entrance step, off the
+  // door approach line — visual dressing only, matching the garden-strip style)
+  const stepLocX = porchEndX + 0.26;
+  const makeStepTufts = (specs: Array<[number, number, string, number]>) => {
+    const g = new THREE.Group();
+    for (const [sz, off, hex, scl] of specs) {
+      const tuft = makeFlowerTuft(palette, hex, scl);
+      tuft.position.set(stepLocX, 0.02, sz + off);
+      tuft.rotation.y = off * 3.1;
+      g.add(tuft);
+    }
+    return g;
+  };
+  const stepTuftsSpring = makeStepTufts([
+    [-1.02, 0.0, STORYBOOK_PALETTE.petalCream, 0.9],
+    [1.02, 0.02, STORYBOOK_PALETTE.petalRose, 0.8],
+    [1.12, -0.06, STORYBOOK_PALETTE.petalCream, 0.7],
+  ]);
+  const stepTuftsSummer = makeStepTufts([
+    [-1.02, 0.0, STORYBOOK_PALETTE.petalMarigold, 0.9],
+    [1.02, 0.0, STORYBOOK_PALETTE.petalLavender, 0.85],
+  ]);
+  const stepTuftsAutumn = makeStepTufts([
+    [-1.02, 0.02, '#C9793C', 0.95],
+    [1.02, 0.0, STORYBOOK_PALETTE.petalMarigold, 0.8],
+  ]);
+  stepTuftsSpring.visible = false;
+  stepTuftsSummer.visible = false;
+  stepTuftsAutumn.visible = false;
+  group.add(stepTuftsSpring, stepTuftsSummer, stepTuftsAutumn);
+
+  // Seasonal door wreath — evergreen ring above the door glass whose accent
+  // dots swap color with the season (mirrors the interior lintel swag palette).
+  const wreathAccentMat = new THREE.MeshStandardMaterial({
+    color: '#F7EFD8',
+    roughness: 0.72,
+    metalness: 0.02,
+  });
+  const linenWreathMat = palette.standard('#F5EEE0', 0.88, 0.0);
+  const wreath = new THREE.Group();
+  {
+    const ring = new THREE.Mesh(
+      new THREE.TorusGeometry(0.13, 0.034, 7, 16),
+      palette.standard(STORYBOOK_PALETTE.foliageMid, 0.86, 0.0),
+    );
+    ring.rotation.y = Math.PI / 2;
+    wreath.add(ring);
+    for (const ay of [-0.1, 0.0, 0.1]) {
+      const accent = new THREE.Mesh(new THREE.SphereGeometry(0.026, 7, 6), wreathAccentMat);
+      accent.position.set(0.045, ay, -Math.sqrt(Math.max(0, 0.0169 - ay * ay)));
+      wreath.add(accent);
+    }
+    const bow = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.045, 0.07), linenWreathMat);
+    bow.position.set(0.05, -0.15, 0.0);
+    wreath.add(bow);
+  }
+  wreath.position.set(porchStartX + 0.14, deckY + 1.62, 0);
+  group.add(wreath);
+
+  // Winter rail frost — thin linen-white ridges along the two porch rail tops
+  const winterRailFrost = new THREE.Group();
+  for (const sz of [-1, 1]) {
+    const ridge = new THREE.Mesh(
+      new THREE.BoxGeometry(0.14, 0.045, 1.24),
+      palette.standard('#EDF4F8', 0.92, 0.0),
+    );
+    ridge.position.set(postX, deckY + 0.775, sz * 1.4);
+    winterRailFrost.add(ridge);
+  }
+  winterRailFrost.visible = false;
+  group.add(winterRailFrost);
 
   // 7. Recessed Shuttered Windows + Muntins + Blooming Window Planter Boxes
+  // R5 Pass 18: seasonal overlays for the flower boxes (autumn red-leaf sprigs,
+  // winter evergreen + snow ridge) are collected per window so the rig can gate
+  // them without touching the progress-driven planter blooms (flowerGroups).
+  const boxAutumnOverlays: THREE.Group[] = [];
+  const boxWinterOverlays: THREE.Group[] = [];
   const addStorybookWindow = (
     wx: number,
     wy: number,
@@ -590,6 +742,44 @@ export function buildWillowStepCottage(ctx: WillowPrototypeContext): WillowCotta
       }
       flowerGroups.push(blooms);
       wg.add(blooms);
+
+      // R5 Pass 18: seasonal box overlays — tucked at the box ends so they
+      // never hide the planter blooms that carry plantersBloomed progress.
+      const autumnOverlay = new THREE.Group();
+      for (const [ax, tilt] of [
+        [-0.44, 0.3],
+        [0.44, -0.3],
+      ] as const) {
+        const sprig = new THREE.Mesh(
+          new THREE.SphereGeometry(0.075, 6, 5),
+          palette.standard('#C9793C', 0.85, 0.0),
+        );
+        sprig.scale.set(0.55, 0.9, 0.5);
+        sprig.position.set(ax, -0.62, 0.2);
+        sprig.rotation.z = tilt;
+        autumnOverlay.add(sprig);
+      }
+      wg.add(autumnOverlay);
+      boxAutumnOverlays.push(autumnOverlay);
+
+      const winterOverlay = new THREE.Group();
+      const snowRidge = new THREE.Mesh(
+        new THREE.BoxGeometry(1.12, 0.05, 0.3),
+        palette.standard('#EDF4F8', 0.92, 0.0),
+      );
+      snowRidge.position.set(0, -0.55, 0.18);
+      winterOverlay.add(snowRidge);
+      for (const ex of [-0.44, 0.44]) {
+        const evergreen = new THREE.Mesh(
+          new THREE.SphereGeometry(0.08, 6, 5),
+          palette.standard(STORYBOOK_PALETTE.foliageMid, 0.86, 0.0),
+        );
+        evergreen.scale.set(0.5, 1.0, 0.5);
+        evergreen.position.set(ex, -0.6, 0.2);
+        winterOverlay.add(evergreen);
+      }
+      wg.add(winterOverlay);
+      boxWinterOverlays.push(winterOverlay);
     }
 
     wg.position.set(wx, wy, wz);
@@ -659,7 +849,26 @@ export function buildWillowStepCottage(ctx: WillowPrototypeContext): WillowCotta
     group.add(tuft);
   }
 
-  return { group, smokePuffs, lanternMesh, windowMats: [winMat] };
+  return {
+    group,
+    smokePuffs,
+    lanternMesh,
+    windowMats: [winMat],
+    porchSeasonLife: {
+      potsSpring,
+      potsSummer,
+      potsAutumn,
+      potsWinter,
+      stepTuftsSpring,
+      stepTuftsSummer,
+      stepTuftsAutumn,
+      wreathAccentMat,
+      winterRailFrost,
+      boxAutumnOverlays,
+      boxWinterOverlays,
+      marigoldBloom: porchBloom,
+    },
+  };
 }
 
 /**
@@ -1349,6 +1558,7 @@ export function updateWillowPrototypeMotion(
   courtyard: WillowCourtyardRig,
   elapsed: number,
   smokeStrength = 1,
+  season: SeasonType = 'spring',
 ): void {
   const smoking = smokeStrength > 0;
   const sizeBoost = Math.min(1.35, 0.72 + 0.28 * smokeStrength);
@@ -1374,4 +1584,30 @@ export function updateWillowPrototypeMotion(
     const cluster = courtyard.swayClusters[i];
     cluster.rotation.z = Math.sin(elapsed * 1.7 + i * 0.9) * 0.045;
   }
+
+  // R5 Pass 18: the porch keeps the seasons — pot blooms, step tufts, wreath
+  // accent, rail frost and window-box overlays follow the calendar. Scalar
+  // visibility writes only; zero allocation per frame.
+  const life = cottage.porchSeasonLife;
+  life.potsSpring.visible = season === 'spring';
+  life.potsSummer.visible = season === 'summer';
+  life.potsAutumn.visible = season === 'autumn';
+  life.potsWinter.visible = season === 'winter';
+  life.stepTuftsSpring.visible = season === 'spring';
+  life.stepTuftsSummer.visible = season === 'summer';
+  life.stepTuftsAutumn.visible = season === 'autumn';
+  life.winterRailFrost.visible = season === 'winter';
+  for (let i = 0; i < life.boxAutumnOverlays.length; i++) {
+    life.boxAutumnOverlays[i].visible = season === 'autumn';
+  }
+  for (let i = 0; i < life.boxWinterOverlays.length; i++) {
+    life.boxWinterOverlays[i].visible = season === 'winter';
+  }
+  const wreathAccents: Record<SeasonType, number> = {
+    spring: 0xf7efd8,
+    summer: 0xb9a3d6,
+    autumn: 0xd97f3e,
+    winter: 0xd9b36a,
+  };
+  life.wreathAccentMat.color.setHex(wreathAccents[season]);
 }

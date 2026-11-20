@@ -1481,6 +1481,7 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
           willowCourtyard,
           elapsed,
           computeChimneySmokeStrength(world),
+          world.season,
         );
       }
 
