@@ -91,6 +91,12 @@ export interface WillowCottageInteriorRig {
     hearthAutumn: THREE.Group;
     hearthWinter: THREE.Group;
   };
+  /**
+   * Pass 21: winter warmth — floor-scale winter textiles and fire reserve that
+   * make the cold season read inside the room (knit runner, bed-foot throw,
+   * firewood stack). Winter-gated in rig.update; visual-only, zero game-state.
+   */
+  winterComforts: THREE.Group;
   update(world: WorldState, phase: TimePhase, elapsed: number): void;
   dispose(): void;
 }
@@ -1098,6 +1104,82 @@ export function buildWillowCottageInterior(
   autumnLeaves.visible = false;
   group.add(autumnLeaves);
 
+  // Pass 21. Winter warmth — the cold season reads inside the room, not just on
+  // the glass. Floor-scale textiles + fire reserve, winter-gated in rig.update;
+  // all pieces sit inside existing footprints or hug walls so the walkable floor
+  // reads unchanged and COTTAGE_INTERIOR_OBSTACLES stays untouched.
+  const winterComforts = new THREE.Group();
+  winterComforts.name = 'winter_comforts';
+  {
+    // Knit wool runner from the porch door into the room's east aisle — striped
+    // rows + fringe ends, the winter answer to the braided hearth rug. Placed on
+    // the open east floor (the braided rug owns the center-west patch).
+    const runner = new THREE.Group();
+    runner.position.set(2.2, 0, 0.0);
+    runner.rotation.y = Math.PI * 0.5;
+    const runnerBase = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(0.5, 0.022, 1.72)), hearthKnitCreamMat);
+    runnerBase.position.y = 0.011;
+    runnerBase.receiveShadow = true;
+    runner.add(runnerBase);
+    const runnerStripes: Array<[number, THREE.Material]> = [
+      [-0.52, hearthWoolMat],
+      [-0.2, sageMat],
+      [0.12, hearthWoolMat],
+      [0.44, sageMat],
+    ];
+    for (const [sz, mat] of runnerStripes) {
+      const stripe = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(0.51, 0.008, 0.14)), mat);
+      stripe.position.set(0, 0.024, sz);
+      runner.add(stripe);
+    }
+    for (const endZ of [-0.88, 0.88]) {
+      for (const fx of [-0.18, -0.09, 0, 0.09, 0.18]) {
+        const fringe = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(0.02, 0.004, 0.09)), hearthKnitCreamMat);
+        fringe.position.set(fx, 0.01, endZ + Math.sign(endZ) * 0.045);
+        runner.add(fringe);
+      }
+    }
+    winterComforts.add(runner);
+
+    // Knitted throw folded over the bed's foot rail — a winter-made bed.
+    // Parented to winterComforts (not bedGroup) so the season gate hides it;
+    // coordinates are the bed group's world origin (-2.48, 0, 1.7) + local offset.
+    const bedThrow = new THREE.Group();
+    bedThrow.position.set(-2.48, 0, 1.7);
+    const throwDrape = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(0.16, 0.34, 1.28)), hearthWoolMat);
+    throwDrape.position.set(0.8, 0.33, 0);
+    throwDrape.rotation.z = -0.5;
+    const throwBand = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(0.18, 0.09, 1.29)), hearthKnitCreamMat);
+    throwBand.position.set(0.72, 0.44, 0);
+    throwBand.rotation.z = -0.5;
+    const throwFold = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(0.3, 0.055, 1.3)), hearthKnitCreamMat);
+    throwFold.position.set(0.58, 0.6, 0);
+    bedThrow.add(throwDrape, throwBand, throwFold);
+    winterComforts.add(bedThrow);
+
+    // Firewood reserve beside the hearth's east face — cut rounds stacked 2+1.
+    const logStack = new THREE.Group();
+    logStack.position.set(-0.82, 0, -2.28);
+    for (const [lx3, ly3, lz3, lr3] of [
+      [-0.04, 0.055, 0, 0.04],
+      [0.05, 0.055, 0.01, -0.03],
+      [0.005, 0.15, -0.005, 0.06],
+    ] as const) {
+      const log = new THREE.Mesh(trackGeo(new THREE.CylinderGeometry(0.052, 0.055, 0.34, 9)), cedarDarkMat);
+      log.rotation.x = Math.PI * 0.5;
+      log.rotation.z = lr3;
+      log.position.set(lx3, ly3, lz3);
+      const logEnd = new THREE.Mesh(trackGeo(new THREE.CylinderGeometry(0.053, 0.053, 0.012, 9)), cedarWarmMat);
+      logEnd.rotation.x = Math.PI * 0.5;
+      logEnd.rotation.z = lr3;
+      logEnd.position.set(lx3, ly3, lz3 + 0.17);
+      logStack.add(log, logEnd);
+    }
+    winterComforts.add(logStack);
+  }
+  winterComforts.visible = false;
+  group.add(winterComforts);
+
   // H11 (Pass 6). Entry sign-of-use: garden boots in the door recess + wall pegs with a straw hat
   // (door recess spans z -0.62..0.62 at the east curb; pegs live on the north wall plane near the door)
   const bootLeatherMat = palette.standard('#5C3A28', 0.72, 0.04);
@@ -1160,6 +1242,34 @@ export function buildWillowCottageInterior(
     stool.add(seat, ring);
     tableGroup.add(stool);
   }
+
+  // Pass 21. Table life — season-independent craft: wool cushions warm the two
+  // dining stools, and a small bread board rests at the table's south-east rim
+  // (away from the vase focus and the reactive teacup), all inside the table
+  // footprint so neither interaction targets nor walkability change.
+  for (const [stool, tilt, cushionMat, cname] of [
+    [stoolGroupWest, 0.09, terracottaMat, 'stool_cushion_west'],
+    [stoolGroupEast, -0.07, sageMat, 'stool_cushion_east'],
+  ] as const) {
+    const cushion = new THREE.Mesh(trackGeo(new THREE.CylinderGeometry(0.15, 0.165, 0.05, 12)), cushionMat);
+    cushion.position.y = 0.472;
+    cushion.rotation.z = tilt;
+    cushion.name = cname;
+    cushion.castShadow = true;
+    stool.add(cushion);
+  }
+  const tableBreadBoard = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(0.3, 0.024, 0.17)), cedarWarmMat);
+  tableBreadBoard.position.set(0.3, 0.783, -0.3);
+  tableBreadBoard.rotation.y = -0.3;
+  tableBreadBoard.castShadow = true;
+  const tableBreadSlice = new THREE.Mesh(trackGeo(new THREE.CylinderGeometry(0.062, 0.062, 0.048, 14)), teaBrewMat);
+  tableBreadSlice.position.set(0.26, 0.815, -0.27);
+  tableBreadSlice.rotation.set(0, -0.3, Math.PI * 0.5);
+  tableBreadSlice.scale.set(1, 1, 0.62);
+  const tableCloth = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(0.2, 0.016, 0.16)), linenMat);
+  tableCloth.position.set(0.36, 0.779, -0.24);
+  tableCloth.rotation.y = 0.4;
+  tableGroup.add(tableBreadBoard, tableBreadSlice, tableCloth);
 
   // H2. Linen curtains + brass rod dressing the west sunlit window
   const curtainRod = new THREE.Mesh(trackGeo(new THREE.CylinderGeometry(0.022, 0.022, 1.98, 8)), brassMat);
@@ -1567,6 +1677,8 @@ export function buildWillowCottageInterior(
     seasonLife.hearthSummer.visible = season === 'summer';
     seasonLife.hearthAutumn.visible = season === 'autumn';
     seasonLife.hearthWinter.visible = season === 'winter';
+    // Pass 21: winter warmth — floor textiles + firewood appear with the frost
+    winterComforts.visible = season === 'winter';
     const accent = seasonSwagAccents[season] ?? seasonSwagAccents.spring;
     seasonLife.doorSwagAccentMat.color.copy(accent);
     const glassTint = seasonGlassTints[season] ?? seasonGlassTints.spring;
@@ -1723,6 +1835,7 @@ export function buildWillowCottageInterior(
     curtainPanels: { north: curtainNorth, south: curtainSouth },
     homeMementos,
     seasonLife,
+    winterComforts,
     update,
     dispose,
   };

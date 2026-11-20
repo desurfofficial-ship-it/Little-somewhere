@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { ResidentAppearance, SeasonType } from '../../game/types';
 import { CharacterRig } from '../models';
 import { MaterialPalette, STORYBOOK_PALETTE } from '../materials';
+import { buildWinterKnitCollar } from '../builders/characters';
 
 export interface WillowCottageRig {
   group: THREE.Group;
@@ -1546,6 +1547,24 @@ export function buildStorybookJun(
   questPip.visible = false;
   root.add(questPip);
 
+  // Winter knit kit (same contract as buildStorybookCharacter — per-rig clones,
+  // zero shared-cache mutation): coat clone swap, courier-scarf yarn clone,
+  // winter-only neck warmer tinted from the coat yarn.
+  const knitCoatMat = coatMat.clone();
+  for (const child of root.children) {
+    child.traverse((o) => {
+      const mesh = o as THREE.Mesh;
+      if (mesh.isMesh && mesh.material === coatMat) {
+        mesh.material = knitCoatMat;
+      }
+    });
+  }
+  const knitScarfMat = scarfMat.clone();
+  scarfCollar.material = knitScarfMat;
+  scarfTail.material = knitScarfMat;
+  const winterCollar = buildWinterKnitCollar(palette, appearance);
+  torsoPivot.add(winterCollar.group);
+
   return {
     root,
     bodyGroup,
@@ -1565,6 +1584,9 @@ export function buildStorybookJun(
     mouthSmile: junMouthSmile,
     mouthO: junMouthO,
     swayTail: scarfTailPivot,
+    knitMaterials: [knitCoatMat, winterCollar.material, knitScarfMat],
+    knitBaseColors: [appearance.coatColor, appearance.coatColor, appearance.accentColor],
+    winterKnitCollar: winterCollar.group,
   };
 }
 

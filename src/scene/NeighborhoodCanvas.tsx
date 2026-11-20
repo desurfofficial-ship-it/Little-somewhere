@@ -153,6 +153,7 @@ import {
 import {
   CharacterAnimationOptions,
   animateCharacterRig,
+  applyCharacterWinterTint,
   buildStorybookCharacter,
 } from './builders/characters';
 
@@ -1101,6 +1102,7 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
     let lastSyncedZ = NaN;
     let lastSyncedWeather: WeatherType | null = null;
     let lastSyncedSeason: SeasonType | null = null;
+    let lastKnitSeason: SeasonType | null = null; // resident knitwear winter tint (edge-triggered)
     let lastSyncedPosture: PlayerPosture | null = null;
     let lastSyncedHeldItem: CarryableItemId | null | undefined = undefined;
     let lastSyncedBubbleKey: string | null = null;
@@ -1860,6 +1862,17 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
       const elapsed = timer.getElapsed();
       const state = screenStateRef.current;
       const world = worldRef.current;
+
+      // Winter knit tinting — edge-triggered on season change only (never per frame):
+      // every neighbor's knitwear shifts to its winter-dyed heather and the hand-knit
+      // neck warmers appear; other seasons restore the authoring colors.
+      if (lastKnitSeason !== world.season) {
+        lastKnitSeason = world.season;
+        applyCharacterWinterTint(playerRig, world.season);
+        for (const rid of RESIDENT_ORDER) {
+          applyCharacterWinterTint(residentRigs[rid], world.season);
+        }
+      }
 
       if (lastBellCountRef.current !== prevBellCountLocal) {
         prevBellCountLocal = lastBellCountRef.current;

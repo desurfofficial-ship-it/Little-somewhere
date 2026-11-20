@@ -85,4 +85,14 @@ export interface CharacterRig {
   swayTail?: THREE.Group;
   /** Base height scale of bodyGroup — enables squash-&-stretch without losing proportions. */
   heightScale?: number;
+  /**
+   * Winter knit system: per-rig CLONED knitwear materials (coat + scarf/shawl +
+   * winter collar) so the season tint can shift colors without mutating the shared
+   * palette cache. Base colors live in `knitBaseColors` (same order).
+   */
+  knitMaterials?: THREE.MeshStandardMaterial[];
+  /** Authoring colors for `knitMaterials`, restored outside winter. */
+  knitBaseColors?: string[];
+  /** Hand-knit neck warmer shown only during winter (tinted from the coat color). */
+  winterKnitCollar?: THREE.Group;
 }

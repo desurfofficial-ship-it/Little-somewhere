@@ -4,6 +4,7 @@ import {
   NpcAnimationState,
   ResidentAppearance,
   ResidentId,
+  SeasonType,
 } from '../../game/types';
 import { MaterialPalette, STORYBOOK_PALETTE } from '../materials';
 import { CharacterRig } from '../models';
@@ -22,6 +23,122 @@ export interface CharacterAnimationOptions {
   accelLean?: number;
   /** Squash & stretch: positive compresses the figure (skid/step impact), negative stretches (launch). */
   squash?: number;
+}
+
+// ---------------------------------------------------------------------------
+// Winter knit tinting — season-driven knitwear color shift (visually noticeable)
+// ---------------------------------------------------------------------------
+
+function rgbToHsl(r: number, g: number, b: number): [number, number, number] {
+  const rn = r / 255;
+  const gn = g / 255;
+  const bn = b / 255;
+  const max = Math.max(rn, gn, bn);
+  const min = Math.min(rn, gn, bn);
+  const l = (max + min) / 2;
+  if (max === min) return [0, 0, l];
+  const d = max - min;
+  const s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+  let h: number;
+  if (max === rn) h = ((gn - bn) / d + (gn < bn ? 6 : 0)) / 6;
+  else if (max === gn) h = ((bn - rn) / d + 2) / 6;
+  else h = ((rn - gn) / d + 4) / 6;
+  return [h, s, l];
+}
+
+function hueToRgb(p: number, q: number, t: number): number {
+  let tt = t;
+  if (tt < 0) tt += 1;
+  if (tt > 1) tt -= 1;
+  if (tt < 1 / 6) return p + (q - p) * 6 * tt;
+  if (tt < 1 / 2) return q;
+  if (tt < 2 / 3) return p + (q - p) * (2 / 3 - tt) * 6;
+  return p;
+}
+
+function hslToRgb(h: number, s: number, l: number): [number, number, number] {
+  if (s === 0) {
+    const v = Math.round(l * 255);
+    return [v, v, v];
+  }
+  const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+  const p = 2 * l - q;
+  return [
+    Math.round(hueToRgb(p, q, h + 1 / 3) * 255),
+    Math.round(hueToRgb(p, q, h) * 255),
+    Math.round(hueToRgb(p, q, h - 1 / 3) * 255),
+  ];
+}
+
+function hexToRgb(hex: string): [number, number, number] {
+  const p = parseInt(hex.replace('#', ''), 16);
+  return [(p >> 16) & 255, (p >> 8) & 255, p & 255];
+}
+
+function rgbToHex(r: number, g: number, b: number): string {
+  return `#${((1 << 24) | (r << 16) | (g << 8) | b).toString(16).slice(1)}`;
+}
+
+/**
+ * Maps a knit color to its winter-dyed heather: a short-way hue nudge toward the
+ * cool range (≤9°, so terracotta stays terracotta), softened saturation and a
+ * deeper value — every coat clearly reads as its winter wool while keeping each
+ * neighbor's color identity. Pure + deterministic.
+ */
+export function computeWinterKnitTint(hex: string): string {
+  const [r, g, b] = hexToRgb(hex);
+  const [h, s, l] = rgbToHsl(r, g, b);
+  // Blend hue 6% toward 230° (cool steel-blue) along the SHORT circular path.
+  let delta = 230 / 360 - h;
+  while (delta > 0.5) delta -= 1;
+  while (delta < -0.5) delta += 1;
+  const winterH = (h + delta * 0.06 + 1) % 1;
+  const winterS = Math.min(1, s * 0.86);
+  const winterL = l * 0.84;
+  const [wr, wg, wb] = hslToRgb(winterH, winterS, winterL);
+  return rgbToHex(wr, wg, wb);
+}
+
+/**
+ * Applies the season state to one rig's knit system (edge-triggered by the caller
+ * on season changes only — never per frame). Winter: knitwear shifts to the
+ * winter-dyed heather and the hand-knit neck warmer appears. Any other season:
+ * authoring colors restored and the collar hides. Zero allocations.
+ */
+export function applyCharacterWinterTint(rig: CharacterRig, season: SeasonType): void {
+  if (!rig.knitMaterials || !rig.knitBaseColors) return;
+  const winter = season === 'winter';
+  for (let i = 0; i < rig.knitMaterials.length; i++) {
+    const base = rig.knitBaseColors[i];
+    if (base === undefined) continue;
+    rig.knitMaterials[i].color.set(winter ? computeWinterKnitTint(base) : base);
+  }
+  if (rig.winterKnitCollar) {
+    rig.winterKnitCollar.visible = winter;
+  }
+}
+
+/**
+ * Builds the winter-only hand-knit neck warmer (torus wrap + short chest tail)
+ * in the coat's yarn color. Hidden outside winter; its material joins the rig's
+ * knit set so the tint applier can deepen it alongside the coat.
+ */
+export function buildWinterKnitCollar(
+  palette: MaterialPalette,
+  appearance: ResidentAppearance,
+): { group: THREE.Group; material: THREE.MeshStandardMaterial } {
+  const material = palette.standard(appearance.coatColor, 0.86, 0.01);
+  const group = new THREE.Group();
+  group.name = 'winter_knit_collar';
+  const wrap = new THREE.Mesh(new THREE.TorusGeometry(0.225, 0.075, 7, 14), material);
+  wrap.rotation.x = Math.PI / 2;
+  wrap.position.y = 0.595;
+  const tail = new THREE.Mesh(new THREE.BoxGeometry(0.11, 0.2, 0.05), material);
+  tail.position.set(0.1, 0.48, 0.24);
+  tail.rotation.z = -0.14;
+  group.add(wrap, tail);
+  group.visible = false;
+  return { group, material };
 }
 
 /**
@@ -123,7 +240,14 @@ export function buildStorybookCharacter(
 
   // Articulated extras exposed as optional fields on the rig contract:
   // scarf tail pivot + satchel are player-only; swayTail (hanging cloth) is NPC-facing.
-  const rigExtras: { scarfPivot?: THREE.Group; satchelGroup?: THREE.Group; swayTail?: THREE.Group } = {};
+  // Knit accent meshes (scarf / shawl pieces) get per-rig material clones so the
+  // winter tint never mutates the shared palette cache.
+  const rigExtras: {
+    scarfPivot?: THREE.Group;
+    satchelGroup?: THREE.Group;
+    swayTail?: THREE.Group;
+    knitAccentMeshes: THREE.Mesh[];
+  } = { knitAccentMeshes: [] };
 
   // Bespoke chest/waist tailoring by character role
   if (characterId === 'player') {
@@ -156,6 +280,7 @@ export function buildStorybookCharacter(
     scarf.rotation.x = Math.PI / 2;
     scarf.position.y = 0.585;
     torsoPivot.add(scarf);
+    rigExtras.knitAccentMeshes.push(scarf);
 
     const scarfPivot = new THREE.Group();
     scarfPivot.position.set(0.075, 0.545, 0.235);
@@ -167,6 +292,7 @@ export function buildStorybookCharacter(
     scarfFringe.position.set(0.01, -0.265, 0.03);
     scarfPivot.add(scarfTailUpper, scarfTailLower, scarfFringe);
     torsoPivot.add(scarfPivot);
+    rigExtras.knitAccentMeshes.push(scarfTailUpper, scarfTailLower, scarfFringe);
 
     rigExtras.scarfPivot = scarfPivot;
     rigExtras.satchelGroup = satchelGroup;
@@ -204,6 +330,7 @@ export function buildStorybookCharacter(
     shawlTail.rotation.z = -0.18;
     shawlPivot.add(shawlTail);
     torsoPivot.add(shawlPivot);
+    rigExtras.knitAccentMeshes.push(shawlTail);
     rigExtras.swayTail = shawlPivot;
   } else if (characterId === 'toby') {
     // The wandering sketcher (Pass 20 identity): paint smudges dot the coat, and a
@@ -688,6 +815,38 @@ export function buildStorybookCharacter(
   questPip.visible = false;
   root.add(questPip);
 
+  // Winter knit kit (per-rig, zero shared-cache mutation):
+  // 1. Clone the coat material and swap every coat mesh onto the clone — the
+  //    season tint then deepens this neighbor's knit only.
+  const knitCoatMat = coatMat.clone();
+  for (const child of root.children) {
+    child.traverse((o) => {
+      const mesh = o as THREE.Mesh;
+      if (mesh.isMesh && mesh.material === coatMat) {
+        mesh.material = knitCoatMat;
+      }
+    });
+  }
+  // 2. Clone the accent yarn for scarf/shawl knit pieces only (collar band, hat
+  //    ribbon and other accent details keep the shared color year-round).
+  let knitAccentMat: THREE.MeshStandardMaterial | null = null;
+  if (rigExtras.knitAccentMeshes.length > 0) {
+    knitAccentMat = (rigExtras.knitAccentMeshes[0].material as THREE.MeshStandardMaterial).clone();
+    for (const mesh of rigExtras.knitAccentMeshes) {
+      mesh.material = knitAccentMat;
+    }
+  }
+  // 3. Winter-only hand-knit neck warmer, tinted from the coat yarn.
+  const winterCollar = buildWinterKnitCollar(palette, appearance);
+  torsoPivot.add(winterCollar.group);
+
+  const knitMaterials: THREE.MeshStandardMaterial[] = [knitCoatMat, winterCollar.material];
+  const knitBaseColors: string[] = [appearance.coatColor, appearance.coatColor];
+  if (knitAccentMat) {
+    knitMaterials.push(knitAccentMat);
+    knitBaseColors.push(appearance.accentColor);
+  }
+
   return {
     root,
     bodyGroup,
@@ -710,6 +869,9 @@ export function buildStorybookCharacter(
     mouthO,
     swayTail: rigExtras.swayTail,
     heightScale: s,
+    knitMaterials,
+    knitBaseColors,
+    winterKnitCollar: winterCollar.group,
   };
 }
 
