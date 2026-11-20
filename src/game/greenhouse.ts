@@ -33,8 +33,12 @@ export const GREENHOUSE_DOOR_POS: Vec2 = { x: 10.15, z: 3.2 };
 export const GREENHOUSE_PORCH_EXIT_POS: Vec2 = { x: 9.9, z: 3.2 };
 export const GREENHOUSE_PORCH_EXIT_FACING = Math.PI * 0.5; // Facing east toward the glasshouse door
 
-export const GREENHOUSE_DOOR_SPAWN: Vec2 = { x: 2.3, z: -0.4 };
-export const GREENHOUSE_DOOR_DEFAULT_FACING = -Math.PI * 0.5; // Facing inward west into the room
+// Building-audit Phase A door-side reconciliation: the interior door moved from the east
+// glass wall to the west glass wall (opening z 0.9..2.1) so the door the player walks to
+// outside (west, world (11.53, 3.2)) is the door they step through inside. The spawn sits
+// just east of the door mat (-2.15, 1.5); facing +π/2 looks east into the room.
+export const GREENHOUSE_DOOR_SPAWN: Vec2 = { x: -2.3, z: 1.5 };
+export const GREENHOUSE_DOOR_DEFAULT_FACING = Math.PI * 0.5; // Facing inward east into the room
 
 export interface GreenhouseInteriorBoxObstacle {
   id: GreenhouseInteractableId;
@@ -47,8 +51,10 @@ export interface GreenhouseInteriorBoxObstacle {
 export const GREENHOUSE_INTERIOR_OBSTACLES: readonly GreenhouseInteriorBoxObstacle[] = [
   // Cedar potting bench along the north-west wall
   { id: 'greenhouse_potting', minX: -2.9, maxX: -0.95, minZ: -2.58, maxZ: -1.72 },
-  // Long growing shelf with the four shared plots along the west wall
-  { id: 'greenhouse_shelf', minX: -2.98, maxX: -2.28, minZ: -1.25, maxZ: 1.35 },
+  // Long growing shelf with the four shared plots along the east wall
+  // (Phase A door-side reconciliation: mirrored from the west wall so the
+  //  shelf light follows the taller east glass)
+  { id: 'greenhouse_shelf', minX: 2.28, maxX: 2.98, minZ: -1.25, maxZ: 1.35 },
   // Rain barrel + copper watering can station in the north-east corner
   { id: 'greenhouse_water', minX: 1.6, maxX: 2.55, minZ: -2.58, maxZ: -1.78 },
   // Mina's oak worktable against the south wall
@@ -70,10 +76,10 @@ export const GREENHOUSE_INTERACTABLES: readonly GreenhouseInteractable[] = [
   {
     id: 'greenhouse_door',
     name: 'Glasshouse Door',
-    x: 2.5,
-    z: -0.4,
-    focusX: 3.1,
-    focusZ: -0.4,
+    x: -2.5,
+    z: 1.5,
+    focusX: -3.1,
+    focusZ: 1.5,
     interactRadius: 1.9,
     actionLabel: 'Step Outside',
   },
@@ -90,9 +96,9 @@ export const GREENHOUSE_INTERACTABLES: readonly GreenhouseInteractable[] = [
   {
     id: 'greenhouse_shelf',
     name: 'Growing Shelf',
-    x: -1.7,
+    x: 1.7,
     z: 0.1,
-    focusX: -2.85,
+    focusX: 2.85,
     focusZ: 0.1,
     interactRadius: 1.9,
     actionLabel: 'Check Growing Pots',
@@ -100,7 +106,9 @@ export const GREENHOUSE_INTERACTABLES: readonly GreenhouseInteractable[] = [
   {
     id: 'greenhouse_water',
     name: 'Rain Barrel & Watering Can',
-    x: 2.05,
+    // Stand spot sits west of the mirrored east shelf's walkability padding
+    // (shelf minX 2.28 - 0.42 radius = 1.86)
+    x: 1.7,
     z: -1.15,
     focusX: 2.05,
     focusZ: -2.4,
@@ -332,12 +340,12 @@ export function resolveGreenhouseInteriorMovement(
 }
 
 const GREENHOUSE_INTERIOR_HUBS: readonly Vec2[] = [
-  { x: 0.2, z: 0.0 }, // Central open aisle between shelf, bench, and table
-  { x: -1.15, z: -0.75 }, // West aisle between growing shelf and potting bench
-  { x: 1.35, z: -0.5 }, // East aisle near the door and barrel corner
+  { x: 0.2, z: 0.0 }, // Central open aisle between bench, table, shelf, and barrel
+  { x: -1.15, z: -0.75 }, // West aisle between the potting bench and the door wall
+  { x: 1.35, z: -0.5 }, // East aisle near the growing shelf and barrel corner
   { x: 0.35, z: -1.6 }, // North passage between bench and barrel
   { x: 0.5, z: 1.05 }, // South passage above the worktable
-  { x: -1.5, z: 1.35 }, // South-west pocket by the shelf end
+  { x: -1.5, z: 1.35 }, // South-west pocket by the new door
 ];
 
 function isGreenhouseSegmentWalkable(a: Vec2, b: Vec2, actorRadius = 0.42): boolean {

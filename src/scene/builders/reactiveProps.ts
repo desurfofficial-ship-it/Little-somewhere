@@ -114,10 +114,14 @@ export interface GreenhouseStageRig {
   dispose(): void;
 }
 
+const MOON_POT_Y = 1.045;
+
+// Moon-petal pots sit on the trestle potting bench along the greenhouse's north dwarf wall
+// (bench top y 0.905 in buildings.ts; pot height 0.28 -> centre y 1.045 keeps them grounded).
 const MOON_PETAL_POTS: ReadonlyArray<{ x: number; z: number }> = [
-  { x: -1.2, z: -1.32 },
-  { x: 0, z: -1.32 },
-  { x: 1.2, z: -1.32 },
+  { x: -2.45, z: -2.2 },
+  { x: -1.9, z: -2.2 },
+  { x: -1.35, z: -2.2 },
 ];
 
 /**
@@ -174,24 +178,24 @@ export function buildGreenhouseStageRig(palette: MaterialPalette): GreenhouseSta
 
   for (const p of MOON_PETAL_POTS) {
     const pot = new THREE.Mesh(potGeo, potMat);
-    pot.position.set(p.x, 1.44, p.z);
+    pot.position.set(p.x, MOON_POT_Y, p.z);
     pot.castShadow = true;
     group.add(pot); // pot is permanent once stage >= 2 (parent group visibility)
 
     const stem = new THREE.Mesh(stemGeo, stemMat);
-    stem.position.set(p.x, 1.44, p.z);
+    stem.position.set(p.x, MOON_POT_Y, p.z);
     const bud = new THREE.Mesh(budGeo, budMat);
-    bud.position.set(p.x, 1.44, p.z);
+    bud.position.set(p.x, MOON_POT_Y, p.z);
     stageBuds.add(stem, bud);
 
     const bloom = new THREE.Mesh(bloomGeo, bloomGlowMat);
-    bloom.position.set(p.x, 1.44, p.z);
+    bloom.position.set(p.x, MOON_POT_Y, p.z);
     bloom.castShadow = true;
     stageBloom.add(bloom);
   }
 
-  // Soft cool pool of light on the shelf when blooming
-  const glowGeo = new THREE.CircleGeometry(1.6, 16);
+  // Soft cool pool of light on the bench top when blooming
+  const glowGeo = new THREE.CircleGeometry(0.72, 16);
   geos.push(glowGeo);
   const glowMat = new THREE.MeshBasicMaterial({
     color: '#CDB9EC',
@@ -201,7 +205,8 @@ export function buildGreenhouseStageRig(palette: MaterialPalette): GreenhouseSta
   });
   const glow = new THREE.Mesh(glowGeo, glowMat);
   glow.rotation.x = -Math.PI / 2;
-  glow.position.set(0, 1.28, -1.2);
+  glow.scale.set(1, 0.55, 1); // elliptical pool stays on the bench top (1.44 × 0.79)
+  glow.position.set(-1.9, 0.945, -2.2);
   stageBloom.add(glow);
 
   return {

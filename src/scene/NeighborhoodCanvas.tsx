@@ -815,9 +815,13 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
     copperwheelInteriorRig.group.visible = false;
     interiorRoot.add(copperwheelInteriorRig.group);
 
-    // Exterior Sunbeam Greenhouse doorway on the west glass wall (M3 Build 6)
+    // Exterior Sunbeam Greenhouse doorway on the west glass wall (M3 Build 6).
+    // Phase A reconciliation: the leaf now sits IN the west glazing plane
+    // (world x 11.53 = glass face 14.3 - 2.775) instead of floating 0.39 m proud
+    // of it; the gabled vestibule in buildStorybookGreenhouse wraps this anchor and
+    // the door proxy / approach constants at (10.15, 3.2) are untouched.
     const greenhouseDoorway = buildSunbeamGreenhouseDoorway(palette, shadowTex);
-    greenhouseDoorway.position.set(11.14, 0, 3.2);
+    greenhouseDoorway.position.set(11.53, 0, 3.2);
     greenhouseDoorway.rotation.y = -Math.PI / 2; // face west toward the plaza
     exteriorRoot.add(greenhouseDoorway);
 
