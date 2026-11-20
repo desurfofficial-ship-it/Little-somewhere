@@ -32,6 +32,7 @@ import {
   COPPERWHEEL_PORCH_EXIT_POS,
   createInitialCopperwheelState,
 } from './copperwheel';
+import { reconcileLivingRelationshipsOnDayAdvance } from './invitations';
 import { WorldState } from './types';
 
 export const STORAGE_KEY = 'little_somewhere_world_v1';
@@ -413,6 +414,52 @@ export function computeWorldSaveRevision(state: WorldState): string {
     pushNum(cws.teasShared);
   }
 
+  // Living Relationships (LR-1 / LR-2 — WorldState v11)
+  const invState = state.invitations;
+  if (invState) {
+    const aInv = invState.active;
+    if (aInv) {
+      pushStr(aInv.id);
+      pushStr(aInv.status);
+      pushStr(aInv.hostId);
+      pushStr(aInv.activityId);
+      pushNum(aInv.offeredDay);
+      pushNum(aInv.expiresDay);
+      pushNum(aInv.windowStartMinute);
+      pushNum(aInv.windowEndMinute);
+    } else {
+      pushStr('none');
+    }
+    pushNum(invState.history.length);
+    for (let i = 0; i < invState.history.length; i++) {
+      const h = invState.history[i];
+      pushStr(h.invitationId);
+      pushStr(h.outcome);
+      pushNum(h.day);
+    }
+    const offerKeys = Object.keys(invState.lastOfferDayByHost ?? {}).sort();
+    pushNum(offerKeys.length);
+    for (let i = 0; i < offerKeys.length; i++) {
+      const ok = offerKeys[i] as keyof typeof invState.lastOfferDayByHost;
+      pushStr(ok);
+      pushNum(invState.lastOfferDayByHost[ok] ?? 0);
+    }
+  }
+  const occ = state.occupancy;
+  if (occ) {
+    pushStr(occ.residentId);
+    pushStr(occ.location);
+    pushStr(occ.stationId);
+    pushStr(occ.invitationId);
+  }
+  const teachKnown = state.teaching?.known ?? [];
+  pushNum(teachKnown.length);
+  for (let i = 0; i < teachKnown.length; i++) pushStr(teachKnown[i]);
+  if (state.activeActivity) {
+    pushStr(state.activeActivity.activityId);
+    pushStr(state.activeActivity.invitationId);
+  }
+
   return `${h1.toString(36)}-${h2.toString(36)}`;
 }
 
@@ -517,7 +564,7 @@ export function advanceToNextDay(state: WorldState): WorldState {
     ? copperwheelExitPos
     : { ...COPPERWHEEL_PORCH_EXIT_POS };
 
-  return {
+  const rolled: WorldState = {
     ...state,
     day: nextDay,
     minuteOfDay: NEXT_DAY_WAKE_MINUTE, // 8:00 AM
@@ -585,4 +632,6 @@ export function advanceToNextDay(state: WorldState): WorldState {
     nookState: prevNook,
     copperwheelState: prevCopperwheel,
   };
+
+  return reconcileLivingRelationshipsOnDayAdvance(rolled);
 }

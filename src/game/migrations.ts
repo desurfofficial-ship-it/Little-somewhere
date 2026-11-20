@@ -1,4 +1,5 @@
 import {
+  ActiveSharedActivity,
   ActiveSocialEncounter,
   CarryableItemId,
   CharacterEmotion,
@@ -9,6 +10,11 @@ import {
   GreenhousePlotState,
   BakeryState,
   GreenhouseState,
+  InteriorLocation,
+  InteriorOccupant,
+  InvitationHistoryEntry,
+  InvitationRecord,
+  InvitationState,
   JournalMemory,
   NpcMemoryDetail,
   NpcMemoryEntry,
@@ -23,6 +29,7 @@ import {
   ResidentProgress,
   SeasonType,
   StoryFlags,
+  TeachingState,
   TimePhase,
   TopicHistoryEntry,
   WeatherType,
@@ -32,6 +39,12 @@ import {
   WorldPropPlacement,
   WorldState,
 } from './types';
+import {
+  INVITATION_HISTORY_CAP,
+  createInitialInvitationState,
+  isInvitationLive,
+} from './invitations';
+import { SHARED_ACTIVITIES, createInitialTeachingState } from './activities';
 import {
   RESIDENT_ORDER,
   createInitialResidentsProgress,
@@ -119,7 +132,7 @@ import {
   isCopperwheelInteriorWalkable,
 } from './copperwheel';
 
-export const CURRENT_SCHEMA_VERSION = 10;
+export const CURRENT_SCHEMA_VERSION = 11;
 export const DEFAULT_SIM_SEED = 18042;
 
 export interface MigrationResult {
@@ -266,6 +279,10 @@ export function createDefaultWorldState(): WorldState {
     bakeryState: createInitialBakeryState(),
     nookState: createInitialNookState(),
     copperwheelState: createInitialCopperwheelState(),
+    invitations: createInitialInvitationState(),
+    occupancy: null,
+    teaching: createInitialTeachingState(),
+    activeActivity: null,
   };
 }
 
@@ -652,7 +669,8 @@ function sanitizeWorldEvents(raw: unknown): WorldEventRecord[] {
       item.kind === 'weather_shift' ||
       item.kind === 'player_help' ||
       item.kind === 'storyline_beat' ||
-      item.kind === 'conflict_shift'
+      item.kind === 'conflict_shift' ||
+      item.kind === 'shared_activity'
         ? item.kind
         : 'npc_social';
     const phase =
@@ -1299,6 +1317,13 @@ export function sanitizeWorldState(candidate: unknown, externalWarnings: string[
   const bakeryState = sanitizeBakeryState(candidate.bakeryState, warnings);
   const nookState = sanitizeNookState(candidate.nookState, warnings);
   const copperwheelState = sanitizeCopperwheelState(candidate.copperwheelState, warnings);
+  const { invitations, occupancy, teaching, activeActivity } = sanitizeLivingRelationships(
+    candidate,
+    day,
+    minuteOfDay,
+    playerLocation,
+    warnings,
+  );
 
   return {
     schemaVersion: CURRENT_SCHEMA_VERSION,
@@ -1343,6 +1368,232 @@ export function sanitizeWorldState(candidate: unknown, externalWarnings: string[
     bakeryState,
     nookState,
     copperwheelState,
+    invitations,
+    occupancy,
+    teaching,
+    activeActivity,
+  };
+}
+
+function sanitizeLivingRelationships(
+  candidate: Record<string, unknown>,
+  day: number,
+  minuteOfDay: number,
+  playerLocation: PlayerLocation,
+  warnings: string[],
+): {
+  invitations: InvitationState;
+  occupancy: InteriorOccupant | null;
+  teaching: TeachingState;
+  activeActivity: ActiveSharedActivity | null;
+} {
+  const validHosts = new Set<string>(RESIDENT_ORDER);
+  const rawInv = isRecord(candidate.invitations) ? candidate.invitations : {};
+
+  let active: InvitationRecord | null = null;
+  if (rawInv.active !== null && rawInv.active !== undefined) {
+    if (isRecord(rawInv.active)) {
+      const a = rawInv.active;
+      const id = typeof a.id === 'string' && a.id.trim().length > 0 ? a.id : null;
+      const status = a.status === 'offered' || a.status === 'accepted' ? a.status : null;
+      const hostId =
+        typeof a.hostId === 'string' && validHosts.has(a.hostId)
+          ? (a.hostId as ResidentId)
+          : null;
+      const activityId =
+        typeof a.activityId === 'string' && Boolean(SHARED_ACTIVITIES[a.activityId])
+          ? a.activityId
+          : null;
+      const offeredDay =
+        typeof a.offeredDay === 'number' && Number.isFinite(a.offeredDay) && a.offeredDay >= 1
+          ? Math.floor(a.offeredDay)
+          : null;
+      const expiresDay =
+        typeof a.expiresDay === 'number' && Number.isFinite(a.expiresDay) && a.expiresDay >= 1
+          ? Math.floor(a.expiresDay)
+          : null;
+      const windowStartMinute =
+        typeof a.windowStartMinute === 'number' && Number.isFinite(a.windowStartMinute)
+          ? a.windowStartMinute
+          : null;
+      const windowEndMinute =
+        typeof a.windowEndMinute === 'number' && Number.isFinite(a.windowEndMinute)
+          ? a.windowEndMinute
+          : null;
+
+      if (
+        id &&
+        status &&
+        hostId &&
+        activityId &&
+        offeredDay !== null &&
+        expiresDay !== null &&
+        windowStartMinute !== null &&
+        windowEndMinute !== null &&
+        windowStartMinute <= windowEndMinute &&
+        SHARED_ACTIVITIES[activityId].hostId === hostId
+      ) {
+        active = {
+          id,
+          status,
+          hostId,
+          activityId,
+          offeredDay,
+          expiresDay,
+          windowStartMinute,
+          windowEndMinute,
+        };
+      } else {
+        warnings.push('corrupted active invitation cleared during sanitization');
+      }
+    } else {
+      warnings.push('invalid active invitation slot cleared during sanitization');
+    }
+  }
+
+  const history: InvitationHistoryEntry[] = [];
+  if (Array.isArray(rawInv.history)) {
+    for (const item of rawInv.history) {
+      if (!isRecord(item)) continue;
+      const outcome =
+        item.outcome === 'completed' || item.outcome === 'declined' || item.outcome === 'expired'
+          ? item.outcome
+          : null;
+      const hostId =
+        typeof item.hostId === 'string' && validHosts.has(item.hostId)
+          ? (item.hostId as ResidentId)
+          : null;
+      const invitationId = typeof item.invitationId === 'string' ? item.invitationId : null;
+      const activityId =
+        typeof item.activityId === 'string' && item.activityId.length > 0
+          ? item.activityId
+          : 'share_featured_reading';
+      const entryDay =
+        typeof item.day === 'number' && Number.isFinite(item.day) && item.day >= 1
+          ? Math.floor(item.day)
+          : null;
+      if (!outcome || !hostId || !invitationId || entryDay === null) continue;
+      history.push({
+        invitationId,
+        hostId,
+        activityId,
+        day: entryDay,
+        outcome,
+        ...(typeof item.reason === 'string' && item.reason.length > 0
+          ? { reason: item.reason }
+          : {}),
+      });
+    }
+  }
+  const cappedHistory =
+    history.length > INVITATION_HISTORY_CAP
+      ? history.slice(history.length - INVITATION_HISTORY_CAP)
+      : history;
+
+  const lastOfferDayByHost: Partial<Record<ResidentId, number>> = {};
+  if (isRecord(rawInv.lastOfferDayByHost)) {
+    for (const [k, v] of Object.entries(rawInv.lastOfferDayByHost)) {
+      if (!validHosts.has(k)) continue;
+      if (typeof v === 'number' && Number.isFinite(v) && v >= 1) {
+        lastOfferDayByHost[k as ResidentId] = Math.floor(v);
+      }
+    }
+  }
+
+  // Load invariant step 1: archive non-live active invitations cleanly on load (LR2-16).
+  let finalHistory = cappedHistory;
+  if (active && !isInvitationLive(active, day, minuteOfDay)) {
+    finalHistory = [
+      ...cappedHistory,
+      {
+        invitationId: active.id,
+        hostId: active.hostId,
+        activityId: active.activityId,
+        day,
+        outcome: 'expired' as const,
+      },
+    ];
+    if (finalHistory.length > INVITATION_HISTORY_CAP) {
+      finalHistory = finalHistory.slice(finalHistory.length - INVITATION_HISTORY_CAP);
+    }
+    active = null;
+    warnings.push('non-live active invitation archived on load');
+  }
+
+  // Load invariant step 2: activeActivity requires matching live active invite (LR1-15b).
+  let activeActivity: ActiveSharedActivity | null = null;
+  if (active && isRecord(candidate.activeActivity)) {
+    const rawAct = candidate.activeActivity;
+    if (
+      typeof rawAct.activityId === 'string' &&
+      rawAct.activityId === active.activityId &&
+      Boolean(SHARED_ACTIVITIES[rawAct.activityId]) &&
+      (rawAct.invitationId === undefined || rawAct.invitationId === active.id)
+    ) {
+      activeActivity = {
+        activityId: active.activityId,
+        invitationId: active.id,
+      };
+    }
+  }
+
+  // Load invariant step 3: occupancy requires interior location matching playerLocation,
+  // accepted live invite for hostId, and matching invitationId (LR1-15, LR2-15, LR2-16).
+  let occupancy: InteriorOccupant | null = null;
+  if (
+    active &&
+    active.status === 'accepted' &&
+    playerLocation !== 'exterior' &&
+    isRecord(candidate.occupancy)
+  ) {
+    const occ = candidate.occupancy;
+    const occPos = isRecord(occ.localPos) ? occ.localPos : null;
+    if (
+      typeof occ.residentId === 'string' &&
+      occ.residentId === active.hostId &&
+      occ.location === playerLocation &&
+      typeof occ.stationId === 'string' &&
+      occ.stationId.length > 0 &&
+      occ.invitationId === active.id &&
+      occPos &&
+      typeof occPos.x === 'number' &&
+      Number.isFinite(occPos.x) &&
+      typeof occPos.z === 'number' &&
+      Number.isFinite(occPos.z) &&
+      typeof occ.facing === 'number' &&
+      Number.isFinite(occ.facing)
+    ) {
+      occupancy = {
+        residentId: occ.residentId as ResidentId,
+        location: playerLocation as InteriorLocation,
+        stationId: occ.stationId,
+        localPos: { x: occPos.x, z: occPos.z },
+        facing: occ.facing,
+        invitationId: active.id,
+      };
+    } else {
+      warnings.push('inconsistent interior occupancy cleared on load');
+    }
+  }
+
+  const rawTeach = isRecord(candidate.teaching) ? candidate.teaching : {};
+  const teachingKnown = Array.isArray(rawTeach.known)
+    ? Array.from(
+        new Set(
+          rawTeach.known.filter((k): k is string => typeof k === 'string' && k.length > 0),
+        ),
+      )
+    : [];
+
+  return {
+    invitations: {
+      active,
+      history: finalHistory,
+      lastOfferDayByHost,
+    },
+    occupancy,
+    teaching: { known: teachingKnown },
+    activeActivity,
   };
 }
 
@@ -1895,6 +2146,22 @@ export function migrateV9ToV10(v9Raw: Record<string, unknown>): Record<string, u
   };
 }
 
+/**
+ * Pure sequential v10 -> v11 save upgrader adding Living Relationships slices
+ * (invitations, interior occupancy, teaching, active shared activity) while leaving
+ * all prior interior and progress slices untouched.
+ */
+export function migrateV10ToV11(v10Raw: Record<string, unknown>): Record<string, unknown> {
+  return {
+    ...v10Raw,
+    schemaVersion: 11,
+    invitations: v10Raw.invitations ?? createInitialInvitationState(),
+    occupancy: v10Raw.occupancy ?? null,
+    teaching: v10Raw.teaching ?? createInitialTeachingState(),
+    activeActivity: v10Raw.activeActivity ?? null,
+  };
+}
+
 export function migrateWorldState(raw: unknown): MigrationResult {
   const warnings: string[] = [];
   const detected = detectSchemaVersion(raw);
@@ -1953,6 +2220,11 @@ export function migrateWorldState(raw: unknown): MigrationResult {
   if (version === 9) {
     working = migrateV9ToV10(working);
     version = 10;
+  }
+
+  if (version === 10) {
+    working = migrateV10ToV11(working);
+    version = 11;
   }
 
   if (version > CURRENT_SCHEMA_VERSION) {

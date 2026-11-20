@@ -7,6 +7,8 @@ import {
   Vec2,
   WorldState,
 } from './types';
+import { NOOK_CHAIR_STATION_ID, NOOK_OCCUPANT_APPROACH_POS, getOccupantAt } from './occupancy';
+import { RESIDENTS } from './residents';
 import { computeFacingAlignment, distance2D } from './worldMap';
 
 /**
@@ -361,28 +363,58 @@ export function selectBestNookTarget(world: WorldState): InteractiveTarget | nul
     );
   }
 
-  // Reading armchair seat: offered like the cottage stools and café chair, weighted
-  // slightly behind props so aiming at the shelf/desk is never stolen by the chair.
-  for (const seat of NOOK_SEAT_SPOTS) {
+  const occupant = getOccupantAt(world, 'nook_interior');
+  if (occupant) {
+    const resName = RESIDENTS[occupant.residentId]?.name ?? 'Neighbor';
     const dist = Math.min(
-      distance2D(world.playerPos, seat.seatPos),
-      distance2D(world.playerPos, seat.approachPos) + 0.35,
+      distance2D(world.playerPos, occupant.localPos),
+      distance2D(world.playerPos, NOOK_OCCUPANT_APPROACH_POS) + 0.25,
     );
-    if (dist > 2.0) continue;
-    const align = computeFacingAlignment(world.playerPos, world.playerFacing, seat.seatPos);
-    const facingPenalty = (1 - align) * 0.45;
-    evaluateCandidate(
-      {
-        kind: 'seat',
-        id: seat.id,
-        seatId: seat.id,
-        label: seat.label,
-        actionLabel: `Sit on ${seat.label}`,
-        distance: dist,
-        worldPos: { ...seat.seatPos },
-      },
-      dist + facingPenalty + 0.22,
-    );
+    if (dist <= 2.45) {
+      const align = computeFacingAlignment(world.playerPos, world.playerFacing, occupant.localPos);
+      const facingPenalty = (1 - align) * 0.45;
+      evaluateCandidate(
+        {
+          kind: 'resident',
+          id: occupant.residentId,
+          label: resName,
+          actionLabel:
+            world.activeActivity?.activityId === 'share_featured_reading'
+              ? `Share Reading with ${resName}`
+              : `Talk to ${resName}`,
+          distance: dist,
+          worldPos: { ...occupant.localPos },
+        },
+        dist + facingPenalty - 0.12,
+      );
+    }
+  }
+
+  // Reading armchair seat: offered when unoccupied like the cottage stools and café chair,
+  // weighted slightly behind props so aiming at the shelf/desk is never stolen by the chair.
+  const chairOccupied = occupant?.stationId === NOOK_CHAIR_STATION_ID;
+  if (!chairOccupied) {
+    for (const seat of NOOK_SEAT_SPOTS) {
+      const dist = Math.min(
+        distance2D(world.playerPos, seat.seatPos),
+        distance2D(world.playerPos, seat.approachPos) + 0.35,
+      );
+      if (dist > 2.0) continue;
+      const align = computeFacingAlignment(world.playerPos, world.playerFacing, seat.seatPos);
+      const facingPenalty = (1 - align) * 0.45;
+      evaluateCandidate(
+        {
+          kind: 'seat',
+          id: seat.id,
+          seatId: seat.id,
+          label: seat.label,
+          actionLabel: `Sit on ${seat.label}`,
+          distance: dist,
+          worldPos: { ...seat.seatPos },
+        },
+        dist + facingPenalty + 0.22,
+      );
+    }
   }
 
   return bestTarget;

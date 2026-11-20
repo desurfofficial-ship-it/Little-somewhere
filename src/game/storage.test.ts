@@ -26,6 +26,9 @@ import { MAX_WORLD_EVENTS } from './relationships';
 import { stepSimulation } from './simulation';
 import { DAY_END_MINUTE, DAY_START_MINUTE, NEXT_DAY_WAKE_MINUTE } from './time';
 import { PLAYER_SPAWN, isPointWalkable } from './worldMap';
+import { NOOK_PORCH_EXIT_POS } from './bookNook';
+import { offerInvitation, acceptInvitation } from './invitations';
+import { enterNookAction } from './actions';
 
 function withMockLocalStorage(fn: (store: Map<string, string>) => void): void {
   const prevWindow = (globalThis as { window?: unknown }).window;
@@ -1169,4 +1172,59 @@ test('LR1-18: a pre-LR era save chains through every intermediate step and recei
   );
   assert.ok('occupancy' in slices && 'teaching' in slices && 'activeActivity' in slices,
     'all LR slices seeded on a pre-LR-era save');
+});
+
+test('LR2-14: sleep during an accepted interior visit ejects player cleanly, clears occupancy, and tracks save revision', () => {
+  let base = createFreshWorldState();
+  base = {
+    ...base,
+    minuteOfDay: 540,
+    nookState: { ...base.nookState, shelfBrowsedDay: 2, booksRead: 1, teasShared: 1 },
+    residents: {
+      ...base.residents,
+      nora: { ...base.residents.nora, met: true, trust: 3 },
+    },
+    playerPos: { ...NOOK_PORCH_EXIT_POS },
+    playerRelations: {
+      ...base.playerRelations,
+      nora: { ...base.playerRelations.nora, affinity: 60, reliability: 35, negativeCount: 0 },
+    },
+  };
+  const revBase = computeWorldSaveRevision(base);
+
+  const offered = offerInvitation(base, 'nora', 'share_featured_reading').world;
+  assert.notEqual(computeWorldSaveRevision(offered), revBase, 'save revision tracks offered invite');
+
+  const accepted = acceptInvitation(offered).world;
+  assert.notEqual(
+    computeWorldSaveRevision(accepted),
+    computeWorldSaveRevision(offered),
+    'save revision tracks accepted status',
+  );
+
+  const inside = enterNookAction(accepted).nextWorld;
+  assert.equal(inside.playerLocation, 'nook_interior');
+  assert.equal(inside.occupancy?.residentId, 'nora');
+  assert.notEqual(
+    computeWorldSaveRevision(inside),
+    computeWorldSaveRevision(accepted),
+    'save revision tracks indoor occupancy & activeActivity',
+  );
+
+  const nextMorning = advanceToNextDay(inside);
+  assert.equal(nextMorning.day, base.day + 1);
+  assert.equal(nextMorning.minuteOfDay, NEXT_DAY_WAKE_MINUTE);
+  assert.equal(nextMorning.playerLocation, 'exterior', 'ejected onto porch on wake');
+  assert.deepEqual(nextMorning.playerPos, NOOK_PORCH_EXIT_POS, 'player placed at Nook porch');
+  assert.equal(nextMorning.occupancy, null, 'no stuck indoor Nora after wake');
+  assert.equal(nextMorning.activeActivity, null, 'activeActivity cleared on wake');
+  assert.equal(nextMorning.invitations.active, null, 'invite cleared');
+  assert.equal(nextMorning.invitations.history.at(-1)?.outcome, 'expired', 'archived expired');
+  assert.equal(nextMorning.nookState.booksRead, 1, 'nookState preserved');
+  assert.equal(nextMorning.nookState.teasShared, 1, 'nookState tea preserved');
+  assert.equal(
+    isPointWalkable(nextMorning.npcRuntime.nora.position.x, nextMorning.npcRuntime.nora.position.z),
+    true,
+    'Nora reset cleanly to walkable exterior position',
+  );
 });

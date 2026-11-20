@@ -34,7 +34,7 @@ import {
   createFreshWorldState,
   serializeWorldState,
 } from './storage';
-import { migrateWorldState } from './migrations';
+import { CURRENT_SCHEMA_VERSION, migrateWorldState } from './migrations';
 import { WorldState } from './types';
 
 function freshInsideNook(day = 1, minuteOfDay = 540): WorldState {
@@ -251,7 +251,7 @@ test('v8 saves migrate to v9 with a fresh nookState and interior locations prese
   const result = migrateWorldState(v8Raw);
   // Build 9 bumps the runtime schema to v10: the v8 save chains v8→v9→v10,
   // preserving every v9 invariant plus the fresh v10 copperwheelState.
-  assert.equal(result.state.schemaVersion, 10);
+  assert.equal(result.state.schemaVersion, CURRENT_SCHEMA_VERSION);
   assert.ok(result.state.nookState);
   assert.equal(result.state.nookState.booksRead, 0);
   assert.ok(result.state.copperwheelState, 'chain hydrates the fresh copperwheelState');

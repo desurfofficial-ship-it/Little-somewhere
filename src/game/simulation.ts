@@ -43,7 +43,7 @@ import {
   propagateEncounterGossipInPlace,
 } from './memories';
 import { cloneStorylines } from './storylines';
-import { discoverExplorationInPlace } from './exploration';
+import { expireInvitationsInPlace } from './invitations';
 import { distance2D, getSeatById, isPointWalkable } from './worldMap';
 
 export interface SimulationStepOptions {
@@ -619,6 +619,7 @@ export function stepSimulationInPlace(
   const dtMinutes = !paused && !dialogueOpen ? dt * clockRate : 0;
   if (dtMinutes > 0) {
     world.minuteOfDay = advanceSimulationClock(world.minuteOfDay, dtMinutes);
+    expireInvitationsInPlace(world);
   }
 
   if (paused) return;
@@ -628,15 +629,6 @@ export function stepSimulationInPlace(
   if (!world.npcActivityHistory) world.npcActivityHistory = createInitialNpcActivityHistory();
 
   const phase = getTimePhase(world.minuteOfDay);
-
-  // 0. Wild Hollows exploration discoveries (Build 10): deterministic, exterior-only,
-  // pure in-place sideFlag + journal memory grant — same discipline as encounters.
-  {
-    const outside = world.playerLocation === 'exterior';
-    const ex = outside ? world.playerPos.x : world.exteriorPlayerPos.x;
-    const ez = outside ? world.playerPos.z : world.exteriorPlayerPos.z;
-    discoverExplorationInPlace(world, ex, ez);
-  }
 
   // 1. Expire finished social encounters and greetings cleanly
   for (let k = world.activeEncounters.length - 1; k >= 0; k--) {
@@ -648,8 +640,10 @@ export function stepSimulationInPlace(
   }
 
   // 2. Evaluate autonomous activity transitions, seat reservation, pathfinding & emotions per resident
+  const indoorResidentId = world.occupancy?.residentId ?? null;
   for (let i = 0; i < RESIDENT_ORDER.length; i++) {
     const id = RESIDENT_ORDER[i];
+    if (indoorResidentId === id) continue;
     const rt = world.npcRuntime[id];
     const def = RESIDENTS[id];
 
@@ -895,6 +889,7 @@ export function stepSimulationInPlace(
     for (let i = 0; i < RESIDENT_ORDER.length; i++) {
       if (world.activeEncounters.length >= maxConcurrentEncounters) break;
       const a = RESIDENT_ORDER[i];
+      if (indoorResidentId === a) continue;
       const rtA = world.npcRuntime[a];
       if (rtA.socialPartnerId !== null || rtA.waypoints.length > 0 || rtA.posture === 'sitting') continue;
       if (world.minuteOfDay < rtA.socialCooldownUntilMinute) continue;
@@ -902,6 +897,7 @@ export function stepSimulationInPlace(
 
       for (let j = i + 1; j < RESIDENT_ORDER.length; j++) {
         const b = RESIDENT_ORDER[j];
+        if (indoorResidentId === b) continue;
         const rtB = world.npcRuntime[b];
         if (rtB.socialPartnerId !== null || rtB.waypoints.length > 0 || rtB.posture === 'sitting') continue;
         if (world.minuteOfDay < rtB.socialCooldownUntilMinute) continue;
@@ -934,6 +930,7 @@ export function stepSimulationInPlace(
         let thirdId: ResidentId | null = null;
         for (let k = j + 1; k < RESIDENT_ORDER.length; k++) {
           const c = RESIDENT_ORDER[k];
+          if (indoorResidentId === c) continue;
           const rtC = world.npcRuntime[c];
           if (rtC.socialPartnerId !== null || rtC.waypoints.length > 0 || rtC.posture === 'sitting') continue;
           if (world.minuteOfDay < rtC.socialCooldownUntilMinute) continue;
@@ -1082,6 +1079,18 @@ export function stepSimulation(
         }
       : world.dailyActivities,
     neighborGiftsReceived: [...(world.neighborGiftsReceived ?? [])],
+    invitations: world.invitations
+      ? {
+          active: world.invitations.active ? { ...world.invitations.active } : null,
+          history: world.invitations.history.map((h) => ({ ...h })),
+          lastOfferDayByHost: { ...(world.invitations.lastOfferDayByHost ?? {}) },
+        }
+      : world.invitations,
+    occupancy: world.occupancy
+      ? { ...world.occupancy, localPos: { ...world.occupancy.localPos } }
+      : null,
+    teaching: world.teaching ? { known: [...world.teaching.known] } : world.teaching,
+    activeActivity: world.activeActivity ? { ...world.activeActivity } : null,
   };
   stepSimulationInPlace(next, dtSeconds, options);
   return next;

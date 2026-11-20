@@ -33,9 +33,11 @@ import {
 import { isStorylineOnCooldown } from './storylines';
 import { getTimePhase } from './time';
 import { getSeatById } from './worldMap';
+import { canOfferInvitation, isInvitationLive } from './invitations';
 
 const CATEGORY_PRIORITY: Record<DialogueCategory, number> = {
   quest_milestone: 100,
+  invitation: 86,
   conflict_reconciliation: 84,
   personal_story: 76,
   event_reaction: 68,
@@ -465,6 +467,46 @@ export function evaluateDialogueCondition(
     if (req.outcome !== undefined && progStory?.outcome !== req.outcome) return false;
     if (req.requireCooldownCleared && isStorylineOnCooldown(progStory, world.day)) {
       return false;
+    }
+  }
+
+  if (cond.requiresInvitationEligible) {
+    const req = cond.requiresInvitationEligible;
+    const hostId = req.hostId ?? residentId;
+    if (!canOfferInvitation(world, hostId, req.activityId).eligible) {
+      return false;
+    }
+  }
+  if (cond.requiresActiveInvitation) {
+    const req = cond.requiresActiveInvitation;
+    const active = world.invitations?.active ?? null;
+    if (!active) return false;
+    if (req.hostId && active.hostId !== req.hostId) return false;
+    if (req.activityId && active.activityId !== req.activityId) return false;
+    if (req.status) {
+      const allowed = Array.isArray(req.status) ? req.status : [req.status];
+      if (!allowed.includes(active.status)) return false;
+    }
+    if (req.requireLive !== false && !isInvitationLive(active, world.day, world.minuteOfDay)) {
+      return false;
+    }
+    if (req.requireIndoors) {
+      if (
+        world.playerLocation === 'exterior' ||
+        world.occupancy?.residentId !== residentId ||
+        world.occupancy?.location !== world.playerLocation
+      ) {
+        return false;
+      }
+    }
+  }
+  if (cond.excludesActiveInvitation && world.invitations?.active) {
+    return false;
+  }
+  if (cond.requiresTeachingKnown && cond.requiresTeachingKnown.length > 0) {
+    const known = world.teaching?.known ?? [];
+    for (const k of cond.requiresTeachingKnown) {
+      if (!known.includes(k)) return false;
     }
   }
 

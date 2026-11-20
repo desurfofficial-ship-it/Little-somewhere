@@ -35,7 +35,7 @@ import {
 } from './actions';
 import { getItemCount } from './inventory';
 import { computeWorldSaveRevision, advanceToNextDay, createFreshWorldState, serializeWorldState } from './storage';
-import { migrateWorldState } from './migrations';
+import { CURRENT_SCHEMA_VERSION, migrateWorldState } from './migrations';
 import { GreenhousePlotState, WorldState } from './types';
 
 function freshInsideGreenhouse(): WorldState {
@@ -408,7 +408,7 @@ test('v6 -> v7 migration hydrates greenhouseState and preserves v6 interior loca
   // Build 9 bumps the runtime schema to v10: the v6 save now chains v6→…→v10,
   // keeping every v7 greenhouse invariant plus the fresh v8 bakeryState, v9 nookState,
   // and v10 copperwheelState.
-  assert.equal(res.state.schemaVersion, 10);
+  assert.equal(res.state.schemaVersion, CURRENT_SCHEMA_VERSION);
   assert.equal(res.migratedFromVersion, 6);
   assert.equal(res.state.playerLocation, 'cottage_interior');
   assert.equal(res.state.greenhouseState.noteReadDay, 0);

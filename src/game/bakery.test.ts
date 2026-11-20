@@ -36,7 +36,7 @@ import {
   createFreshWorldState,
   serializeWorldState,
 } from './storage';
-import { migrateWorldState } from './migrations';
+import { CURRENT_SCHEMA_VERSION, migrateWorldState } from './migrations';
 import { WorldState } from './types';
 
 function freshInsideBakery(day = 1, minuteOfDay = 540): WorldState {
@@ -301,7 +301,7 @@ test('v7 saves chain to the current schema with a fresh bakeryState and interior
   delete v7Raw.nookState;
   const result = migrateWorldState(v7Raw);
   // Build 9 bumps the runtime schema to v10: the v7 save now chains v7→…→v10.
-  assert.equal(result.state.schemaVersion, 10);
+  assert.equal(result.state.schemaVersion, CURRENT_SCHEMA_VERSION);
   assert.ok(result.state.bakeryState);
   assert.equal(result.state.bakeryState.kneadingSessions, 0);
   assert.ok(result.state.copperwheelState, 'chain hydrates the fresh copperwheelState');

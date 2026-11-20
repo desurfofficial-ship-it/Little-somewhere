@@ -34,11 +34,14 @@
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createFreshWorldState, advanceToNextDay } from './storage';
+import { advanceToNextDay, createFreshWorldState } from './storage';
 import { isResidentGuarded } from './relationships';
 import { stepSimulationInPlace } from './simulation';
 import { NEXT_DAY_WAKE_MINUTE } from './time';
 import { NOOK_PORCH_EXIT_POS } from './bookNook';
+import { buildResidentDialogue } from './narrative';
+import { applyDialogueChoice } from './actions';
+import { getTimePhase } from './residents';
 import type { WorldState } from './types';
 
 // ---------------------------------------------------------------------------
@@ -71,7 +74,8 @@ interface LrInvitationState {
   lastOfferDayByHost?: Record<string, number>;
 }
 
-interface LrWorld extends WorldState {
+interface LrWorld
+  extends Omit<WorldState, 'invitations' | 'occupancy' | 'teaching' | 'activeActivity'> {
   invitations?: LrInvitationState;
   occupancy?: unknown;
   teaching?: { known?: unknown[] };
@@ -717,4 +721,63 @@ test('LR1-23: history cap holds on write — oldest dropped, newest kept', async
   assert.ok(hist.some((e) => e.invitationId === 'lr_hist_seed_1'), 'next-oldest retained');
   assert.ok(hist.some((e) => e.outcome === 'declined'), 'new terminal entry present');
   assert.ok(activeIsNull(after.invitations), 'active cleared by the terminal path');
+});
+
+test('LR2-11: decline after accept is rejected and expiry archives once; dialogue offer+decline writes no rewards', async () => {
+  const mod = await loadInvitationsModule();
+  const world = createFreshWorldState() as unknown as LrWorld;
+  makeFriendlyNora(world);
+  world.minuteOfDay = 779;
+  const accepted = craftInvitation(world, { status: 'accepted' });
+  attachInvitationState(world, accepted);
+  const histBefore = world.invitations?.history?.length ?? 0;
+
+  const declRes = mod.declineInvitation(world);
+  assert.equal(asOk(declRes), false, 'decline after accept returns ok: false');
+  const afterDecl = asWorld(declRes, world);
+  assert.equal(afterDecl.invitations?.active?.status, 'accepted', 'invite remains accepted');
+  assert.equal(afterDecl.invitations?.history?.length ?? 0, histBefore, 'not archived as declined');
+
+  // Now advance past window end via shared +2h entry -> archives expired once
+  const expired = asWorld(mod.advanceClockAndReconcile(afterDecl, 120), afterDecl);
+  assert.ok(activeIsNull(expired.invitations), 'active cleared by expiry');
+  assert.equal(
+    (expired.invitations?.history ?? []).filter((e) => e.outcome === 'expired').length,
+    1,
+    'archived expired once',
+  );
+  assert.equal(
+    (expired.invitations?.history ?? []).some((e) => e.outcome === 'declined'),
+    false,
+    'no false declined entry',
+  );
+
+  // Dialogue offer -> decline path emits no rewards, memories, or teaching grants
+  const uiWorld = createFreshWorldState();
+  uiWorld.minuteOfDay = 540;
+  uiWorld.flags = { ...uiWorld.flags, foundPostcard: true };
+  uiWorld.residents.nora = { ...uiWorld.residents.nora, met: true, trust: 3 };
+  uiWorld.playerRelations.nora = {
+    ...uiWorld.playerRelations.nora,
+    affinity: 60,
+    reliability: 40,
+    dailyAffinityGained: 0,
+    negativeCount: 0,
+  };
+  const affBefore = uiWorld.playerRelations.nora.affinity;
+  const relBefore = uiWorld.playerRelations.nora.reliability;
+  const memBefore = uiWorld.memories.length;
+
+  const session = buildResidentDialogue('nora', uiWorld, getTimePhase(uiWorld.minuteOfDay));
+  assert.equal(session.topicId, 'inv_nora_offer_reading');
+  const noChoice = session.nodes[session.currentNodeId].choices.find((c) => c.declineInvitation);
+  assert.ok(noChoice, 'Nora offer exposes decline choice');
+  const afterUiDecline = applyDialogueChoice(uiWorld, session, noChoice).nextWorld;
+
+  assert.equal(afterUiDecline.invitations.active, null);
+  assert.equal(afterUiDecline.invitations.history.at(-1)?.outcome, 'declined');
+  assert.equal(afterUiDecline.playerRelations.nora.affinity, affBefore, 'no affinity gain/loss');
+  assert.equal(afterUiDecline.playerRelations.nora.reliability, relBefore, 'no reliability change');
+  assert.equal(afterUiDecline.memories.length, memBefore, 'no journal memory written');
+  assert.equal(afterUiDecline.teaching.known.length, 0, 'no teaching grant on decline');
 });

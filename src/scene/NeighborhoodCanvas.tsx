@@ -70,6 +70,7 @@ import {
   computeNookWaypoints,
   isNookInteriorWalkable,
 } from '../game/bookNook';
+import { NOOK_OCCUPANT_APPROACH_POS } from '../game/occupancy';
 import {
   COPPERWHEEL_BOUNDS,
   COPPERWHEEL_INTERACTABLES,
@@ -817,6 +818,26 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
     nookInteriorRig.group.visible = false;
     interiorRoot.add(nookInteriorRig.group);
 
+    // Living Relationships (LR-2): indoor resident rig for hosted Book Nook visits
+    const nookOccupantRig = buildStorybookCharacter(
+      RESIDENTS.nora.appearance,
+      palette,
+      shadowTex,
+      'nora',
+    );
+    nookOccupantRig.root.visible = false;
+    const nookOccupantHitGeo = new THREE.CylinderGeometry(0.65, 0.65, 1.85, 8);
+    const nookOccupantHitMat = new THREE.MeshBasicMaterial({ visible: false });
+    const nookOccupantHitProxy = new THREE.Mesh(nookOccupantHitGeo, nookOccupantHitMat);
+    nookOccupantHitProxy.position.y = 0.92;
+    nookOccupantHitProxy.userData = { targetKind: 'resident', targetId: 'nora' };
+    nookOccupantRig.root.add(nookOccupantHitProxy);
+    nookInteriorRig.group.add(nookOccupantRig.root);
+    const nookInteractablesWithOccupant: THREE.Object3D[] = [
+      ...nookInteriorRig.hitProxies,
+      nookOccupantHitProxy,
+    ];
+
     // Copperwheel Cottage Interior Cutaway Diorama (M3 Build 9 — same cutaway contract)
     const copperwheelInteriorRig = buildCopperwheelInterior(palette, shadowTex, { isSoftwareGl });
     copperwheelInteriorRig.group.visible = false;
@@ -1195,7 +1216,9 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
         : worldRef.current.playerLocation === 'bakery_interior'
         ? bakeryInteriorRig.hitProxies
         : worldRef.current.playerLocation === 'nook_interior'
-        ? nookInteriorRig.hitProxies
+        ? worldRef.current.occupancy?.location === 'nook_interior'
+          ? nookInteractablesWithOccupant
+          : nookInteriorRig.hitProxies
         : worldRef.current.playerLocation === 'copperwheel_interior'
         ? copperwheelInteriorRig.hitProxies
         : cottageInteriorRig.hitProxies;
@@ -1204,6 +1227,13 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
         // Seat proxies tuck beneath the tabletop-sized table proxy — when a table click
         // co-hits a stool proxy within a close band, prefer the seat (Pass 5).
         let chosen = hits[0];
+        if (
+          worldRef.current.playerLocation === 'nook_interior' &&
+          worldRef.current.occupancy?.location === 'nook_interior'
+        ) {
+          const occupantHit = hits.find((h) => h.object.userData.targetKind === 'resident');
+          if (occupantHit) chosen = occupantHit;
+        }
         if (
           chosen.object.userData.targetKind === 'cottage_prop' &&
           chosen.object.userData.targetId === 'cottage_table'
@@ -1309,11 +1339,30 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
           isImmediate = effDist <= prop.interactRadius;
         } else if (ud.targetKind === 'resident') {
           const rid = ud.targetId as ResidentId;
-          tPos = worldRef.current.npcRuntime[rid].position;
-          label = RESIDENTS[rid].name;
-          actionLabel = `Talk to ${label}`;
-          scoreDist = distance2D(pPos, tPos);
-          isImmediate = scoreDist <= immediateRange;
+          const occ = worldRef.current.occupancy;
+          if (
+            isIndoors &&
+            occ &&
+            occ.residentId === rid &&
+            occ.location === worldRef.current.playerLocation
+          ) {
+            tPos = { ...occ.localPos };
+            walkDest = { ...NOOK_OCCUPANT_APPROACH_POS };
+            label = RESIDENTS[rid].name;
+            actionLabel =
+              worldRef.current.activeActivity?.activityId === 'share_featured_reading'
+                ? `Share Reading with ${label}`
+                : `Talk to ${label}`;
+            immediateRange = 2.6;
+            scoreDist = Math.min(distance2D(pPos, tPos), distance2D(pPos, walkDest) + 0.25);
+            isImmediate = scoreDist <= immediateRange;
+          } else {
+            tPos = worldRef.current.npcRuntime[rid].position;
+            label = RESIDENTS[rid].name;
+            actionLabel = `Talk to ${label}`;
+            scoreDist = distance2D(pPos, tPos);
+            isImmediate = scoreDist <= immediateRange;
+          }
         } else if (ud.targetKind === 'seat') {
           const seat = resolveAnySeatById(ud.targetId);
           if (!seat) return;
@@ -1797,6 +1846,13 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
       for (let i = 0; i < RESIDENT_ORDER.length; i++) {
         const id = RESIDENT_ORDER[i];
         const rig = residentRigs[id];
+        if (world.occupancy?.residentId === id) {
+          rig.root.visible = false;
+          rig.ringMesh.visible = false;
+          rig.questPip.visible = false;
+          continue;
+        }
+        rig.root.visible = true;
         const rt = world.npcRuntime[id];
         const seat = rt.posture === 'sitting' ? getSeatById(rt.reservedSeatId) : undefined;
         const npcGroundY = seat
@@ -1885,6 +1941,55 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
         }
       }
 
+      // Sync seated indoor Book Nook occupant (LR-2)
+      const nookOcc =
+        curLoc === 'nook_interior' && world.occupancy?.location === 'nook_interior'
+          ? world.occupancy
+          : null;
+      if (nookOcc) {
+        const occDef = RESIDENTS[nookOcc.residentId];
+        nookOccupantRig.root.visible = true;
+        const occSeatY = computeSitGroundY(0.5, occDef.appearance.heightScale);
+        nookOccupantRig.root.position.set(nookOcc.localPos.x, occSeatY, nookOcc.localPos.z);
+        nookOccupantRig.root.rotation.y = nookOcc.facing;
+        const ldx = world.playerPos.x - nookOcc.localPos.x;
+        const ldz = world.playerPos.z - nookOcc.localPos.z;
+        let occLookYaw = 0;
+        if (ldx * ldx + ldz * ldz > 0.04) {
+          occLookYaw = THREE.MathUtils.clamp(
+            wrapAngleDelta(nookOcc.facing, Math.atan2(ldx, ldz)),
+            -0.95,
+            0.95,
+          );
+        }
+        _npcAnimOpts.emotion = world.npcRuntime?.[nookOcc.residentId]?.emotion ?? 'happy';
+        _npcAnimOpts.lookYaw = occLookYaw;
+        _npcAnimOpts.lookPitch = 0;
+        _npcAnimOpts.bankAngle = 0;
+        _npcAnimOpts.accelLean = 0;
+        _npcAnimOpts.squash = 0;
+        _npcAnimOpts.carrying = false;
+        _npcAnimOpts.isMoving = false;
+        animateCharacterRig(nookOccupantRig, 'sit', 0, elapsed, dt, 1.3, _npcAnimOpts);
+
+        const occCue = getResidentAvailableQuestCue(nookOcc.residentId, world);
+        nookOccupantRig.questPip.visible = occCue !== 'none';
+        if (nookOccupantRig.questPip.visible) {
+          nookOccupantRig.questPip.rotation.y = elapsed * 2.0;
+          nookOccupantRig.questPip.position.y =
+            (2.05 + Math.sin(elapsed * 3.2) * 0.08) * occDef.appearance.heightScale;
+        }
+        const occDist = distance2D(world.playerPos, nookOcc.localPos);
+        nookOccupantRig.ringMesh.visible = occDist < 2.9;
+        if (nookOccupantRig.ringMesh.visible) {
+          (nookOccupantRig.ringMesh.material as THREE.MeshBasicMaterial).color.copy(_ringAmber);
+        }
+      } else {
+        nookOccupantRig.root.visible = false;
+        nookOccupantRig.ringMesh.visible = false;
+        nookOccupantRig.questPip.visible = false;
+      }
+
       const nearestTarget = selectBestInteractiveTarget(world, RESIDENTS);
 
       // Edge-gated throttled HUD sync
@@ -1954,6 +2059,7 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
       if (lastKnitSeason !== world.season) {
         lastKnitSeason = world.season;
         applyCharacterWinterTint(playerRig, world.season);
+        applyCharacterWinterTint(nookOccupantRig, world.season);
         for (const rid of RESIDENT_ORDER) {
           applyCharacterWinterTint(residentRigs[rid], world.season);
         }
@@ -2051,8 +2157,11 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
           moveDirZ = -screenHoriz * 0.7071 + screenVert * 0.7071;
           inputMagnitude = Math.abs(keyHoriz) > 0 || Math.abs(keyVert) > 0 ? 1.0 : Math.min(1, joyMag);
         } else if (tapWalkDest) {
-          // Track updated resident position when walking to talk
-          if (pendingTargetAfterWalk?.kind === 'resident') {
+          // Track updated exterior resident position when walking to talk
+          if (
+            pendingTargetAfterWalk?.kind === 'resident' &&
+            world.playerLocation === 'exterior'
+          ) {
             const livePos = world.npcRuntime[pendingTargetAfterWalk.id as ResidentId]?.position;
             if (livePos && distance2D(tapWalkDest, livePos) > 0.9) {
               tapWalkDest = { ...livePos };
@@ -2233,18 +2342,24 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
       let playerLookYaw = 0;
       let playerLookPitch = 0;
       const dialogueResId = activeDialogueResidentRef.current;
-      if (dialogueOpenRef.current && dialogueResId && world.npcRuntime?.[dialogueResId]) {
-        const speakerPos = world.npcRuntime[dialogueResId].position;
-        const targetYaw = Math.atan2(
-          speakerPos.x - world.playerPos.x,
-          speakerPos.z - world.playerPos.z,
-        );
-        if (world.playerPosture !== 'sitting') {
-          world.playerFacing += wrapAngleDelta(world.playerFacing, targetYaw) * Math.min(1, dt * 8);
-        }
-        playerLookYaw = wrapAngleDelta(world.playerFacing, targetYaw);
-        if (world.playerPosture !== 'sitting') {
-          playerAnim = activePulseTimer > 0 && activePulseKind === 'talk' ? 'talk' : 'listen';
+      if (dialogueOpenRef.current && dialogueResId) {
+        const occ = world.occupancy;
+        const speakerPos =
+          occ && occ.residentId === dialogueResId && occ.location === curLocation
+            ? occ.localPos
+            : world.npcRuntime?.[dialogueResId]?.position;
+        if (speakerPos) {
+          const targetYaw = Math.atan2(
+            speakerPos.x - world.playerPos.x,
+            speakerPos.z - world.playerPos.z,
+          );
+          if (world.playerPosture !== 'sitting') {
+            world.playerFacing += wrapAngleDelta(world.playerFacing, targetYaw) * Math.min(1, dt * 8);
+          }
+          playerLookYaw = wrapAngleDelta(world.playerFacing, targetYaw);
+          if (world.playerPosture !== 'sitting') {
+            playerAnim = activePulseTimer > 0 && activePulseKind === 'talk' ? 'talk' : 'listen';
+          }
         }
       } else if (currentActiveProp !== null || (activePulseTimer > 0 && hasActivePulseFocus)) {
         let fx = activePulseFocusX;
@@ -2410,6 +2525,8 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
       greenhouseInteriorRig.dispose();
       bakeryInteriorRig.dispose();
       nookInteriorRig.dispose();
+      nookOccupantHitGeo.dispose();
+      nookOccupantHitMat.dispose();
       copperwheelInteriorRig.dispose();
       meadowDressing.dispose();
       orchardRig.dispose();

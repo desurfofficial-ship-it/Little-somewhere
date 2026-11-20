@@ -135,6 +135,25 @@ import {
   WorldState,
 } from './types';
 
+import {
+  acceptInvitation,
+  declineInvitation,
+  expireInvitationsAt,
+  isHostAvailableForActivity,
+  isInvitationLive,
+  offerInvitation,
+} from './invitations';
+import {
+  NOOK_CHAIR_STATION_ID,
+  clearOccupant,
+  isStationOccupied,
+  setOccupant,
+} from './occupancy';
+import {
+  completeSharedActivity,
+  getSharedActivityDef,
+} from './activities';
+
 export interface GainedItemChip {
   itemId: PersonalItemId;
   count: number;
@@ -164,7 +183,8 @@ export interface PropInteractionResult {
     | 'enter_copperwheel'
     | 'exit_copperwheel'
     | 'greenhouse_planting_panel'
-    | 'greenhouse_harvest_panel';
+    | 'greenhouse_harvest_panel'
+    | 'share_featured_reading';
   memoryUnlockedTitle?: string;
   /** Explicit item-gain readout rendered as chips above the prose (everyday-life polish). */
   gainedItems?: GainedItemChip[];
@@ -186,6 +206,67 @@ export function applyDialogueChoice(
   const sf = world.sideFlags ?? {};
   if (!isChoiceAvailable(choice, world, residentId)) {
     return { nextWorld: world, nextSession: session };
+  }
+
+  // Shared-activity dialogue completion delegates exclusively to completeSharedActivity()
+  // so smalltalk caps are never read/mutated and completion remains single-source & idempotent.
+  if (choice.completeSharedActivityId) {
+    const phaseNow = getTimePhase(world.minuteOfDay);
+    const nextTopicHistory = { ...(world.topicHistory ?? {}) };
+    const nextLastTopic = { ...(world.lastTopicByResident ?? {}) };
+    const historyKey = session.topicHistoryKey ?? session.topicId;
+    if (session.topicId && historyKey) {
+      const prevHist = nextTopicHistory[historyKey];
+      const chosenIds = prevHist?.chosenChoiceIds.includes(choice.id)
+        ? prevHist.chosenChoiceIds
+        : [...(prevHist?.chosenChoiceIds ?? []), choice.id].slice(-8);
+      nextTopicHistory[historyKey] = {
+        seenCount: (prevHist?.seenCount ?? 0) + 1,
+        lastSeenDay: world.day,
+        lastSeenPhase: phaseNow,
+        chosenChoiceIds: chosenIds,
+      };
+      nextLastTopic[residentId] = session.topicId;
+    }
+
+    const res = completeSharedActivity(world, choice.completeSharedActivityId);
+    const finalWorld: WorldState = res.ok
+      ? {
+          ...res.world,
+          topicHistory: nextTopicHistory,
+          lastTopicByResident: nextLastTopic,
+          residents: {
+            ...res.world.residents,
+            [residentId]: {
+              ...res.world.residents[residentId],
+              met: true,
+              talkedToday: true,
+              lastDialogueId: choice.nextNodeId,
+            },
+          },
+        }
+      : {
+          ...world,
+          topicHistory: nextTopicHistory,
+          lastTopicByResident: nextLastTopic,
+        };
+    const nextAffinity =
+      finalWorld.playerRelations?.[residentId]?.affinity ?? currentRes.trust * 20;
+    return {
+      nextWorld: finalWorld,
+      nextSession: {
+        ...session,
+        tier: getRelationshipTier(nextAffinity),
+        currentNodeId: choice.nextNodeId,
+        emotion: finalWorld.npcRuntime?.[residentId]?.emotion ?? session.emotion,
+        recentToast: res.toast,
+        milestonePulseSeq: res.ok
+          ? (session.milestonePulseSeq ?? 0) + 1
+          : session.milestonePulseSeq,
+        milestoneLabel: res.ok ? 'Shared moment saved!' : undefined,
+      },
+      memoryUnlockedTitle: res.memoryUnlockedTitle,
+    };
   }
 
   const nextFlags = choice.setFlags
@@ -782,7 +863,7 @@ export function applyDialogueChoice(
     });
   }
 
-  const nextWorld: WorldState = {
+  let nextWorld: WorldState = {
     ...world,
     playerHeldItem: nextHeldItem,
     worldProps: nextWorldProps,
@@ -801,6 +882,36 @@ export function applyDialogueChoice(
     inventory: nextInventory,
     discoveredItemIds: nextDiscovered,
   };
+
+  let invitationToast: string | undefined;
+  if (choice.offerInvitation) {
+    const offerRes = offerInvitation(
+      nextWorld,
+      choice.offerInvitation.hostId ?? residentId,
+      choice.offerInvitation.activityId,
+    );
+    if (offerRes.ok) {
+      nextWorld = offerRes.world;
+    }
+  }
+  if (choice.acceptInvitation) {
+    const accRes = acceptInvitation(nextWorld);
+    if (accRes.ok) {
+      nextWorld = accRes.world;
+      invitationToast = `Invitation accepted — meet ${RESIDENTS[residentId].name} inside Linden Book Nook.`;
+    } else if (accRes.reason === 'invitation_expired') {
+      const expRes = expireInvitationsAt(nextWorld, nextWorld.day, nextWorld.minuteOfDay);
+      nextWorld = expRes.world;
+      invitationToast = expRes.toast;
+    }
+  }
+  if (choice.declineInvitation) {
+    const decRes = declineInvitation(nextWorld);
+    if (decRes.ok) {
+      nextWorld = decRes.world;
+      invitationToast = 'Declined warmly for today.';
+    }
+  }
 
   const giftToast = isGift
     ? `Shared ${world.worldProps?.[choice.deliverHeldItem!]?.label ?? 'item'} with ${RESIDENTS[residentId].name}!`
@@ -831,7 +942,7 @@ export function applyDialogueChoice(
     emotion: nextNpcRuntime?.[residentId]?.emotion ?? session.emotion,
     recentToast: memoryUnlockedTitle
       ? `Memory saved: ${memoryUnlockedTitle}`
-      : giftToast ?? tierToast,
+      : invitationToast ?? giftToast ?? tierToast,
     milestonePulseSeq: significantMilestone
       ? (session.milestonePulseSeq ?? 0) + 1
       : session.milestonePulseSeq,
@@ -865,6 +976,16 @@ export function togglePlayerSitAction(
 
   const seat = resolveAnySeatById(seatId);
   if (!seat) return { nextWorld: world, sat: false };
+  if (
+    seat.id === 'nook_seat_armchair' &&
+    isStationOccupied(world, 'nook_interior', NOOK_CHAIR_STATION_ID)
+  ) {
+    return {
+      nextWorld: world,
+      sat: false,
+      toast: 'Nora is keeping the reading armchair for your shared book session.',
+    };
+  }
   // Cottage-interior seats are player-only (residents never enter the home), so the
   // outdoor NPC seat-claiming occupancy check does not apply to them.
   if (!seat.indoor) {
@@ -2847,6 +2968,55 @@ export function enterNookAction(world: WorldState): { nextWorld: WorldState; toa
   const safeExteriorPos = isPointWalkable(working.playerPos.x, working.playerPos.z, 0.48)
     ? { ...working.playerPos }
     : { ...NOOK_PORCH_EXIT_POS };
+
+  // Reconcile invitation expiry first on room transition (doc 14 §2.4 / LR2-04b).
+  const expiryCheck = expireInvitationsAt(working, working.day, working.minuteOfDay);
+  working = expiryCheck.world;
+
+  let toast = 'Stepped inside Linden Book Nook.';
+  if (expiryCheck.expired && expiryCheck.toast) {
+    toast = `Stepped inside Linden Book Nook. ${expiryCheck.toast}`;
+  }
+
+  let nextActiveActivity = working.activeActivity ?? null;
+  const activeInv = working.invitations?.active ?? null;
+  if (
+    activeInv &&
+    activeInv.status === 'accepted' &&
+    isInvitationLive(activeInv, working.day, working.minuteOfDay)
+  ) {
+    const activityDef = getSharedActivityDef(activeInv.activityId);
+    if (activityDef && activityDef.location === 'nook_interior') {
+      if (isHostAvailableForActivity(working, activeInv.hostId)) {
+        working = setOccupant(working, {
+          residentId: activeInv.hostId,
+          location: 'nook_interior',
+          stationId: activityDef.stationId,
+          localPos: activityDef.seatPos,
+          facing: activityDef.seatFacing,
+          invitationId: activeInv.id,
+        });
+        nextActiveActivity = {
+          activityId: activityDef.id,
+          invitationId: activeInv.id,
+        };
+        toast = `Stepped inside Linden Book Nook — ${RESIDENTS[activeInv.hostId].name} looks up from the reading chair.`;
+      } else {
+        const unavail = expireInvitationsAt(
+          working,
+          working.day,
+          working.minuteOfDay,
+          'host_unavailable',
+        );
+        working = unavail.world;
+        nextActiveActivity = null;
+        if (unavail.toast) {
+          toast = `Stepped inside Linden Book Nook. ${unavail.toast}`;
+        }
+      }
+    }
+  }
+
   return {
     nextWorld: {
       ...working,
@@ -2857,8 +3027,9 @@ export function enterNookAction(world: WorldState): { nextWorld: WorldState; toa
       playerFacing: NOOK_DOOR_DEFAULT_FACING,
       playerPosture: 'standing',
       playerSeatId: null,
+      activeActivity: nextActiveActivity,
     },
-    toast: 'Stepped inside Linden Book Nook.',
+    toast,
   };
 }
 
@@ -2866,16 +3037,18 @@ export function exitNookAction(world: WorldState): { nextWorld: WorldState; toas
   if (world.playerLocation !== 'nook_interior') {
     return { nextWorld: world, toast: '' };
   }
-  const exPos = world.exteriorPlayerPos ?? NOOK_PORCH_EXIT_POS;
+  const cleared = clearOccupant(world, 'nook_interior');
+  const exPos = cleared.exteriorPlayerPos ?? NOOK_PORCH_EXIT_POS;
   const safePos = isPointWalkable(exPos.x, exPos.z, 0.48) ? { ...exPos } : { ...PLAYER_SPAWN };
   return {
     nextWorld: {
-      ...world,
+      ...cleared,
       playerLocation: 'exterior',
       playerPos: safePos,
-      playerFacing: world.exteriorPlayerFacing ?? PLAYER_DEFAULT_FACING,
+      playerFacing: cleared.exteriorPlayerFacing ?? PLAYER_DEFAULT_FACING,
       playerPosture: 'standing',
       playerSeatId: null,
+      activeActivity: null,
     },
     toast: 'Stepped out beside Linden Book Nook.',
   };
@@ -2892,6 +3065,30 @@ export function interactWithNookProp(
       title: 'Book Nook Door',
       body: 'Paper-and-lamp-oil hush follows you out beside the Linden Book Nook.',
       actionType: 'exit_nook',
+    };
+  }
+
+  if (nookPropId === 'nook_chair') {
+    const active = world.invitations?.active;
+    if (
+      isStationOccupied(world, 'nook_interior', NOOK_CHAIR_STATION_ID) &&
+      active?.status === 'accepted' &&
+      active.activityId === 'share_featured_reading' &&
+      isInvitationLive(active, world.day, world.minuteOfDay)
+    ) {
+      const book = getFeaturedBookForDay(world.day);
+      return {
+        nextWorld: world,
+        title: 'Reading Armchair — Shared Reading',
+        body: `Nora is holding today’s featured copy of ${book.title} by the lamp. Settle in together for your shared reading session?`,
+        actionLabel: 'Share Featured Reading',
+        actionType: 'share_featured_reading',
+      };
+    }
+    return {
+      nextWorld: world,
+      title: 'Reading Armchair',
+      body: 'A deep lamp-lit armchair beside Nora’s tea console.',
     };
   }
 
@@ -2912,6 +3109,19 @@ export function interactWithNookProp(
  * Each book saves its own one-time memory the first time it is settled into.
  */
 export function browseBookshelfAction(world: WorldState): PropInteractionResult {
+  // Station exclusivity (LR2-06): solo shelf reading cannot run concurrently with
+  // Nora holding the reading armchair for an active shared reading session.
+  if (
+    isStationOccupied(world, 'nook_interior', NOOK_CHAIR_STATION_ID) ||
+    world.activeActivity?.activityId === 'share_featured_reading'
+  ) {
+    return {
+      nextWorld: world,
+      title: 'Linden Bookshelf Wall',
+      body: 'Nora already has today’s featured book open in the reading armchair — speak with her or share the reading session first.',
+    };
+  }
+
   const nk = getNookStateSafe(world);
   const book = getFeaturedBookForDay(world.day);
   const alreadyBrowsed = nk.shelfBrowsedDay === world.day;

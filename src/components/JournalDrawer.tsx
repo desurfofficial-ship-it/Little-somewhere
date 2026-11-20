@@ -258,6 +258,34 @@ export const JournalDrawer: React.FC<JournalDrawerProps> = ({
           {/* ================= 1. NEIGHBORHOOD STORIES ================= */}
           {tab === 'stories' && (
             <div className="space-y-6">
+              {journal.activeInvitation && (
+                <section aria-labelledby="journal-heading-invitation">
+                  <div className="p-3.5 sm:p-4 rounded-xl bg-[#FDF6E7] border border-[#D9B87A] flex flex-col gap-1.5">
+                    <div className="flex flex-wrap items-baseline justify-between gap-2">
+                      <h3
+                        id="journal-heading-invitation"
+                        className="font-display text-base font-semibold text-[#2D241E]"
+                      >
+                        Today&apos;s Invitation · {journal.activeInvitation.title}
+                      </h3>
+                      <span className="text-xs font-semibold text-[#9A5B32] shrink-0">
+                        {journal.activeInvitation.status === 'accepted'
+                          ? 'Accepted · Ready indoors'
+                          : 'Awaiting your answer'}
+                      </span>
+                    </div>
+                    <p className="text-xs sm:text-sm text-[#3D3128] leading-snug">
+                      {journal.activeInvitation.status === 'accepted'
+                        ? `${journal.activeInvitation.hostName} is waiting inside ${journal.activeInvitation.locationLabel}.`
+                        : `${journal.activeInvitation.hostName} asked if you'd like to meet at ${journal.activeInvitation.locationLabel}.`}
+                    </p>
+                    <p className="text-[11px] font-mono-nums text-[#6A5B50]">
+                      Window today: {journal.activeInvitation.windowLabel}
+                    </p>
+                  </div>
+                </section>
+              )}
+
               {/* Main Neighborhood Thread */}
               <section aria-labelledby="journal-heading-main-story">
                 <div className="flex items-baseline justify-between gap-2 mb-3">

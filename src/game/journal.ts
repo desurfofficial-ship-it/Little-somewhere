@@ -12,10 +12,13 @@ import {
 import {
   RESIDENTS,
   RESIDENT_ORDER,
+  formatClock,
   getResidentScheduleSlot,
   getTimePhase,
 } from './residents';
 import { getResidentAvailableQuestCue } from './narrative';
+import { getSharedActivityDef } from './activities';
+import { isInvitationLive } from './invitations';
 import { PERSONAL_ITEMS, PERSONAL_ITEM_MAP } from './inventory';
 import { describePlacedFlower } from './cottage';
 import { createInitialGreenhouseState, summarizeGreenhousePlots } from './greenhouse';
@@ -151,6 +154,16 @@ export interface JournalHomeSummary {
   homeRitualCount: number;
 }
 
+export interface JournalActiveInvitation {
+  id: string;
+  hostId: ResidentId;
+  hostName: string;
+  title: string;
+  locationLabel: string;
+  status: 'offered' | 'accepted';
+  windowLabel: string;
+}
+
 export interface PocketJournalView {
   day: number;
   phase: TimePhase;
@@ -163,6 +176,7 @@ export interface PocketJournalView {
   memories: JournalMemoryItem[];
   mainStoryTitle: string;
   mainStorySteps: JournalMainStoryStep[];
+  activeInvitation: JournalActiveInvitation | null;
   activeStorylines: JournalStorylineCard[];
   completedStorylines: JournalStorylineCard[];
   people: JournalPersonCard[];
@@ -369,6 +383,10 @@ function describeNpcMemoryTopic(
       return `Mina prepared chamomile and wild skep honey for the orchard picnic`;
     case 'orchard_gathering_hosted':
       return `Rowan, Clara, and Mina hung marigold lanterns over the Fern Hollow tasting table`;
+    case 'shared_featured_reading':
+      return entry.provenance === 'firsthand'
+        ? `Shared today’s featured book together inside Linden Book Nook.`
+        : `you and ${selfName} shared a quiet featured book inside Linden Book Nook`;
     default:
       return entry.tag.replace(/_/g, ' ');
   }
@@ -1148,6 +1166,25 @@ export function buildPocketJournalView(
     homeRitualCount: world.memories.filter((m) => m.id.startsWith('mem_teatable_')).length,
   };
 
+  const activeInvRaw = world.invitations?.active;
+  const activeInvitation: JournalActiveInvitation | null =
+    activeInvRaw && isInvitationLive(activeInvRaw, world.day, world.minuteOfDay)
+      ? (() => {
+          const def = getSharedActivityDef(activeInvRaw.activityId);
+          const hostName = RESIDENTS[activeInvRaw.hostId]?.name ?? activeInvRaw.hostId;
+          const locationLabel = RESIDENTS[activeInvRaw.hostId]?.homeName ?? 'Linden Book Nook';
+          return {
+            id: activeInvRaw.id,
+            hostId: activeInvRaw.hostId,
+            hostName,
+            title: def?.title ?? 'Shared Gathering',
+            locationLabel,
+            status: activeInvRaw.status,
+            windowLabel: `${formatClock(activeInvRaw.windowStartMinute)} – ${formatClock(activeInvRaw.windowEndMinute)}`,
+          };
+        })()
+      : null;
+
   return {
     day: world.day,
     phase,
@@ -1160,6 +1197,7 @@ export function buildPocketJournalView(
     memories,
     mainStoryTitle: 'The Silent Gazebo Bell',
     mainStorySteps,
+    activeInvitation,
     activeStorylines,
     completedStorylines,
     people,

@@ -41,7 +41,8 @@ import {
   saveWorldState,
 } from './game/storage';
 import { formatClock, getTimePhase } from './game/residents';
-import { advanceSimulationClock } from './game/time';
+import { advanceClockAndReconcile } from './game/invitations';
+import { completeSharedActivity } from './game/activities';
 import { buildMorningWakeLine, buildResidentDialogue } from './game/narrative';
 import {
   composeEnvironmentState,
@@ -365,6 +366,18 @@ export default function App() {
           }
           return;
         }
+        if (
+          (target.seatId ?? target.id) === 'nook_seat_armchair' &&
+          current.occupancy?.stationId === 'nook_chair'
+        ) {
+          const nookChairRes = interactWithNookProp(current, 'nook_chair');
+          triggerPlayerPulse('interact', target.worldPos);
+          cozyAudio.playUiTap(1.04);
+          setDialogueSession(null);
+          setActivePropId(null);
+          setPropCard({ ...nookChairRes, subjectImageKey: subjectKeyForNookProp('nook_chair') });
+          return;
+        }
         const res = togglePlayerSitAction(current, target.seatId ?? target.id);
         if (res.nextWorld !== current) {
           commitWorld(res.nextWorld);
@@ -635,6 +648,9 @@ export default function App() {
         showToast(`Memory saved: ${memoryUnlockedTitle}`);
       } else {
         cozyAudio.playUiTap(1.08);
+        if (nextSession?.recentToast) {
+          showToast(nextSession.recentToast);
+        }
       }
       if (choice.setFlags?.bellRestored) {
         setBellRingCounter((c) => c + 1);
@@ -941,6 +957,20 @@ export default function App() {
         setActivePropId(null);
         setPropCard(null);
         showToast(res.toast);
+      } else if (actionType === 'share_featured_reading') {
+        const res = completeSharedActivity(worldRef.current, 'share_featured_reading');
+        if (res.ok) {
+          commitWorld(res.world);
+          triggerPlayerPulse('interact', { x: -0.9, z: 1.65 });
+          cozyAudio.playMemoryChime();
+        } else {
+          cozyAudio.playUiTap(0.95);
+        }
+        setActivePropId(null);
+        setPropCard(null);
+        if (res.toast) {
+          showToast(res.toast);
+        }
       }
     },
     [commitWorld, showToast, triggerPlayerPulse, playSceneVeil],
@@ -949,11 +979,14 @@ export default function App() {
   const handleAdvanceTwoHours = useCallback(() => {
     cozyAudio.playUiTap(1.02);
     const current = worldRef.current;
-    const nextMin = advanceSimulationClock(current.minuteOfDay, 120);
-    const next = { ...current, minuteOfDay: nextMin };
-    commitWorld(next);
-    const nextPhase = getTimePhase(nextMin);
-    showToast(`Time drifted forward to ${formatClock(nextMin)} (${nextPhase})`);
+    const res = advanceClockAndReconcile(current, 120);
+    commitWorld(res.world);
+    const nextPhase = getTimePhase(res.world.minuteOfDay);
+    if (res.expired && res.toast) {
+      showToast(res.toast);
+    } else {
+      showToast(`Time drifted forward to ${formatClock(res.world.minuteOfDay)} (${nextPhase})`);
+    }
   }, [commitWorld, showToast]);
 
   const handleToggleMute = useCallback(() => {

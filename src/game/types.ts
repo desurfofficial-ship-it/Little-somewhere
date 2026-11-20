@@ -576,10 +576,61 @@ export interface WorldEventRecord {
     | 'weather_shift'
     | 'player_help'
     | 'storyline_beat'
-    | 'conflict_shift';
+    | 'conflict_shift'
+    | 'shared_activity';
   actors: ResidentId[];
   summary: string;
   summaryTag: string;
+}
+
+export type InvitationStatus = 'offered' | 'accepted';
+
+export type InvitationOutcome = 'completed' | 'declined' | 'expired';
+
+export interface InvitationRecord {
+  id: string;
+  status: InvitationStatus;
+  hostId: ResidentId;
+  activityId: string;
+  offeredDay: number;
+  expiresDay: number;
+  windowStartMinute: number;
+  windowEndMinute: number;
+}
+
+export interface InvitationHistoryEntry {
+  invitationId: string;
+  hostId: ResidentId;
+  activityId: string;
+  day: number;
+  outcome: InvitationOutcome;
+  reason?: string;
+}
+
+export interface InvitationState {
+  active: InvitationRecord | null;
+  history: InvitationHistoryEntry[];
+  lastOfferDayByHost: Partial<Record<ResidentId, number>>;
+}
+
+export type InteriorLocation = Exclude<PlayerLocation, 'exterior'>;
+
+export interface InteriorOccupant {
+  residentId: ResidentId;
+  location: InteriorLocation;
+  stationId: string;
+  localPos: Vec2;
+  facing: number;
+  invitationId: string;
+}
+
+export interface TeachingState {
+  known: string[];
+}
+
+export interface ActiveSharedActivity {
+  activityId: string;
+  invitationId: string;
 }
 
 export interface ResidentActivityEntry {
@@ -731,9 +782,15 @@ export interface WorldState {
   cottageState: CottageHomeState;
   dailyActivities: DailyActivitiesState;
   neighborGiftsReceived: ResidentId[];
+  // Living Relationships (LR-1 / LR-2 — WorldState v11)
+  invitations: InvitationState;
+  occupancy: InteriorOccupant | null;
+  teaching: TeachingState;
+  activeActivity: ActiveSharedActivity | null;
 }
 
 export type DialogueCategory =
+  | 'invitation'
   | 'quest_milestone'
   | 'personal_story'
   | 'conflict_reconciliation'
@@ -808,6 +865,16 @@ export interface DialogueCondition {
     subjectResidentId?: ResidentId;
   };
   requiresStoryline?: DialogueStorylineCondition;
+  requiresInvitationEligible?: { hostId?: ResidentId; activityId: string };
+  requiresActiveInvitation?: {
+    hostId?: ResidentId;
+    activityId?: string;
+    status?: InvitationStatus | InvitationStatus[];
+    requireLive?: boolean;
+    requireIndoors?: boolean;
+  };
+  excludesActiveInvitation?: boolean;
+  requiresTeachingKnown?: string[];
   notSeenToday?: boolean;
   minDaysSinceSeen?: number;
   maxSeenCount?: number;
@@ -833,6 +900,10 @@ export interface DialogueChoice {
   deliverHeldItem?: CarryableItemId;
   grantPersonalItem?: { itemId: PersonalItemId; count?: number };
   unlockMemory?: Omit<JournalMemory, 'day' | 'phase'>;
+  offerInvitation?: { hostId?: ResidentId; activityId: string };
+  acceptInvitation?: boolean;
+  declineInvitation?: boolean;
+  completeSharedActivityId?: string;
   requiresFlag?: keyof StoryFlags;
   requiresFalseFlag?: keyof StoryFlags;
   requiresSideFlag?: string;
