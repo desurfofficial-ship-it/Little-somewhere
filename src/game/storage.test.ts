@@ -801,6 +801,372 @@ test('v5->v6 migration upgrades cleanly with backup and computeWorldSaveRevision
   assert.deepEqual(nextDay.dailyActivities.giftedResidentsToday, []);
 });
 
+// ---------------------------------------------------------------------------
+// LR-1 acceptance tests — save/load reconciliation & migration (test-first).
+//
+// Spec of record: docs/architecture/living-relationships/14-revised-architecture.md
+// Test plan:      docs/architecture/living-relationships/16-lr1-lr2-acceptance-test-plan.md (§3, §5)
+//
+// Scope of this change (LR-1 test authoring only):
+//  - NO production code is implemented here. Every case below drives ONLY the
+//    existing production load path (saveWorldState/loadWorldState/deserializeWorldState).
+//  - The proposed LR state slices (world.invitations / world.occupancy / world.teaching /
+//    world.activeActivity — doc 16 §0.1) are staged through raw save payloads; no
+//    WorldState schema, migration, or sanitizer code is modified by this change.
+//  - Failure attribution: sanitizeWorldState currently drops every unknown top-level
+//    field, so positive-restoration cases (LR1-14, LR1-15b step A) fail with an explicit
+//    "MISSING LR-1 PRODUCTION" report until the slices persist, while clear-cases
+//    (LR1-15b step B, LR1-16) are gated behind that preservation check so they cannot
+//    pass vacuously through field dropping.
+//  - Version policy (doc 14 §9; doc 16 §6): no test hardcodes a future schema version.
+//    The pre-LR fixture version is derived from CURRENT_SCHEMA_VERSION plus a probe
+//    that detects whether the LR slices have landed, so these cases stay correct both
+//    before the LR merge (red, by design) and after it (green).
+// ---------------------------------------------------------------------------
 
+const LR_INVITE_ID = 'lr_test_invite_1';
+const LR_ACTIVITY_ID = 'share_featured_reading';
 
+type LrSavePayload = Record<string, unknown>;
 
+interface LrActiveInviteView {
+  id?: string;
+  status?: string;
+  hostId?: string;
+  activityId?: string;
+  offeredDay?: number;
+  expiresDay?: number;
+  windowStartMinute?: number;
+  windowEndMinute?: number;
+}
+
+interface LrInvitationStateView {
+  active?: LrActiveInviteView | null;
+  history?: Array<Record<string, unknown>>;
+  lastOfferDayByHost?: Record<string, number>;
+}
+
+/** The proposed LR-1 slice names (doc 16 §0.1) as they appear in raw save payloads. */
+const LR_SLICE_KEYS = ['invitations', 'occupancy', 'teaching', 'activeActivity'] as const;
+
+/** True once the runtime world carries the proposed LR slices (i.e. after the LR
+ *  merge has landed). Used only to derive the pre-LR fixture version dynamically. */
+function worldHasLrSlices(state: Record<string, unknown>): boolean {
+  return 'invitations' in state;
+}
+
+function craftLiveAcceptedInvite(day: number): LrActiveInviteView {
+  return {
+    id: LR_INVITE_ID,
+    status: 'accepted',
+    hostId: 'nora',
+    activityId: LR_ACTIVITY_ID,
+    offeredDay: day,
+    expiresDay: day,
+    windowStartMinute: 600,
+    windowEndMinute: 780,
+  };
+}
+
+test('LR1-14: save/load round-trip restores a live offered invitation intact', () => {
+  withMockLocalStorage(() => {
+    const base = createFreshWorldState();
+    const day = base.day;
+    const offered = {
+      id: LR_INVITE_ID,
+      status: 'offered',
+      hostId: 'nora',
+      activityId: LR_ACTIVITY_ID,
+      offeredDay: day,
+      expiresDay: day,
+      windowStartMinute: 600,
+      windowEndMinute: 780,
+    };
+    const staged = {
+      ...structuredClone(base),
+      minuteOfDay: 700, // inside [600, 780]
+      playerLocation: 'exterior' as const, // doc 16 LR1-14 precondition
+      invitations: { active: offered, history: [], lastOfferDayByHost: { nora: day } },
+    } as unknown as LrSavePayload;
+
+    const saved = saveWorldState(staged as unknown as ReturnType<typeof createFreshWorldState>);
+    assert.equal(saved.ok, true, 'save accepts the staged LR-1 state');
+    const loaded = loadWorldState();
+
+    // The loaded schemaVersion must be the runtime's current (post-LR at merge) —
+    // expressed via the imported constant, never a hardcoded future number (doc 16 §6).
+    assert.equal(loaded.schemaVersion, CURRENT_SCHEMA_VERSION, 'load lands on the runtime version');
+
+    const slices = loaded as unknown as { invitations?: LrInvitationStateView };
+    const active = slices.invitations?.active;
+    assert.ok(
+      active,
+      'MISSING LR-1 PRODUCTION: the proposed invitations slice does not survive the ' +
+        'save/load round-trip (sanitizeWorldState drops it today), so a live offered ' +
+        'invite is lost on reload — doc 14 §9 policy 4 + doc 16 LR1-14. Do not satisfy ' +
+        'this from the test side.',
+    );
+    assert.equal(active?.id, LR_INVITE_ID, 'active restored with the same id');
+    assert.equal(active?.status, 'offered', 'status not flipped by load (doc 16 LR1-14 fail line)');
+    assert.equal(active?.hostId, 'nora', 'active restored with the same host');
+    assert.equal(active?.windowStartMinute, 600, 'window start restored');
+    assert.equal(active?.windowEndMinute, 780, 'window end restored');
+    assert.equal(
+      slices.invitations?.lastOfferDayByHost?.nora,
+      day,
+      'lastOfferDayByHost survives reload so spacing enforcement persists (doc 14 §2.1)',
+    );
+  });
+});
+
+test('LR1-15b: load clears an orphan activeActivity (doc 16 §3)', () => {
+  withMockLocalStorage(() => {
+    const base = createFreshWorldState();
+    const day = base.day;
+
+    // Step A — discriminating gate: activeActivity is set alongside a live accepted
+    // invite (non-orphan). Doc 14 §4.3 clears activeActivity only when active is null,
+    // so a faithful invariant must PRESERVE the field here. Fails today because the
+    // sanitizer drops the slice entirely — the same positive-restoration gate LR1-15 uses.
+    const consistent = deserializeWorldState(
+      JSON.stringify({
+        ...structuredClone(base),
+        minuteOfDay: 700,
+        playerLocation: 'nook_interior',
+        invitations: {
+          active: craftLiveAcceptedInvite(day),
+          history: [],
+          lastOfferDayByHost: { nora: day },
+        },
+        activeActivity: { activityId: LR_ACTIVITY_ID, invitationId: LR_INVITE_ID },
+      }),
+    );
+    const preserved = (
+      consistent.state as unknown as { activeActivity?: { activityId?: string } | null }
+    ).activeActivity;
+    assert.ok(
+      preserved && preserved.activityId === LR_ACTIVITY_ID,
+      'MISSING LR-1 PRODUCTION: the load sanitizer drops the proposed activeActivity slice ' +
+        'entirely, so the doc 14 §4.3 orphan rule cannot be discriminated from field dropping ' +
+        '— a mid-visit activeActivity must survive load first (doc 16 LR1-15b)',
+    );
+
+    // Step B — the case itself: activeActivity set while invitations.active is null.
+    const orphaned = deserializeWorldState(
+      JSON.stringify({
+        ...structuredClone(base),
+        minuteOfDay: 700,
+        playerLocation: 'nook_interior',
+        invitations: { active: null, history: [], lastOfferDayByHost: { nora: day } },
+        activeActivity: { activityId: LR_ACTIVITY_ID, invitationId: LR_INVITE_ID },
+      }),
+    );
+    const cleared = (
+      orphaned.state as unknown as { activeActivity?: { activityId?: string } | null }
+    ).activeActivity;
+    assert.ok(
+      cleared === null || cleared === undefined,
+      'orphan activeActivity must be cleared when active is null (doc 14 §4.3)',
+    );
+    // Other slices intact (doc 16 LR1-15b: "Other slices intact"):
+    assert.ok(orphaned.state.nookState, 'nook slice intact');
+    assert.equal(
+      orphaned.state.playerRelations.nora.affinity,
+      base.playerRelations.nora.affinity,
+      'relations intact',
+    );
+    assert.equal(orphaned.state.memories.length, base.memories.length, 'journal intact');
+  });
+});
+
+test('LR1-16: load sanitizes an invitation with an unknown host id without crashing', () => {
+  withMockLocalStorage(() => {
+    const base = createFreshWorldState();
+    const day = base.day;
+    const corrupted = deserializeWorldState(
+      JSON.stringify({
+        ...structuredClone(base),
+        minuteOfDay: 700,
+        playerLocation: 'exterior',
+        invitations: {
+          active: {
+            ...craftLiveAcceptedInvite(day),
+            id: 'corrupt_invite_unknown',
+            hostId: 'definitely_not_a_resident',
+          },
+          history: [],
+          lastOfferDayByHost: {},
+        },
+      }),
+    );
+
+    // Discriminator: the runtime must actually model the invitations slice (key present)
+    // — otherwise "active cleared" would pass vacuously through field dropping.
+    const slices = corrupted.state as unknown as { invitations?: LrInvitationStateView };
+    assert.ok(
+      'invitations' in (corrupted.state as unknown as Record<string, unknown>),
+      'MISSING LR-1 PRODUCTION: the WorldState does not model the invitations slice yet, so ' +
+        'a corrupted invite cannot be recognized and cleared by the sanitizer (doc 14 §4.3; ' +
+        'doc 16 LR1-16)',
+    );
+    const active = slices.invitations?.active;
+    assert.ok(
+      active === null || active === undefined,
+      `corrupted invite (unknown host id) must be cleared on load, got ${JSON.stringify(active)}`,
+    );
+    // Rest of world intact (doc 16 LR1-16: "nookState, relations, memories"):
+    assert.ok(corrupted.state.nookState, 'nookState intact');
+    assert.equal(
+      corrupted.state.playerRelations.nora.affinity,
+      base.playerRelations.nora.affinity,
+      'relations intact',
+    );
+    assert.equal(corrupted.state.memories.length, base.memories.length, 'memories intact');
+  });
+});
+
+test('LR1-17: migration from the current canonical save seeds empty LR slices and preserves interiors', () => {
+  const base = createFreshWorldState();
+  const baseRecord = base as unknown as LrSavePayload;
+  // Pre-LR version: today the chain still ends at CURRENT_SCHEMA_VERSION, so the fixture
+  // is at CURRENT; once the LR merge lands (and bumps CURRENT), the pre-LR version is
+  // CURRENT - 1. The probe keeps the expectation "one greater than the fixture's pre-LR
+  // version" without hardcoding a future number (doc 16 LR1-17; doc 14 §9).
+  const preLrVersion = worldHasLrSlices(baseRecord) ? CURRENT_SCHEMA_VERSION - 1 : CURRENT_SCHEMA_VERSION;
+
+  // A genuine pre-LR payload: strip any LR slices (present post-merge) and pin the version.
+  const payload: LrSavePayload = {
+    ...structuredClone(base),
+    minuteOfDay: 700,
+    nookState: { ...base.nookState, shelfBrowsedDay: 5, booksRead: 2, teasShared: 1 },
+    bakeryState: { ...base.bakeryState, kneadedDay: 4, loavesShared: 2 },
+    greenhouseState: { ...base.greenhouseState, noteReadDay: 3, totalHarvests: 7 },
+    playerRelations: {
+      ...base.playerRelations,
+      nora: { ...base.playerRelations.nora, affinity: 55 },
+    },
+    schemaVersion: preLrVersion,
+  };
+  for (const key of LR_SLICE_KEYS) delete payload[key];
+
+  const res = deserializeWorldState(JSON.stringify(payload));
+  const state = res.state;
+  const slices = state as unknown as LrSavePayload;
+
+  assert.equal(
+    res.migratedFromVersion,
+    preLrVersion,
+    'fixture genuinely entered the chain at the pre-LR version',
+  );
+  assert.equal(
+    state.schemaVersion,
+    preLrVersion + 1,
+    'MISSING LR-1 PRODUCTION: the Living Relationships migration step (vN -> vN+1 per doc 14 ' +
+      '§9 policy) does not exist yet — the chain still ends at the pre-LR version, so canonical ' +
+      'saves never receive the seeded LR slices (doc 16 LR1-17)',
+  );
+
+  // Seeded LR defaults (doc 14 §9 policy 4; doc 16 LR1-17 expected list):
+  const invitations = slices.invitations as LrInvitationStateView | undefined;
+  assert.ok(invitations, 'LR migration seeds the invitations slice');
+  assert.ok(
+    invitations?.active === null || invitations?.active === undefined,
+    'seeded invitations.active === null',
+  );
+  assert.equal(invitations?.history?.length ?? 0, 0, 'seeded history is empty');
+  assert.ok('occupancy' in slices, 'LR migration seeds the occupancy slice');
+  assert.ok(
+    slices.occupancy === null ||
+      slices.occupancy === undefined ||
+      (typeof slices.occupancy === 'object' &&
+        !Array.isArray(slices.occupancy) &&
+        (slices.occupancy as Record<string, unknown>).residentId === undefined),
+    'seeded occupancy is empty',
+  );
+  assert.ok('teaching' in slices, 'LR migration seeds the teaching slice');
+  assert.equal(
+    (slices.teaching as { known?: unknown[] } | undefined)?.known?.length ?? 0,
+    0,
+    'seeded teaching.known is empty',
+  );
+  assert.ok('activeActivity' in slices, 'LR migration seeds activeActivity');
+  assert.ok(
+    slices.activeActivity === null || slices.activeActivity === undefined,
+    'seeded activeActivity === null',
+  );
+
+  // Prior slices unchanged (doc 16 LR1-17 fail line: "nook/bakery fields reset"):
+  assert.equal(state.nookState.shelfBrowsedDay, 5, 'nookState stamp preserved');
+  assert.equal(state.nookState.booksRead, 2, 'nookState counter preserved');
+  assert.equal(state.nookState.teasShared, 1, 'nookState tea counter preserved');
+  assert.equal(state.bakeryState.kneadedDay, 4, 'bakeryState stamp preserved');
+  assert.equal(state.bakeryState.loavesShared, 2, 'bakeryState counter preserved');
+  assert.equal(state.greenhouseState.noteReadDay, 3, 'greenhouseState stamp preserved');
+  assert.equal(state.greenhouseState.totalHarvests, 7, 'greenhouseState counter preserved');
+  assert.equal(state.playerRelations.nora.affinity, 55, 'player relations preserved');
+  assert.equal(state.memories.length, base.memories.length, 'journal preserved');
+  assert.equal(state.day, base.day, 'day preserved');
+});
+
+test('LR1-18: a pre-LR era save chains through every intermediate step and receives LR defaults', () => {
+  const base = createFreshWorldState();
+  const baseRecord = base as unknown as LrSavePayload;
+  const hasLr = worldHasLrSlices(baseRecord);
+  // Fixture version: two steps below the current runtime version. Today that is exactly
+  // v8, the version doc 16 LR1-18 names ("fixture that currently enters at v8"); after the
+  // LR merge bumps CURRENT it stays two steps below the LR target so the case keeps
+  // exercising a multi-step chain ending in the LR step. Historical introducing versions
+  // (v9 nook, v10 copperwheel) are fixed facts and may be referenced.
+  const fixtureVersion = CURRENT_SCHEMA_VERSION - 2;
+
+  const payload: LrSavePayload = {
+    ...structuredClone(base),
+    day: 6,
+    minuteOfDay: 640,
+    residents: {
+      ...base.residents,
+      clara: { ...base.residents.clara, trust: 4, met: true },
+    },
+    schemaVersion: fixtureVersion,
+  };
+  // Strip slices the fixture's era genuinely lacked: nookState arrived in v9,
+  // copperwheelState in v10, and the LR slices at the LR version.
+  if (fixtureVersion < 9) delete payload.nookState;
+  if (fixtureVersion < 10) delete payload.copperwheelState;
+  const lrVersion = hasLr ? CURRENT_SCHEMA_VERSION : CURRENT_SCHEMA_VERSION + 1;
+  if (fixtureVersion < lrVersion) {
+    for (const key of LR_SLICE_KEYS) delete payload[key];
+  }
+
+  const res = deserializeWorldState(JSON.stringify(payload));
+  const state = res.state;
+  const slices = state as unknown as LrSavePayload;
+
+  assert.equal(res.migratedFromVersion, fixtureVersion, 'fixture entered at the intended era');
+  assert.equal(
+    state.schemaVersion,
+    CURRENT_SCHEMA_VERSION,
+    'no skipped step: the chain still reaches the runtime version (doc 16 LR1-18)',
+  );
+  // Intermediate steps still applied (doc 16 LR1-18: "v9 nook defaults applied by
+  // existing migration ... LR defaults applied after that"):
+  assert.ok(state.nookState, 'v9-era nook defaults present after the chain');
+  assert.ok(state.copperwheelState, 'v10-era copperwheel defaults present after the chain');
+  assert.equal(state.day, 6, 'save progress carried through the chain');
+  assert.equal(state.residents.clara.trust, 4, 'resident progress carried through the chain');
+
+  // LR defaults applied after the existing steps — the discriminating assertion:
+  assert.ok(
+    'invitations' in slices,
+    'MISSING LR-1 PRODUCTION: the chain reaches the runtime version but no LR step seeds the ' +
+      'invitations slice, so a pre-LR-era save loads without the LR defaults (doc 14 §9 policy 4; ' +
+      'doc 16 LR1-18 fail line)',
+  );
+  const invitations = slices.invitations as LrInvitationStateView | undefined;
+  assert.ok(
+    invitations?.active === null || invitations?.active === undefined,
+    'LR default seeds an empty active slot on an era save',
+  );
+  assert.ok('occupancy' in slices && 'teaching' in slices && 'activeActivity' in slices,
+    'all LR slices seeded on a pre-LR-era save');
+});
