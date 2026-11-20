@@ -261,6 +261,17 @@ Fair question, and the honest answer is *half-yes*: **no one who built the Pond,
 
 ## 9. Prioritized Implementation Roadmap (next phases — audit proposal only)
 
+> **Implementation status (2026-11-20, Entry 047)**: Phases A, B and C are **implemented and committed** (`9e9906c` Phase A; `c152233` Phases B+C).
+> - **A — Sunbeam Conservatory**: ✅ A-1 visual rebuild + A-2 west-door reconciliation (decoy deleted, panelized glazing, roof bars + vents, gutters + rain barrel, coursing + quoins, potting-bench legs / interior-faithful furniture, gardener's yard, interior door now west agreeing with the exterior doorway).
+> - **B — template core back-port**: ✅ `craft` toggles (sill band, quoins, bargeboards + gable infill, loft vents, tapered chimney) promoted into `buildStorybookCottageCore`, enabled for bakery/nook/woodshop, OFF for Copperwheel; implied-space interior pass (pantry/bakehouse/stacks doors, cottage loft ladder) delivered as visual-only.
+> - **C — Pinecone Woodshop**: ✅ terracotta roof swap + lumber/sawhorse/chips/shingle/barrow maker yard.
+> - **D — Linden Book Nook**: ✅ delivered inside the C commit (canted bay window with window seat, blade sign, returns crates) — the audit's D items shipped with Phase C.
+> - **E — Hearth & Crumb**: ✅ bakehouse wing, corbel display ledge + second tier, flour sacks + crate, hanging sign.
+> - **F — implied-space interiors**: ✅ delivered with Phase B (back-room doors + loft acknowledgment; window-shaft micro-alignment remains open).
+> - **G — Copperwheel clock case**: ⏸ pending coordination with the owning agent (craft toggles available but not enabled).
+> - **H — Pond micro-polish**: ⏸ not started (P2, after A–E as originally sequenced).
+> Verification artifacts: `scripts/probe_plot_compliance.ts` (plot gate), `scripts/probe_greenhouse_budget.ts` (draw budget), `scripts/qa_building_phase_a.sh` + `scripts/qa_building_phase_bc.sh` (headless visual QA).
+
 **Phase A — Sunbeam Conservatory rebuild (highest visual ROI, highest defect density)**
 1. Delete decoy west frame; single vestibule entrance at (11.14, 3.20). *(visual only)*
 2. Panelized glazing (wall bays + roof bars), eaves + gutters + rain barrel, ridge vents, dwarf-wall coursing + louvres. *(visual only)*
