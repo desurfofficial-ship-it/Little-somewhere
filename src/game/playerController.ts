@@ -29,6 +29,10 @@ import {
   selectBestNookTarget,
 } from './bookNook';
 import {
+  resolveCopperwheelInteriorMovement,
+  selectBestCopperwheelTarget,
+} from './copperwheel';
+import {
   PROP_INTERACTABLES,
   SEAT_SPOTS,
   computeFacingAlignment,
@@ -207,7 +211,8 @@ export function stepPlayerMovement(input: StepPlayerMovementInput): StepPlayerMo
     input.location === 'cottage_interior' ||
     input.location === 'greenhouse_interior' ||
     input.location === 'bakery_interior' ||
-    input.location === 'nook_interior';
+    input.location === 'nook_interior' ||
+    input.location === 'copperwheel_interior';
   // Carrying items trims top sprint pace slightly for cozy physical believability;
   // the small cottage room also caps sprinting so approach points never get overshot.
   const rawDesiredSpeed = resolveDesiredSpeed(
@@ -254,6 +259,8 @@ export function stepPlayerMovement(input: StepPlayerMovementInput): StepPlayerMo
     ? resolveBakeryInteriorMovement(pos, nextPosCandidate, 0.42)
     : input.location === 'nook_interior'
     ? resolveNookInteriorMovement(pos, nextPosCandidate, 0.42)
+    : input.location === 'copperwheel_interior'
+    ? resolveCopperwheelInteriorMovement(pos, nextPosCandidate, 0.42)
     : resolveInteriorMovement(pos, nextPosCandidate, 0.42);
 
   // Measure actual traveled velocity after sliding collision (damps into wall cleanly without sticky rebound)
@@ -442,6 +449,39 @@ export function selectBestInteractiveTarget(
     return selectBestNookTarget(world);
   }
 
+  if (world.playerLocation === 'copperwheel_interior') {
+    // M3 Build 9: Copperwheel Cottage stations; seated in the window armchair offers
+    // the same sit-and-sip ritual (Arthur's kettle tea travels in the same satchel).
+    if (world.playerPosture === 'sitting') {
+      const seat = resolveAnySeatById(world.playerSeatId);
+      if (seat?.indoor) {
+        const sip = getFirstSipableItem(world.inventory);
+        if (sip) {
+          return {
+            kind: 'seat',
+            id: seat.id,
+            seatId: seat.id,
+            label: seat.label,
+            actionLabel: `Sip ${sip.def.label}`,
+            distance: 0,
+            worldPos: { ...world.playerPos },
+            sipItemId: sip.itemId,
+          };
+        }
+        return {
+          kind: 'seat',
+          id: seat.id,
+          seatId: seat.id,
+          label: seat.label,
+          actionLabel: 'Stand Up',
+          distance: 0,
+          worldPos: { ...world.playerPos },
+        };
+      }
+    }
+    return selectBestCopperwheelTarget(world);
+  }
+
   if (world.playerPosture === 'sitting') {
     const seat = resolveAnySeatById(world.playerSeatId);
     return {
@@ -524,7 +564,7 @@ export function selectBestInteractiveTarget(
           ? 'Enter Cottage'
           : prop.id === 'greenhouse_door'
           ? 'Step Inside'
-          : prop.id === 'bakery_door' || prop.id === 'nook_door'
+          : prop.id === 'bakery_door' || prop.id === 'nook_door' || prop.id === 'copperwheel_door'
           ? 'Step Inside'
           : prop.id === 'cottage_window_box' ||
             prop.id === 'greenhouse_planters' ||

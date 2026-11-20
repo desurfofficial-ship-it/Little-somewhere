@@ -1431,3 +1431,73 @@ test('Milestone 3 Build 8: Nora book-nook topics gate on the reading-corner side
   assert.ok(builtBrowsed.nodes[builtBrowsed.rootId]);
   assert.ok(builtTea.nodes[builtTea.rootId]);
 });
+
+test('Milestone 3 Build 9: Arthur copperwheel topics gate on the workshop side flag and react to workshop state', () => {
+  const base = createFreshWorldState();
+  const workshopTopic = DIALOGUE_TOPICS.find((t) => t.id === 'side_arthur_workshop_bench')!;
+  const checkinTopic = DIALOGUE_TOPICS.find((t) => t.id === 'daily_arthur_workshop_checkin')!;
+
+  const unmet = { ...base, residents: { ...base.residents, arthur: { ...base.residents.arthur, met: false } } };
+  assert.equal(
+    evaluateDialogueCondition(workshopTopic.condition, 'arthur', unmet, 'morning', workshopTopic.id),
+    false,
+    'Workshop topic requires the resident to be met',
+  );
+  const metBase: WorldState = {
+    ...base,
+    residents: { ...base.residents, arthur: { ...base.residents.arthur, met: true } },
+  };
+  assert.equal(
+    evaluateDialogueCondition(workshopTopic.condition, 'arthur', metBase, 'morning', workshopTopic.id),
+    true,
+  );
+
+  const visitedWorld: WorldState = {
+    ...metBase,
+    sideFlags: { ...metBase.sideFlags, copperwheelVisited: true },
+  };
+  assert.equal(
+    evaluateDialogueCondition(workshopTopic.condition, 'arthur', visitedWorld, 'morning', workshopTopic.id),
+    false,
+  );
+  assert.equal(
+    evaluateDialogueCondition(checkinTopic.condition, 'arthur', visitedWorld, 'morning', checkinTopic.id),
+    true,
+  );
+
+  // Knowledge boundary: without copperwheelVisited, Arthur never runs the check-in topic
+  assert.equal(
+    evaluateDialogueCondition(checkinTopic.condition, 'arthur', metBase, 'morning', checkinTopic.id),
+    false,
+  );
+
+  // Check-in build reacts only to Arthur's own observable workshop state
+  const helpedWorld: WorldState = {
+    ...visitedWorld,
+    day: 1,
+    copperwheelState: { ...visitedWorld.copperwheelState, benchCheckedDay: 1, helpedDay: 1 },
+  };
+  const builtHelped = checkinTopic.build('arthur', helpedWorld, 'morning');
+  assert.ok(builtHelped.nodes.root.text.includes('orchard pendulum'));
+
+  const teaWorld: WorldState = {
+    ...visitedWorld,
+    day: 1,
+    copperwheelState: { ...visitedWorld.copperwheelState, teaSharedDay: 1 },
+  };
+  const builtTea = checkinTopic.build('arthur', teaWorld, 'morning');
+  assert.ok(builtTea.nodes.root.text.includes('kettle knows a kind hand'));
+
+  // Bench-rest day check-in names the rest
+  const restWorld: WorldState = {
+    ...visitedWorld,
+    day: 4,
+    copperwheelState: { ...visitedWorld.copperwheelState, benchCheckedDay: 4 },
+  };
+  const builtRest = checkinTopic.build('arthur', restWorld, 'morning');
+  assert.ok(builtRest.nodes.root.text.includes('rest day'));
+
+  assert.ok(builtHelped.nodes[builtHelped.rootId]);
+  assert.ok(builtTea.nodes[builtTea.rootId]);
+  assert.ok(builtRest.nodes[builtRest.rootId]);
+});

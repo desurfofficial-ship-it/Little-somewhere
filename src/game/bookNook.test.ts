@@ -249,9 +249,12 @@ test('v8 saves migrate to v9 with a fresh nookState and interior locations prese
   const v8Raw = { ...parsed, schemaVersion: 8 } as Record<string, unknown>;
   delete v8Raw.nookState;
   const result = migrateWorldState(v8Raw);
-  assert.equal(result.state.schemaVersion, 9);
+  // Build 9 bumps the runtime schema to v10: the v8 save chains v8→v9→v10,
+  // preserving every v9 invariant plus the fresh v10 copperwheelState.
+  assert.equal(result.state.schemaVersion, 10);
   assert.ok(result.state.nookState);
   assert.equal(result.state.nookState.booksRead, 0);
+  assert.ok(result.state.copperwheelState, 'chain hydrates the fresh copperwheelState');
   assert.equal(result.warnings.length, 0);
 });
 

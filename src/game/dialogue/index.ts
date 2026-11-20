@@ -10,8 +10,9 @@
  * Ownership notes (actual content organization, which differs from the
  * blueprint's per-resident guess): personal storylines are sequential
  * multi-resident community arcs, so personal/ modules are arc-owned
- * files, not per-resident files. Copperwheel Cottage dialogue is owned
- * by a parallel workstream and intentionally has no module here yet.
+ * files, not per-resident files. Copperwheel Cottage dialogue joined as
+ * interiors/copperwheel.ts in Milestone 3 Build 9 (Arthur's workshop
+ * invitation + daily check-in).
  */
 import type { DialogueTopic } from '../types';
 import { BELL_QUEST_TOPICS } from './quest/bellQuest';
@@ -33,6 +34,7 @@ import { EVERYDAY_HOME_TOPICS } from './everyday/home';
 import { GREENHOUSE_TOPICS } from './interiors/greenhouse';
 import { BAKERY_TOPICS } from './interiors/bakery';
 import { BOOK_NOOK_TOPICS } from './interiors/bookNook';
+import { COPPERWHEEL_TOPICS } from './interiors/copperwheel';
 
 export const DIALOGUE_TOPICS: readonly DialogueTopic[] = [
   ...BELL_QUEST_TOPICS, // 5 topics
@@ -54,4 +56,5 @@ export const DIALOGUE_TOPICS: readonly DialogueTopic[] = [
   ...GREENHOUSE_TOPICS, // 2 topics
   ...BAKERY_TOPICS, // 2 topics
   ...BOOK_NOOK_TOPICS, // 2 topics
+  ...COPPERWHEEL_TOPICS, // 2 topics (Milestone 3 Build 9 — Copperwheel Cottage, Arthur)
 ];

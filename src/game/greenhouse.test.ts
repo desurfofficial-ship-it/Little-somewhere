@@ -406,9 +406,10 @@ test('v6 -> v7 migration hydrates greenhouseState and preserves v6 interior loca
     inventory: { chamomile_blossom: 2 },
   };
   const res = migrateWorldState(v6Save);
-  // Build 8 bumps the runtime schema to v9: the v6 save now chains v6→…→v9,
-  // keeping every v7 greenhouse invariant plus the fresh v8 bakeryState and v9 nookState.
-  assert.equal(res.state.schemaVersion, 9);
+  // Build 9 bumps the runtime schema to v10: the v6 save now chains v6→…→v10,
+  // keeping every v7 greenhouse invariant plus the fresh v8 bakeryState, v9 nookState,
+  // and v10 copperwheelState.
+  assert.equal(res.state.schemaVersion, 10);
   assert.equal(res.migratedFromVersion, 6);
   assert.equal(res.state.playerLocation, 'cottage_interior');
   assert.equal(res.state.greenhouseState.noteReadDay, 0);
@@ -416,6 +417,7 @@ test('v6 -> v7 migration hydrates greenhouseState and preserves v6 interior loca
   assert.ok(res.state.greenhouseState.plots.every((p: GreenhousePlotState) => p.cropId === null));
   assert.ok(res.state.bakeryState, 'chain hydrates the fresh bakeryState');
   assert.ok(res.state.nookState, 'chain hydrates the fresh nookState');
+  assert.ok(res.state.copperwheelState, 'chain hydrates the fresh copperwheelState');
   assert.deepEqual(res.state.cottageState.placedFlowerId, 'crabapple');
 });
 

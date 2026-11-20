@@ -1,5 +1,5 @@
 {
- "count": 77,
+ "count": 79,
  "topics": [
   {
    "index": 0,
@@ -1184,6 +1184,35 @@
     "requiresMet": true,
     "sideFlagsTrue": [
      "nookVisited"
+    ],
+    "notSeenToday": true
+   }
+  },
+  {
+   "index": 77,
+   "id": "side_arthur_workshop_bench",
+   "residentId": "arthur",
+   "category": "personal_story",
+   "priority": 16,
+   "historyScope": null,
+   "condition": {
+    "requiresMet": true,
+    "sideFlagsFalse": [
+     "copperwheelVisited"
+    ]
+   }
+  },
+  {
+   "index": 78,
+   "id": "daily_arthur_workshop_checkin",
+   "residentId": "arthur",
+   "category": "daily_slice",
+   "priority": 15,
+   "historyScope": null,
+   "condition": {
+    "requiresMet": true,
+    "sideFlagsTrue": [
+     "copperwheelVisited"
     ],
     "notSeenToday": true
    }

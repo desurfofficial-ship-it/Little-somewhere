@@ -735,3 +735,51 @@ test('Milestone 3 Build 8: linden_book_nook discovery tracks the reading lifecyc
   const teaNk = teaView.landmarks.find((l) => l.id === 'linden_book_nook')!;
   assert.equal(teaNk.statusLabel, 'Reader’s tea poured');
 });
+
+test('Milestone 3 Build 9: copperwheel_cottage discovery tracks the workshop lifecycle', () => {
+  const base = createFreshWorldState();
+  const initialView = buildPocketJournalView(base);
+  const initialCw = initialView.landmarks.find((l) => l.id === 'copperwheel_cottage')!;
+  assert.ok(initialCw, 'Copperwheel discovery row exists');
+  assert.equal(initialCw.statusKind, 'quiet');
+  assert.equal(initialCw.statusLabel, 'Arthur’s brass workshop');
+
+  // Bench checked today names the day project (day 2 = music box comb)
+  const benchWorld: WorldState = {
+    ...base,
+    day: 2,
+    copperwheelState: { ...base.copperwheelState, benchCheckedDay: 2 },
+  };
+  const benchView = buildPocketJournalView(benchWorld);
+  const benchCw = benchView.landmarks.find((l) => l.id === 'copperwheel_cottage')!;
+  assert.equal(benchCw.statusKind, 'active');
+  assert.equal(benchCw.statusLabel, 'At the bench: A Music Box Comb');
+
+  // Bench-rest day (day 4) reads as a rest
+  const restWorld: WorldState = {
+    ...base,
+    day: 4,
+    copperwheelState: { ...base.copperwheelState, benchCheckedDay: 4 },
+  };
+  const restView = buildPocketJournalView(restWorld);
+  const restCw = restView.landmarks.find((l) => l.id === 'copperwheel_cottage')!;
+  assert.equal(restCw.statusLabel, 'Bench resting today');
+
+  // Lifetime admiration counter shows the settled pieces
+  const admiredWorld: WorldState = {
+    ...base,
+    copperwheelState: { ...base.copperwheelState, projectsAdmired: 3 },
+  };
+  const admiredView = buildPocketJournalView(admiredWorld);
+  const admiredCw = admiredView.landmarks.find((l) => l.id === 'copperwheel_cottage')!;
+  assert.equal(admiredCw.statusLabel, '3 of 4 projects admired');
+
+  // Tea-only visit shows the kettle status
+  const teaWorld: WorldState = {
+    ...base,
+    copperwheelState: { ...base.copperwheelState, teasShared: 1 },
+  };
+  const teaView = buildPocketJournalView(teaWorld);
+  const teaCw = teaView.landmarks.find((l) => l.id === 'copperwheel_cottage')!;
+  assert.equal(teaCw.statusLabel, 'Tea shared at the kettle');
+});

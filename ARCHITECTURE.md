@@ -30,13 +30,17 @@
 ┌───────────────────────────────────────────────────────────────────────────┐
 │               Headless Game Engine (src/game/* — Zero UI/3D)              │
 │                                                                           │
-│  • types.ts      — WorldState v7, GreenhouseState, CottageHomeState,      │
-│                    PersonalItemId, Memory, Storyline, DialogueSession     │
+│  • types.ts      — WorldState v10, GreenhouseState, CottageHomeState,      │
+│                    BakeryState/NookState/CopperwheelState, Memory,         │
+│                    Storyline, DialogueSession                              │
 │  • time.ts/rng.ts— Unified 360–1290 clock, 10-day seasons, deterministic PRNG│
 │  • worldMap.ts   — Bounds, obstacles, seats, carryable & daily gather props│
 │  • cottage.ts    — Cottage interior bounds, 7 home stations, bypass paths │
 │  • greenhouse.ts — Greenhouse cutaway bounds, 5 stations, 4-pot growing   │
 │                    loop registry (crops, walkability, waypoints, targets) │
+│  • bakery.ts /   — Visitable neighbor interiors (Builds 7-9): bounds,     │
+│    bookNook.ts,    stations, day-cycle registries, seats, walkability,    │
+│    copperwheel.ts  hub waypoints per room                                 │
 │  • inventory.ts  — 21 personal items, 4 hearth recipes, resident gift prefs│
 │  • navigation.ts — 33-node A* lane graph, LOS smoothing, stuck recovery   │
 │  • residents.ts  — 10 founding residents, traits, 4-phase slots & tasks   │
@@ -52,7 +56,7 @@
 │                    next-day reducers                                      │
 │  • environment.ts— 5-layer Environment Composer (time/weather/season/props)│
 │  • playerController.ts — Locomotion, bridge Y, bench sit, prop targeting   │
-│  • migrations.ts — v1 -> v2 -> v3 -> v4 -> v5 -> v6 -> v7 save migration   │
+│  • migrations.ts — v1 -> v2 -> ...  -> v10 save migration   │
 │  • storage.ts    — localStorage persistence ('little_somewhere_world_v1')  │
 │  • audio.ts      — Procedural Web Audio API SFX (footsteps, chimes, bell)  │
 └────────────────────────────────────────────────────────────────────────────┘
@@ -130,23 +134,24 @@ computeEnvironmentState(world.flags)
 
 | Path | Responsibility |
 | :--- | :--- |
-| `src/game/types.ts` | Core domain interfaces (`WorldState` v7, `GreenhouseState`, `CottageHomeState`, `PersonalItemId`, `StoryFlags`, `StorylineProgress`, `NpcMemoryEntry`, `DialogueSession`) |
+| `src/game/types.ts` | Core domain interfaces (`WorldState` v10, `GreenhouseState`, `CottageHomeState`, `BakeryState`, `NookState`, `CopperwheelState`, `PersonalItemId`, `StoryFlags`, `StorylineProgress`, `NpcMemoryEntry`, `DialogueSession`) |
 | `src/game/time.ts`, `rng.ts` | Unified clock (`360–1290`), 10-day 4-season calendar, deterministic FNV/Mulberry PRNG |
 | `src/game/worldMap.ts`, `navigation.ts` | Neighborhood map, bounds, collision math, landmarks, daily gathering props, 33-node A* graph |
-| `src/game/cottage.ts`, `greenhouse.ts`, `inventory.ts` | Willow Step Cottage cutaway bounds/stations/waypoints, Sunbeam Greenhouse cutaway + 4-pot shared growing-corner registry (crops, stage math, nightly growth), 21 satchel items, hearth recipes, resident gift preferences |
+| `src/game/cottage.ts`, `greenhouse.ts`, `inventory.ts` | Willow Step Cottage cutaway bounds/stations/waypoints, Sunbeam Greenhouse cutaway + 4-pot shared growing-corner registry (crops, stage math, nightly growth), all-indoor-seat `resolveAnySeatById` registry, 21 satchel items, hearth recipes, resident gift preferences |
+| `src/game/bakery.ts`, `bookNook.ts`, `copperwheel.ts` | Visitable neighbor interiors (M3 Builds 7-9): local-coordinate cutaway bounds, obstacles, stations, deterministic day-cycle registries (daily bake roster / featured-book shelf / bench project cycle), indoor seats, walkability & hub waypoints |
 | `src/game/residents.ts`, `simulation.ts` | 10 founding resident definitions, traits, schedules, needs/emotions, encounters & gossip triggers |
 | `src/game/memories.ts`, `storylines.ts`, `journal.ts`, `relationships.ts` | Bounded per-NPC subjective memories/gossip, multi-stage personal/conflict storylines, player-knowledge Pocket Journal projection, tiers & events |
-| `src/game/dialogue/` (19 modules + `index.ts`), `narrative.ts` / `dialogueEngine.ts` | Dialogue content modules (77 topics: quest, personal arcs, events, interiors, everyday) aggregated in original order; `narrative.ts` re-exports `DIALOGUE_TOPICS` + quest cues & `computeEnvironmentState()`; `dialogueEngine.ts` = declarative selector, knowledge-based gossip & reactions |
-| `src/game/actions.ts`, `playerController.ts` | Pure state transition reducers (cottage cooking/vase/keepsakes, greenhouse sow/water/harvest/notes, gifting, gathering, water), locomotion & bench logic |
+| `src/game/dialogue/` (20 modules + `index.ts`), `narrative.ts` / `dialogueEngine.ts` | Dialogue content modules (79 topics: quest, personal arcs, events, interiors incl. `copperwheel.ts`, everyday) aggregated in original order; `narrative.ts` re-exports `DIALOGUE_TOPICS` + quest cues & `computeEnvironmentState()`; `dialogueEngine.ts` = declarative selector, knowledge-based gossip & reactions |
+| `src/game/actions.ts`, `playerController.ts` | Pure state transition reducers (cottage cooking/vase/keepsakes, greenhouse sow/water/harvest/notes, bakery/nook/copperwheel rituals, gifting, gathering, water), the all-interiors sit-and-sip ritual, locomotion & bench logic |
 | `src/game/environment.ts` | Pure 5-Layer Environment Composer (time, seeded weather, season, flags, NPC touches) |
-| `src/game/migrations.ts`, `storage.ts`, `audio.ts` | `v1 -> … -> v7` migrations, `localStorage` autosave + revision hash + greenhouse-aware day rollover, Web Audio SFX |
+| `src/game/migrations.ts`, `storage.ts`, `audio.ts` | `v1 -> … -> v10` migrations, `localStorage` autosave + revision hash + interior-aware day rollover, Web Audio SFX |
 | `src/game/*.test.ts`, `src/scene/*.test.ts` | Deterministic `node:test` suites covering engine rules, cottage interior, satchel/gifting, journal knowledge boundaries, saves, and 3D contracts |
 | `src/scene/textures.ts`, `materials.ts` | Seeded procedural `CanvasTexture` surfaces & shared `MaterialPalette` cache |
 | `src/scene/models.ts`, `waterShaders.ts` | Shared rig type contracts (`GazeboRig`, `FountainRig`, `MirrorPondRig`, `CottageInteriorRig`, `OrchardRig`, `CharacterRig`) & water shaders |
-| `src/scene/builders/*` | Composite clay buildings, cottage cutaway interior (`cottageInterior.ts`) + greenhouse cutaway interior & growing shelf (`greenhouseInterior.ts`), landmarks, Mirror Pond/bridge/grove, Fern Hollow Orchard + micro-life (`orchard.ts`, `orchardMicroLife.ts`), characters, reactive props & meadow botanicals |
+| `src/scene/builders/*` | Composite clay buildings, cottage cutaway interior (`cottageInterior.ts`) + neighbor interior cutaways (`bakeryInterior.ts`, `bookNookInterior.ts`, `copperwheelInterior.ts`) + greenhouse cutaway interior & growing shelf (`greenhouseInterior.ts`), landmarks, Mirror Pond/bridge/grove, Fern Hollow Orchard + micro-life (`orchard.ts`, `orchardMicroLife.ts`), characters, reactive props & meadow botanicals |
 | `src/scene/prototypes/willowLaneDiorama.ts` | Premium Handcrafted Storybook Diorama prototype (Willow Step Cottage, lane, foliage & Jun) |
 | `src/scene/environmentRenderer.ts` | Dirty-flagged lighting, weather FX, season palettes, orchard/micro-life sync & prop sync (`EnvironmentVisualController`) |
-| `src/scene/NeighborhoodCanvas.tsx` | Deferred (`React.lazy`) Three.js renderer, exterior/cottage/greenhouse cutaway toggles, lighting cycle, movement, raycasting, animation loop |
+| `src/scene/NeighborhoodCanvas.tsx` | Deferred (`React.lazy`) Three.js renderer, exterior/cottage/greenhouse/bakery/nook/copperwheel cutaway toggles, lighting cycle, movement, raycasting, animation loop |
 | `src/components/*` | `TitleOverlay`, `VirtualJoystick`, `DialogueSheet`, `InventoryDrawer`, `CottageStationModal`, `GreenhousePanel`, `JournalDrawer`, `PauseModal` |
 | `src/App.tsx` | Top-level game shell, HUD bar, keyboard shortcuts, lazy canvas mount, persistence wiring |
 | `docs/art-direction/*` | Official **Premium Handcrafted Storybook Diorama** identity, standards, audit & roadmap |

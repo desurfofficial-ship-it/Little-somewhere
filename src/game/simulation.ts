@@ -814,7 +814,8 @@ export function stepSimulationInPlace(
         world.playerLocation === 'cottage_interior' ||
         world.playerLocation === 'greenhouse_interior' ||
         world.playerLocation === 'bakery_interior' ||
-        world.playerLocation === 'nook_interior';
+        world.playerLocation === 'nook_interior' ||
+        world.playerLocation === 'copperwheel_interior';
       const outdoorPlayerPos = isIndoors ? world.exteriorPlayerPos : world.playerPos;
       const pDist = isIndoors ? Infinity : distance2D(world.playerPos, rt.position);
       const rel = world.playerRelations?.[id];
@@ -874,7 +875,9 @@ export function stepSimulationInPlace(
   const outdoorPlayerRef =
     world.playerLocation === 'cottage_interior' ||
       world.playerLocation === 'greenhouse_interior' ||
-      world.playerLocation === 'bakery_interior'
+      world.playerLocation === 'bakery_interior' ||
+      world.playerLocation === 'nook_interior' ||
+      world.playerLocation === 'copperwheel_interior'
       ? world.exteriorPlayerPos
       : world.playerPos;
   if (!dialogueOpen && world.activeEncounters.length < maxConcurrentEncounters) {

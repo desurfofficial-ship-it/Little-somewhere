@@ -90,6 +90,19 @@ import {
   getGiftReactionTier,
   getItemCount,
 } from './inventory';
+import {
+  COPPERWHEEL_BENCH_MINUTES,
+  COPPERWHEEL_DOOR_DEFAULT_FACING,
+  COPPERWHEEL_DOOR_SPAWN,
+  COPPERWHEEL_NIGHTSTAND_MINUTES,
+  COPPERWHEEL_NOTES_MINUTES,
+  COPPERWHEEL_PORCH_EXIT_FACING,
+  COPPERWHEEL_PORCH_EXIT_POS,
+  COPPERWHEEL_TEA_ITEM_ID,
+  COPPERWHEEL_TEA_MINUTES,
+  createInitialCopperwheelState,
+  getProjectForDay,
+} from './copperwheel';
 import { DAY_END_MINUTE } from './time';
 import {
   ACOUSTIC_BELL_RADIUS,
@@ -108,6 +121,7 @@ import {
 import {
   BakeryInteractableId,
   NookInteractableId,
+  CopperwheelInteractableId,
   CarryableItemId,
   CottageInteractableId,
   DialogueChoice,
@@ -147,6 +161,8 @@ export interface PropInteractionResult {
     | 'exit_bakery'
     | 'enter_nook'
     | 'exit_nook'
+    | 'enter_copperwheel'
+    | 'exit_copperwheel'
     | 'greenhouse_planting_panel'
     | 'greenhouse_harvest_panel';
   memoryUnlockedTitle?: string;
@@ -893,17 +909,23 @@ const SIP_SCENES: string[] = [
 
 /**
  * Tea-table ritual (Pass 5, everyday-life polish): enjoy a brewed drink while seated
- * at a cottage seat. Consumes the item once, spends a few in-game minutes, and records
- * a first-time Pocket Journal memory per drink. Pure reducer — no UI scheduling.
+ * at any indoor seat — the cottage oak stools (Pass 5), the Hearth & Crumb café chair
+ * (Build 7), the Linden reading armchair (Build 8), and Copperwheel's window armchair
+ * (Build 9). Consumes the item once, spends a few in-game minutes, and records a
+ * first-time Pocket Journal memory per drink. Pure reducer — no UI scheduling.
+ * (Build 9 fix: the ritual previously hard-gated to cottage_interior, so the Build 7/8
+ * indoor seats silently refused the sip their seated prompt advertised.)
  */
 export function sipBeverageAtTableAction(
   world: WorldState,
   requestedItemId?: PersonalItemId,
 ): SipBeverageResult {
-  if (world.playerLocation !== 'cottage_interior') {
+  if (world.playerPosture !== 'sitting') {
     return { ok: false, nextWorld: world, title: '', body: '' };
   }
-  if (world.playerPosture !== 'sitting') {
+  // Indoor seats live inside interiors; an exterior world can never legitimately hold one
+  // (the sanitizer enforces the same pairing on load).
+  if (world.playerLocation === 'exterior') {
     return { ok: false, nextWorld: world, title: '', body: '' };
   }
   const seat = resolveAnySeatById(world.playerSeatId);
@@ -942,7 +964,7 @@ export function sipBeverageAtTableAction(
           day: world.day,
           phase,
           title: memoryUnlockedTitle!,
-          summary: `I sat at the oak table with a warm ${sip.def.label.toLowerCase()} and let the cottage be still for a few minutes.`,
+          summary: `I settled into ${seat.label.toLowerCase()} with a warm ${sip.def.label.toLowerCase()} and let the room be still for a few minutes.`,
         },
         ...world.memories,
       ];
@@ -957,7 +979,7 @@ export function sipBeverageAtTableAction(
       inventory: consumed.inventory,
       memories: nextMemories,
     },
-    title: `Tea at the Oak Table`,
+    title: `Tea at the ${seat.label}`,
     body: `${SIP_SCENES[sceneIdx]} (Spent ${SIP_MINUTES_SPENT} minutes.)`,
     toast: `Enjoyed ${sip.def.label} at the table (+${SIP_MINUTES_SPENT}m).`,
     memoryUnlockedTitle,
@@ -1171,6 +1193,16 @@ export function interactWithProp(
       body: 'Paper-and-lamp-oil hush drifts under the sage door. Nora’s bookshelf wall, lending desk, reading armchair, and a warm tea tray wait inside.',
       actionLabel: 'Step Inside',
       actionType: 'enter_nook',
+    };
+  }
+
+  if (propId === 'copperwheel_door') {
+    return {
+      nextWorld: world,
+      title: 'Copperwheel Cottage Door',
+      body: 'A warm brass-and-oakwood smell drifts under Arthur’s workshop door. The clockmaker’s bench, mended-pieces shelf, copper kettle, and a deep window armchair wait inside.',
+      actionLabel: 'Step Inside',
+      actionType: 'enter_copperwheel',
     };
   }
 
@@ -2825,6 +2857,299 @@ export function readLendingNotesAction(world: WorldState): PropInteractionResult
     body: `An oilcloth ledger of who borrowed what, margins dusted with tea rings. “Welcome, reader — take this warm cup for the chair” (+${NOOK_NOTES_MINUTES}m).`,
     memoryUnlockedTitle: unlocked ? 'The Lending Ledger' : undefined,
     gainedItems: [{ itemId: NOOK_TEA_ITEM_ID, count: 1 }],
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Copperwheel Cottage interior stations (M3 Build 9, WorldState v10)
+// ---------------------------------------------------------------------------
+
+function getCopperwheelStateSafe(world: WorldState) {
+  return world.copperwheelState ?? createInitialCopperwheelState();
+}
+
+function addCopperwheelMemory(
+  world: WorldState,
+  memId: string,
+  title: string,
+  summary: string,
+): { memories: WorldState['memories']; unlocked: boolean } {
+  const phase = getTimePhase(world.minuteOfDay);
+  if (world.memories.some((m) => m.id === memId)) {
+    return { memories: world.memories, unlocked: false };
+  }
+  return {
+    memories: [{ id: memId, day: world.day, phase, title, summary }, ...world.memories],
+    unlocked: true,
+  };
+}
+
+export function enterCopperwheelAction(world: WorldState): { nextWorld: WorldState; toast: string } {
+  if (world.playerLocation === 'copperwheel_interior') {
+    return { nextWorld: world, toast: '' };
+  }
+  let working = world;
+  if (working.playerHeldItem && working.worldProps?.[working.playerHeldItem]) {
+    working = placeWorldPropAction(working).nextWorld;
+  }
+  const safeExteriorPos = isPointWalkable(working.playerPos.x, working.playerPos.z, 0.48)
+    ? { ...working.playerPos }
+    : { ...COPPERWHEEL_PORCH_EXIT_POS };
+  return {
+    nextWorld: {
+      ...working,
+      playerLocation: 'copperwheel_interior',
+      exteriorPlayerPos: safeExteriorPos,
+      exteriorPlayerFacing: working.playerFacing,
+      playerPos: { ...COPPERWHEEL_DOOR_SPAWN },
+      playerFacing: COPPERWHEEL_DOOR_DEFAULT_FACING,
+      playerPosture: 'standing',
+      playerSeatId: null,
+    },
+    toast: 'Stepped inside Copperwheel Cottage.',
+  };
+}
+
+export function exitCopperwheelAction(world: WorldState): { nextWorld: WorldState; toast: string } {
+  if (world.playerLocation !== 'copperwheel_interior') {
+    return { nextWorld: world, toast: '' };
+  }
+  const exPos = world.exteriorPlayerPos ?? COPPERWHEEL_PORCH_EXIT_POS;
+  const safePos = isPointWalkable(exPos.x, exPos.z, 0.48) ? { ...exPos } : { ...PLAYER_SPAWN };
+  return {
+    nextWorld: {
+      ...world,
+      playerLocation: 'exterior',
+      playerPos: safePos,
+      playerFacing: world.exteriorPlayerFacing ?? PLAYER_DEFAULT_FACING,
+      playerPosture: 'standing',
+      playerSeatId: null,
+    },
+    toast: 'Stepped out beside Copperwheel Cottage.',
+  };
+}
+
+export function interactWithCopperwheelProp(
+  world: WorldState,
+  copperwheelPropId: CopperwheelInteractableId,
+): PropInteractionResult {
+  if (copperwheelPropId === 'cw_door') {
+    const exited = exitCopperwheelAction(world);
+    return {
+      nextWorld: exited.nextWorld,
+      title: 'Copperwheel Cottage Door',
+      body: 'The regulator’s quiet tick follows you out onto the sunlit porch.',
+      actionType: 'exit_copperwheel',
+    };
+  }
+
+  if (copperwheelPropId === 'cw_bench') {
+    return checkWorkbenchProjectAction(world);
+  }
+
+  if (copperwheelPropId === 'cw_stove') {
+    return pourKettleCupAction(world);
+  }
+
+  if (copperwheelPropId === 'cw_shelf') {
+    return readMendingLedgerAction(world);
+  }
+
+  // cw_bed
+  return peekNightstandAction(world);
+}
+
+/**
+ * Check the day's bench project and lend a hand with the fine work — once per day,
+ * +10m on working days (winding session counted), +8m when the bench rests. Each
+ * project saves its own one-time memory the first time it is admired.
+ */
+export function checkWorkbenchProjectAction(world: WorldState): PropInteractionResult {
+  const cws = getCopperwheelStateSafe(world);
+  const project = getProjectForDay(world.day);
+  const alreadyChecked = cws.benchCheckedDay === world.day;
+  const admiredBefore = world.memories.some((m) => m.id === project.memoryId);
+
+  const benchLead =
+    world.season === 'winter'
+      ? 'Frost feathers the tall window while the bench lamp makes a small amber island of the felt.'
+      : 'Window light falls in long brass-colored stripes across the workbench felt.';
+
+  if (alreadyChecked) {
+    return {
+      nextWorld: world,
+      title: 'Clockmaker’s Workbench',
+      body:
+        project.id === 'bench_rest'
+          ? `The felt stays rolled today — the tools sleep in their oiled drawer. ${benchLead}`
+          : `Today’s project: ${project.label}. ${project.blurb} The loupe waits on its hook for tomorrow’s steady hour. ${benchLead}`,
+    };
+  }
+
+  const isRestDay = project.id === 'bench_rest';
+  const nextMin = Math.min(
+    DAY_END_MINUTE,
+    world.minuteOfDay + (isRestDay ? 8 : COPPERWHEEL_BENCH_MINUTES),
+  );
+  const { memories: afterProjectMemory, unlocked } = admiredBefore
+    ? { memories: world.memories, unlocked: false }
+    : addCopperwheelMemory(
+        { ...world, minuteOfDay: nextMin },
+        project.memoryId,
+        project.memoryTitle,
+        project.memorySummary,
+      );
+
+  return {
+    nextWorld: {
+      ...world,
+      minuteOfDay: nextMin,
+      copperwheelState: {
+        ...cws,
+        benchCheckedDay: world.day,
+        helpedDay: isRestDay ? cws.helpedDay : world.day,
+        windingSessions: isRestDay ? cws.windingSessions : cws.windingSessions + 1,
+        projectsAdmired: admiredBefore
+          ? cws.projectsAdmired
+          : Math.min(4, cws.projectsAdmired + 1),
+      },
+      memories: afterProjectMemory,
+    },
+    title: 'Clockmaker’s Workbench',
+    body: isRestDay
+      ? `The felt is rolled and the tools sleep in their oiled drawer — Arthur rests the bench on day four. Only the regulator’s tick and the kettle’s whisper keep the room company (+8m). ${benchLead}`
+      : `Today’s project: ${project.label}. ${project.blurb} You spend a slow stretch ${project.fineWork} while the regulator keeps count (+${COPPERWHEEL_BENCH_MINUTES}m).`,
+    memoryUnlockedTitle: unlocked ? project.memoryTitle : undefined,
+  };
+}
+
+/**
+ * Pour a chamomile cup at the copper kettle — once per day, +6m. Arthur keeps the
+ * kettle warm for visitors; the cup joins your satchel for the armchair ritual.
+ */
+export function pourKettleCupAction(world: WorldState): PropInteractionResult {
+  const cws = getCopperwheelStateSafe(world);
+  const alreadyPoured = cws.teaSharedDay === world.day;
+  if (alreadyPoured) {
+    return {
+      nextWorld: world,
+      title: 'Copper Kettle Stove',
+      body: 'Your chamomile cup is already poured and warming the satchel. The kettle keeps its low brass hum, patient as ever.',
+    };
+  }
+
+  const invRes = addItemToInventory(
+    world.inventory,
+    world.discoveredItemIds,
+    COPPERWHEEL_TEA_ITEM_ID,
+    1,
+  );
+  const nextMin = Math.min(DAY_END_MINUTE, world.minuteOfDay + COPPERWHEEL_TEA_MINUTES);
+  const { memories: nextMemories, unlocked } = addCopperwheelMemory(
+    { ...world, minuteOfDay: nextMin },
+    'mem_cw_first_tea',
+    'A Cup at the Copper Kettle',
+    'Poured a warm chamomile cup from Arthur’s copper kettle — his favorite thing after escapements, the little brass card by the stove says so.',
+  );
+
+  return {
+    nextWorld: {
+      ...world,
+      minuteOfDay: nextMin,
+      inventory: invRes.inventory,
+      discoveredItemIds: invRes.discoveredItemIds,
+      copperwheelState: {
+        ...cws,
+        teaSharedDay: world.day,
+        teasShared: cws.teasShared + 1,
+      },
+      memories: nextMemories,
+    },
+    title: 'Copper Kettle Stove',
+    body: `You tip the little copper kettle over a stoneware cup — chamomile, warm enough to hold all afternoon (+${COPPERWHEEL_TEA_MINUTES}m). A brass-edged card by the stove reads: “for visitors — take a cup, wind nothing, touch the loupe.”`,
+    memoryUnlockedTitle: unlocked ? 'A Cup at the Copper Kettle' : undefined,
+    gainedItems: [{ itemId: COPPERWHEEL_TEA_ITEM_ID, count: 1 }],
+  };
+}
+
+/** Arthur's mending ledger on the shelf — one-time starter tea + seasonal rereads, +8m. */
+export function readMendingLedgerAction(world: WorldState): PropInteractionResult {
+  const cws = getCopperwheelStateSafe(world);
+
+  if (cws.starterTeaDay > 0) {
+    const reread =
+      world.season === 'winter'
+        ? '“Winter mends slow and sing true — cold brass lies about its fit.”'
+        : world.season === 'summer'
+        ? '“Oiled everything twice this week; the heat makes the clockworks sleepy.”'
+        : world.season === 'autumn'
+        ? '“Drafts are hard on pendulums. Wedge the case door before the wind turns.”'
+        : '“Spring cleaning the drawers — if something hums, it wants a new mainspring.”';
+    return {
+      nextWorld: world,
+      title: 'Mended Pieces Shelf',
+      body: `${reread} The ledger’s margins hold tiny gear sketches and one pressed four-leaf clover, flattened under the sixth entry.`,
+    };
+  }
+
+  const invRes = addItemToInventory(
+    world.inventory,
+    world.discoveredItemIds,
+    COPPERWHEEL_TEA_ITEM_ID,
+    1,
+  );
+  const nextMin = Math.min(DAY_END_MINUTE, world.minuteOfDay + COPPERWHEEL_NOTES_MINUTES);
+  const { memories: nextMemories, unlocked } = addCopperwheelMemory(
+    { ...world, minuteOfDay: nextMin },
+    'mem_cw_notes',
+    'The Mending Ledger',
+    'Read Arthur’s mending ledger at Copperwheel Cottage — every fixed clock has a line, and a note by the shelf offers new visitors a warm cup for the armchair.',
+  );
+
+  return {
+    nextWorld: {
+      ...world,
+      minuteOfDay: nextMin,
+      inventory: invRes.inventory,
+      discoveredItemIds: invRes.discoveredItemIds,
+      copperwheelState: {
+        ...cws,
+        notesReadDay: world.day,
+        starterTeaDay: world.day,
+      },
+      memories: nextMemories,
+    },
+    title: 'Mended Pieces Shelf',
+    body: `A cloth-bound ledger of every clock that came back to ticking — entries in careful pencil, successes and stubborn failures alike. “First visit? Take a warm cup to the armchair” (+${COPPERWHEEL_NOTES_MINUTES}m).`,
+    memoryUnlockedTitle: unlocked ? 'The Mending Ledger' : undefined,
+    gainedItems: [{ itemId: COPPERWHEEL_TEA_ITEM_ID, count: 1 }],
+  };
+}
+
+/** Peek at the nightstand's regulator watch — cottage-style inspect, +4m, one-time memory. */
+export function peekNightstandAction(world: WorldState): PropInteractionResult {
+  const nextMin = Math.min(DAY_END_MINUTE, world.minuteOfDay + COPPERWHEEL_NIGHTSTAND_MINUTES);
+  const { memories: nextMemories, unlocked } = addCopperwheelMemory(
+    { ...world, minuteOfDay: nextMin },
+    'mem_cw_nightstand',
+    'The Regulator’s Watch',
+    'Peeked at the nightstand by Arthur’s bed — a railmen’s regulator watch, stopped at a quarter past four, polished every single day anyway.',
+  );
+
+  const detail =
+    world.season === 'winter'
+      ? 'A knitted cover keeps the quilt’s corner warm; the watch rides on top, gleaming.'
+      : 'The quilt is folded to hospital corners, and a small framed photo of a young repair crew leans against the lamp.';
+
+  return {
+    nextWorld: {
+      ...world,
+      minuteOfDay: nextMin,
+      memories: nextMemories,
+    },
+    title: 'Arthur’s Nightstand',
+    body: `A railmen’s regulator watch rests on the nightstand, stopped at a quarter past four — it came home that way, and Arthur keeps it polished every morning anyway. ${detail} (+${COPPERWHEEL_NIGHTSTAND_MINUTES}m).`,
+    memoryUnlockedTitle: unlocked ? 'The Regulator’s Watch' : undefined,
   };
 }
 

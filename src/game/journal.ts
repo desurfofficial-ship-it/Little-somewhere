@@ -21,6 +21,7 @@ import { describePlacedFlower } from './cottage';
 import { createInitialGreenhouseState, summarizeGreenhousePlots } from './greenhouse';
 import { createInitialBakeryState, getBakeForDay } from './bakery';
 import { createInitialNookState, getFeaturedBookForDay } from './bookNook';
+import { createInitialCopperwheelState, getProjectForDay } from './copperwheel';
 import {
   STORYLINES,
   getActiveStorylineCue,
@@ -799,6 +800,9 @@ function buildDiscoveriesSection(
   // M3 Build 8: the book nook row reads only the player-observed nook state.
   const nkToday = world.nookState ?? createInitialNookState();
   const todayBook = getFeaturedBookForDay(world.day);
+  // M3 Build 9: the Copperwheel row reads only the player-observed workshop state.
+  const cwToday = world.copperwheelState ?? createInitialCopperwheelState();
+  const todayProject = getProjectForDay(world.day);
 
   const landmarksRaw: Array<Omit<JournalDiscoveryLandmark, 'entryKey' | 'isNew'>> = [
     {
@@ -951,6 +955,37 @@ function buildDiscoveriesSection(
           : nkToday.booksRead > 0
           ? 'The shelf rotates one featured book a day; the armchair remembers everyone who reads in it.'
           : 'A paper-and-lamp-oil reading corner behind the sage door — browse the shelf, take a reader’s cup, settle in.',
+    },
+    {
+      id: 'copperwheel_cottage',
+      name: 'Copperwheel Cottage',
+      statusKind:
+        cwToday.benchCheckedDay > 0 ||
+        cwToday.projectsAdmired > 0 ||
+        cwToday.teasShared > 0 ||
+        cwToday.windingSessions > 0
+          ? 'active'
+          : 'quiet',
+      statusLabel:
+        cwToday.benchCheckedDay === world.day
+          ? todayProject.id === 'bench_rest'
+          ? 'Bench resting today'
+          : `At the bench: ${todayProject.label}`
+          : cwToday.projectsAdmired > 0
+          ? `${cwToday.projectsAdmired} of 4 projects admired`
+          : cwToday.windingSessions > 0
+          ? 'Helped at the bench'
+          : cwToday.teasShared > 0
+          ? 'Tea shared at the kettle'
+          : 'Arthur’s brass workshop',
+      summary:
+        cwToday.benchCheckedDay === world.day
+          ? todayProject.id === 'bench_rest'
+          ? 'The felt is rolled and the tools sleep in their oiled drawer — even clockmakers take a sabbath.'
+          : todayProject.blurb
+          : cwToday.projectsAdmired > 0
+          ? 'One bench project rests on the felt each day; the mending ledger remembers every piece that came back to ticking.'
+          : 'A warm brass-and-oakwood workshop behind the south door — check the bench, share the kettle, settle into the armchair.',
     },
   ];
 

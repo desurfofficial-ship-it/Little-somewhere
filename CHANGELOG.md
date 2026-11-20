@@ -2,6 +2,24 @@
 
 All notable changes to **LITTLE SOMEWHERE** are documented in this file.
 
+## [0.9.0] — 2026-11-20
+
+### Added — Milestone 3 (Build 9: Visitable Copperwheel Cottage & Arthur's Brass Workshop)
+- **Copperwheel Cottage Enterable Interior (5 stations + window-armchair seat)** — the third visitable neighbor interior and the last of `GAME_DESIGN.md` §12.2's interior list: clockmaker's workbench (maple top, iron vise, gear tray, felt mat, hanging loupe, tool pegboard), bed alcove (iron frame, quilt, nightstand regulator watch + framed photo + wall lamp), mended-pieces shelf & brass-pull drawers with the open ledger, copper kettle stove (fire door, kettle + cups, visitor's card, flue into the header beam), quilted window armchair + footstool, brass-lettered door with letter slot, hanging bench lamp, morning window shaft with a chamomile sill pot, and 24 brass-dust motes. Exterior porch dressing (brass-edged doormat, clock-parts repair crate, lean-to sign) beside the pre-existing porch lantern (`copperwheelInterior.ts`, `Step Inside [E]`).
+- **Deterministic bench project cycle** — one project rests on the felt per day (day % 4): *The Orchard Pendulum* (Rowan's crabwood gate clock) → *A Music Box Comb* (Barnaby's cedar music box) → *The Watch Escapement* (Jun's courier pocket watch) → *bench rest* (rolled felt, oiled drawers). Each project saves its own one-time memory; helping with the fine work counts a winding session on working days.
+- **Daily Copperwheel rituals** — check the workbench & help with the fine work (+10m working / +8m rest), pour a chamomile cup at the copper kettle (+6m, the existing sipable `chamomile_pear_tea`), read Arthur's mending ledger (one-time starter tea + seasonal rereads, +8m), and peek at the nightstand's railmen regulator watch (+4m inspect). Kettle steam, the pendulum swing, and the bench-lamp glow react live in the rig.
+- **Arthur dialogue & journal integration** — `side_arthur_workshop_bench` invitation (winter / bell-restored / default variants) + `daily_arthur_workshop_checkin` reacting only to his own workshop's observable state; Pocket Journal `Copperwheel Cottage` Discoveries row tracking the workshop lifecycle.
+- **WorldState v10** — pure `v9 -> v10` migration hydrating `copperwheelState`; interior-aware spawn validation; Copperwheel-aware day rollover (porch wake-out); `resolveAnySeatById` spans five seat registries.
+
+### Fixed — cross-build defects surfaced by Build 9 QA
+- **Interior door prompt** — `copperwheel_door` was missing from `PROP_INTERACTABLES`; the exterior `Step Inside [E]` prompt could never fire without it (`worldMap.ts`).
+- **Indoor sitting persistence** — the save sanitizer resolved seats through the outdoor-only registry, so sitting at any indoor seat (cottage stools since 2C, café chair, reading armchair) silently degraded to standing on save/load; the sanitizer now resolves all five registries with interior/exterior pairing enforced (`migrations.ts`, regression-tested).
+- **Cross-interior sit-and-sip** — `sipBeverageAtTableAction` hard-gated to `cottage_interior` (Pass-5 leftover), silently refusing the sip that every Build 7/8 indoor seat advertised; the ritual now serves any indoor seat with seat-aware prose (`actions.ts`, regression-tested).
+- **Software-WebGL fence deadlock** — `afterDraw`'s fence poll could freeze the whole loop when a driver never signals `SYNC_GPU_COMMANDS_COMPLETE`; a 250 ms wait budget degrades pacing gracefully instead (`NeighborhoodCanvas.tsx`).
+
+### Tests
+- 27 new/extended suites (copperwheel engine ×19, copperwheel 3D rig ×5, Arthur dialogue gating, journal discovery lifecycle, indoor-seat persistence, cross-interior sip, migration-chain updates); totals now **250/250 passing** (Build 9 rebased onto Round 4/5 + Dialogue Modularization — Arthur's topics live in `src/game/dialogue/interiors/copperwheel.ts`, golden snapshot re-baselined to 79 topics), `tsc` 0 errors, production build passing.
+
 ## [0.5.0] — 2026-11-20
 
 ### Added — Milestone 2C Polish Round 3 (Everyday Life Passes 8–12)

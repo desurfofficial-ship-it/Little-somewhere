@@ -20,6 +20,7 @@ import {
   BakeryInteractableId,
   GreenhouseInteractableId,
   NookInteractableId,
+  CopperwheelInteractableId,
   InteractiveTarget,
   PersonalItemId,
   PlayerLocation,
@@ -56,15 +57,18 @@ import {
   enterBakeryAction,
   enterGreenhouseAction,
   enterNookAction,
+  enterCopperwheelAction,
   exitBakeryAction,
   exitGreenhouseAction,
   exitNookAction,
+  exitCopperwheelAction,
   giveInventoryItemAction,
   harvestPlotAction,
   interactWithCottageProp,
   interactWithBakeryProp,
   interactWithGreenhouseProp,
   interactWithNookProp,
+  interactWithCopperwheelProp,
   interactWithProp,
   markResidentMet,
   performFountainWishAction,
@@ -427,6 +431,29 @@ export default function App() {
           cozyAudio.playMemoryChime();
           showToast(`Memory saved: ${res.memoryUnlockedTitle}`);
         }
+      } else if (target.kind === 'copperwheel_prop') {
+        const wid = target.copperwheelPropId ?? (target.id as CopperwheelInteractableId);
+        const res = interactWithCopperwheelProp(current, wid);
+        if (res.actionType === 'exit_copperwheel') {
+          playSceneVeil(() => {
+            commitWorld(res.nextWorld);
+            cozyAudio.playUiTap(0.98);
+            showToast('Stepped out beside Copperwheel Cottage.');
+          });
+          return;
+        }
+        if (res.nextWorld !== current) {
+          commitWorld(res.nextWorld);
+        }
+        triggerPlayerPulse('interact', target.worldPos);
+        cozyAudio.playUiTap(1.04);
+        setDialogueSession(null);
+        setActivePropId(null);
+        setPropCard(res);
+        if (res.memoryUnlockedTitle) {
+          cozyAudio.playMemoryChime();
+          showToast(`Memory saved: ${res.memoryUnlockedTitle}`);
+        }
       } else if (target.kind === 'bakery_prop') {
         const bid = target.bakeryPropId ?? (target.id as BakeryInteractableId);
         const res = interactWithBakeryProp(current, bid);
@@ -488,6 +515,17 @@ export default function App() {
         if (pid === 'nook_door') {
           playSceneVeil(() => {
             const enteredNow = enterNookAction(worldRef.current);
+            commitWorld(enteredNow.nextWorld);
+            cozyAudio.playUiTap(1.06);
+            if (enteredNow.toast) {
+              showToast(enteredNow.toast);
+            }
+          });
+          return;
+        }
+        if (pid === 'copperwheel_door') {
+          playSceneVeil(() => {
+            const enteredNow = enterCopperwheelAction(worldRef.current);
             commitWorld(enteredNow.nextWorld);
             cozyAudio.playUiTap(1.06);
             if (enteredNow.toast) {
@@ -753,6 +791,24 @@ export default function App() {
       } else if (actionType === 'exit_nook') {
         playSceneVeil(() => {
           const exited = exitNookAction(worldRef.current);
+          commitWorld(exited.nextWorld);
+          setActivePropId(null);
+          setPropCard(null);
+          cozyAudio.playUiTap(0.98);
+          showToast(exited.toast);
+        });
+      } else if (actionType === 'enter_copperwheel') {
+        playSceneVeil(() => {
+          const entered = enterCopperwheelAction(worldRef.current);
+          commitWorld(entered.nextWorld);
+          setActivePropId(null);
+          setPropCard(null);
+          cozyAudio.playUiTap(1.06);
+          showToast(entered.toast);
+        });
+      } else if (actionType === 'exit_copperwheel') {
+        playSceneVeil(() => {
+          const exited = exitCopperwheelAction(worldRef.current);
           commitWorld(exited.nextWorld);
           setActivePropId(null);
           setPropCard(null);
@@ -1053,6 +1109,8 @@ export default function App() {
       ? 'Hearth & Crumb Bakery'
       : playerLocation === 'nook_interior'
       ? 'Linden Book Nook'
+      : playerLocation === 'copperwheel_interior'
+      ? 'Copperwheel Cottage'
       : landmark.name;
   const isSheetOpen = Boolean(dialogueSession || propCard);
   const anyModalOpen =

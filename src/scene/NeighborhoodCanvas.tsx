@@ -69,10 +69,17 @@ import {
   computeNookWaypoints,
   isNookInteriorWalkable,
 } from '../game/bookNook';
+import {
+  COPPERWHEEL_BOUNDS,
+  COPPERWHEEL_INTERACTABLES,
+  computeCopperwheelWaypoints,
+  isCopperwheelInteriorWalkable,
+} from '../game/copperwheel';
 import type {
   BakeryInteractableId,
   GreenhouseInteractableId,
   NookInteractableId,
+  CopperwheelInteractableId,
 } from '../game/types';
 import { computeWaypointPath } from '../game/navigation';
 import { getResidentAvailableQuestCue } from '../game/narrative';
@@ -121,6 +128,10 @@ import {
   buildLindenBookNookInterior,
   buildLindenBookNookPorchDressing,
 } from './builders/bookNookInterior';
+import {
+  buildCopperwheelInterior,
+  buildCopperwheelPorchDressing,
+} from './builders/copperwheelInterior';
 import {
   buildCarryablePropMesh,
   buildStorybookBench,
@@ -264,6 +275,20 @@ function findNearestInteriorWalkablePoint(x: number, z: number, location: Player
         const nx = THREE.MathUtils.clamp(cx + Math.cos(ang) * r, GREENHOUSE_BOUNDS.minX + 0.45, GREENHOUSE_BOUNDS.maxX - 0.45);
         const nz = THREE.MathUtils.clamp(cz + Math.sin(ang) * r, GREENHOUSE_BOUNDS.minZ + 0.45, GREENHOUSE_BOUNDS.maxZ - 0.45);
         if (isGreenhouseInteriorWalkable(nx, nz, 0.42)) return { x: nx, z: nz };
+      }
+    }
+    return null;
+  }
+  if (loc === 'copperwheel_interior') {
+    const cx = THREE.MathUtils.clamp(x, COPPERWHEEL_BOUNDS.minX + 0.45, COPPERWHEEL_BOUNDS.maxX - 0.45);
+    const cz = THREE.MathUtils.clamp(z, COPPERWHEEL_BOUNDS.minZ + 0.45, COPPERWHEEL_BOUNDS.maxZ - 0.45);
+    if (isCopperwheelInteriorWalkable(cx, cz, 0.42)) return { x: cx, z: cz };
+    for (let r = 0.45; r <= 2.4; r += 0.45) {
+      for (let a = 0; a < 8; a++) {
+        const ang = (a / 8) * Math.PI * 2;
+        const nx = THREE.MathUtils.clamp(cx + Math.cos(ang) * r, COPPERWHEEL_BOUNDS.minX + 0.45, COPPERWHEEL_BOUNDS.maxX - 0.45);
+        const nz = THREE.MathUtils.clamp(cz + Math.sin(ang) * r, COPPERWHEEL_BOUNDS.minZ + 0.45, COPPERWHEEL_BOUNDS.maxZ - 0.45);
+        if (isCopperwheelInteriorWalkable(nx, nz, 0.42)) return { x: nx, z: nz };
       }
     }
     return null;
@@ -772,6 +797,11 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
     nookInteriorRig.group.visible = false;
     interiorRoot.add(nookInteriorRig.group);
 
+    // Copperwheel Cottage Interior Cutaway Diorama (M3 Build 9 — same cutaway contract)
+    const copperwheelInteriorRig = buildCopperwheelInterior(palette, shadowTex, { isSoftwareGl });
+    copperwheelInteriorRig.group.visible = false;
+    interiorRoot.add(copperwheelInteriorRig.group);
+
     // Exterior Sunbeam Greenhouse doorway on the west glass wall (M3 Build 6)
     const greenhouseDoorway = buildSunbeamGreenhouseDoorway(palette, shadowTex);
     greenhouseDoorway.position.set(11.14, 0, 3.2);
@@ -788,6 +818,11 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
     nookPorchDressing.position.set(-13.1, 0, -1.0);
     nookPorchDressing.rotation.y = Math.PI / 2; // face east toward the lane
     exteriorRoot.add(nookPorchDressing);
+
+    // Exterior Copperwheel porch dressing on the existing south door (M3 Build 9)
+    const copperwheelPorchDressing = buildCopperwheelPorchDressing(palette, shadowTex);
+    copperwheelPorchDressing.position.set(13.1, 0, -8.72);
+    exteriorRoot.add(copperwheelPorchDressing);
 
     // Tap-to-walk destination indicator ring
     const destRing = new THREE.Mesh(
@@ -1046,6 +1081,8 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
         ? bakeryInteriorRig.hitProxies
         : worldRef.current.playerLocation === 'nook_interior'
         ? nookInteriorRig.hitProxies
+        : worldRef.current.playerLocation === 'copperwheel_interior'
+        ? copperwheelInteriorRig.hitProxies
         : cottageInteriorRig.hitProxies;
       const hits = _raycaster.intersectObjects(activeInteractables, false);
       if (hits.length > 0) {
@@ -1072,7 +1109,8 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
             | 'cottage_prop'
             | 'greenhouse_prop'
             | 'bakery_prop'
-            | 'nook_prop';
+            | 'nook_prop'
+            | 'copperwheel_prop';
           targetId: string;
         };
         const pPos = worldRef.current.playerPos;
@@ -1140,6 +1178,20 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
           );
           scoreDist = effDist;
           isImmediate = effDist <= prop.interactRadius;
+        } else if (ud.targetKind === 'copperwheel_prop') {
+          const wid = ud.targetId as CopperwheelInteractableId;
+          const prop = COPPERWHEEL_INTERACTABLES.find((p) => p.id === wid);
+          if (!prop) return;
+          tPos = { x: prop.focusX, z: prop.focusZ };
+          walkDest = { x: prop.x, z: prop.z };
+          label = prop.name;
+          actionLabel = prop.actionLabel;
+          const effDist = Math.min(
+            distance2D(pPos, { x: prop.x, z: prop.z }),
+            distance2D(pPos, { x: prop.focusX, z: prop.focusZ }),
+          );
+          scoreDist = effDist;
+          isImmediate = effDist <= prop.interactRadius;
         } else if (ud.targetKind === 'resident') {
           const rid = ud.targetId as ResidentId;
           tPos = worldRef.current.npcRuntime[rid].position;
@@ -1181,7 +1233,7 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
                 ? 'Ring Bell'
                 : pid === 'player_door'
                 ? 'Enter Cottage'
-                : pid === 'greenhouse_door' || pid === 'bakery_door' || pid === 'nook_door'
+                : pid === 'greenhouse_door' || pid === 'bakery_door' || pid === 'nook_door' || pid === 'copperwheel_door'
                 ? 'Step Inside'
                 : pid === 'cottage_window_box' ||
                   pid === 'greenhouse_planters' ||
@@ -1212,6 +1264,10 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
             ud.targetKind === 'bakery_prop' ? (ud.targetId as BakeryInteractableId) : undefined,
           nookPropId:
             ud.targetKind === 'nook_prop' ? (ud.targetId as NookInteractableId) : undefined,
+          copperwheelPropId:
+            ud.targetKind === 'copperwheel_prop'
+              ? (ud.targetId as CopperwheelInteractableId)
+              : undefined,
         };
 
         if (isImmediate) {
@@ -1232,6 +1288,10 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
               ? isNookInteriorWalkable(dest.x, dest.z, 0.42)
                 ? dest
                 : findNearestInteriorWalkablePoint(dest.x, dest.z, worldRef.current.playerLocation) ?? dest
+              : worldRef.current.playerLocation === 'copperwheel_interior'
+              ? isCopperwheelInteriorWalkable(dest.x, dest.z, 0.42)
+                ? dest
+                : findNearestInteriorWalkablePoint(dest.x, dest.z, worldRef.current.playerLocation) ?? dest
               : isInteriorPointWalkable(dest.x, dest.z, 0.42)
               ? dest
               : findNearestInteriorWalkablePoint(dest.x, dest.z, worldRef.current.playerLocation) ?? dest;
@@ -1243,6 +1303,8 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
             ? computeBakeryWaypoints(pPos, walkableDest, 0.42)
             : worldRef.current.playerLocation === 'nook_interior'
             ? computeNookWaypoints(pPos, walkableDest, 0.42)
+            : worldRef.current.playerLocation === 'copperwheel_interior'
+            ? computeCopperwheelWaypoints(pPos, walkableDest, 0.42)
             : computeInteriorWaypoints(pPos, walkableDest, 0.42);
           tapStuckSeconds = 0;
           pendingTargetAfterWalk = targetObj;
@@ -1276,6 +1338,8 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
                 ? computeBakeryWaypoints(worldRef.current.playerPos, walkableDest, 0.42)
                 : worldRef.current.playerLocation === 'nook_interior'
                 ? computeNookWaypoints(worldRef.current.playerPos, walkableDest, 0.42)
+                : worldRef.current.playerLocation === 'copperwheel_interior'
+                ? computeCopperwheelWaypoints(worldRef.current.playerPos, walkableDest, 0.42)
                 : computeInteriorWaypoints(worldRef.current.playerPos, walkableDest, 0.42);
             tapStuckSeconds = 0;
             pendingTargetAfterWalk = null;
@@ -1363,10 +1427,18 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
       const gl = renderer.getContext() as WebGL2RenderingContext;
       const sync = gl.fenceSync(gl.SYNC_GPU_COMMANDS_COMPLETE, 0);
       gl.flush();
+      // Fence-wait stall guard: some software-GL drivers (notably headless SwiftShader)
+      // never signal SYNC_GPU_COMMANDS_COMPLETE, which would freeze the whole loop while
+      // the poll spins forever. If the fence stays unsignaled past the wait budget, stop
+      // waiting and schedule the next tick anyway — pacing degrades gracefully instead
+      // of deadlocking. Gameplay logic and scene contents are untouched.
+      const FENCE_WAIT_BUDGET_MS = 250;
+      const waitStart = Date.now();
       const poll = () => {
         if (disposed) return;
         const state = sync && gl.getSyncParameter(sync, gl.SYNC_STATUS);
-        if (state === gl.UNSIGNALED) {
+        const waitExpired = Date.now() - waitStart >= FENCE_WAIT_BUDGET_MS;
+        if (state === gl.UNSIGNALED && !waitExpired) {
           frameId = window.setTimeout(poll, 5);
         } else {
           if (sync) gl.deleteSync(sync);
@@ -1392,7 +1464,8 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
         curLoc === 'cottage_interior' ||
         curLoc === 'greenhouse_interior' ||
         curLoc === 'bakery_interior' ||
-        curLoc === 'nook_interior';
+        curLoc === 'nook_interior' ||
+        curLoc === 'copperwheel_interior';
       envController.update(
         composed,
         world,
@@ -1408,6 +1481,7 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
         greenhouseInteriorRig.group.visible = curLoc === 'greenhouse_interior';
         bakeryInteriorRig.group.visible = curLoc === 'bakery_interior';
         nookInteriorRig.group.visible = curLoc === 'nook_interior';
+        copperwheelInteriorRig.group.visible = curLoc === 'copperwheel_interior';
         (scene.background as THREE.Color).set('#2C221B');
         if (scene.fog instanceof THREE.Fog) {
           scene.fog.near = 200;
@@ -1455,6 +1529,19 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
           scene.environmentIntensity =
             indoorPhase === 'dusk' ? 0.48 : indoorPhase === 'golden' ? 0.52 : 0.62;
           nookInteriorRig.update(world, indoorPhase, elapsed);
+        } else if (curLoc === 'copperwheel_interior') {
+          // Workshop brass (M3 Build 9): pale plaster daylight with a cool stone floor note,
+          // while the rig's own bench lamp + porch-lantern line carry the room toward dusk.
+          hemiLight.color.set('#EFE9DB');
+          hemiLight.groundColor.set('#64523E');
+          hemiLight.intensity =
+            indoorPhase === 'dusk' ? 0.66 : indoorPhase === 'golden' ? 0.73 : 0.86;
+          sunLight.color.set(indoorPhase === 'dusk' ? '#FFD5A2' : '#FFE9C8');
+          sunLight.intensity = indoorPhase === 'dusk' ? 0.55 : indoorPhase === 'golden' ? 0.8 : 1.18;
+          sunLight.position.set(10, 16, 11);
+          scene.environmentIntensity =
+            indoorPhase === 'dusk' ? 0.49 : indoorPhase === 'golden' ? 0.53 : 0.63;
+          copperwheelInteriorRig.update(world, indoorPhase, elapsed);
         } else {
           // Phase-responsive indoor ambience: daylight floods the room in the
           // morning, then settles into warm lamp-and-ember twilight by dusk.
@@ -1474,6 +1561,7 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
         greenhouseInteriorRig.group.visible = false;
         bakeryInteriorRig.group.visible = false;
         nookInteriorRig.group.visible = false;
+        copperwheelInteriorRig.group.visible = false;
         // Pass 10: the chimney advertises the hearth — smoke only while the fire is
         // lit, breathing harder while the kettle is warm (zero-GC strength value).
         updateWillowPrototypeMotion(
@@ -2018,7 +2106,8 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
       } else if (
         curLocation === 'cottage_interior' ||
         curLocation === 'bakery_interior' ||
-        curLocation === 'nook_interior'
+        curLocation === 'nook_interior' ||
+        curLocation === 'copperwheel_interior'
       ) {
         const interiorZoom = THREE.MathUtils.clamp(zoomRef.current * 0.68, 0.56, 0.92);
         const focusX = world.playerPos.x * 0.42;
@@ -2105,6 +2194,7 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
       greenhouseInteriorRig.dispose();
       bakeryInteriorRig.dispose();
       nookInteriorRig.dispose();
+      copperwheelInteriorRig.dispose();
       meadowDressing.dispose();
       orchardRig.dispose();
       orchardMicroLifeRig.dispose();

@@ -27,6 +27,11 @@ import {
 } from './greenhouse';
 import { BAKERY_PORCH_EXIT_FACING, BAKERY_PORCH_EXIT_POS, createInitialBakeryState } from './bakery';
 import { NOOK_PORCH_EXIT_FACING, NOOK_PORCH_EXIT_POS, createInitialNookState } from './bookNook';
+import {
+  COPPERWHEEL_PORCH_EXIT_FACING,
+  COPPERWHEEL_PORCH_EXIT_POS,
+  createInitialCopperwheelState,
+} from './copperwheel';
 import { WorldState } from './types';
 
 export const STORAGE_KEY = 'little_somewhere_world_v1';
@@ -395,6 +400,19 @@ export function computeWorldSaveRevision(state: WorldState): string {
     pushNum(nk.teasShared);
   }
 
+  // Milestone 3 Build 9 — Copperwheel Cottage visitable interior (WorldState v10)
+  const cws = state.copperwheelState;
+  if (cws) {
+    pushNum(cws.benchCheckedDay);
+    pushNum(cws.helpedDay);
+    pushNum(cws.teaSharedDay);
+    pushNum(cws.notesReadDay);
+    pushNum(cws.starterTeaDay);
+    pushNum(cws.projectsAdmired);
+    pushNum(cws.windingSessions);
+    pushNum(cws.teasShared);
+  }
+
   return `${h1.toString(36)}-${h2.toString(36)}`;
 }
 
@@ -457,10 +475,12 @@ export function advanceToNextDay(state: WorldState): WorldState {
   const wokeInsideGreenhouse = state.playerLocation === 'greenhouse_interior';
   const wokeInsideBakery = state.playerLocation === 'bakery_interior';
   const wokeInsideNook = state.playerLocation === 'nook_interior';
+  const wokeInsideCopperwheel = state.playerLocation === 'copperwheel_interior';
   const prevCottage = state.cottageState ?? createInitialCottageState();
   const prevGreenhouse = state.greenhouseState ?? createInitialGreenhouseState();
   const prevBakery = state.bakeryState ?? createInitialBakeryState();
   const prevNook = state.nookState ?? createInitialNookState();
+  const prevCopperwheel = state.copperwheelState ?? createInitialCopperwheelState();
 
   // Sunbeam Greenhouse nightly growth (M3 Build 6): watered pots advance one stage-step;
   // unwatered pots simply wait, and winter freezes all growth until spring. Nothing withers.
@@ -491,6 +511,12 @@ export function advanceToNextDay(state: WorldState): WorldState {
     ? nookExitPos
     : { ...NOOK_PORCH_EXIT_POS };
 
+  // M3 Build 9: same for Copperwheel Cottage — waking there lands on the south porch.
+  const copperwheelExitPos = state.exteriorPlayerPos ?? COPPERWHEEL_PORCH_EXIT_POS;
+  const safeCopperwheelExit = isPointWalkable(copperwheelExitPos.x, copperwheelExitPos.z, 0.48)
+    ? copperwheelExitPos
+    : { ...COPPERWHEEL_PORCH_EXIT_POS };
+
   return {
     ...state,
     day: nextDay,
@@ -506,6 +532,8 @@ export function advanceToNextDay(state: WorldState): WorldState {
       ? safeBakeryExit
       : wokeInsideNook
       ? safeNookExit
+      : wokeInsideCopperwheel
+      ? safeCopperwheelExit
       : { ...PLAYER_SPAWN },
     playerFacing: wokeInsideCottage
       ? COTTAGE_WAKE_FACING
@@ -515,6 +543,8 @@ export function advanceToNextDay(state: WorldState): WorldState {
       ? BAKERY_PORCH_EXIT_FACING
       : wokeInsideNook
       ? NOOK_PORCH_EXIT_FACING
+      : wokeInsideCopperwheel
+      ? COPPERWHEEL_PORCH_EXIT_FACING
       : PLAYER_DEFAULT_FACING,
     exteriorPlayerPos: wokeInsideGreenhouse
       ? safeGreenhouseExit
@@ -522,6 +552,8 @@ export function advanceToNextDay(state: WorldState): WorldState {
       ? safeBakeryExit
       : wokeInsideNook
       ? safeNookExit
+      : wokeInsideCopperwheel
+      ? safeCopperwheelExit
       : { ...PLAYER_SPAWN },
     exteriorPlayerFacing: wokeInsideGreenhouse
       ? GREENHOUSE_PORCH_EXIT_FACING
@@ -529,6 +561,8 @@ export function advanceToNextDay(state: WorldState): WorldState {
       ? BAKERY_PORCH_EXIT_FACING
       : wokeInsideNook
       ? NOOK_PORCH_EXIT_FACING
+      : wokeInsideCopperwheel
+      ? COPPERWHEEL_PORCH_EXIT_FACING
       : PLAYER_DEFAULT_FACING,
     playerPosture: 'standing',
     playerSeatId: null,
@@ -549,5 +583,6 @@ export function advanceToNextDay(state: WorldState): WorldState {
     greenhouseState: nextGreenhouseState,
     bakeryState: prevBakery,
     nookState: prevNook,
+    copperwheelState: prevCopperwheel,
   };
 }

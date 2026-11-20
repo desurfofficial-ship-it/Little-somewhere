@@ -27,6 +27,7 @@ import {
   TopicHistoryEntry,
   WeatherType,
   NookState,
+  CopperwheelState,
   WorldEventRecord,
   WorldPropPlacement,
   WorldState,
@@ -78,6 +79,7 @@ import {
   getSeatById,
   isPointWalkable,
 } from './worldMap';
+import { resolveAnySeatById } from './cottage';
 import { createInitialNpcRuntime } from './simulation';
 import {
   createInitialStorylines,
@@ -111,8 +113,13 @@ import {
   createInitialNookState,
   isNookInteriorWalkable,
 } from './bookNook';
+import {
+  COPPERWHEEL_DOOR_SPAWN,
+  createInitialCopperwheelState,
+  isCopperwheelInteriorWalkable,
+} from './copperwheel';
 
-export const CURRENT_SCHEMA_VERSION = 9;
+export const CURRENT_SCHEMA_VERSION = 10;
 export const DEFAULT_SIM_SEED = 18042;
 
 export interface MigrationResult {
@@ -258,6 +265,7 @@ export function createDefaultWorldState(): WorldState {
     greenhouseState: createInitialGreenhouseState(),
     bakeryState: createInitialBakeryState(),
     nookState: createInitialNookState(),
+    copperwheelState: createInitialCopperwheelState(),
   };
 }
 
@@ -1053,21 +1061,26 @@ export function sanitizeWorldState(candidate: unknown, externalWarnings: string[
     candidate.playerLocation === 'cottage_interior' ||
     candidate.playerLocation === 'greenhouse_interior' ||
     candidate.playerLocation === 'bakery_interior' ||
-    candidate.playerLocation === 'nook_interior'
+    candidate.playerLocation === 'nook_interior' ||
+    candidate.playerLocation === 'copperwheel_interior'
       ? (candidate.playerLocation as PlayerLocation)
       : 'exterior';
   const isInteriorLocation = playerLocation !== 'exterior';
 
+  // Seats resolve across ALL registries (M3 Build 9 fix): indoor seats (cottage stools,
+  // café chair, reading armchair, window armchair) previously fell through getSeatById's
+  // outdoor-only lookup, so sitting at any indoor seat silently degraded to standing on save.
+  const resolvedSeat =
+    typeof candidate.playerSeatId === 'string' ? resolveAnySeatById(candidate.playerSeatId) : undefined;
   const rawSeatId =
-    playerLocation === 'exterior' &&
-    typeof candidate.playerSeatId === 'string' &&
-    getSeatById(candidate.playerSeatId)
-      ? candidate.playerSeatId
+    playerLocation === 'exterior'
+      ? resolvedSeat && !resolvedSeat.indoor
+        ? candidate.playerSeatId as string
+        : null
+      : resolvedSeat?.indoor
+      ? candidate.playerSeatId as string
       : null;
-  const playerPosture =
-    playerLocation === 'exterior' && candidate.playerPosture === 'sitting' && rawSeatId
-      ? 'sitting'
-      : 'standing';
+  const playerPosture = rawSeatId && candidate.playerPosture === 'sitting' ? 'sitting' : 'standing';
   const playerSeatId = playerPosture === 'sitting' ? rawSeatId : null;
 
   let playerX =
@@ -1079,6 +1092,8 @@ export function sanitizeWorldState(candidate: unknown, externalWarnings: string[
       ? BAKERY_DOOR_SPAWN.x
       : playerLocation === 'nook_interior'
       ? NOOK_DOOR_SPAWN.x
+      : playerLocation === 'copperwheel_interior'
+      ? COPPERWHEEL_DOOR_SPAWN.x
       : PLAYER_SPAWN.x;
   let playerZ =
     playerLocation === 'cottage_interior'
@@ -1089,10 +1104,12 @@ export function sanitizeWorldState(candidate: unknown, externalWarnings: string[
       ? BAKERY_DOOR_SPAWN.z
       : playerLocation === 'nook_interior'
       ? NOOK_DOOR_SPAWN.z
+      : playerLocation === 'copperwheel_interior'
+      ? COPPERWHEEL_DOOR_SPAWN.z
       : PLAYER_SPAWN.z;
   let playerFacing = asFiniteNumber(candidate.playerFacing, PLAYER_DEFAULT_FACING);
   if (playerPosture === 'sitting' && playerSeatId) {
-    const seat = getSeatById(playerSeatId)!;
+    const seat = resolveAnySeatById(playerSeatId)!;
     playerX = seat.seatPos.x;
     playerZ = seat.seatPos.z;
     playerFacing = seat.facingAngle;
@@ -1108,6 +1125,8 @@ export function sanitizeWorldState(candidate: unknown, externalWarnings: string[
         ? isBakeryInteriorWalkable(cx, cz, 0.42)
         : playerLocation === 'nook_interior'
         ? isNookInteriorWalkable(cx, cz, 0.42)
+        : playerLocation === 'copperwheel_interior'
+        ? isCopperwheelInteriorWalkable(cx, cz, 0.42)
         : isPointWalkable(cx, cz, 0.48);
     if (walkable) {
       playerX = cx;
@@ -1279,6 +1298,7 @@ export function sanitizeWorldState(candidate: unknown, externalWarnings: string[
   const greenhouseState = sanitizeGreenhouseState(candidate.greenhouseState, warnings);
   const bakeryState = sanitizeBakeryState(candidate.bakeryState, warnings);
   const nookState = sanitizeNookState(candidate.nookState, warnings);
+  const copperwheelState = sanitizeCopperwheelState(candidate.copperwheelState, warnings);
 
   return {
     schemaVersion: CURRENT_SCHEMA_VERSION,
@@ -1322,6 +1342,7 @@ export function sanitizeWorldState(candidate: unknown, externalWarnings: string[
     greenhouseState,
     bakeryState,
     nookState,
+    copperwheelState,
   };
 }
 
@@ -1373,6 +1394,35 @@ function sanitizeNookState(raw: unknown, warnings: string[]): NookState {
     notesReadDay: stamp(raw.notesReadDay, defaults.notesReadDay),
     starterTeaDay: stamp(raw.starterTeaDay, defaults.starterTeaDay),
     booksRead: Math.min(4, Math.max(0, Math.floor(asFiniteNumber(raw.booksRead, defaults.booksRead)))),
+    teasShared: Math.max(0, Math.floor(asFiniteNumber(raw.teasShared, defaults.teasShared))),
+  };
+}
+
+/**
+ * Defensive sanitizer for the Copperwheel Cottage interior state (WorldState v10).
+ * Day stamps stay >= 0; lifetime counters never go negative; projectsAdmired clamps to the bench cycle.
+ */
+function sanitizeCopperwheelState(raw: unknown, warnings: string[]): CopperwheelState {
+  const defaults = createInitialCopperwheelState();
+  if (!isRecord(raw)) {
+    return defaults;
+  }
+  const stamp = (value: unknown, fallback: number): number =>
+    Math.max(0, Math.floor(asFiniteNumber(value, fallback)));
+  return {
+    benchCheckedDay: stamp(raw.benchCheckedDay, defaults.benchCheckedDay),
+    helpedDay: stamp(raw.helpedDay, defaults.helpedDay),
+    teaSharedDay: stamp(raw.teaSharedDay, defaults.teaSharedDay),
+    notesReadDay: stamp(raw.notesReadDay, defaults.notesReadDay),
+    starterTeaDay: stamp(raw.starterTeaDay, defaults.starterTeaDay),
+    projectsAdmired: Math.min(
+      4,
+      Math.max(0, Math.floor(asFiniteNumber(raw.projectsAdmired, defaults.projectsAdmired))),
+    ),
+    windingSessions: Math.max(
+      0,
+      Math.floor(asFiniteNumber(raw.windingSessions, defaults.windingSessions)),
+    ),
     teasShared: Math.max(0, Math.floor(asFiniteNumber(raw.teasShared, defaults.teasShared))),
   };
 }
@@ -1833,6 +1883,18 @@ export function migrateV8ToV9(v8Raw: Record<string, unknown>): Record<string, un
   };
 }
 
+/**
+ * Pure sequential v9 -> v10 save upgrader adding Milestone 3 Build 9 fields:
+ * the Copperwheel Cottage visitable-interior state. Existing interior locations are preserved.
+ */
+export function migrateV9ToV10(v9Raw: Record<string, unknown>): Record<string, unknown> {
+  return {
+    ...v9Raw,
+    schemaVersion: 10,
+    copperwheelState: createInitialCopperwheelState(),
+  };
+}
+
 export function migrateWorldState(raw: unknown): MigrationResult {
   const warnings: string[] = [];
   const detected = detectSchemaVersion(raw);
@@ -1886,6 +1948,11 @@ export function migrateWorldState(raw: unknown): MigrationResult {
   if (version === 8) {
     working = migrateV8ToV9(working);
     version = 9;
+  }
+
+  if (version === 9) {
+    working = migrateV9ToV10(working);
+    version = 10;
   }
 
   if (version > CURRENT_SCHEMA_VERSION) {

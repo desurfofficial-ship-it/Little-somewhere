@@ -12,6 +12,7 @@ import {
 import { PERSONAL_ITEM_MAP } from './inventory';
 import { BAKERY_SEAT_SPOTS } from './bakery';
 import { NOOK_SEAT_SPOTS } from './bookNook';
+import { COPPERWHEEL_SEAT_SPOTS } from './copperwheel';
 import { computeFacingAlignment, distance2D, getSeatById } from './worldMap';
 
 export const COTTAGE_BOUNDS = {
@@ -191,13 +192,14 @@ export const COTTAGE_SEAT_SPOTS: readonly SeatSpot[] = [
   },
 ];
 
-/** Resolve a seat by id across all registries — indoor cottage/bakery/nook seats, then outdoor benches. */
+/** Resolve a seat by id across all registries — indoor cottage/bakery/nook/copperwheel seats, then outdoor benches. */
 export function resolveAnySeatById(seatId: string | null | undefined): SeatSpot | undefined {
   if (!seatId) return undefined;
   return (
     COTTAGE_SEAT_SPOTS.find((s) => s.id === seatId) ??
     BAKERY_SEAT_SPOTS.find((s) => s.id === seatId) ??
     NOOK_SEAT_SPOTS.find((s) => s.id === seatId) ??
+    COPPERWHEEL_SEAT_SPOTS.find((s) => s.id === seatId) ??
     getSeatById(seatId)
   );
 }

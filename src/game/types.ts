@@ -29,9 +29,16 @@ export type PropInteractableId =
   | 'pond_driftwood'
   | 'greenhouse_door'
   | 'bakery_door'
-  | 'nook_door';
+  | 'nook_door'
+  | 'copperwheel_door';
 
-export type PlayerLocation = 'exterior' | 'cottage_interior' | 'greenhouse_interior' | 'bakery_interior' | 'nook_interior';
+export type PlayerLocation =
+  | 'exterior'
+  | 'cottage_interior'
+  | 'greenhouse_interior'
+  | 'bakery_interior'
+  | 'nook_interior'
+  | 'copperwheel_interior';
 
 export type CottageInteractableId =
   | 'interior_door'
@@ -92,6 +99,43 @@ export type NookInteractableId =
   | 'nook_chair';
 
 export type NookBookId = 'ivy_letters' | 'pond_sketches' | 'bread_hymns' | 'night_orchard';
+
+export type CopperwheelInteractableId =
+  | 'cw_door'
+  | 'cw_bench'
+  | 'cw_stove'
+  | 'cw_shelf'
+  | 'cw_bed'
+  | 'cw_chair';
+
+export type CopperwheelProjectId =
+  | 'orchard_pendulum'
+  | 'music_box_comb'
+  | 'watch_escapement'
+  | 'bench_rest';
+
+/**
+ * Copperwheel Cottage interior state (Milestone 3 Build 9, WorldState v10).
+ * Day stamps hold the last in-game day each ritual was performed; 0 means never.
+ */
+export interface CopperwheelState {
+  /** Last day the workbench's current project was examined. */
+  benchCheckedDay: number;
+  /** Last day Arthur's fine work was helped with at the bench. */
+  helpedDay: number;
+  /** Last day a chamomile cup was poured at the copper kettle. */
+  teaSharedDay: number;
+  /** Last day Arthur's mending ledger was read. */
+  notesReadDay: number;
+  /** In-game day the one-time starter tea came with the ledger notes (0 = not yet). */
+  starterTeaDay: number;
+  /** Lifetime count of distinct bench projects admired (max 4 in the project cycle). */
+  projectsAdmired: number;
+  /** Lifetime count of fine-work mornings helped. */
+  windingSessions: number;
+  /** Lifetime count of chamomile cups shared at Arthur's kettle. */
+  teasShared: number;
+}
 
 /**
  * Linden Book Nook interior state (Milestone 3 Build 8, WorldState v9).
@@ -640,6 +684,8 @@ export interface WorldState {
   bakeryState: BakeryState;
   // Milestone 3 Build 8 — Linden Book Nook visitable interior (WorldState v9)
   nookState: NookState;
+  // Milestone 3 Build 9 — Copperwheel Cottage visitable interior (WorldState v10)
+  copperwheelState: CopperwheelState;
   simSeed: number;
   regionId: string;
   day: number;
@@ -857,7 +903,8 @@ export interface InteractiveTarget {
     | 'cottage_prop'
     | 'greenhouse_prop'
     | 'bakery_prop'
-    | 'nook_prop';
+    | 'nook_prop'
+    | 'copperwheel_prop';
   id: string;
   label: string;
   actionLabel: string;
@@ -869,6 +916,7 @@ export interface InteractiveTarget {
   greenhousePropId?: GreenhouseInteractableId;
   bakeryPropId?: BakeryInteractableId;
   nookPropId?: NookInteractableId;
+  copperwheelPropId?: CopperwheelInteractableId;
   /** Set on seated cottage-seat targets when a sipable drink is in the satchel: primary action becomes the sip ritual. */
   sipItemId?: PersonalItemId;
 }
