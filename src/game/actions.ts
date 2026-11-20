@@ -168,6 +168,12 @@ export interface PropInteractionResult {
   memoryUnlockedTitle?: string;
   /** Explicit item-gain readout rendered as chips above the prose (everyday-life polish). */
   gainedItems?: GainedItemChip[];
+  /**
+   * Optional procedural subject-illustration key (dialogue/assets.ts) — the
+   * dialogue sheet renders it in the same visual slot as speaker portraits.
+   * Attached by App at the interaction boundary; never persisted.
+   */
+  subjectImageKey?: string;
 }
 
 export function applyDialogueChoice(

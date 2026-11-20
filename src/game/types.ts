@@ -860,6 +860,18 @@ export interface DialogueNode {
   text: string;
   choices: DialogueChoice[];
   isEnd?: boolean;
+  /**
+   * Optional speaker-visual override, resolved by `dialogue/assets.ts` into a
+   * procedural portrait descriptor. When absent, the session resident's default
+   * portrait applies (older saves/nodes keep full backward compatibility).
+   */
+  portraitKey?: string;
+  /**
+   * Optional object/environment illustration key for prop-inspection nodes,
+   * resolved by `dialogue/assets.ts`. When absent the speaker visual slot
+   * simply shows the portrait/default treatment.
+   */
+  subjectImageKey?: string;
 }
 
 export interface DialogueTopic {

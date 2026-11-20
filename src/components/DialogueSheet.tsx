@@ -1,9 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import {
+  ChevronDown,
   ChevronRight,
   Gift,
   Heart,
   HeartHandshake,
+  History,
   Smile,
   Sparkles,
   Sprout,
@@ -22,6 +24,8 @@ import {
   WorldState,
 } from '../game/types';
 import { isChoiceAvailable } from '../game/narrative';
+import { resolvePortrait, resolveSubjectImage } from '../game/dialogue/assets';
+import { PortraitCanvas, SubjectCanvas, useDialogueVisualSize } from './DialogueVisuals';
 import {
   getEmotionLabel,
   getHeartLevel,
@@ -94,6 +98,14 @@ function renderRelationshipTierIcon(tier: RelationshipTier, label: string) {
   }
 }
 
+/** UI-only conversation history — last 6 displayed lines, never persisted. */
+interface DialogueHistoryEntry {
+  speaker: string;
+  text: string;
+}
+
+const HISTORY_LINES = 6;
+
 interface DialogueSheetProps {
   session: DialogueSession | null;
   propCard: PropInteractionResult | null;
@@ -124,14 +136,38 @@ export const DialogueSheet: React.FC<DialogueSheetProps> = ({
   onPropAction,
 }) => {
   const [giftPickerOpen, setGiftPickerOpen] = useState<boolean>(false);
+  const [historyOpen, setHistoryOpen] = useState<boolean>(false);
+  const [history, setHistory] = useState<DialogueHistoryEntry[]>([]);
+  const visualSize = useDialogueVisualSize();
 
   useEffect(() => {
     setGiftPickerOpen(false);
   }, [session?.residentId, session?.currentNodeId]);
 
+  // History is UI-only state: reset when a new conversation begins, append the
+  // displayed line whenever the current node advances. Capped at 6 entries.
+  useEffect(() => {
+    setHistory([]);
+    setHistoryOpen(false);
+  }, [session?.residentId, session?.topicId]);
+
+  useEffect(() => {
+    if (!session) return;
+    const node =
+      session.nodes[session.currentNodeId] ??
+      session.nodes.root ??
+      Object.values(session.nodes)[0];
+    if (!node) return;
+    setHistory((prev) =>
+      [...prev, { speaker: node.speakerName, text: node.text }].slice(-HISTORY_LINES),
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session?.currentNodeId, session?.residentId]);
+
   if (!session && !propCard) return null;
 
   if (propCard) {
+    const subjectDesc = resolveSubjectImage(propCard.subjectImageKey);
     return (
       <div
         className="fixed inset-0 z-30 flex items-end justify-center p-2.5 sm:p-4 bg-[#2D241E]/10"
@@ -141,23 +177,29 @@ export const DialogueSheet: React.FC<DialogueSheetProps> = ({
           role="dialog"
           aria-label={propCard.title}
           onClick={(e) => e.stopPropagation()}
-          className="w-full max-w-lg bg-[#FAF5EC] border border-[#CBB9A0] ring-1 ring-inset ring-[#E9DFCE] rounded-2xl shadow-[0_14px_36px_rgba(45,36,30,0.22)] p-3.5 sm:p-5"
+          className="animate-sheet-rise w-full max-w-lg bg-[#FAF5EC] border border-[#CBB9A0] ring-1 ring-inset ring-[#E9DFCE] rounded-2xl shadow-[0_14px_36px_rgba(45,36,30,0.22)] p-3.5 sm:p-5"
         >
-          <div className="flex items-center justify-between gap-3">
-            <h2 className="font-display text-lg sm:text-xl font-semibold text-[#2D241E] truncate">
-              {propCard.title}
-            </h2>
-            <button
-              type="button"
-              onClick={onClose}
-              aria-label="Close inspection"
-              className="min-h-[44px] min-w-[44px] -my-1 -mr-1.5 flex items-center justify-center rounded-xl text-[#6A5B50] hover:bg-[#EFE5D5] transition-colors cursor-pointer shrink-0"
-            >
-              <X className="w-4 h-4" />
-            </button>
+          <div className="flex items-start gap-3">
+            {/* Same visual slot as speaker portraits — object illustration */}
+            <div className="animate-portrait-fade shrink-0 rounded-[26%] border-2 border-[#E6DAC7] overflow-hidden shadow-sm">
+              <SubjectCanvas descriptor={subjectDesc} size={visualSize} />
+            </div>
+            <div className="flex items-start justify-between gap-3 min-w-0 flex-1">
+              <h2 className="font-display text-lg sm:text-xl font-semibold text-[#2D241E] leading-snug break-words pt-1.5">
+                {propCard.title}
+              </h2>
+              <button
+                type="button"
+                onClick={onClose}
+                aria-label="Close inspection"
+                className="min-h-[44px] min-w-[44px] -my-1 -mr-1.5 flex items-center justify-center rounded-xl text-[#6A5B50] hover:bg-[#EFE5D5] transition-colors cursor-pointer shrink-0"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
           </div>
 
-          <div className="mt-2 text-sm sm:text-[15px] text-[#3D3128] leading-relaxed max-h-[26vh] overflow-y-auto storybook-scroll pr-1">
+          <div className="mt-2.5 text-[15px] sm:text-base text-[#3D3128] leading-relaxed max-h-[26vh] overflow-y-auto storybook-scroll pr-1">
             {propCard.gainedItems && propCard.gainedItems.length > 0 && (
               <div
                 className="flex flex-wrap gap-1.5 mb-2.5"
@@ -216,6 +258,9 @@ export const DialogueSheet: React.FC<DialogueSheetProps> = ({
   const tierLabel = getRelationshipTierLabel(resolvedTier);
   const emotionLabel = emotion ? getEmotionLabel(emotion) : node.moodLabel;
   const milestoneSeq = session.milestonePulseSeq ?? 0;
+  // Priority 2: the speaker visual follows the node's portraitKey when present,
+  // otherwise the resident's procedural default. Unknown keys never break the sheet.
+  const portraitDesc = resolvePortrait(node.portraitKey, session.residentId);
 
   const availableChoices = node.choices.filter((c) =>
     world
@@ -232,24 +277,22 @@ export const DialogueSheet: React.FC<DialogueSheetProps> = ({
         role="dialog"
         aria-label={`Conversation with ${node.speakerName}`}
         onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-xl bg-[#FAF5EC] border border-[#CBB9A0] ring-1 ring-inset ring-[#E9DFCE] rounded-2xl shadow-[0_14px_36px_rgba(45,36,30,0.22)] p-3.5 sm:p-5"
+        className="animate-sheet-rise w-full max-w-xl bg-[#FAF5EC] border border-[#CBB9A0] ring-1 ring-inset ring-[#E9DFCE] rounded-2xl shadow-[0_14px_36px_rgba(45,36,30,0.22)] p-3.5 sm:p-5"
       >
-        {/* Compact Storybook Header */}
+        {/* Storybook Header — speaker portrait owns the visual slot (Priority 3, Concept A) */}
         <div className="flex items-start justify-between gap-2.5">
-          <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
+          <div className="flex items-center gap-3 sm:gap-3.5 min-w-0">
             <div
               key={milestoneSeq > 0 ? `${session.residentId}-milestone-${milestoneSeq}` : `${session.residentId}-idle`}
               data-testid="resident-dialogue-avatar"
               data-milestone-seq={milestoneSeq}
-              className={`w-10 h-10 rounded-full shrink-0 border-2 flex items-center justify-center font-display font-bold text-base text-[#FAF5EC] shadow-sm ${
-                milestoneSeq > 0
-                  ? 'animate-avatar-milestone border-[#E5A93C]'
-                  : 'border-[#E6DAC7]'
+              className={`animate-portrait-fade rounded-[26%] border-2 overflow-hidden shrink-0 shadow-sm ${
+                milestoneSeq > 0 ? 'animate-avatar-milestone border-[#E5A93C]' : 'border-[#E6DAC7]'
               }`}
-              style={{ backgroundColor: resDef.appearance.coatColor }}
+              style={{ width: visualSize, height: visualSize }}
               aria-hidden="true"
             >
-              {node.speakerName.charAt(0)}
+              <PortraitCanvas descriptor={portraitDesc} size={visualSize} />
             </div>
             <div className="min-w-0">
               <div className="flex items-center gap-1.5 flex-wrap">
@@ -270,7 +313,7 @@ export const DialogueSheet: React.FC<DialogueSheetProps> = ({
                   ))}
                 </div>
               </div>
-              <div className="text-[11px] sm:text-xs text-[#6A5B50] flex items-center gap-x-1.5 flex-wrap leading-tight mt-0.5">
+              <div className="text-[11px] sm:text-xs text-[#6A5B50] flex items-center gap-x-1.5 flex-wrap leading-tight mt-1">
                 <span>{node.speakerRole}</span>
                 <span aria-hidden="true">·</span>
                 <span>{emotionLabel}</span>
@@ -281,15 +324,48 @@ export const DialogueSheet: React.FC<DialogueSheetProps> = ({
             </div>
           </div>
 
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="Close conversation"
-            className="min-h-[44px] min-w-[44px] -mt-1 -mr-1.5 flex items-center justify-center rounded-xl text-[#6A5B50] hover:bg-[#EFE5D5] transition-colors cursor-pointer shrink-0"
-          >
-            <X className="w-4 h-4" />
-          </button>
+          <div className="flex items-start gap-0.5 shrink-0">
+            <button
+              type="button"
+              onClick={() => setHistoryOpen((v) => !v)}
+              aria-expanded={historyOpen}
+              aria-controls="dialogue-history-drawer"
+              aria-label={historyOpen ? 'Hide recent lines' : 'Show recent lines'}
+              data-testid="dialogue-history-toggle"
+              className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-xl text-[#6A5B50] hover:bg-[#EFE5D5] transition-colors cursor-pointer"
+            >
+              <History className="w-4 h-4" />
+            </button>
+            <button
+              type="button"
+              onClick={onClose}
+              aria-label="Close conversation"
+              className="min-h-[44px] min-w-[44px] -mt-0 -mr-1.5 flex items-center justify-center rounded-xl text-[#6A5B50] hover:bg-[#EFE5D5] transition-colors cursor-pointer shrink-0"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
         </div>
+
+        {historyOpen && (
+          <div
+            id="dialogue-history-drawer"
+            data-testid="dialogue-history-drawer"
+            aria-label="Recent conversation lines"
+            className="mt-2.5 rounded-xl bg-[#F4ECE0] border border-[#DFD1BC] p-2.5 max-h-[18vh] overflow-y-auto storybook-scroll space-y-1.5"
+          >
+            {history.length === 0 ? (
+              <p className="text-xs text-[#6A5B50] px-1">The conversation just began.</p>
+            ) : (
+              history.map((entry, idx) => (
+                <p key={`${idx}-${entry.speaker}`} className="text-[13px] text-[#4A3E33] leading-snug">
+                  <span className="font-semibold text-[#2D241E]">{entry.speaker}:</span>{' '}
+                  {entry.text}
+                </p>
+              ))
+            )}
+          </div>
+        )}
 
         {(session.recentToast || session.milestoneLabel) && (
           <div className="mt-2.5 flex items-center gap-1.5 text-xs font-semibold text-[#5E8062]">
@@ -298,10 +374,24 @@ export const DialogueSheet: React.FC<DialogueSheetProps> = ({
           </div>
         )}
 
-        {/* Dialogue Prose */}
-        <p className="mt-2.5 sm:mt-3 text-sm sm:text-[15px] text-[#2D241E] leading-relaxed max-h-[24vh] sm:max-h-[28vh] overflow-y-auto storybook-scroll pr-1 max-w-[65ch]">
-          “{node.text}”
-        </p>
+        {/* Dialogue Prose — ≥15px body on phone per the responsive spec (doc 09) */}
+        <div className="relative mt-2.5 sm:mt-3">
+          <p
+            data-testid="dialogue-prose"
+            className="text-[15px] sm:text-base text-[#2D241E] leading-relaxed max-h-[24vh] sm:max-h-[28vh] overflow-y-auto storybook-scroll pr-1 max-w-[65ch]"
+          >
+            “{node.text}”
+          </p>
+          {availableChoices.length > 0 && (
+            <span
+              aria-hidden="true"
+              data-testid="dialogue-continue-hint"
+              className="animate-continue-hint absolute bottom-0.5 right-0 text-[#C86446]"
+            >
+              <ChevronDown className="w-4 h-4" />
+            </span>
+          )}
+        </div>
 
         {/* Clean Tactile Choices or Close */}
         <div className="mt-3 flex flex-col gap-1.5">

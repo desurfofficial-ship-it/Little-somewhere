@@ -75,3 +75,64 @@
   animation: avatar-milestone-bounce 0.72s cubic-bezier(0.22, 1, 0.36, 1) 1;
 }
 
+
+/* Dialogue sheet motion (Priority 3) — slide-up open, portrait cross-fade,
+   continue-hint bob. All gated by the reduced-motion guard below. */
+@keyframes sheet-rise {
+  from {
+    transform: translateY(14px);
+    opacity: 0.6;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.animate-sheet-rise {
+  animation: sheet-rise 0.18s cubic-bezier(0.22, 1, 0.36, 1) 1;
+}
+
+@keyframes portrait-fade-in {
+  from {
+    opacity: 0.35;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.animate-portrait-fade {
+  animation: portrait-fade-in 0.15s ease-out 1;
+}
+
+@keyframes continue-hint-bob {
+  0%,
+  100% {
+    transform: translateY(0);
+    opacity: 0.6;
+  }
+  50% {
+    transform: translateY(3px);
+    opacity: 1;
+  }
+}
+
+.animate-continue-hint {
+  animation: continue-hint-bob 1.6s ease-in-out infinite;
+}
+
+/* Accessibility: honor prefers-reduced-motion across the HUD (doc 09 §6). */
+@media (prefers-reduced-motion: reduce) {
+  .animate-sheet-rise,
+  .animate-portrait-fade,
+  .animate-avatar-milestone {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+  .animate-continue-hint {
+    animation: none !important;
+    transform: none !important;
+    opacity: 0.75 !important;
+  }
+}

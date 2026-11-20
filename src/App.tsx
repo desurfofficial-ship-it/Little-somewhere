@@ -85,6 +85,15 @@ import {
   waterGreenhousePlotsAction,
 } from './game/actions';
 import { interruptSocialEncounter } from './game/simulation';
+import {
+  SUBJECT_IMAGE_KEYS,
+  subjectKeyForBakeryProp,
+  subjectKeyForCopperwheelProp,
+  subjectKeyForCottageProp,
+  subjectKeyForGreenhouseProp,
+  subjectKeyForNookProp,
+  subjectKeyForPropId,
+} from './game/dialogue/assets';
 import { getLandmarkAt, getPropInteractionMetrics } from './game/worldMap';
 import { cozyAudio } from './game/audio';
 // R-09: the whole Three.js scene stack (~1 MB) is code-split behind a dynamic import so
@@ -306,6 +315,7 @@ export default function App() {
               nextWorld: sipRes.nextWorld,
               title: sipRes.title,
               body: sipRes.body,
+              subjectImageKey: SUBJECT_IMAGE_KEYS.teacup,
             });
           } else {
             cozyAudio.playUiTap(0.92);
@@ -374,7 +384,7 @@ export default function App() {
         cozyAudio.playUiTap(1.04);
         setDialogueSession(null);
         setActivePropId(null);
-        setPropCard(res);
+        setPropCard({ ...res, subjectImageKey: subjectKeyForCottageProp(cid) });
       } else if (target.kind === 'greenhouse_prop') {
         const gid = target.greenhousePropId ?? (target.id as GreenhouseInteractableId);
         const res = interactWithGreenhouseProp(current, gid);
@@ -407,7 +417,7 @@ export default function App() {
         cozyAudio.playUiTap(1.04);
         setDialogueSession(null);
         setActivePropId(null);
-        setPropCard(res);
+        setPropCard({ ...res, subjectImageKey: subjectKeyForGreenhouseProp(gid) });
       } else if (target.kind === 'nook_prop') {
         const nid = target.nookPropId ?? (target.id as NookInteractableId);
         const res = interactWithNookProp(current, nid);
@@ -426,7 +436,7 @@ export default function App() {
         cozyAudio.playUiTap(1.04);
         setDialogueSession(null);
         setActivePropId(null);
-        setPropCard(res);
+        setPropCard({ ...res, subjectImageKey: subjectKeyForNookProp(nid) });
         if (res.memoryUnlockedTitle) {
           cozyAudio.playMemoryChime();
           showToast(`Memory saved: ${res.memoryUnlockedTitle}`);
@@ -449,7 +459,7 @@ export default function App() {
         cozyAudio.playUiTap(1.04);
         setDialogueSession(null);
         setActivePropId(null);
-        setPropCard(res);
+        setPropCard({ ...res, subjectImageKey: subjectKeyForCopperwheelProp(wid) });
         if (res.memoryUnlockedTitle) {
           cozyAudio.playMemoryChime();
           showToast(`Memory saved: ${res.memoryUnlockedTitle}`);
@@ -472,7 +482,7 @@ export default function App() {
         cozyAudio.playUiTap(1.04);
         setDialogueSession(null);
         setActivePropId(null);
-        setPropCard(res);
+        setPropCard({ ...res, subjectImageKey: subjectKeyForBakeryProp(bid) });
         if (res.memoryUnlockedTitle) {
           cozyAudio.playMemoryChime();
           showToast(`Memory saved: ${res.memoryUnlockedTitle}`);
@@ -548,7 +558,7 @@ export default function App() {
         }
         setDialogueSession(null);
         setActivePropId(pid);
-        setPropCard(res);
+        setPropCard({ ...res, subjectImageKey: subjectKeyForPropId(pid) });
       }
     },
     [commitWorld, showToast, triggerPlayerPulse],
