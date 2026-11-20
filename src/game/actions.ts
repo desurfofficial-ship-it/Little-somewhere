@@ -37,9 +37,9 @@ import {
   createInitialDailyActivities,
   describePlacedFlower,
   getSeasonalAlmanacReading,
-  isInteriorPointWalkable,
   resolveAnySeatById,
 } from './cottage';
+import { resolveSeatStandPos } from './walkability';
 import {
   GREENHOUSE_CROPS,
   GREENHOUSE_HARVEST_MINUTES,
@@ -841,19 +841,16 @@ export function togglePlayerSitAction(
 ): { nextWorld: WorldState; sat: boolean; toast?: string } {
   if (world.playerPosture === 'sitting') {
     const seat = resolveAnySeatById(world.playerSeatId);
-    const approachWalkable = seat
-      ? seat.indoor
-        ? isInteriorPointWalkable(seat.approachPos.x, seat.approachPos.z, 0.42)
-        : isPointWalkable(seat.approachPos.x, seat.approachPos.z, 0.48)
-      : false;
-    const standPos =
-      seat && approachWalkable ? { ...seat.approachPos } : { ...world.playerPos };
+    // Stand-up relocation uses the seat's OWN interior grid (with a deterministic radial
+    // recovery fallback) — the historic cottage-only check left bakery/copperwheel
+    // sitters standing inside the chair collision volume with zero free directions.
+    const standPos = seat ? resolveSeatStandPos(seat) : null;
     return {
       nextWorld: {
         ...world,
         playerPosture: 'standing',
         playerSeatId: null,
-        playerPos: standPos,
+        playerPos: standPos ?? { ...world.playerPos },
       },
       sat: false,
       toast: seat ? `Stood up from ${seat.label}.` : 'Stood up.',

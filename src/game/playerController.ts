@@ -8,11 +8,11 @@ import {
   WorldState,
 } from './types';
 import {
-  isInteriorPointWalkable,
   resolveAnySeatById,
   resolveInteriorMovement,
   selectBestInteriorTarget,
 } from './cottage';
+import { resolveSeatStandPos } from './walkability';
 import {
   isGreenhouseInteriorWalkable,
   resolveGreenhouseInteriorMovement,
@@ -40,7 +40,6 @@ import {
   getGroundHeightAt,
   getPropInteractionMetrics,
   getSeatById,
-  isPointWalkable,
   resolveMovement,
 } from './worldMap';
 import { getFirstSipableItem } from './inventory';
@@ -191,16 +190,18 @@ export function stepPlayerMovement(input: StepPlayerMovementInput): StepPlayerMo
   if (posture === 'sitting') {
     const seat = resolveAnySeatById(seatId);
     if (hasMoveInput) {
-      // Pushing a movement key/stick while sitting gracefully steps back onto walkable approach spot
+      // Pushing a movement key/stick while sitting gracefully steps back onto a walkable
+      // spot: the authored approach when it passes the seat's OWN interior grid, else a
+      // deterministic radial recovery around the seat (8 directions × 0.35/0.55). The
+      // historic cottage-only check left bakery/copperwheel sitters trapped inside the
+      // chair collision volume (0 free directions) — see docs/research 02 §B.
       posture = 'standing';
       stoodUpFromMove = true;
-      const approachWalkable = seat
-        ? seat.indoor
-          ? isInteriorPointWalkable(seat.approachPos.x, seat.approachPos.z, 0.42)
-          : isPointWalkable(seat.approachPos.x, seat.approachPos.z, 0.48)
-        : false;
-      if (seat && approachWalkable) {
-        pos = { ...seat.approachPos };
+      if (seat) {
+        const standPos = resolveSeatStandPos(seat);
+        if (standPos) {
+          pos = standPos;
+        }
       }
       seatId = null;
     } else {
