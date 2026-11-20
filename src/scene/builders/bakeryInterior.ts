@@ -249,6 +249,46 @@ export function buildHearthCrumbInterior(
   westSill.position.set(-2.98, 1.2, 0.25);
   group.add(westSill);
 
+  // Phase B implied-space architecture (audit §7.3): a closed BAKEHOUSE door on the
+  // west wall's free south segment — the interior answer to the exterior bake-oven
+  // bump-out on the west gable, so the working wing the outside promises reads inside.
+  // Wall-mounted visual only: no obstacle, interactable, or bounds change.
+  const bakehouseDoor = new THREE.Group();
+  bakehouseDoor.position.set(-2.92, 0, 1.72);
+  bakehouseDoor.rotation.y = -Math.PI / 2; // leaf faces east into the shop
+  for (const fz of [-0.53, 0.53]) {
+    const post = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(0.12, 2.18, 0.16)), cedarDarkMat);
+    post.position.set(0, 1.09, fz);
+    bakehouseDoor.add(post);
+  }
+  const bhLintel = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(0.18, 0.14, 1.2)), cedarDarkMat);
+  bhLintel.position.set(0, 2.24, 0);
+  bakehouseDoor.add(bhLintel);
+  const bhLeaf = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(0.08, 1.96, 0.96)), doorMat);
+  bhLeaf.position.set(0.06, 0.99, 0);
+  bhLeaf.castShadow = true;
+  bakehouseDoor.add(bhLeaf);
+  const bhRailGeo = trackGeo(new THREE.BoxGeometry(0.1, 0.09, 0.86));
+  for (const ry of [0.5, 1.3]) {
+    const rail = new THREE.Mesh(bhRailGeo, cedarDarkMat);
+    rail.position.set(0.09, ry, 0);
+    bakehouseDoor.add(rail);
+  }
+  const bhKnob = new THREE.Mesh(trackGeo(new THREE.SphereGeometry(0.045, 8, 7)), brassMat);
+  bhKnob.position.set(0.12, 1.02, 0.34);
+  bakehouseDoor.add(bhKnob);
+  const bhThreshold = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(0.18, 0.05, 1.1)), limestoneMat);
+  bhThreshold.position.set(0.1, 0.03, 0);
+  bakehouseDoor.add(bhThreshold);
+  group.add(bakehouseDoor);
+  // Bread-peel paddle mounted flat above the bakehouse lintel (no-text signage read)
+  const peelHandle = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(0.05, 0.05, 0.9)), cedarWarmMat);
+  peelHandle.position.set(-2.96, 2.62, 1.72);
+  const peelBoard = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(0.04, 0.34, 0.5)), cedarWarmMat);
+  peelBoard.position.set(-2.96, 2.42, 1.28);
+  peelBoard.rotation.x = -0.25;
+  group.add(peelHandle, peelBoard);
+
   // East wall (x = +3.0) — cutaway dwarf wainscot + low glass so the camera reads in
   const eastWainscot = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(0.18, 0.72, 4.9)), cedarWarmMat);
   eastWainscot.position.set(3.0, 0.42, 0);

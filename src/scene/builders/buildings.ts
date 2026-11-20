@@ -14,6 +14,45 @@ export interface BuildingBuildContext {
   flowerGroups: THREE.Group[];
 }
 
+// Module-level transformed-geometry factories shared by the building builders
+// (audit §10.4 draw-call discipline: merged bar grids and multi-part props build
+// their parts as baked primitives, then merge per material).
+const boxAt = (
+  w: number,
+  h: number,
+  d: number,
+  x: number,
+  y: number,
+  z: number,
+  rotX = 0,
+  rotY = 0,
+  rotZ = 0,
+): THREE.BufferGeometry => {
+  const g = new THREE.BoxGeometry(w, h, d);
+  if (rotX) g.rotateX(rotX);
+  if (rotY) g.rotateY(rotY);
+  if (rotZ) g.rotateZ(rotZ);
+  g.translate(x, y, z);
+  return g;
+};
+const cylAt = (
+  rt: number,
+  rb: number,
+  h: number,
+  x: number,
+  y: number,
+  z: number,
+  rotX = 0,
+  rotZ = 0,
+  segments = 8,
+): THREE.BufferGeometry => {
+  const g = new THREE.CylinderGeometry(rt, rb, h, segments);
+  if (rotX) g.rotateX(rotX);
+  if (rotZ) g.rotateZ(rotZ);
+  g.translate(x, y, z);
+  return g;
+};
+
 interface StorybookCottageBaseOpts {
   width: number;
   depth: number;
@@ -30,6 +69,24 @@ interface StorybookCottageBaseOpts {
     postHeight?: number;
   };
   chimneyOffset?: [number, number];
+  /**
+   * Building-architecture audit Phase B — shared-core craft back-port (Willow Step
+   * patterns promoted into the template). Every toggle defaults OFF so existing
+   * buildings (incl. Copperwheel, owned by another agent) keep their current look
+   * until their own pass enables them.
+   */
+  craft?: {
+    /** Horizontal timber sill beam at the wall base (Willow pattern). */
+    sillBand?: boolean;
+    /** Stepped stone corner quoin blocks (Willow pattern). */
+    quoins?: boolean;
+    /** Plaster gable-triangle infill under the roof + cream bargeboards on both slopes. */
+    bargeboards?: boolean;
+    /** Small louvred loft-vent window in each gable triangle (attic truth-telling). */
+    loftVents?: boolean;
+    /** Three-part tapered fieldstone chimney stack (Willow pattern). */
+    taperedChimney?: boolean;
+  };
 }
 
 function addRecessedWindowWithPlanter(
@@ -163,12 +220,32 @@ function buildStorybookCottageCore(
   plinthCap.position.y = 0.48;
   group.add(plinth, plinthCap);
 
-  // 2. Main Lime Plaster Walls
+  // 2. Main Lime Plaster Walls + optional timber sill band & corner quoins (Phase B)
   const body = new THREE.Mesh(new THREE.BoxGeometry(width, wallHeight, depth), wallMat);
   body.position.y = 0.5 + wallHeight / 2;
   body.castShadow = true;
   body.receiveShadow = true;
   group.add(body);
+
+  if (opts.craft?.sillBand) {
+    const sillBand = new THREE.Mesh(
+      new THREE.BoxGeometry(width + 0.14, 0.14, depth + 0.14),
+      trimMat,
+    );
+    sillBand.position.y = 0.57;
+    group.add(sillBand);
+  }
+  if (opts.craft?.quoins) {
+    for (const sx of [-1, 1]) {
+      for (const sz of [-1, 1]) {
+        const quoinA = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.4, 0.34), stoneMat);
+        quoinA.position.set(sx * halfW, 0.72, sz * halfD);
+        const quoinB = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.36, 0.3), darkStoneMat);
+        quoinB.position.set(sx * halfW, 1.08, sz * halfD);
+        group.add(quoinA, quoinB);
+      }
+    }
+  }
 
   // 3. Corner Timber Posts + Top Eave Beams
   const postGeo = new THREE.BoxGeometry(0.26, wallHeight + 0.12, 0.26);
@@ -213,16 +290,101 @@ function buildStorybookCottageCore(
   ridge.position.y = 0.52 + wallHeight + roofH + 0.06;
   group.add(ridge);
 
-  // 5. Chimney Stack + Terracotta Pot
+  // Phase B: plaster gable infill + cream bargeboards + louvred loft vents.
+  // The infill closes the open gable triangles (Willow pattern), the bargeboards
+  // articulate the rakes, and the vents make the attic read as vented storage —
+  // exterior truth-telling for the 1.6-2.1 m of gable volume the interiors do
+  // not render as rooms (audit §7.3).
+  if (opts.craft?.bargeboards || opts.craft?.loftVents) {
+    const roofBaseY = 0.48 + wallHeight;
+    // The infill closes the open gable triangles — required backing for the vents
+    const infillShape = new THREE.Shape();
+    infillShape.moveTo(-halfW, 0);
+    infillShape.lineTo(halfW, 0);
+    infillShape.lineTo(0, roofH - 0.14);
+    infillShape.closePath();
+    const infillGeo = new THREE.ExtrudeGeometry(infillShape, {
+      depth: depth - 0.02,
+      bevelEnabled: false,
+    });
+    infillGeo.translate(0, 0, -(depth - 0.02) / 2);
+    const gableInfill = new THREE.Mesh(infillGeo, wallMat);
+    gableInfill.position.y = roofBaseY + 0.02;
+    group.add(gableInfill);
+
+    if (opts.craft?.bargeboards) {
+      const slopeLen = Math.hypot(halfW + overhang, roofH) + 0.16;
+      const slopeAngle = Math.atan2(roofH, halfW + overhang);
+      for (const sz of [-1, 1]) {
+        for (const sx of [-1, 1]) {
+          const barge = new THREE.Mesh(
+            new THREE.BoxGeometry(slopeLen, 0.16, 0.12),
+            creamTrimMat,
+          );
+          barge.position.set(
+            sx * (halfW + overhang) * 0.5,
+            roofBaseY + roofH * 0.5 + 0.08,
+            sz * (halfD + overhang + 0.06),
+          );
+          barge.rotation.z = -sx * slopeAngle;
+          barge.castShadow = true;
+          group.add(barge);
+        }
+      }
+    }
+    if (opts.craft?.loftVents) {
+      const ventY = 0.48 + wallHeight + roofH * 0.34;
+      for (const sz of [-1, 1]) {
+        const ventFrame = new THREE.Mesh(
+          new THREE.BoxGeometry(0.6, 0.66, 0.1),
+          creamTrimMat,
+        );
+        ventFrame.position.set(0, ventY, sz * (halfD + 0.01));
+        const ventDark = new THREE.Mesh(
+          new THREE.BoxGeometry(0.44, 0.5, 0.12),
+          darkStoneMat,
+        );
+        ventDark.position.set(0, ventY, sz * (halfD + 0.02));
+        group.add(ventFrame, ventDark);
+        for (let s = -1; s <= 1; s++) {
+          const slat = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.045, 0.13), trimMat);
+          slat.position.set(0, ventY + s * 0.13, sz * (halfD + 0.03));
+          slat.rotation.x = s * 0.5;
+          group.add(slat);
+        }
+      }
+    }
+  }
+
+  // 5. Chimney Stack + Terracotta Pot (default box stack, or the Phase B
+  //    three-part tapered fieldstone stack)
   const [chX, chZ] = opts.chimneyOffset ?? [-halfW * 0.52, -halfD * 0.36];
-  const chimney = new THREE.Mesh(new THREE.BoxGeometry(0.82, 2.0, 0.82), darkStoneMat);
-  chimney.position.set(chX, 0.5 + wallHeight + 0.95, chZ);
-  chimney.castShadow = true;
-  const chimneyRim = new THREE.Mesh(new THREE.BoxGeometry(0.96, 0.14, 0.96), stoneMat);
-  chimneyRim.position.set(chX, 0.5 + wallHeight + 1.98, chZ);
-  const chimneyPot = new THREE.Mesh(new THREE.CylinderGeometry(0.24, 0.2, 0.34, 8), potMat);
-  chimneyPot.position.set(chX, 0.5 + wallHeight + 2.2, chZ);
-  group.add(chimney, chimneyRim, chimneyPot);
+  if (opts.craft?.taperedChimney) {
+    const stackBase = 0.5 + wallHeight;
+    const stackA = new THREE.Mesh(new THREE.BoxGeometry(0.72, 1.05, 0.72), darkStoneMat);
+    stackA.position.set(chX, stackBase + 0.45, chZ);
+    stackA.castShadow = true;
+    const stackB = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.85, 0.6), darkStoneMat);
+    stackB.position.set(chX, stackBase + 1.35, chZ);
+    stackB.castShadow = true;
+    const stackC = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.6, 0.5), stoneMat);
+    stackC.position.set(chX, stackBase + 2.0, chZ);
+    stackC.castShadow = true;
+    const stackRim = new THREE.Mesh(new THREE.BoxGeometry(0.62, 0.12, 0.62), stoneMat);
+    stackRim.position.set(chX, stackBase + 2.36, chZ);
+    const stackPot = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.16, 0.3, 8), potMat);
+    stackPot.position.set(chX, stackBase + 2.56, chZ);
+    group.add(stackA, stackB, stackC, stackRim, stackPot);
+  } else {
+    const chimney = new THREE.Mesh(new THREE.BoxGeometry(0.82, 2.0, 0.82), darkStoneMat);
+    chimney.position.set(chX, 0.5 + wallHeight + 0.95, chZ);
+    chimney.castShadow = true;
+    const chimneyRim = new THREE.Mesh(new THREE.BoxGeometry(0.96, 0.14, 0.96), stoneMat);
+    chimneyRim.position.set(chX, 0.5 + wallHeight + 1.98, chZ);
+    const chimneyPot = new THREE.Mesh(new THREE.CylinderGeometry(0.24, 0.2, 0.34, 8), potMat);
+    chimneyPot.position.set(chX, 0.5 + wallHeight + 2.2, chZ);
+    group.add(chimney, chimneyRim, chimneyPot);
+  }
 
   // 6. Recessed Porch Door + Steps + Hanging Lantern + Optional Supported Awning
   const doorGroup = new THREE.Group();
@@ -322,7 +484,7 @@ function buildStorybookCottageCore(
  * Striped awning on timber posts, stone hearth oven bump-out, display shelf with sourdough loaves, & menu sign.
  */
 export function buildStorybookBakery(ctx: BuildingBuildContext): THREE.Group {
-  const { palette } = ctx;
+  const { palette, shadowTex } = ctx;
   const { group } = buildStorybookCottageCore(
     {
       width: 6.4,
@@ -335,6 +497,9 @@ export function buildStorybookBakery(ctx: BuildingBuildContext): THREE.Group {
       roofCacheKey: 'bakery_terracotta_roof',
       awning: { colorA: '#CD6649', colorB: '#FAF2E3' },
       chimneyOffset: [-2.1, -0.9],
+      // Phase B core back-port: the bakery is the neighborhood's food hearth —
+      // full Willow-pattern craft set + a tapered chimney worth photographing
+      craft: { sillBand: true, quoins: true, bargeboards: true, loftVents: true, taperedChimney: true },
     },
     ctx,
   );
@@ -357,16 +522,119 @@ export function buildStorybookBakery(ctx: BuildingBuildContext): THREE.Group {
   ovenPipe.castShadow = true;
   group.add(ovenBase, ovenDome, ovenPipe);
 
-  // Window display shelf + golden loaves beside South entrance
+  // Phase C — bakehouse bump-out wing (audit §5.4): the oven stub grows into the
+  // neighborhood's only L-shaped massing. The wing extends the oven base southward
+  // along the west wall with its own small terracotta gable; a service door reads on
+  // the wing's south face. Stays inside 'bakery' (world x >= -16.4: wing reaches
+  // local x -3.85 = world -16.25) — no obstacle or interaction change.
+  const wingWallMat = palette.standard('#EFDCC0', 0.85, 0.01);
+  const wingRoofMat = palette.get('bakery_wing_roof', { color: '#FFFFFF', roughness: 0.76, metalness: 0.03 });
+  if (!wingRoofMat.map) {
+    wingRoofMat.map = ctx.terracottaRoofTex;
+    wingRoofMat.needsUpdate = true;
+  }
+  const wingWalls: THREE.BufferGeometry[] = [
+    boxAt(0.9, 2.0, 1.9, 0, 1.24, 0), // main wing mass hugging the west wall
+  ];
+  const wingMesh = new THREE.Mesh(mergeGeometries(wingWalls, false)!, wingWallMat);
+  wingMesh.castShadow = true;
+  wingMesh.receiveShadow = true;
+  const wing = new THREE.Group();
+  wing.position.set(-3.4, 0, 1.0);
+  wing.add(wingMesh);
+  // Wing roof: mini gable, ridge along Z (matching the main roof's ridge direction)
+  const wingRoofShape = new THREE.Shape();
+  wingRoofShape.moveTo(-0.58, 0);
+  wingRoofShape.lineTo(0.58, 0);
+  wingRoofShape.lineTo(0, 0.72);
+  wingRoofShape.closePath();
+  const wingRoofGeo = new THREE.ExtrudeGeometry(wingRoofShape, { depth: 2.1, bevelEnabled: false });
+  wingRoofGeo.translate(0, 0, -1.05);
+  const wingRoof = new THREE.Mesh(wingRoofGeo, wingRoofMat);
+  wingRoof.position.y = 2.24;
+  wingRoof.castShadow = true;
+  wingRoof.receiveShadow = true;
+  wing.add(wingRoof);
+  const wingRidge = new THREE.Mesh(boxAt(0.16, 0.14, 2.1, 0, 2.98, 0, 0, 0, 0), cedarMat);
+  wing.add(wingRidge);
+  // Service door on the wing's south face + a small vent slit
+  const wingDoor = new THREE.Mesh(boxAt(0.52, 1.42, 0.08, 0, 0.73, 0.97, 0, 0, 0), palette.standard(STORYBOOK_PALETTE.doorCedar, 0.68, 0.05));
+  wingDoor.castShadow = true;
+  const wingVent = new THREE.Mesh(boxAt(0.3, 0.18, 0.1, 0, 1.7, 0.97, 0, 0, 0), stoneMat);
+  wing.add(wingDoor, wingVent);
+  // Timber lintel band tying the wing back into the main west wall
+  wing.add(new THREE.Mesh(boxAt(0.98, 0.12, 1.86, 0, 2.1, 0, 0, 0, 0), cedarMat));
+  group.add(wing);
+  addContactShadow(wing, shadowTex, 1.6, 2.4, 0.42, 0.018);
+  // Flour sacks + delivery crate parked between the oven base and the wing door
+  const bakeYard = new THREE.Group();
+  bakeYard.position.set(-3.35, 0, -2.45);
+  addContactShadow(bakeYard, shadowTex, 1.5, 1.0, 0.4, 0.018);
+  const flourSackMat = palette.standard('#F3EBDC', 0.92, 0.0);
+  const sackA = new THREE.Mesh(new THREE.SphereGeometry(0.19, 8, 6), flourSackMat);
+  sackA.position.set(-0.25, 0.2, 0.05);
+  sackA.scale.set(0.85, 1.05, 0.8);
+  sackA.castShadow = true;
+  const sackB = new THREE.Mesh(new THREE.SphereGeometry(0.17, 8, 6), flourSackMat);
+  sackB.position.set(0.12, 0.18, 0.28);
+  sackB.scale.set(0.8, 0.95, 0.8);
+  sackB.rotation.y = 0.5;
+  sackB.castShadow = true;
+  bakeYard.add(sackA, sackB);
+  const deliveryCrate = new THREE.Mesh(boxAt(0.56, 0.4, 0.44, 0.42, 0.2, -0.18, 0, -0.24, 0), cedarMat);
+  deliveryCrate.castShadow = true;
+  bakeYard.add(deliveryCrate);
+  const crateSlats = new THREE.Mesh(
+    mergeGeometries([boxAt(0.58, 0.05, 0.46, 0.42, 0.3, -0.18, 0, -0.24, 0), boxAt(0.58, 0.05, 0.46, 0.42, 0.12, -0.18, 0, -0.24, 0)], false)!,
+    palette.standard(STORYBOOK_PALETTE.cedarDark, 0.78, 0.04),
+  );
+  bakeYard.add(crateSlats);
+  group.add(bakeYard);
+
+  // Window display ledge with carved corbel supports (replaces the old floating shelf)
   const displayShelf = new THREE.Mesh(new THREE.BoxGeometry(1.35, 0.14, 0.42), cedarMat);
   displayShelf.position.set(-2.05, 1.38, 2.76);
   group.add(displayShelf);
+  const corbels: THREE.BufferGeometry[] = [];
+  for (const cx of [-2.55, -1.55]) {
+    corbels.push(boxAt(0.12, 0.3, 0.34, cx, 1.16, 2.72, 0, 0, 0.35));
+    corbels.push(boxAt(0.16, 0.1, 0.38, cx, 1.0, 2.74, 0, 0, 0));
+  }
+  group.add(new THREE.Mesh(mergeGeometries(corbels, false)!, palette.standard(STORYBOOK_PALETTE.cedarDark, 0.76, 0.04)));
   for (let i = 0; i < 3; i++) {
     const loaf = new THREE.Mesh(new THREE.CapsuleGeometry(0.11, 0.18, 4, 6), loafMat);
     loaf.rotation.z = Math.PI / 2;
     loaf.position.set(-2.42 + i * 0.36, 1.54, 2.8);
     group.add(loaf);
   }
+  // Second bread tier + a small chalk price card on the ledge front
+  for (let i = 0; i < 2; i++) {
+    const roll = new THREE.Mesh(new THREE.SphereGeometry(0.1, 7, 6), loafMat);
+    roll.position.set(-2.3 + i * 0.42, 1.72, 2.76);
+    roll.scale.set(1.1, 0.8, 0.9);
+    group.add(roll);
+  }
+  const priceCard = new THREE.Mesh(boxAt(0.18, 0.12, 0.02, -1.62, 1.3, 2.98), palette.standard('#F7F1E3', 0.9, 0.0));
+  priceCard.rotation.x = -0.15;
+  group.add(priceCard);
+
+  // Hanging bakery sign — bread board on an iron bracket, east of the awning span
+  const shopSign = new THREE.Group();
+  shopSign.position.set(2.6, 0, 0);
+  shopSign.add(
+    new THREE.Mesh(boxAt(0.05, 0.05, 0.42, 0, 2.98, 2.78, 0, 0, 0), palette.standard(STORYBOOK_PALETTE.wroughtIron, 0.42, 0.72)),
+    new THREE.Mesh(boxAt(0.05, 0.4, 0.05, 0, 2.8, 2.94, 0, 0, 0), palette.standard(STORYBOOK_PALETTE.wroughtIron, 0.42, 0.72)),
+  );
+  const signBoard = new THREE.Mesh(boxAt(0.56, 0.38, 0.06, 0, 2.5, 2.94, 0, 0, 0), cedarMat);
+  signBoard.castShadow = true;
+  shopSign.add(signBoard);
+  for (let i = 0; i < 3; i++) {
+    const signLoaf = new THREE.Mesh(new THREE.CapsuleGeometry(0.075, 0.12, 4, 6), loafMat);
+    signLoaf.rotation.z = Math.PI / 2;
+    signLoaf.position.set(-0.15 + i * 0.15, 2.52, 2.97);
+    shopSign.add(signLoaf);
+  }
+  group.add(shopSign);
 
   // Chalkboard menu A-frame next to porch steps
   const chalkGroup = new THREE.Group();
@@ -438,7 +706,7 @@ export function buildBakeryCafeTables(
  * Sage shingle roof, supported burgundy-cream shop awning, outdoor book cart, and bay reading shelf.
  */
 export function buildStorybookBookNook(ctx: BuildingBuildContext): THREE.Group {
-  const { palette } = ctx;
+  const { palette, shadowTex } = ctx;
   const { group } = buildStorybookCottageCore(
     {
       width: 5.4,
@@ -451,6 +719,9 @@ export function buildStorybookBookNook(ctx: BuildingBuildContext): THREE.Group {
       roofCacheKey: 'booknook_sage_roof',
       awning: { colorA: '#7A5463', colorB: '#F2E7D3' },
       chimneyOffset: [-1.4, 1.2],
+      // Phase B core back-port: sill band + quoins close the "recolor clone" gap;
+      // box chimney kept for stack-shape variety on the lane
+      craft: { sillBand: true, quoins: true, bargeboards: true, loftVents: true },
     },
     ctx,
   );
@@ -495,6 +766,109 @@ export function buildStorybookBookNook(ctx: BuildingBuildContext): THREE.Group {
   crate.position.set(2.95, 0.21, 1.55);
   crate.castShadow = true;
   group.add(crate);
+
+  // Phase C — bookshop architecture (audit §5.3): the promised bay reading window,
+  // a hanging blade sign, and north-lawn returns crates give the Nook its own
+  // silhouette. All props stay inside book_nook (local |x|,|z| <= 3.2/3.4) — the bay
+  // projection reaches local x 3.19 (world -12.61, 0.21 inside the box edge) — and
+  // no obstacle, interactable, or door position changes.
+  const glassMat = palette.standard('#D2ECEB', 0.14, 0.1);
+  const creamMat = palette.standard(STORYBOOK_PALETTE.creamTrim, 0.78, 0.02);
+  const ironMat = palette.standard(STORYBOOK_PALETTE.wroughtIron, 0.42, 0.72);
+  const sageCapMat = palette.standard(STORYBOOK_PALETTE.sageRoof, 0.76, 0.03);
+
+  // 1. True three-sided bay window on the east facade, north of the door —
+  //    the docstring's promised "bay reading shelf", delivered at last.
+  //    Canted geometry: wall opening (bay-local z ±0.5) widens to the front pane
+  //    (z ±0.7) at 0.45 m projection; seat + books + mug read through the glass.
+  const bay = new THREE.Group();
+  bay.position.set(2.74, 0, -1.45);
+  addContactShadow(bay, shadowTex, 1.9, 1.7, 0.42, 0.018);
+  const bayBase = new THREE.Mesh(boxAt(0.84, 0.5, 1.44, 0.22, 0.28, 0, 0, 0, 0), cedarWarmMat);
+  bayBase.castShadow = true;
+  bay.add(bayBase);
+  const baySeat = new THREE.Mesh(boxAt(0.84, 0.07, 1.3, 0.3, 0.56, 0, 0, 0, 0), cedarMat);
+  bay.add(baySeat);
+  const seatBookA = new THREE.Mesh(boxAt(0.2, 0.26, 0.06, 0.16, 0.73, -0.24, 0, 0.3, 0.12), palette.standard(bookColors[0], 0.7, 0.03));
+  const seatBookB = new THREE.Mesh(boxAt(0.18, 0.24, 0.06, 0.34, 0.72, -0.06, 0, -0.2, -0.1), palette.standard(bookColors[2], 0.7, 0.03));
+  const seatMug = new THREE.Mesh(cylAt(0.05, 0.045, 0.09, 0.4, 0.64, 0.2, 0, 0, 9), palette.standard(STORYBOOK_PALETTE.ceramicCream, 0.4, 0.04));
+  bay.add(seatBookA, seatBookB, seatMug);
+  // Front pane + two canted return panes with cream mullions
+  const bayFront = new THREE.Mesh(boxAt(0.06, 1.5, 1.4, 0.62, 1.32, 0, 0, 0, 0), glassMat);
+  bay.add(bayFront);
+  bay.add(
+    new THREE.Mesh(boxAt(0.08, 1.5, 0.07, 0.62, 1.32, 0), creamMat),
+    new THREE.Mesh(boxAt(0.08, 0.07, 1.4, 0.62, 1.32, 0), creamMat),
+  );
+  const baySideN = new THREE.Mesh(boxAt(0.66, 1.5, 0.06, 0.31, 1.32, -0.6, 0, 0.314, 0), glassMat);
+  const baySideS = new THREE.Mesh(boxAt(0.66, 1.5, 0.06, 0.31, 1.32, 0.6, 0, -0.314, 0), glassMat);
+  bay.add(baySideN, baySideS);
+  // Corner stiles tie the three panes together (front corners + wall corners)
+  bay.add(
+    new THREE.Mesh(boxAt(0.09, 1.52, 0.09, 0.62, 1.32, -0.7, 0, 0, 0), creamMat),
+    new THREE.Mesh(boxAt(0.09, 1.52, 0.09, 0.62, 1.32, 0.7, 0, 0, 0), creamMat),
+    new THREE.Mesh(boxAt(0.09, 1.52, 0.09, 0.0, 1.32, -0.5, 0, 0, 0), creamMat),
+    new THREE.Mesh(boxAt(0.09, 1.52, 0.09, 0.0, 1.32, 0.5, 0, 0, 0), creamMat),
+  );
+  // Head beam + pyramid cap in the shop's sage
+  const bayHead = new THREE.Mesh(boxAt(1.06, 0.12, 1.52, 0.28, 2.12, 0, 0, 0, 0), creamMat);
+  bay.add(bayHead);
+  const bayCapGeo = new THREE.CylinderGeometry(0.02, 1.05, 0.44, 4);
+  bayCapGeo.rotateY(Math.PI / 4);
+  bayCapGeo.translate(0.24, 2.38, 0);
+  const bayCap = new THREE.Mesh(bayCapGeo, sageCapMat);
+  bayCap.castShadow = true;
+  bay.add(bayCap);
+  const bayCapTip = new THREE.Mesh(new THREE.SphereGeometry(0.06, 8, 7), palette.standard(STORYBOOK_PALETTE.agedBrass, 0.25, 0.86));
+  bayCapTip.position.set(0.24, 2.62, 0);
+  bay.add(bayCapTip);
+  group.add(bay);
+
+  // 2. Hanging blade sign (stacked-books motif) on a wrought-iron bracket, south wall
+  const bladeBracket = new THREE.Group();
+  bladeBracket.position.set(1.35, 0, 2.7);
+  bladeBracket.add(
+    new THREE.Mesh(boxAt(0.05, 0.42, 0.05, 0, 2.94, -0.16), ironMat),
+    new THREE.Mesh(boxAt(0.05, 0.05, 0.4, 0, 3.1, 0.02), ironMat),
+  );
+  const bladeBoard = new THREE.Mesh(boxAt(0.5, 0.34, 0.05, 0, 2.78, 0.16, 0, 0, 0), cedarMat);
+  bladeBoard.castShadow = true;
+  bladeBracket.add(bladeBoard);
+  const bladeHangers = new THREE.Mesh(
+    mergeGeometries([boxAt(0.02, 0.14, 0.02, -0.16, 3.0, 0.16), boxAt(0.02, 0.14, 0.02, 0.16, 3.0, 0.16)], false)!,
+    ironMat,
+  );
+  bladeBracket.add(bladeHangers);
+  for (let s = 0; s < 3; s++) {
+    const spine = new THREE.Mesh(boxAt(0.34, 0.075, 0.07, 0, 2.66 + s * 0.09, 0.16, 0, 0, (s % 2 === 0 ? 1 : -1) * 0.03), palette.standard(bookColors[(s + 1) % bookColors.length], 0.7, 0.03));
+    bladeBracket.add(spine);
+  }
+  group.add(bladeBracket);
+
+  // 3. Returns crates stacked on the north lawn (varied rotations)
+  const returnsCrates = new THREE.Group();
+  returnsCrates.position.set(-1.55, 0, -2.8);
+  addContactShadow(returnsCrates, shadowTex, 1.6, 1.1, 0.4, 0.018);
+  const crateA = new THREE.Mesh(boxAt(0.62, 0.4, 0.5, 0, 0.2, 0, 0, 0.12, 0), cedarWarmMat);
+  crateA.castShadow = true;
+  const crateB = new THREE.Mesh(boxAt(0.52, 0.36, 0.46, 0.22, 0.58, 0.05, 0, -0.3, 0), cedarWarmMat);
+  crateB.castShadow = true;
+  returnsCrates.add(crateA, crateB);
+  const crateBooks: THREE.BufferGeometry[] = [];
+  const crateBookMats: THREE.MeshStandardMaterial[] = [];
+  for (let b = 0; b < 5; b++) {
+    const g = boxAt(0.3, 0.09, 0.2, -0.16 + (b % 3) * 0.14, 0.44 + Math.floor(b / 3) * 0.02, -0.12 + (b % 2) * 0.18, 0, (b % 2 === 0 ? 1 : -1) * 0.2, 0);
+    crateBooks.push(g);
+    crateBookMats.push(palette.standard(bookColors[(b + 2) % bookColors.length], 0.7, 0.03));
+  }
+  for (let b = 0; b < crateBooks.length; b++) {
+    returnsCrates.add(new THREE.Mesh(crateBooks[b], crateBookMats[b]));
+  }
+  // One tipped crate leaning against the wall beside the stack
+  const tippedCrate = new THREE.Mesh(boxAt(0.5, 0.38, 0.44, 1.15, 0.19, -0.06, 0, 0.5, 0.18), cedarWarmMat);
+  tippedCrate.castShadow = true;
+  returnsCrates.add(tippedCrate);
+  group.add(returnsCrates);
 
   return group;
 }
@@ -603,7 +977,7 @@ export function buildStorybookArthurWorkshop(ctx: BuildingBuildContext): THREE.G
  * 4. Pinecone Woodshop (Barnaby) at (12.4, 0, 13.0).
  */
 export function buildStorybookBarnabyWoodshop(ctx: BuildingBuildContext): THREE.Group {
-  const { palette } = ctx;
+  const { palette, shadowTex } = ctx;
   const { group } = buildStorybookCottageCore(
     {
       width: 5.6,
@@ -612,9 +986,12 @@ export function buildStorybookBarnabyWoodshop(ctx: BuildingBuildContext): THREE.
       wallColor: '#E7D5BD',
       trimColor: STORYBOOK_PALETTE.cedarDark,
       doorSide: 'west',
-      roofTex: ctx.sageRoofTex,
-      roofCacheKey: 'barnaby_sage_roof',
+      // Phase B/C: terracotta roof breaks the sage-twin pairing with the gazebo
+      // lane read; full craft set + tapered chimney give the maker's yard its stack
+      roofTex: ctx.terracottaRoofTex,
+      roofCacheKey: 'barnaby_terracotta_roof',
       chimneyOffset: [1.4, 1.0],
+      craft: { sillBand: true, quoins: true, bargeboards: true, loftVents: true, taperedChimney: true },
     },
     ctx,
   );
@@ -634,6 +1011,137 @@ export function buildStorybookBarnabyWoodshop(ctx: BuildingBuildContext): THREE.
       group.add(log, end);
     }
   }
+
+  // Phase C — maker-identity yard (audit §5.2): the neighborhood's carpenter finally
+  // tells a working story. All props stay inside workshop_barnaby (local |x|,|z| <= 3.2/3.4)
+  // and carry contact shadows; no obstacle, interactable, or door-side change.
+  const plankMat = palette.standard('#C8996A', 0.8, 0.02);
+  const plankDarkMat = palette.standard('#B08258', 0.82, 0.02);
+  const chipMat = palette.standard('#D9B487', 0.88, 0.0);
+  const stoneDarkMat = palette.standard(STORYBOOK_PALETTE.fieldstoneDark, 0.9, 0.02);
+  const ironMat = palette.standard(STORYBOOK_PALETTE.wroughtIron, 0.42, 0.72);
+
+  // 1. Stacked lumber with visible end-grain discs along the south wall
+  //    (board pitch compressed so the deepest tier stays inside the plot)
+  const lumberGroup = new THREE.Group();
+  lumberGroup.position.set(0.8, 0, 2.6);
+  addContactShadow(lumberGroup, shadowTex, 2.0, 0.85, 0.4, 0.018);
+  const lumberBoards: THREE.BufferGeometry[] = [];
+  const lumberEnds: THREE.BufferGeometry[] = [];
+  for (let tier = 0; tier < 4; tier++) {
+    const count = 4 - (tier % 2);
+    for (let b = 0; b < count; b++) {
+      const bz = -0.3 + b * 0.2 + tier * 0.02;
+      lumberBoards.push(boxAt(1.5, 0.09, 0.28, 0, 0.14 + tier * 0.095, bz, 0, 0, (b % 2 === 0 ? 1 : -1) * 0.012));
+      lumberEnds.push(cylAt(0.14, 0.14, 0.03, -0.74, 0.14 + tier * 0.095, bz, 0, Math.PI / 2, 10));
+    }
+  }
+  const lumberMesh = new THREE.Mesh(mergeGeometries(lumberBoards, false)!, plankMat);
+  lumberMesh.castShadow = true;
+  lumberGroup.add(lumberMesh);
+  const lumberEndsMesh = new THREE.Mesh(mergeGeometries(lumberEnds, false)!, woodCutMat);
+  lumberGroup.add(lumberEndsMesh);
+  // Two skid sleepers keep the stack off the grass
+  lumberGroup.add(
+    new THREE.Mesh(mergeGeometries([boxAt(1.6, 0.08, 0.14, 0, 0.04, -0.08, 0, 0, 0), boxAt(1.6, 0.08, 0.14, 0, 0.04, 0.22, 0, 0, 0)], false)!, plankDarkMat),
+  );
+  group.add(lumberGroup);
+
+  // 2. Sawhorse with a half-sawn plank + curling wood-chip pile (south-east lawn)
+  const sawhorse = new THREE.Group();
+  sawhorse.position.set(2.35, 0, 2.35);
+  sawhorse.rotation.y = -0.35;
+  addContactShadow(sawhorse, shadowTex, 1.5, 1.1, 0.4, 0.018);
+  const horseLegs: THREE.BufferGeometry[] = [];
+  for (const lx of [-0.55, 0.55]) {
+    horseLegs.push(boxAt(0.07, 0.62, 0.07, lx, 0.31, -0.2, 0, 0, 0.24));
+    horseLegs.push(boxAt(0.07, 0.62, 0.07, lx, 0.31, 0.2, 0, 0, -0.24));
+    horseLegs.push(boxAt(0.06, 0.3, 0.06, lx, 0.42, 0, 0, 0, 0));
+  }
+  horseLegs.push(boxAt(1.3, 0.09, 0.14, 0, 0.64, 0));
+  const horseMesh = new THREE.Mesh(mergeGeometries(horseLegs, false)!, plankDarkMat);
+  horseMesh.castShadow = true;
+  sawhorse.add(horseMesh);
+  const workPlank = new THREE.Mesh(boxAt(1.7, 0.07, 0.3, 0.15, 0.72, 0, 0, 0, 0), plankMat);
+  workPlank.castShadow = true;
+  sawhorse.add(workPlank);
+  // The cut line: a kerf gap + a fallen offcut wedge
+  sawhorse.add(new THREE.Mesh(boxAt(0.03, 0.09, 0.32, 0.35, 0.72, 0), stoneDarkMat));
+  const offcut = new THREE.Mesh(boxAt(0.42, 0.07, 0.28, 0.95, 0.045, 0.3, 0, 0.5, 0), plankMat);
+  offcut.castShadow = true;
+  sawhorse.add(offcut);
+  const saw = new THREE.Mesh(boxAt(0.5, 0.02, 0.11, 0.55, 0.79, 0.05, 0, 0.4, 0), ironMat);
+  sawhorse.add(saw);
+  group.add(sawhorse);
+
+  const chipPile = new THREE.Group();
+  chipPile.position.set(-0.7, 0, 2.7);
+  addContactShadow(chipPile, shadowTex, 1.0, 0.9, 0.38, 0.018);
+  const chips: THREE.BufferGeometry[] = [];
+  for (let c = 0; c < 9; c++) {
+    const chip = new THREE.DodecahedronGeometry(0.09 + (c % 3) * 0.02, 0);
+    chip.scale(1, 0.4, 1);
+    chip.rotateY(c * 1.3);
+    chip.translate(
+      -0.28 + ((c * 5) % 5) * 0.14,
+      0.06 + (c % 3) * 0.05,
+      -0.18 + ((c * 3) % 4) * 0.12,
+    );
+    chips.push(chip);
+  }
+  chipPile.add(new THREE.Mesh(mergeGeometries(chips, false)!, chipMat));
+  group.add(chipPile);
+
+  // 3. Hanging shingle sign — carved pinecone disc on an iron bracket by the west door
+  const shingleBracket = new THREE.Group();
+  shingleBracket.position.set(-2.92, 0, 1.05);
+  const bracketArm = new THREE.Mesh(boxAt(0.34, 0.05, 0.05, -0.2, 2.62, 0), ironMat);
+  const bracketPost = new THREE.Mesh(boxAt(0.05, 0.5, 0.05, -0.02, 2.42, 0), ironMat);
+  shingleBracket.add(bracketArm, bracketPost);
+  const shingleHanger = new THREE.Mesh(cylAt(0.012, 0.012, 0.22, -0.32, 2.5, 0), ironMat);
+  shingleBracket.add(shingleHanger);
+  const shingleDisc = new THREE.Mesh(cylAt(0.26, 0.26, 0.05, -0.32, 2.28, 0, 0, Math.PI / 2, 14), plankDarkMat);
+  shingleDisc.castShadow = true;
+  shingleBracket.add(shingleDisc);
+  const pineconeCore = new THREE.Mesh(cylAt(0.055, 0.11, 0.22, -0.36, 2.28, 0, 0, Math.PI / 2, 8), barkMat);
+  shingleBracket.add(pineconeCore);
+  for (let s = 0; s < 4; s++) {
+    const scale = new THREE.Mesh(boxAt(0.02, 0.045, 0.12, -0.375, 2.2 + s * 0.05, 0, 0, 0, 0.5), plankDarkMat);
+    shingleBracket.add(scale);
+  }
+  group.add(shingleBracket);
+
+  // 4. Wheelbarrow leaning on the west gable, north of the firewood rack
+  const barrow = new THREE.Group();
+  barrow.position.set(-2.95, 0, -2.35);
+  barrow.rotation.y = 0.5;
+  addContactShadow(barrow, shadowTex, 1.2, 0.9, 0.4, 0.018);
+  const barrowTray = new THREE.Mesh(boxAt(0.62, 0.24, 0.42, 0, 0.36, 0, 0, 0, 0), plankMat);
+  barrowTray.castShadow = true;
+  const barrowLipA = new THREE.Mesh(boxAt(0.66, 0.05, 0.46, 0, 0.49, 0), plankDarkMat);
+  const barrowLegs = new THREE.Group();
+  for (const [lx, lz] of [
+    [0.2, 0.14],
+    [0.2, -0.14],
+  ] as Array<[number, number]>) {
+    const leg = new THREE.Mesh(boxAt(0.05, 0.28, 0.05, lx, 0.14, lz), plankDarkMat);
+    barrowLegs.add(leg);
+  }
+  const barrowHandles = new THREE.Mesh(
+    mergeGeometries(
+      [
+        boxAt(0.7, 0.05, 0.05, 0.28, 0.32, 0.16, 0, 0, -0.12),
+        boxAt(0.7, 0.05, 0.05, 0.28, 0.32, -0.16, 0, 0, -0.12),
+      ],
+      false,
+    )!,
+    plankDarkMat,
+  );
+  const barrowWheel = new THREE.Mesh(cylAt(0.17, 0.17, 0.06, -0.42, 0.17, 0, Math.PI / 2, 0, 12), plankDarkMat);
+  barrowWheel.castShadow = true;
+  const barrowWheelHub = new THREE.Mesh(cylAt(0.045, 0.045, 0.09, -0.42, 0.17, 0, Math.PI / 2, 0, 8), ironMat);
+  barrow.add(barrowTray, barrowLipA, barrowLegs, barrowHandles, barrowWheel, barrowWheelHub);
+  group.add(barrow);
 
   return group;
 }
@@ -690,43 +1198,8 @@ export function buildStorybookGreenhouse(ctx: BuildingBuildContext): THREE.Group
     depthWrite: false,
   });
 
-  // Small transformed-box factory + per-material merge helper (audit §10.4 draw-call discipline:
+  // Per-material merge helper (audit §10.4 draw-call discipline:
   // the glazing grids would add 100+ meshes if built naively; merged per face/slope instead).
-  const boxAt = (
-    w: number,
-    h: number,
-    d: number,
-    x: number,
-    y: number,
-    z: number,
-    rotX = 0,
-    rotY = 0,
-    rotZ = 0,
-  ): THREE.BufferGeometry => {
-    const g = new THREE.BoxGeometry(w, h, d);
-    if (rotX) g.rotateX(rotX);
-    if (rotY) g.rotateY(rotY);
-    if (rotZ) g.rotateZ(rotZ);
-    g.translate(x, y, z);
-    return g;
-  };
-  const cylAt = (
-    rt: number,
-    rb: number,
-    h: number,
-    x: number,
-    y: number,
-    z: number,
-    rotX = 0,
-    rotZ = 0,
-    segments = 8,
-  ): THREE.BufferGeometry => {
-    const g = new THREE.CylinderGeometry(rt, rb, h, segments);
-    if (rotX) g.rotateX(rotX);
-    if (rotZ) g.rotateZ(rotZ);
-    g.translate(x, y, z);
-    return g;
-  };
   const addMerged = (
     parts: THREE.BufferGeometry[],
     mat: THREE.Material,
@@ -1005,12 +1478,12 @@ export function buildStorybookGreenhouse(ctx: BuildingBuildContext): THREE.Group
   const vestibuleWood: THREE.BufferGeometry[] = [];
   const vestibulePads: THREE.BufferGeometry[] = [];
   for (const vz of [0.62, 2.38]) {
-    vestibulePads.push(boxAt(0.34, 0.14, 0.34, -3.35, 0.07, vz));
-    vestibuleWood.push(boxAt(0.16, 2.3, 0.16, -3.35, 1.29, vz));
+    vestibulePads.push(boxAt(0.34, 0.14, 0.34, -3.29, 0.07, vz));
+    vestibuleWood.push(boxAt(0.16, 2.3, 0.16, -3.29, 1.29, vz));
     vestibuleWood.push(boxAt(0.12, 2.3, 0.12, -2.84, 1.29, vz));
   }
   vestibuleWood.push(
-    boxAt(0.14, 0.16, 1.98, -3.35, 2.5, 1.5),
+    boxAt(0.14, 0.16, 1.98, -3.29, 2.5, 1.5),
     boxAt(0.12, 0.14, 1.98, -2.84, 2.49, 1.5),
   );
   addMerged(vestibulePads, darkStoneMat);
@@ -1057,23 +1530,23 @@ export function buildStorybookGreenhouse(ctx: BuildingBuildContext): THREE.Group
 
   // Thermometer board on the north porch post + vitrex climbers on both posts
   const thermoBoard = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.42, 0.04), linenMat);
-  thermoBoard.position.set(-3.35, 1.72, 0.5);
+  thermoBoard.position.set(-3.29, 1.72, 0.5);
   const thermoDial = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.05, 10), brassMat);
   thermoDial.rotation.x = Math.PI / 2;
-  thermoDial.position.set(-3.35, 1.8, 0.47);
+  thermoDial.position.set(-3.29, 1.8, 0.47);
   group.add(thermoBoard, thermoDial);
 
   const vineBeads: THREE.BufferGeometry[] = [];
   const vineBlooms: THREE.BufferGeometry[] = [];
   const vineSpots: Array<[number, number, number]> = [
-    [-3.28, 0.55, 0.66],
-    [-3.38, 0.95, 0.56],
-    [-3.3, 1.35, 0.68],
-    [-3.4, 1.75, 0.58],
-    [-3.28, 0.6, 2.32],
-    [-3.38, 1.0, 2.42],
-    [-3.3, 1.4, 2.3],
-    [-3.4, 1.8, 2.4],
+    [-3.22, 0.55, 0.66],
+    [-3.32, 0.95, 0.56],
+    [-3.24, 1.35, 0.68],
+    [-3.34, 1.75, 0.58],
+    [-3.22, 0.6, 2.32],
+    [-3.32, 1.0, 2.42],
+    [-3.24, 1.4, 2.3],
+    [-3.34, 1.8, 2.4],
   ];
   for (const [vx, vy, vz] of vineSpots) {
     vineBeads.push(cylAt(0.055, 0.07, 0.1, vx, vy, vz, Math.PI / 2, 0, 6));

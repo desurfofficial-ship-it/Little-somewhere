@@ -211,6 +211,50 @@ export function buildLindenBookNookInterior(
   shelfCrown.position.set(-0.68, 2.52, -2.34);
   group.add(shelfCrown);
 
+  // Phase B implied-space architecture (audit §7.3): a closed STACKS door on the
+  // north wall's free east segment (east of the bookshelf wall) implying the archive
+  // room behind it, with a small returns-stack on the wainscot ledge beside it.
+  // Wall-mounted visual only: no obstacle, interactable, or bounds change.
+  const stacksDoor = new THREE.Group();
+  stacksDoor.position.set(1.75, 0, -2.38);
+  for (const fx of [-0.5, 0.5]) {
+    const post = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(0.11, 2.14, 0.15)), cedarDarkMat);
+    post.position.set(fx, 1.07, 0.02);
+    stacksDoor.add(post);
+  }
+  const stacksLintel = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(1.12, 0.13, 0.17)), cedarDarkMat);
+  stacksLintel.position.set(0, 2.2, 0.02);
+  stacksDoor.add(stacksLintel);
+  const stacksLeaf = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(0.9, 1.92, 0.08)), doorMat);
+  stacksLeaf.position.set(0, 0.97, 0.06);
+  stacksLeaf.castShadow = true;
+  stacksDoor.add(stacksLeaf);
+  const stacksRailGeo = trackGeo(new THREE.BoxGeometry(0.8, 0.08, 0.1));
+  for (const ry of [0.48, 1.28]) {
+    const rail = new THREE.Mesh(stacksRailGeo, cedarDarkMat);
+    rail.position.set(0, ry, 0.09);
+    stacksDoor.add(rail);
+  }
+  const stacksKnob = new THREE.Mesh(trackGeo(new THREE.SphereGeometry(0.042, 8, 7)), brassMat);
+  stacksKnob.position.set(-0.32, 1.0, 0.12);
+  stacksDoor.add(stacksKnob);
+  group.add(stacksDoor);
+  // Returns stack: two leaning books + a folded lending slip on the wainscot ledge
+  const returnsStack = new THREE.Group();
+  returnsStack.position.set(2.3, 0, -2.36);
+  const slip = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(0.16, 0.015, 0.22)), linenMat);
+  slip.position.set(0, 0.745, 0.02);
+  slip.rotation.y = 0.3;
+  returnsStack.add(slip);
+  const rbA = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(0.09, 0.24, 0.14)), bookMats[0]);
+  rbA.position.set(-0.03, 0.87, 0.01);
+  rbA.rotation.z = 0.08;
+  const rbB = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(0.09, 0.22, 0.13)), bookMats[2]);
+  rbB.position.set(0.05, 0.85, 0.03);
+  rbB.rotation.z = -0.14;
+  returnsStack.add(rbA, rbB);
+  group.add(returnsStack);
+
   // West wall (x = -2.5) with a reading window above the tea console
   const westWall = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(0.16, wallHeight, 4.9)), plasterMat);
   westWall.position.set(-2.52, 0.8 + wallHeight / 2, 0);

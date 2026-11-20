@@ -321,6 +321,67 @@ export function buildWillowCottageInterior(
   westMullionH.position.set(-3.55, 1.52, 0);
   group.add(westGlass, westSill, westMullionV, westMullionH);
 
+  // Phase B implied-space architecture (audit §7.3): the one-room contradiction is
+  // answered with implied rooms, not more furniture —
+  //  a) a CLOSED back-room door on the north wall's free east segment (pantry/store),
+  //  b) a loft ladder leaning on the north wall between the chimney breast and the
+  //     keepsake shelf, acknowledging the gable volume the exterior promises.
+  // Both are wall-mounted visuals: no obstacle, interactable, or bounds change.
+  const backDoorFrame = new THREE.Group();
+  backDoorFrame.position.set(2.92, 0, -2.7);
+  for (const fx of [-0.53, 0.53]) {
+    const post = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(0.12, 2.18, 0.16)), cedarDarkMat);
+    post.position.set(fx, 1.09, 0.02);
+    backDoorFrame.add(post);
+  }
+  const backLintel = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(1.2, 0.14, 0.18)), cedarDarkMat);
+  backLintel.position.set(0, 2.24, 0.02);
+  backDoorFrame.add(backLintel);
+  const backLeaf = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(0.96, 1.96, 0.08)), doorMat);
+  backLeaf.position.set(0, 0.99, 0.06);
+  backLeaf.castShadow = true;
+  backDoorFrame.add(backLeaf);
+  const backRailGeo = trackGeo(new THREE.BoxGeometry(0.86, 0.09, 0.1));
+  for (const ry of [0.5, 1.3]) {
+    const rail = new THREE.Mesh(backRailGeo, cedarDarkMat);
+    rail.position.set(0, ry, 0.09);
+    backDoorFrame.add(rail);
+  }
+  const backKnob = new THREE.Mesh(trackGeo(new THREE.SphereGeometry(0.045, 8, 7)), brassMat);
+  backKnob.position.set(-0.34, 1.02, 0.12);
+  backDoorFrame.add(backKnob);
+  const backThreshold = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(1.1, 0.05, 0.18)), darkStoneMat);
+  backThreshold.position.set(0, 0.03, 0.1);
+  backDoorFrame.add(backThreshold);
+  group.add(backDoorFrame);
+
+  const loftLadder = new THREE.Group();
+  loftLadder.position.set(-0.35, 0, -2.52);
+  loftLadder.rotation.x = -0.12;
+  for (const rx of [-0.22, 0.22]) {
+    const rail = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(0.055, 2.5, 0.055)), cedarWarmMat);
+    rail.position.set(rx, 1.22, 0);
+    loftLadder.add(rail);
+  }
+  for (let r = 0; r < 5; r++) {
+    const rung = new THREE.Mesh(trackGeo(new THREE.CylinderGeometry(0.022, 0.022, 0.46, 6)), cedarDarkMat);
+    rung.rotation.z = Math.PI / 2;
+    rung.position.set(0, 0.32 + r * 0.48, 0);
+    loftLadder.add(rung);
+  }
+  group.add(loftLadder);
+  // Woven gathering basket parked at the ladder's foot
+  const ladderBasket = new THREE.Group();
+  ladderBasket.position.set(0.18, 0, -2.5);
+  const ladderBasketBody = new THREE.Mesh(trackGeo(new THREE.CylinderGeometry(0.16, 0.12, 0.22, 9)), strawHatMat);
+  ladderBasketBody.position.y = 0.11;
+  ladderBasketBody.castShadow = true;
+  const ladderBasketRim = new THREE.Mesh(trackGeo(new THREE.TorusGeometry(0.155, 0.018, 5, 12)), cedarDarkMat);
+  ladderBasketRim.rotation.x = Math.PI / 2;
+  ladderBasketRim.position.y = 0.22;
+  ladderBasket.add(ladderBasketBody, ladderBasketRim);
+  group.add(ladderBasket);
+
   // Low cutaway East curb + Porch Door frame at z = 0
   const eastCurbNorth = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(0.18, 0.42, 2.05)), cedarWarmMat);
   eastCurbNorth.position.set(3.59, 0.21, -1.82);
