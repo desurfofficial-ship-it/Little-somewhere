@@ -207,6 +207,10 @@ export type SubjectScene =
   | 'driftwood'
   | 'gazebo_bell'
   | 'mailbox'
+  // the wild hollows (Build 10)
+  | 'stone_well'
+  | 'wildflower'
+  | 'bee_log'
   // rituals
   | 'teacup';
 
@@ -271,6 +275,9 @@ export const SUBJECT_IMAGE_KEYS: Record<SubjectScene, string> = {
   gazebo_bell: 'subject_gazebo_bell',
   mailbox: 'subject_mailbox',
   teacup: 'subject_teacup',
+  stone_well: 'subject_stone_well',
+  wildflower: 'subject_wildflower',
+  bee_log: 'subject_bee_log',
 };
 
 /** World-prop interactions → their subject key (Priority 2 task 5 wiring). */
@@ -305,6 +312,13 @@ export function subjectKeyForPropId(propId: PropInteractableId): string {
     case 'nook_door':
     case 'copperwheel_door':
       return SUBJECT_IMAGE_KEYS.doorway;
+    case 'old_stone_well':
+      return SUBJECT_IMAGE_KEYS.stone_well;
+    case 'rise_vista':
+    case 'marigold_bank':
+      return SUBJECT_IMAGE_KEYS.wildflower;
+    case 'wild_bee_log':
+      return SUBJECT_IMAGE_KEYS.bee_log;
   }
 }
 

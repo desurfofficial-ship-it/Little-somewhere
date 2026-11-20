@@ -852,6 +852,99 @@ function paintSubject(
       ctx.fillStyle = '#FAF5EC';
       ctx.fillRect(S * 0.52, S * 0.48, S * 0.1, S * 0.03);
       break;
+    // The Wild Hollows (Build 10)
+    case 'stone_well': {
+      // mossy stone ring
+      ctx.fillStyle = '#8F9487';
+      for (let i = 0; i < 5; i++) {
+        const a = (i / 5) * Math.PI * 2;
+        ctx.beginPath();
+        ctx.ellipse(S * (0.5 + Math.cos(a) * 0.16), S * (0.58 + Math.sin(a) * 0.07), S * 0.07, S * 0.035, a, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.fillStyle = '#7C8377';
+      ctx.beginPath();
+      ctx.ellipse(S * 0.5, S * 0.58, S * 0.14, S * 0.055, 0, 0, Math.PI * 2);
+      ctx.fill();
+      // cedar posts + little roof
+      ctx.strokeStyle = wood;
+      ctx.lineWidth = Math.max(2, S * 0.028);
+      ctx.beginPath();
+      ctx.moveTo(S * 0.36, S * 0.56);
+      ctx.lineTo(S * 0.36, S * 0.3);
+      ctx.moveTo(S * 0.64, S * 0.56);
+      ctx.lineTo(S * 0.64, S * 0.3);
+      ctx.stroke();
+      ctx.fillStyle = '#B5714E';
+      ctx.beginPath();
+      ctx.moveTo(S * 0.28, S * 0.32);
+      ctx.lineTo(S * 0.5, S * 0.2);
+      ctx.lineTo(S * 0.72, S * 0.32);
+      ctx.closePath();
+      ctx.fill();
+      // rope + bucket
+      ctx.beginPath();
+      ctx.moveTo(S * 0.5, S * 0.24);
+      ctx.lineTo(S * 0.5, S * 0.42);
+      ctx.stroke();
+      box(S * 0.45, S * 0.42, S * 0.1, S * 0.07, '#8F6A3C', 0.02);
+      break;
+    }
+    case 'wildflower':
+      // three foxglove-bell stems with petal clusters
+      for (const [sx, sh] of [[0.36, 0.6], [0.5, 0.72], [0.64, 0.56]] as const) {
+        ctx.strokeStyle = '#5E8062';
+        ctx.lineWidth = Math.max(1.6, S * 0.02);
+        ctx.beginPath();
+        ctx.moveTo(S * sx, S * 0.78);
+        ctx.lineTo(S * sx, S * (0.78 - sh));
+        ctx.stroke();
+        ctx.fillStyle = accent;
+        for (let i = 0; i < 3; i++) {
+          ctx.beginPath();
+          ctx.ellipse(S * (sx + (i % 2 === 0 ? 0.045 : -0.045)), S * (0.78 - sh + 0.08 + i * 0.09), S * 0.04, S * 0.05, 0, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        ctx.fillStyle = '#E5A93C';
+        ctx.beginPath();
+        ctx.arc(S * sx, S * (0.78 - sh - 0.02), S * 0.035, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      break;
+    case 'bee_log': {
+      // mossy fallen log with a humming wild hive
+      ctx.fillStyle = '#8F6A3C';
+      ctx.beginPath();
+      ctx.ellipse(S * 0.5, S * 0.64, S * 0.26, S * 0.09, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#A9814F';
+      ctx.beginPath();
+      ctx.ellipse(S * 0.72, S * 0.63, S * 0.045, S * 0.075, 0, 0, Math.PI * 2);
+      ctx.fill();
+      // moss cap
+      ctx.fillStyle = '#6F9A5B';
+      ctx.beginPath();
+      ctx.ellipse(S * 0.46, S * 0.575, S * 0.2, S * 0.045, 0, 0, Math.PI * 2);
+      ctx.fill();
+      // clover tuft + bee
+      ctx.strokeStyle = '#5E8062';
+      ctx.lineWidth = Math.max(1.4, S * 0.016);
+      ctx.beginPath();
+      ctx.moveTo(S * 0.3, S * 0.76);
+      ctx.lineTo(S * 0.28, S * 0.66);
+      ctx.moveTo(S * 0.32, S * 0.76);
+      ctx.lineTo(S * 0.34, S * 0.67);
+      ctx.stroke();
+      ctx.fillStyle = '#E5A93C';
+      ctx.beginPath();
+      ctx.ellipse(S * 0.52, S * 0.44, S * 0.045, S * 0.032, -0.5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#2D241E';
+      ctx.beginPath();
+      ctx.ellipse(S * 0.545, S * 0.42, S * 0.018, S * 0.014, -0.5, 0, Math.PI * 2);
+      ctx.fill();
+      break;
+    }
   }
   ctx.restore();
 

@@ -81,6 +81,13 @@ export const BOX_OBSTACLES: BoxObstacle[] = [
   { id: 'pond_water', minX: -2.2, maxX: 5.68, minZ: 11.2, maxZ: 16.65 },
   // Cedar bridge west handrail & culvert mouth barrier (keeps walkers inside bridge deck or west lawn without clipping rails/brook)
   { id: 'bridge_west_rail', minX: -3.7, maxX: -3.58, minZ: 11.72, maxZ: 16.28 },
+  // Foxglove Rise terraced knoll (SE) — mound body framing the walkable ramp (north, z 16.7..18.0) and deck (20.4..22.5 × 18.0..20.2);
+  // deck itself stays walkable and is elevated via getGroundHeightAt (same pattern as the cedar bridge)
+  { id: 'rise_mound_west_of_ramp', minX: 18.1, maxX: 20.8, minZ: 16.6, maxZ: 18.0 },
+  { id: 'rise_mound_east_of_ramp', minX: 22.0, maxX: 24.6, minZ: 16.6, maxZ: 18.0 },
+  { id: 'rise_mound_west_of_deck', minX: 18.1, maxX: 20.4, minZ: 18.0, maxZ: 20.2 },
+  { id: 'rise_mound_east_of_deck', minX: 22.5, maxX: 24.6, minZ: 18.0, maxZ: 20.2 },
+  { id: 'rise_mound_south_of_deck', minX: 18.1, maxX: 24.6, minZ: 20.2, maxZ: 21.9 },
 ];
 
 export const CIRCLE_OBSTACLES: CircleObstacle[] = [
@@ -113,6 +120,16 @@ export const CIRCLE_OBSTACLES: CircleObstacle[] = [
   { id: 'orchard_skep', x: 4.9, z: -16.3, radius: 0.4 },
   { id: 'orchard_bench', x: -11.0, z: -20.6, radius: 0.42 },
   { id: 'orchard_tasting_table', x: 1.8, z: -19.4, radius: 0.68 },
+  // The Wild Hollows (Build 10)
+  { id: 'old_stone_well', x: -21.4, z: 19.0, radius: 0.78 },
+  { id: 'wild_bee_log', x: 11.0, z: -19.7, radius: 0.5 },
+  { id: 'rise_bench', x: 20.85, z: 19.1, radius: 0.42 },
+  { id: 'sorrel_bench', x: -19.7, z: 17.55, radius: 0.42 },
+  { id: 'hollow_birch_w', x: -22.6, z: 16.3, radius: 0.45 },
+  { id: 'hollow_birch_s', x: -19.15, z: 20.7, radius: 0.45 },
+  { id: 'hollow_birch_nw', x: -23.1, z: 19.7, radius: 0.45 },
+  { id: 'lane_boulder_n', x: 18.9, z: 7.4, radius: 0.5 },
+  { id: 'lane_boulder_s', x: 21.9, z: 10.8, radius: 0.45 },
 ];
 
 export const SEAT_SPOTS: readonly SeatSpot[] = [
@@ -157,6 +174,24 @@ export const SEAT_SPOTS: readonly SeatSpot[] = [
     label: 'Fern Hollow Orchard Bench',
     seatPos: { x: -11.0, z: -20.6 },
     approachPos: { x: -10.0, z: -20.6 },
+    facingAngle: Math.PI / 2,
+    seatHeight: 0.36,
+    zoneId: 'orchard',
+  },
+  {
+    id: 'seat_foxglove_rise',
+    label: 'Foxglove Rise Lookout Bench',
+    seatPos: { x: 20.85, z: 19.1 },
+    approachPos: { x: 21.85, z: 19.1 },
+    facingAngle: -Math.PI / 2,
+    seatHeight: 0.36,
+    zoneId: 'square',
+  },
+  {
+    id: 'seat_sorrel_hollow',
+    label: 'Sorrel Hollow Garden Bench',
+    seatPos: { x: -19.7, z: 17.55 },
+    approachPos: { x: -18.75, z: 17.55 },
     facingAngle: Math.PI / 2,
     seatHeight: 0.36,
     zoneId: 'orchard',
@@ -231,6 +266,10 @@ export const LANDMARK_ZONES: LandmarkZone[] = [
   { id: 'barnaby', name: 'Pinecone Woodshop', subtitle: 'Barnaby’s cedar shavings', x: 9, z: 12, radius: 5.5 },
   { id: 'pond', name: 'Mirror Pond & Hollow Oak', subtitle: 'Dragonflies and old secrets', x: -1, z: 14.5, radius: 6.5 },
   { id: 'orchard', name: 'Fern Hollow Orchard', subtitle: 'Crabapples, bee skeps & dappled shade', x: -2.6, z: -18.2, radius: 6.5 },
+  { id: 'marigold_lane', name: 'Marigold Lane', subtitle: 'Wildflowers behind the glasshouse', x: 20.3, z: 5.5, radius: 5.2 },
+  { id: 'foxglove_rise', name: 'Foxglove Rise', subtitle: 'A lookout over the whole valley', x: 21.6, z: 18.5, radius: 5.4 },
+  { id: 'sorrel_hollow', name: 'Sorrel Hollow', subtitle: 'A birch-shaded forgotten garden', x: -20.4, z: 18.3, radius: 5.2 },
+  { id: 'bee_line', name: 'The Bee Line', subtitle: 'Clover trail & the wild bee log', x: 10.4, z: -18.8, radius: 5.0 },
 ];
 
 export const PROP_INTERACTABLES: PropInteractable[] = [
@@ -250,6 +289,10 @@ export const PROP_INTERACTABLES: PropInteractable[] = [
   { id: 'bakery_door', name: 'Hearth & Crumb Bakery Door', x: -12.4, z: -7.05, interactRadius: 2.2 },
   { id: 'nook_door', name: 'Linden Book Nook Door', x: -11.8, z: -1.0, interactRadius: 2.2 },
   { id: 'copperwheel_door', name: 'Copperwheel Cottage Door', x: 13.1, z: -7.85, interactRadius: 2.2 },
+  { id: 'old_stone_well', name: 'Old Stone Well', x: -20.2, z: 18.3, interactRadius: 2.5 },
+  { id: 'rise_vista', name: 'Foxglove Rise Panorama', x: 22.0, z: 19.3, interactRadius: 2.6 },
+  { id: 'marigold_bank', name: 'Wildflower Bank', x: 20.3, z: 3.3, interactRadius: 2.4 },
+  { id: 'wild_bee_log', name: 'Wild Bee Log', x: 11.0, z: -18.6, interactRadius: 2.3 },
 ];
 
 export interface PropInteractionMetrics {
@@ -386,6 +429,14 @@ export function getPropInteractionMetrics(
       ? { x: 4.9, z: -16.3 }
       : propId === 'pond_driftwood'
       ? { x: 5.85, z: 13.8 }
+      : propId === 'old_stone_well'
+      ? { x: -21.4, z: 19.0 }
+      : propId === 'rise_vista'
+      ? { x: 21.4, z: 19.1 }
+      : propId === 'marigold_bank'
+      ? { x: 20.3, z: 2.5 }
+      : propId === 'wild_bee_log'
+      ? { x: 11.0, z: -19.7 }
       : { x: def.x, z: def.z };
 
   return {
@@ -416,6 +467,16 @@ export function getGroundHeightAt(x: number, z: number): number {
     // Feather gently onto approach stone abutments at the very tips
     const edgeFeather = Math.max(0, Math.min(1, (2.6 - Math.abs(z - 14.0)) / 0.35));
     return arch * edgeFeather;
+  }
+  // Foxglove Rise lookout (SE, Build 10): ramp (20.8..22.0 × 16.7..18.0) climbs to the
+  // cedar deck (20.4..22.5 × 18.0..20.2) at 0.62 — every other edge of the terraced
+  // mound is guarded by `rise_mound_*` obstacle boxes, so the discontinuities are
+  // unreachable (same walk-elevation contract as the bridge).
+  if (x >= 20.4 && x <= 22.5 && z >= 18.0 && z <= 20.2) {
+    return 0.62;
+  }
+  if (x >= 20.8 && x <= 22.0 && z >= 16.7 && z < 18.0) {
+    return 0.62 * ((z - 16.7) / 1.3);
   }
   return 0;
 }

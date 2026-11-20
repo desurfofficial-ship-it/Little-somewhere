@@ -79,6 +79,29 @@ export const PERSONAL_ITEMS: readonly PersonalItemDef[] = [
     description: 'Tiny aromatic seeds for a patient pot of kitchen thyme.',
     giftable: false,
   },
+  {
+    id: 'foxglove_seeds',
+    label: 'Foxglove Seeds',
+    category: 'flora_ingredient',
+    description: 'A mouse-nibbled seed packet found in the old well’s stonework — foxgloves from a garden remembered by no one.',
+    giftable: false,
+  },
+  {
+    id: 'foxglove_bloom',
+    label: 'Foxglove Bloom',
+    category: 'flora_ingredient',
+    description: 'A spire of speckled bells raised from the wild seeds — the hollow’s forgotten garden, growing again.',
+    homeDisplayable: 'shelf',
+    giftable: true,
+  },
+  {
+    id: 'meadow_posy',
+    label: 'Meadow Posy',
+    category: 'flora_ingredient',
+    description: 'A hand-tied nosegay of marigold, cornflower and sweet alyssum from the wildflower lane.',
+    homeDisplayable: 'shelf',
+    giftable: true,
+  },
 
   // Baked & Brewed at Cottage Hearth
   {
@@ -331,8 +354,8 @@ export const RESIDENT_GIFT_PREFS: Record<
     liked: ['crabapple_tart', 'cedar_shaving_rose', 'chamomile_blossom'],
   },
   mina: {
-    loved: ['chamomile_blossom', 'lavender_sprig', 'pressed_fern'],
-    liked: ['lemon_thyme', 'wild_honey', 'chamomile_pear_tea', 'crabapple'],
+    loved: ['chamomile_blossom', 'lavender_sprig', 'pressed_fern', 'foxglove_bloom'],
+    liked: ['lemon_thyme', 'wild_honey', 'chamomile_pear_tea', 'crabapple', 'meadow_posy'],
   },
   jun: {
     loved: ['lavender_shortbread', 'crabapple_tart', 'smooth_river_glass'],
@@ -343,7 +366,7 @@ export const RESIDENT_GIFT_PREFS: Record<
     liked: ['wild_honey', 'crabapple', 'chamomile_pear_tea'],
   },
   sora: {
-    loved: ['chamomile_pear_tea', 'heron_feather', 'lavender_shortbread'],
+    loved: ['chamomile_pear_tea', 'heron_feather', 'lavender_shortbread', 'meadow_posy'],
     liked: ['lavender_sprig', 'pressed_fern', 'chamomile_blossom'],
   },
   toby: {

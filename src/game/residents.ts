@@ -813,6 +813,17 @@ export const RESIDENT_EXTRA_ACTIVITIES: Record<ResidentId, readonly ActivityCand
       requiresFlag: 'plantedMoonPetals',
     },
     {
+      id: 'mina_marigold_lane_walk',
+      phases: ['afternoon', 'golden'],
+      target: { x: 20.3, z: 4.6 },
+      placeName: 'Marigold Lane',
+      activity: 'Gathering seed heads along the wildflower lane behind the glasshouse',
+      facingAngle: 1.35,
+      animState: 'admire',
+      goalKind: 'work',
+      baseWeight: 0.8,
+    },
+    {
       id: 'mina_pond_bench_rest',
       phases: ['golden', 'dusk'],
       target: { x: 1.8, z: 18.2 },
@@ -1065,6 +1076,17 @@ export const RESIDENT_EXTRA_ACTIVITIES: Record<ResidentId, readonly ActivityCand
   ],
   pip: [
     {
+      id: 'pip_sorrel_hollow_scout',
+      phases: ['afternoon', 'golden'],
+      target: { x: -19.9, z: 18.9 },
+      placeName: 'Sorrel Hollow',
+      activity: 'Spying on the old well for frogs, secret passages and buried treasure',
+      facingAngle: -2.6,
+      animState: 'idle',
+      goalKind: 'leisure',
+      baseWeight: 0.7,
+    },
+    {
       id: 'pip_noticeboard_read',
       phases: ['morning', 'afternoon'],
       target: { x: 4.4, z: -1.6 },
@@ -1114,6 +1136,17 @@ export const RESIDENT_EXTRA_ACTIVITIES: Record<ResidentId, readonly ActivityCand
     },
   ],
   rowan: [
+    {
+      id: 'rowan_bee_line_check',
+      phases: ['morning', 'afternoon'],
+      target: { x: 10.4, z: -18.7 },
+      placeName: 'The Bee Line',
+      activity: 'Checking the wild hive log along the clover trail east of the orchard',
+      facingAngle: -1.6,
+      animState: 'admire',
+      goalKind: 'work',
+      baseWeight: 0.75,
+    },
     {
       id: 'rowan_gate_blossom',
       phases: ['morning', 'afternoon'],

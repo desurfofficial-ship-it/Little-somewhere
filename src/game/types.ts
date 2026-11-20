@@ -30,7 +30,11 @@ export type PropInteractableId =
   | 'greenhouse_door'
   | 'bakery_door'
   | 'nook_door'
-  | 'copperwheel_door';
+  | 'copperwheel_door'
+  | 'old_stone_well'
+  | 'rise_vista'
+  | 'marigold_bank'
+  | 'wild_bee_log';
 
 export type PlayerLocation =
   | 'exterior'
@@ -56,7 +60,7 @@ export type GreenhouseInteractableId =
   | 'greenhouse_water'
   | 'greenhouse_table';
 
-export type GreenhouseCropId = 'chamomile' | 'lavender' | 'thyme';
+export type GreenhouseCropId = 'chamomile' | 'lavender' | 'thyme' | 'foxglove';
 
 export type GreenhouseGrowthStage = 0 | 1 | 2 | 3;
 
@@ -207,7 +211,10 @@ export type PersonalItemId =
   | 'brass_pocket_bell'
   | 'pond_watercolor_card'
   | 'woven_herb_wreath'
-  | 'cedar_music_box';
+  | 'cedar_music_box'
+  | 'foxglove_seeds'
+  | 'foxglove_bloom'
+  | 'meadow_posy';
 
 export type GiftReactionTier = 'loved' | 'liked' | 'neutral';
 

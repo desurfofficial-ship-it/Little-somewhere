@@ -1322,6 +1322,193 @@ export function interactWithProp(
     };
   }
 
+  // The Wild Hollows (Build 10) — exploration interactions -------------------
+
+  if (propId === 'old_stone_well') {
+    const sf = world.sideFlags ?? {};
+    const phase = getTimePhase(world.minuteOfDay);
+    if (!sf.foundFoxgloveSeeds) {
+      let invRes = addItemToInventory(world.inventory, world.discoveredItemIds, 'foxglove_seeds', 1);
+      const memId = 'mem_old_well_seeds';
+      const hasMem = world.memories.some((m) => m.id === memId);
+      const nextMemories = hasMem
+        ? world.memories
+        : [
+            {
+              id: memId,
+              day: world.day,
+              phase,
+              title: 'Seeds of the Forgotten Garden',
+              summary:
+                'Wedged between the old well\u2019s mossy coping stones lay a mouse-nibbled packet of foxglove seeds — planted by hands this village has long forgotten.',
+            },
+            ...world.memories,
+          ];
+      return {
+        nextWorld: {
+          ...world,
+          minuteOfDay: Math.min(DAY_END_MINUTE, world.minuteOfDay + 8),
+          inventory: invRes.inventory,
+          discoveredItemIds: invRes.discoveredItemIds,
+          sideFlags: { ...sf, foundFoxgloveSeeds: true },
+          memories: nextMemories,
+        },
+        title: 'Old Stone Well',
+        body:
+          'Peering in, you count silent ripples below and catch a paper corner in the stonework — a mouse-nibbled seed packet, foxgloves from a garden remembered by no one. You pocket the seeds (+8m). Maybe Mina\u2019s greenhouse could wake them.',
+        memoryUnlockedTitle: hasMem ? undefined : 'Seeds of the Forgotten Garden',
+        gainedItems: [{ itemId: 'foxglove_seeds', count: 1 }],
+      };
+    }
+    const composed = composeEnvironmentState(world);
+    const season = composed.season.season;
+    const pebbles = Number(sf.wellPebblesCount ?? 0) + 1;
+    const echoLine =
+      season === 'winter'
+        ? 'A held breath of cold rises back from the dark. The hollow swallows your pebble without an echo.'
+        : season === 'autumn'
+        ? 'A dry leaf spirals down beside your pebble. The splash comes back small and twice as far away.'
+        : 'Your pebble falls, and the hollow answers with one bright ripple of sound, like the well clearing its throat.';
+    return {
+      nextWorld: {
+        ...world,
+        minuteOfDay: Math.min(DAY_END_MINUTE, world.minuteOfDay + 4),
+        sideFlags: { ...sf, wellPebblesCount: pebbles },
+      },
+      title: 'Old Stone Well',
+      body: `${echoLine} You listen to ${pebbles === 1 ? 'one little splash' : `${pebbles} little splashes`} and wander on (+4m).`,
+    };
+  }
+
+  if (propId === 'rise_vista') {
+    const sf = world.sideFlags ?? {};
+    const composed = composeEnvironmentState(world);
+    const season = composed.season.season;
+    const effWeather = composed.weather.effective;
+    const phase = composed.timeOfDay.phase;
+    const vistaLine =
+      season === 'winter'
+        ? 'Snow pools on every rooftop below and the frozen pond glints like a polished mirror.'
+        : effWeather === 'misty_morning'
+        ? 'The valley below sleeps under silver mist — only the greenhouse roof and the gazebo spire shoulder through.'
+        : effWeather === 'light_rain'
+        ? 'Rain silvers the pond and beads on the plaza cobbles; the whole valley smells of wet stone and chimney smoke.'
+        : phase === 'golden' || phase === 'dusk'
+        ? 'Lantern light kindles across the plaza while long shadows pool behind cottage and woodshop alike.'
+        : season === 'autumn'
+        ? 'The orchard burns copper and gold below; crabapples dot the grass like scattered beads.'
+        : 'The pond, the plaza, the gazebo spire, every rooftop and lane — the whole valley reads like a painted map.';
+    const memId = 'mem_rise_vista';
+    const hasMem = world.memories.some((m) => m.id === memId);
+    const nextMemories = hasMem
+      ? world.memories
+      : [
+          {
+            id: memId,
+            day: world.day,
+            phase: getTimePhase(world.minuteOfDay),
+            title: 'The Whole Valley From the Rise',
+            summary:
+              'From the cedar lookout deck on Foxglove Rise I could pick out every place I have come to love — and spot the wild paths still waiting beyond them.',
+          },
+          ...world.memories,
+        ];
+    return {
+      nextWorld: {
+        ...world,
+        minuteOfDay: Math.min(DAY_END_MINUTE, world.minuteOfDay + 6),
+        memories: nextMemories,
+      },
+      title: 'Foxglove Rise Panorama',
+      body: `${vistaLine} You take the wide view in for a long, unhurried moment (+6m).`,
+      memoryUnlockedTitle: hasMem ? undefined : 'The Whole Valley From the Rise',
+    };
+  }
+
+  if (propId === 'marigold_bank') {
+    const sf = world.sideFlags ?? {};
+    const phase = getTimePhase(world.minuteOfDay);
+    const composed = composeEnvironmentState(world);
+    if (Number(sf.posyPickedDay ?? -1) === world.day) {
+      return {
+        nextWorld: world,
+        title: 'Wildflower Bank',
+        body:
+          'You already tied today\u2019s little nosegay. The rest of the blooms sway on, saving themselves for tomorrow\u2019s passer-by.',
+      };
+    }
+    let invRes = addItemToInventory(world.inventory, world.discoveredItemIds, 'meadow_posy', 1);
+    const memId = 'mem_meadow_posy';
+    const hasMem = world.memories.some((m) => m.id === memId);
+    const nextMemories = hasMem
+      ? world.memories
+      : [
+          {
+            id: memId,
+            day: world.day,
+            phase,
+            title: 'A Posy From the Lane',
+            summary:
+              'Tied a nosegay of marigold, cornflower and sweet alyssum from the wildflower bank behind the greenhouse.',
+          },
+          ...world.memories,
+        ];
+    const posies = Number(sf.meadowPosiesPicked ?? 0) + 1;
+    return {
+      nextWorld: {
+        ...world,
+        minuteOfDay: Math.min(DAY_END_MINUTE, world.minuteOfDay + 10),
+        inventory: invRes.inventory,
+        discoveredItemIds: invRes.discoveredItemIds,
+        sideFlags: { ...sf, posyPickedDay: world.day, meadowPosiesPicked: posies },
+        memories: nextMemories,
+      },
+      title: 'Wildflower Bank',
+      body: `Marigolds, cornflowers and sweet alyssum crowd the bank. You tie a small nosegay while ${composed.season.season === 'winter' ? 'frost-crisped' : 'bees drowse'} nearby (+10m).`,
+      memoryUnlockedTitle: hasMem ? undefined : 'A Posy From the Lane',
+      gainedItems: [{ itemId: 'meadow_posy', count: 1 }],
+    };
+  }
+
+  if (propId === 'wild_bee_log') {
+    const sf = world.sideFlags ?? {};
+    const composed = composeEnvironmentState(world);
+    const season = composed.season.season;
+    const effWeather = composed.weather.effective;
+    const memId = 'mem_bee_log';
+    const hasMem = world.memories.some((m) => m.id === memId);
+    const phase = getTimePhase(world.minuteOfDay);
+    const logLine =
+      season === 'winter'
+        ? 'The mossy log sleeps under a dusting of snow. Somewhere inside, the wild colony hums low and warm, keeping its winter cluster.'
+        : effWeather === 'light_rain'
+        ? 'Rain beads on the log\u2019s mossy cap. The bees stay dry within, and the log hums a half-step quieter.'
+        : 'Drillings long ago turned this fallen log into a wild hive; foragers zip the clover edge like small ribbed stars, heavy with pollen.';
+    const nextMemories = hasMem
+      ? world.memories
+      : [
+          {
+            id: memId,
+            day: world.day,
+            phase,
+            title: 'The Wild Hive Log',
+            summary:
+              'Found the mossy bee log along the clover trail east of the orchard — a wild colony\u2019s front door, older than any skep in the village.',
+          },
+          ...world.memories,
+        ];
+    return {
+      nextWorld: {
+        ...world,
+        minuteOfDay: Math.min(DAY_END_MINUTE, world.minuteOfDay + 5),
+        memories: nextMemories,
+      },
+      title: 'Wild Bee Log',
+      body: `${logLine} You keep a respectful distance and let them work (+5m).`,
+      memoryUnlockedTitle: hasMem ? undefined : 'The Wild Hive Log',
+    };
+  }
+
   if (propId === 'orchard_skep') {
     const composed = composeEnvironmentState(world);
     const da = world.dailyActivities ?? createInitialDailyActivities();
@@ -2122,7 +2309,7 @@ export function waterGreenhousePlotsAction(world: WorldState): PropInteractionRe
 
 export function plantSeedAtPlotAction(
   world: WorldState,
-  seedItemId: 'chamomile_seeds' | 'lavender_seeds' | 'thyme_seeds',
+  seedItemId: 'chamomile_seeds' | 'lavender_seeds' | 'thyme_seeds' | 'foxglove_seeds',
   plotIndex: number,
 ): { ok: boolean; nextWorld: WorldState; toast: string; memoryUnlockedTitle?: string } {
   if (world.playerLocation !== 'greenhouse_interior') {

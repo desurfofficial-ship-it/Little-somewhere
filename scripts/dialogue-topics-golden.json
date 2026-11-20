@@ -1,5 +1,5 @@
 {
- "count": 79,
+ "count": 81,
  "topics": [
   {
    "index": 0,
@@ -1213,6 +1213,36 @@
     "requiresMet": true,
     "sideFlagsTrue": [
      "copperwheelVisited"
+    ],
+    "notSeenToday": true
+   }
+  },
+  {
+   "index": 79,
+   "id": "daily_mina_foxglove",
+   "residentId": "mina",
+   "category": "daily_slice",
+   "priority": 14,
+   "historyScope": null,
+   "condition": {
+    "requiresMet": true,
+    "sideFlagsTrue": [
+     "explored_sorrel_hollow"
+    ],
+    "notSeenToday": true
+   }
+  },
+  {
+   "index": 80,
+   "id": "daily_rowan_beeline_checkin",
+   "residentId": "rowan",
+   "category": "daily_slice",
+   "priority": 14,
+   "historyScope": null,
+   "condition": {
+    "requiresMet": true,
+    "sideFlagsTrue": [
+     "explored_bee_line"
     ],
     "notSeenToday": true
    }

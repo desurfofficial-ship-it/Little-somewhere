@@ -989,6 +989,70 @@ function buildDiscoveriesSection(
     },
   ];
 
+  // The Wild Hollows (Build 10): these rows appear only after the player has actually
+  // wandered into each place — the journal never reveals geography it hasn't seen.
+  const sf = world.sideFlags ?? {};
+  const posiesPicked = Number(sf.meadowPosiesPicked ?? 0);
+  const pebblesDropped = Number(sf.wellPebblesCount ?? 0);
+  const foxgloveGrowing =
+    greenhouseSummary.growingPlots > 0 || greenhouseSummary.readyPlots > 0
+      ? gh.plots.some((p) => p.cropId === 'foxglove')
+      : false;
+  const foxgloveFound = sf.foundFoxgloveSeeds
+    ? true
+    : (world.inventory?.foxglove_bloom ?? 0) > 0 ||
+      (world.inventory?.foxglove_seeds ?? 0) > 0 ||
+      foxgloveGrowing;
+
+  if (sf.explored_marigold_lane) {
+    landmarksRaw.push({
+      id: 'marigold_lane',
+      name: 'Marigold Lane',
+      statusKind: posiesPicked > 0 ? 'active' : 'quiet',
+      statusLabel: posiesPicked > 0 ? `${posiesPicked} ${posiesPicked === 1 ? 'posy' : 'posies'} picked` : 'A lane found',
+      summary:
+        'A petal-bright wildflower trail behind the greenhouse — marigolds, cornflowers and sweet alyssum the whole way down to Foxglove Rise.',
+    });
+  }
+  if (sf.explored_foxglove_rise) {
+    landmarksRaw.push({
+      id: 'foxglove_rise',
+      name: 'Foxglove Rise',
+      statusKind: foxgloveFound ? 'transformed' : 'active',
+      statusLabel: foxgloveGrowing
+        ? 'Foxgloves growing below'
+        : foxgloveFound
+        ? 'Seeds carried home'
+        : 'The whole valley in view',
+      summary:
+        'A terraced lookout knoll at the meadow’s south-east edge. From the cedar deck the pond, plaza, orchard and every rooftop read like a painted map.',
+    });
+  }
+  if (sf.explored_sorrel_hollow) {
+    landmarksRaw.push({
+      id: 'sorrel_hollow',
+      name: 'Sorrel Hollow & Old Well',
+      statusKind: sf.foundFoxgloveSeeds || pebblesDropped > 0 ? 'active' : 'quiet',
+      statusLabel: sf.foundFoxgloveSeeds
+        ? 'Foxglove seeds found'
+        : pebblesDropped > 0
+        ? `${pebblesDropped} ${pebblesDropped === 1 ? 'pebble' : 'pebbles'} listened to`
+        : 'A forgotten garden',
+      summary:
+        'A birch-shaded clearing past the pond’s south bank, where a mossy old stone well still keeps the hollow’s secrets among the wild sorrel.',
+    });
+  }
+  if (sf.explored_bee_line) {
+    landmarksRaw.push({
+      id: 'bee_line',
+      name: 'The Bee Line',
+      statusKind: 'active',
+      statusLabel: composed.season.season === 'winter' ? 'Quiet until spring' : 'Humming with wild bees',
+      summary:
+        'A clover trail east of the orchard running toward the Copperwheel meadows, past a mossy wild bee log that hums on warm afternoons.',
+    });
+  }
+
   const landmarks: JournalDiscoveryLandmark[] = landmarksRaw.map((lm) => {
     const entryKey = `landmark_${lm.id}_${lm.statusLabel}`;
     return {

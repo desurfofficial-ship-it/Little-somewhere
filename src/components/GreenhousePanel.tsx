@@ -14,7 +14,10 @@ interface GreenhousePanelProps {
   mode: GreenhousePanelMode | null;
   world: WorldState;
   onClose: () => void;
-  onPlantSeed: (seedItemId: 'chamomile_seeds' | 'lavender_seeds' | 'thyme_seeds', plotIndex: number) => void;
+  onPlantSeed: (
+    seedItemId: 'chamomile_seeds' | 'lavender_seeds' | 'thyme_seeds' | 'foxglove_seeds',
+    plotIndex: number,
+  ) => void;
   onHarvestPlot: (plotIndex: number) => void;
   onWaterAll: () => void;
 }

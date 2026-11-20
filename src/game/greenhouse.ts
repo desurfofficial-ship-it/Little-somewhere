@@ -136,8 +136,8 @@ export const GREENHOUSE_PLOT_COUNT = 4;
 export interface GreenhouseCropDef {
   id: GreenhouseCropId;
   label: string;
-  seedItemId: 'chamomile_seeds' | 'lavender_seeds' | 'thyme_seeds';
-  cropItemId: 'chamomile_blossom' | 'lavender_sprig' | 'lemon_thyme';
+  seedItemId: 'chamomile_seeds' | 'lavender_seeds' | 'thyme_seeds' | 'foxglove_seeds';
+  cropItemId: 'chamomile_blossom' | 'lavender_sprig' | 'lemon_thyme' | 'foxglove_bloom';
   /** Watered in-game nights needed from sowing until the pot is ready to harvest. */
   growthNights: number;
   /** Harvest yield of the crop item (a seed of the same crop is always returned). */
@@ -173,6 +173,15 @@ export const GREENHOUSE_CROPS: readonly GreenhouseCropDef[] = [
     harvestCount: 2,
     blurb: 'A patient kitchen herb that sings in warm sourdough — ready after three nights.',
   },
+  {
+    id: 'foxglove',
+    label: 'Wild Foxglove',
+    seedItemId: 'foxglove_seeds',
+    cropItemId: 'foxglove_bloom',
+    growthNights: 3,
+    harvestCount: 2,
+    blurb: 'Speckled woodland bells from the hollow’s forgotten garden — slow, worth every night.',
+  },
 ];
 
 const GREENHOUSE_CROP_MAP: Record<GreenhouseCropId, GreenhouseCropDef> = GREENHOUSE_CROPS.reduce(
@@ -189,7 +198,11 @@ export function getGreenhouseCrop(cropId: GreenhouseCropId | null | undefined): 
 }
 
 export function getGreenhouseCropBySeed(
-  seedItemId: 'chamomile_seeds' | 'lavender_seeds' | 'thyme_seeds',
+  seedItemId:
+    | 'chamomile_seeds'
+    | 'lavender_seeds'
+    | 'thyme_seeds'
+    | 'foxglove_seeds',
 ): GreenhouseCropDef | null {
   return GREENHOUSE_CROPS.find((c) => c.seedItemId === seedItemId) ?? null;
 }

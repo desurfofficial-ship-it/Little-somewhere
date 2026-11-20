@@ -161,6 +161,15 @@ export function buildSunbeamGreenhouseInterior(
       metalness: 0.0,
     }),
   );
+  const bloomFoxgloveMat = trackMat(
+    new THREE.MeshStandardMaterial({
+      color: '#C98BA8',
+      emissive: '#E7B8CC',
+      emissiveIntensity: 0.08,
+      roughness: 0.6,
+      metalness: 0.0,
+    }),
+  );
   const hitProxyMat = trackMat(new THREE.MeshBasicMaterial({ visible: false }));
 
   // Pass 24 seasonal accents (registry-cached + two tracked emissive/translucent mats)
@@ -479,6 +488,7 @@ export function buildSunbeamGreenhouseInterior(
     chamomile: [],
     lavender: [],
     thyme: [],
+    foxglove: [],
   };
   const soilMeshes: THREE.Mesh[] = [];
   const plotLeafyGroups: THREE.Group[] = [];
@@ -558,6 +568,8 @@ export function buildSunbeamGreenhouseInterior(
           ? bloomChamomileMat
           : crop.id === 'lavender'
           ? bloomLavenderMat
+          : crop.id === 'foxglove'
+          ? bloomFoxgloveMat
           : foliageSunMat;
       const stemMat = foliageDeepMat;
       for (let b = 0; b < 6; b++) {
@@ -569,7 +581,9 @@ export function buildSunbeamGreenhouseInterior(
         bloomGroup.add(stem);
         const bud = new THREE.Mesh(bloomGeo, budMat);
         bud.position.set(Math.cos(ang) * 0.12, 0.29, Math.sin(ang) * 0.12);
-        bud.scale.setScalar(crop.id === 'thyme' ? 0.62 : 1.0);
+        bud.scale.setScalar(
+          crop.id === 'thyme' ? 0.62 : crop.id === 'foxglove' ? 0.8 : 1.0,
+        );
         bloomGroup.add(bud);
       }
       bloomGroup.position.y = 0.12;

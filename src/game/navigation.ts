@@ -53,6 +53,29 @@ export const NAV_NODES: readonly NavNode[] = [
   { id: 'east_south_mid', pos: { x: 7.6, z: 7.2 } },
   { id: 'barnaby_yard', pos: { x: 7.4, z: 11.4 } },
   { id: 'pond_south_e', pos: { x: 7.2, z: 17.8 } },
+
+  // The Wild Hollows — east: Marigold Lane & Foxglove Rise (Build 10)
+  { id: 'greenhouse_ne', pos: { x: 18.6, z: -3.0 } },
+  { id: 'marigold_north', pos: { x: 19.4, z: 1.2 } },
+  { id: 'marigold_bank', pos: { x: 20.3, z: 3.3 } },
+  { id: 'marigold_mid', pos: { x: 20.6, z: 9.0 } },
+  { id: 'marigold_south', pos: { x: 20.9, z: 14.0 } },
+  { id: 'rise_base', pos: { x: 21.3, z: 16.3 } },
+  { id: 'rise_deck', pos: { x: 21.6, z: 18.45 } },
+
+  // The Wild Hollows — south-west: Sorrel Hollow trail (Build 10)
+  { id: 'wilds_w1', pos: { x: -9.0, z: 18.3 } },
+  { id: 'wilds_w2', pos: { x: -13.5, z: 18.4 } },
+  { id: 'wilds_w3', pos: { x: -17.5, z: 18.2 } },
+  { id: 'sorrel_hollow', pos: { x: -19.6, z: 18.9 } },
+
+  // The Wild Hollows — north-east: The Bee Line (Build 10)
+  { id: 'beeline_w', pos: { x: 7.4, z: -17.9 } },
+  { id: 'beeline_mid', pos: { x: 10.4, z: -18.7 } },
+  { id: 'beeline_e', pos: { x: 14.2, z: -18.8 } },
+  { id: 'beeline_corner', pos: { x: 17.9, z: -16.2 } },
+  { id: 'copperwheel_ne', pos: { x: 18.1, z: -12.0 } },
+  { id: 'copperwheel_east', pos: { x: 17.9, z: -6.6 } },
 ] as const;
 
 export const NAV_EDGES: ReadonlyArray<readonly [string, string]> = [
@@ -110,6 +133,30 @@ export const NAV_EDGES: ReadonlyArray<readonly [string, string]> = [
   ['east_south_mid', 'plaza_se'],
   ['east_south_mid', 'barnaby_yard'],
   ['barnaby_yard', 'pond_south_e'],
+
+  // The Wild Hollows — Marigold Lane & Foxglove Rise loop (Build 10)
+  ['east_north', 'greenhouse_ne'],
+  ['greenhouse_ne', 'marigold_north'],
+  ['marigold_north', 'marigold_bank'],
+  ['marigold_bank', 'marigold_mid'],
+  ['marigold_mid', 'marigold_south'],
+  ['marigold_south', 'rise_base'],
+  ['rise_base', 'rise_deck'],
+
+  // The Wild Hollows — Sorrel Hollow trail (Build 10)
+  ['pond_south_w', 'wilds_w1'],
+  ['wilds_w1', 'wilds_w2'],
+  ['wilds_w2', 'wilds_w3'],
+  ['wilds_w3', 'sorrel_hollow'],
+
+  // The Wild Hollows — Bee Line & Copperwheel east return (Build 10)
+  ['orchard_east', 'beeline_w'],
+  ['beeline_w', 'beeline_mid'],
+  ['beeline_mid', 'beeline_e'],
+  ['beeline_e', 'beeline_corner'],
+  ['beeline_corner', 'copperwheel_ne'],
+  ['copperwheel_ne', 'copperwheel_east'],
+  ['copperwheel_east', 'east_north'],
 ] as const;
 
 const nodeById = new Map<string, NavNode>();
