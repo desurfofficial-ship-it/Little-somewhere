@@ -126,6 +126,7 @@ import {
   buildSunbeamGreenhouseInterior,
 } from './builders/greenhouseInterior';
 import { buildHearthCrumbInterior, buildHearthCrumbPorchDressing } from './builders/bakeryInterior';
+import { PorchSeasonLife, applyPorchSeason } from './builders/porchSeasonLife';
 import {
   buildLindenBookNookInterior,
   buildLindenBookNookPorchDressing,
@@ -156,7 +157,11 @@ import {
   applyCharacterWinterTint,
   buildStorybookCharacter,
 } from './builders/characters';
-import { createResidentFeelState, updateResidentMotionFeel } from './residentFeel';
+import {
+  createResidentFeelState,
+  deriveResidentPoofCues,
+  updateResidentMotionFeel,
+} from './residentFeel';
 
 export interface HudBubbleSnapshot {
   residentId: ResidentId;
@@ -820,12 +825,14 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
     const bakeryPorchDressing = buildHearthCrumbPorchDressing(palette, shadowTex);
     bakeryPorchDressing.position.set(-12.4, 0, -8.16);
     exteriorRoot.add(bakeryPorchDressing);
+    const bakeryPorchLife = bakeryPorchDressing.userData.porchSeasonLife as PorchSeasonLife;
 
     // Exterior Linden Book Nook porch dressing on the existing east door (M3 Build 8)
     const nookPorchDressing = buildLindenBookNookPorchDressing(palette, shadowTex);
     nookPorchDressing.position.set(-13.1, 0, -1.0);
     nookPorchDressing.rotation.y = Math.PI / 2; // face east toward the lane
     exteriorRoot.add(nookPorchDressing);
+    const nookPorchLife = nookPorchDressing.userData.porchSeasonLife as PorchSeasonLife;
 
     // Exterior Copperwheel porch dressing on the existing south door (M3 Build 9)
     const copperwheelPorchDressing = buildCopperwheelPorchDressing(palette, shadowTex);
@@ -895,7 +902,9 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
       maxOpacity: number;
       baseScale: number;
     }> = [];
-    for (let i = 0; i < 18; i++) {
+    // Pass 26: pool widened 18 -> 26 so resident footstep/skid poofs can share
+    // the ring buffer with the player's without starving either side.
+    for (let i = 0; i < 26; i++) {
       const mat = new THREE.SpriteMaterial({
         map: dustTex,
         transparent: true,
@@ -1640,6 +1649,11 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
           computeChimneySmokeStrength(world),
           world.season,
         );
+        // Pass 26: the bakery & book nook porches keep the seasons like the
+        // cottage porch does (R5 Pass 18) — four scalar visibility writes each,
+        // skipped entirely while any interior is on screen.
+        applyPorchSeason(bakeryPorchLife, world.season);
+        applyPorchSeason(nookPorchLife, world.season);
       }
 
       // Pass 7: soft hearth crackle room-tone — started/stopped on state transitions only,
@@ -1769,6 +1783,9 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
         // Pass 25: residents get the player's motion feel (bank/lean/squash)
         // derived from the same facing/speed stream the simulation already owns.
         const feel = _residentFeelStates[i];
+        // Pass 26: footstep-timed dust cues first — they read the previous-frame
+        // baselines that updateResidentMotionFeel then refreshes.
+        deriveResidentPoofCues(feel, rt.facing, rt.currentSpeed, rt.walkPhase, dt);
         updateResidentMotionFeel(feel, rt.facing, rt.currentSpeed, dt);
         _npcAnimOpts.bankAngle = feel.bank;
         _npcAnimOpts.accelLean = feel.lean;
@@ -1787,6 +1804,26 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
         }
 
         const pDist = isIndoors ? Infinity : distance2D(world.playerPos, rt.position);
+        // Pass 26: resident dust language — a faint alternating-foot puff at full
+        // stride and a soft burst on arrivals/pivots, only outdoors and near the
+        // player so far-off plaza traffic never fogs the diorama.
+        if (!isIndoors && pDist < 8.5 && rt.posture !== 'sitting') {
+          const f = rt.facing;
+          if (feel.poofFootstep) {
+            spawnDustPoof(
+              rt.position.x + Math.cos(f) * 0.12 * feel.footSign,
+              npcGroundY,
+              rt.position.z - Math.sin(f) * 0.12 * feel.footSign,
+              -Math.sin(f) * 0.4,
+              -Math.cos(f) * 0.4,
+              0.32,
+              false,
+            );
+          }
+          if (feel.poofSkid) {
+            spawnDustPoof(rt.position.x, npcGroundY, rt.position.z, -Math.sin(f) * 0.7, -Math.cos(f) * 0.7, 0.55, false);
+          }
+        }
         rig.ringMesh.visible = !isIndoors && pDist < 2.9;
         if (rig.ringMesh.visible) {
           const heldProp = world.playerHeldItem ? world.worldProps?.[world.playerHeldItem] : null;

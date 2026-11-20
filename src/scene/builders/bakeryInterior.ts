@@ -4,6 +4,7 @@ import { TimePhase, WorldState } from '../../game/types';
 import { getSeasonForDay } from '../../game/time';
 import { MaterialPalette, STORYBOOK_PALETTE } from '../materials';
 import { addContactShadow } from './vegetation';
+import { attachPorchSeasonLife, createPorchSeasonLife } from './porchSeasonLife';
 
 /**
  * Hearth & Crumb Bakery Interior Cutaway Diorama (Milestone 3 Build 7).
@@ -1057,6 +1058,164 @@ export function buildHearthCrumbPorchDressing(
   const crateRail = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(0.3, 0.03, 0.03)), brassMat);
   crateRail.position.set(0.72, 0.3, 0.62);
   group.add(crateRail);
+
+  // Pass 26 "Doorways of the Lane": the bakery porch keeps the seasons the way
+  // the Willow Step Cottage porch does (R5 Pass 18). All pieces hug the step,
+  // the crate, or the wall bracket inside the dressing's existing footprint —
+  // the lane walk band and every interaction target read unchanged.
+  const porchLife = createPorchSeasonLife('hearth_crumb');
+  const terracottaMat = palette.standard('#B96A4B', 0.82, 0.0);
+  const soilMat = palette.standard('#4A3527', 0.92, 0.0);
+  const leafMat = palette.standard('#5F8F5C', 0.78, 0.0);
+  const blossomMat = palette.standard('#EFA7B4', 0.72, 0.0);
+  const frostMat = palette.standard('#EAF2F6', 0.5, 0.06);
+  const snowMat = palette.standard('#F4F8FA', 0.62, 0.04);
+  const evergreenMat = palette.standard('#3F6B4F', 0.8, 0.0);
+  const pumpkinMat = palette.standard('#D98A3D', 0.78, 0.0);
+  const driedHerbMat = palette.standard('#9A7B44', 0.86, 0.0);
+
+  // Spring: two herb pots (basil for the bake) on the step's west corner + a
+  // blossom swag strung beneath the lantern bracket.
+  {
+    const potGeo = trackGeo(new THREE.CylinderGeometry(0.115, 0.09, 0.17, 8));
+    const soilGeo = trackGeo(new THREE.CylinderGeometry(0.095, 0.095, 0.025, 8));
+    const potSpots: Array<[number, number]> = [
+      [-0.5, 0.68],
+      [-0.26, 0.78],
+    ];
+    potSpots.forEach(([px, pz], pi) => {
+      const pot = new THREE.Mesh(potGeo, terracottaMat);
+      pot.name = `bakery_porch_spring_pot_${pi}`;
+      pot.position.set(px, 0.175, pz);
+      pot.castShadow = true;
+      porchLife.spring.add(pot);
+      const soil = new THREE.Mesh(soilGeo, soilMat);
+      soil.position.set(px, 0.255, pz);
+      porchLife.spring.add(soil);
+      for (let s = 0; s < 4; s++) {
+        const sprig = new THREE.Mesh(trackGeo(new THREE.SphereGeometry(0.045, 6, 5)), leafMat);
+        sprig.position.set(px + (s - 1.5) * 0.045, 0.31 + (s % 2) * 0.04, pz + (s - 1.5) * 0.025);
+        porchLife.spring.add(sprig);
+      }
+    });
+    const swag = new THREE.Mesh(trackGeo(new THREE.TorusGeometry(0.17, 0.02, 5, 14, Math.PI)), blossomMat);
+    swag.name = 'bakery_porch_spring_swag';
+    swag.position.set(-0.82, 1.96, 0.12);
+    swag.rotation.y = Math.PI / 2;
+    porchLife.spring.add(swag);
+    const bloomGeo = trackGeo(new THREE.SphereGeometry(0.035, 6, 5));
+    for (let b = 0; b < 3; b++) {
+      const bloom = new THREE.Mesh(bloomGeo, blossomMat);
+      bloom.name = `bakery_porch_spring_swag_bloom_${b}`;
+      bloom.position.set(-0.82, 1.86 - b * 0.02, 0.12 + (b - 1) * 0.09);
+      porchLife.spring.add(bloom);
+    }
+  }
+
+  // Summer: a taller tomato pot + the copper watering can resting by the crate.
+  {
+    const tallPot = new THREE.Mesh(trackGeo(new THREE.CylinderGeometry(0.1, 0.08, 0.18, 8)), terracottaMat);
+    tallPot.name = 'bakery_porch_summer_tomato_pot';
+    tallPot.position.set(-0.5, 0.18, 0.5);
+    tallPot.castShadow = true;
+    porchLife.summer.add(tallPot);
+    const tomatoGeo = trackGeo(new THREE.SphereGeometry(0.038, 6, 5));
+    for (let t = 0; t < 3; t++) {
+      const tomato = new THREE.Mesh(tomatoGeo, palette.standard('#D9694F', 0.7, 0.0));
+      tomato.name = `bakery_porch_summer_tomato_${t}`;
+      tomato.position.set(-0.5 + (t - 1) * 0.04, 0.3 + (t % 2) * 0.04, 0.5 + (t - 1) * 0.03);
+      porchLife.summer.add(tomato);
+    }
+    const canBody = new THREE.Mesh(trackGeo(new THREE.CylinderGeometry(0.075, 0.085, 0.14, 8)), brassMat);
+    canBody.name = 'bakery_porch_summer_watering_can';
+    canBody.position.set(0.98, 0.16, 0.34);
+    canBody.rotation.z = 0.12;
+    porchLife.summer.add(canBody);
+    const spout = new THREE.Mesh(trackGeo(new THREE.CylinderGeometry(0.014, 0.02, 0.16, 6)), brassMat);
+    spout.position.set(1.06, 0.22, 0.3);
+    spout.rotation.z = -0.7;
+    porchLife.summer.add(spout);
+  }
+
+  // Autumn: a bake-day pumpkin by the step + leaf scatter + a dried-herb string
+  // on the bracket (kitchen garden going to seed).
+  {
+    const pumpkin = new THREE.Mesh(trackGeo(new THREE.SphereGeometry(0.13, 9, 7)), pumpkinMat);
+    pumpkin.name = 'bakery_porch_autumn_pumpkin';
+    pumpkin.scale.set(1.1, 0.72, 1.1);
+    pumpkin.position.set(-0.46, 0.14, 0.68);
+    pumpkin.castShadow = true;
+    porchLife.autumn.add(pumpkin);
+    const stem = new THREE.Mesh(trackGeo(new THREE.CylinderGeometry(0.016, 0.024, 0.06, 6)), evergreenMat);
+    stem.position.set(-0.46, 0.23, 0.68);
+    porchLife.autumn.add(stem);
+    const leafGeo = trackGeo(new THREE.SphereGeometry(0.042, 5, 4));
+    const leafAutumnMat = palette.standard('#C97B3E', 0.82, 0.0);
+    const leafSpots: Array<[number, number]> = [
+      [-0.2, 0.86],
+      [0.14, 0.9],
+      [0.44, 0.9],
+      [-0.62, 0.3],
+    ];
+    leafSpots.forEach(([lx, lz], li) => {
+      const leaf = new THREE.Mesh(leafGeo, leafAutumnMat);
+      leaf.name = `bakery_porch_autumn_leaf_${li}`;
+      leaf.scale.set(1.25, 0.35, 0.9);
+      leaf.rotation.y = li * 1.3;
+      leaf.position.set(lx, 0.105, lz);
+      porchLife.autumn.add(leaf);
+    });
+    const herbString = new THREE.Mesh(trackGeo(new THREE.CylinderGeometry(0.014, 0.014, 0.24, 5)), driedHerbMat);
+    herbString.name = 'bakery_porch_autumn_herb_string';
+    herbString.position.set(-0.82, 1.9, 0.1);
+    porchLife.autumn.add(herbString);
+  }
+
+  // Winter: frost edging along the step's lane face, a snow cap on the delivery
+  // crate, an evergreen-and-berry bundle tied to the bracket, and a striped knit
+  // muffler draped over the crate edge (winter-warm storybook touch).
+  {
+    const frostStrip = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(1.3, 0.05, 0.16)), frostMat);
+    frostStrip.name = 'bakery_porch_winter_frost_strip';
+    frostStrip.position.set(0, 0.1, 0.84);
+    porchLife.winter.add(frostStrip);
+    const crateSnow = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(0.37, 0.08, 0.29)), snowMat);
+    crateSnow.name = 'bakery_porch_winter_crate_snow';
+    crateSnow.position.set(0.72, 0.33, 0.62);
+    crateSnow.rotation.y = 0.18;
+    porchLife.winter.add(crateSnow);
+    const bundle = new THREE.Group();
+    bundle.name = 'bakery_porch_winter_evergreen_bundle';
+    const sprigGeo = trackGeo(new THREE.ConeGeometry(0.045, 0.2, 5));
+    for (let s = 0; s < 3; s++) {
+      const sprig = new THREE.Mesh(sprigGeo, evergreenMat);
+      sprig.position.set(-0.82 + (s - 1) * 0.045, 2.0, 0.14 + (s - 1) * 0.025);
+      sprig.rotation.set((s - 1) * 0.35, s * 1.1, (s - 1) * -0.3);
+      bundle.add(sprig);
+    }
+    const berryMat = palette.standard('#C94F4F', 0.6, 0.0);
+    const berryGeo = trackGeo(new THREE.SphereGeometry(0.022, 6, 5));
+    for (let b = 0; b < 3; b++) {
+      const berry = new THREE.Mesh(berryGeo, berryMat);
+      berry.name = `bakery_porch_winter_berry_${b}`;
+      berry.position.set(-0.8 + (b - 1) * 0.05, 2.08 - (b % 2) * 0.03, 0.15 + (b - 1) * 0.02);
+      bundle.add(berry);
+    }
+    porchLife.winter.add(bundle);
+    // Striped knit muffler over the crate's lane face.
+    const muffler = new THREE.Group();
+    muffler.name = 'bakery_porch_winter_knit_muffler';
+    const mufflerMat = palette.standard('#C97B5A', 0.86, 0.0);
+    const stripeMat = palette.standard('#E8DCC8', 0.86, 0.0);
+    for (let m = 0; m < 4; m++) {
+      const band = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(0.36 - m * 0.015, 0.032, 0.02)), m % 2 === 0 ? mufflerMat : stripeMat);
+      band.position.set(0.72, 0.21 - m * 0.034, 0.755);
+      muffler.add(band);
+    }
+    porchLife.winter.add(muffler);
+  }
+
+  attachPorchSeasonLife(group, porchLife);
 
   addContactShadow(group, shadowTex, 2.0, 1.4, 0.4, 0.018);
 

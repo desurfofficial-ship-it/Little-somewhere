@@ -46,10 +46,29 @@ export interface ResidentFeelState {
   prevSpeed: number;
   /** Internal damped brake-squash envelope before the launch-stretch composition. */
   brakeSquash: number;
+  /** Previous walk-phase sine (NaN until the first poof update snaps it). */
+  prevWalkSin: number;
+  /** Alternating foot flag — flips on every stride crossing (±1). */
+  footSign: number;
+  /** One-frame cue: this resident's alternating foot planted at full stride. */
+  poofFootstep: boolean;
+  /** One-frame cue: hard arrival brake or sharp pivot while carrying speed. */
+  poofSkid: boolean;
 }
 
 export function createResidentFeelState(): ResidentFeelState {
-  return { bank: 0, lean: 0, squash: 0, prevFacing: NaN, prevSpeed: NaN, brakeSquash: 0 };
+  return {
+    bank: 0,
+    lean: 0,
+    squash: 0,
+    prevFacing: NaN,
+    prevSpeed: NaN,
+    brakeSquash: 0,
+    prevWalkSin: NaN,
+    footSign: 1,
+    poofFootstep: false,
+    poofSkid: false,
+  };
 }
 
 function clamp(v: number, lo: number, hi: number): number {
@@ -103,4 +122,66 @@ export function updateResidentMotionFeel(
   state.squash = state.brakeSquash - state.lean * 0.022;
   state.prevFacing = facing;
   state.prevSpeed = speed;
+}
+
+/* Pass 26 constants for the footstep-timed dust-poof cues. */
+/** Full-stride threshold — only real walking kicks dust (never the settle-in steps). */
+const POOF_STRIDE_SPEED = 2.0;
+/** Previous speed above which a sudden drop counts as a planted-heel arrival skid. */
+const POOF_SKID_SPEED = 1.6;
+/** Fraction of previous speed a single frame must shed to read as an arrival skid. */
+const POOF_SKID_DROP = 0.5;
+/** Yaw rate (rad/s) while carrying speed that reads as a hard pivot. */
+const POOF_PIVOT_RATE = 5.5;
+/** Speed that must be carried through the pivot for it to kick dust. */
+const POOF_PIVOT_SPEED = 1.0;
+
+/**
+ * Pass 26: derive one-frame dust-poof cues for a resident from the same facing /
+ * speed / walkPhase stream the simulation already owns — the resident-language
+ * counterpart of the player's fast-step poofs and skid bursts. Residents never
+ * sprint, so their dust language is: an alternating-foot faint puff at full
+ * stride (only every other crossing, so plazas stay soft) plus a single burst
+ * on hard arrivals and sharp speed-carrying pivots.
+ *
+ * MUST be called before `updateResidentMotionFeel` in the same frame — it reads
+ * the previous-frame facing/speed baselines that function then refreshes.
+ * Mutates `state` cue fields only; no allocation; safe at dt ≤ 0 (cues clear).
+ */
+export function deriveResidentPoofCues(
+  state: ResidentFeelState,
+  facing: number,
+  speed: number,
+  walkPhase: number,
+  dt: number,
+): void {
+  state.poofFootstep = false;
+  state.poofSkid = false;
+  if (dt <= 0 || Number.isNaN(state.prevFacing) || Number.isNaN(state.prevWalkSin)) {
+    state.prevWalkSin = Math.sin(walkPhase);
+    return;
+  }
+
+  // Alternating-foot footstep cue at full stride (mirrors the player's
+  // walkPhase sine-crossing footstep detection, throttled to every other foot).
+  const nextSin = Math.sin(walkPhase);
+  const prevSin = state.prevWalkSin;
+  state.prevWalkSin = nextSin;
+  const crossed =
+    (prevSin < 0 && nextSin >= 0) || (prevSin > 0 && nextSin <= 0);
+  if (crossed && speed >= POOF_STRIDE_SPEED) {
+    state.footSign = -state.footSign;
+    if (state.footSign < 0) {
+      state.poofFootstep = true;
+    }
+  }
+
+  // Skid cue: a sudden single-frame speed collapse after real motion (arrival
+  // plant) or a sharp yaw pivot while still carrying speed — the resident
+  // scale-up of the player's release/reversal skid envelope.
+  const prevSpeed = state.prevSpeed;
+  const hardArrival = prevSpeed >= POOF_SKID_SPEED && speed < prevSpeed * POOF_SKID_DROP;
+  const yawRate = Math.abs(wrapAngleDelta(state.prevFacing, facing)) / dt;
+  const hardPivot = yawRate > POOF_PIVOT_RATE && speed >= POOF_PIVOT_SPEED && prevSpeed >= POOF_PIVOT_SPEED;
+  state.poofSkid = hardArrival || hardPivot;
 }
