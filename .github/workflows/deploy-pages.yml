@@ -46,23 +46,8 @@ jobs:
           echo "Base path OK"
           cat dist/index.html
 
-      - name: Setup Pages
-        id: pages
-        continue-on-error: true
-        uses: actions/configure-pages@v5
-
-      - name: Upload artifact
-        if: steps.pages.outcome == 'success'
-        uses: actions/upload-pages-artifact@v3
-        with:
-          path: dist
-
-      - name: Deploy to GitHub Pages (Actions)
-        if: steps.pages.outcome == 'success'
-        uses: actions/deploy-pages@v4
-
+      # Always publish to gh-pages so branch-based Pages stays current
       - name: Deploy to gh-pages branch
-        if: steps.pages.outcome != 'success'
         uses: peaceiris/actions-gh-pages@v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
