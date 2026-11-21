@@ -107,3 +107,20 @@ Before considering any change complete, run these checks in order after your fin
 - **Adding a Resident**: Add ID to `ResidentId` in `src/game/types.ts`, add definition + all 4 walkable `ScheduleSlot` coordinates to `src/game/residents.ts`, add dialogue tree in `src/game/narrative.ts`, and run `npm test` (which automatically validates walkability for every resident across all 4 phases).
 - **Adding Environmental Reactivity**: Add flag to `StoryFlags` in `src/game/types.ts` and `createInitialStoryFlags()` in `src/game/narrative.ts`, derive visual boolean/count in `computeEnvironmentState()`, and toggle visibility/scale cleanly inside `EnvironmentVisualController.update()` in `src/scene/environmentRenderer.ts`.
 - **Documentation Discipline**: Record every completed task in `WORKLOG.md` and update `HANDOVER.md` whenever architecture, storage keys, or open backlog items change.
+
+---
+
+## 6. Optional Agent Skills (Capability Enhancers Only)
+
+The `skills/` directory contains optional skills that **improve agent capability** for high-fidelity visuals, sound design, and reference assets. They are **not** architectural authorities.
+
+- Read `skills/README.md` first.
+- Load a skill only when the task matches its purpose.
+- When any skill guidance conflicts with this document or the art-direction docs, **this document and the art-direction docs win**.
+- Never use a skill to introduce photorealism, external runtime asset packs that can fail, or to collapse the three-layer architecture.
+
+Available entry points:
+- `skills/dream-loop/` — closed visual-fidelity loop
+- `skills/earshot/` — sound generation & evaluation
+- `skills/polyhaven/` — CC0 reference / optional assets from Poly Haven
+- `skills/mengto/` — pointers into the MengTo design & Three.js skill library
