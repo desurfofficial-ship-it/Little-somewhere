@@ -270,6 +270,50 @@ export function createFabricWeaveTexture(aniso = 4): THREE.CanvasTexture {
 }
 
 /**
+ * Fabric albedo + weave bundle (BUILD 02 Workstream E §8.1 — Doc 04 §6.1
+ * "fabric albedo weave"): upgrades the roughness-only fabric family with a
+ * NEAR-WHITE thread-row albedo overlay so garments/quilts catch light along
+ * the weave at gameplay distance. Deliberately quiet — ±3% thread luminance,
+ * no fibre speckle noise, hue authority stays with the palette color — so the
+ * texture improves perceived quality without ever reading as noise.
+ * The roughness channel is byte-identical to `createFabricWeaveTexture`
+ * (same seed, same drawing order) so the validated weave roughness is kept.
+ */
+export function createFabricAlbedoMaps(aniso = 4): ProceduralMapBundle {
+  const size = 128;
+  const albedo = document.createElement('canvas');
+  albedo.width = size;
+  albedo.height = size;
+  const a = albedo.getContext('2d')!;
+  // Near-white base: the material's color does the talking (SRGB map multiplies).
+  a.fillStyle = '#FCFBF9';
+  a.fillRect(0, 0, size, size);
+  // Alternating thread rows — warp lighter, weft a hair deeper (±3%).
+  for (let i = 0; i < 16; i++) {
+    a.globalAlpha = 0.55;
+    a.fillStyle = i % 2 === 0 ? '#FFFFFF' : '#F1EEE8';
+    a.fillRect(0, (i / 16) * size, size, size / 32);
+    a.fillRect((i / 16) * size, 0, size / 32, size);
+  }
+  // Sparse long fibre strokes (directional, not speckle) for a spun-yarn read.
+  const rand = makeSeededRandom(1663);
+  a.globalAlpha = 0.18;
+  for (let i = 0; i < 48; i++) {
+    const x = rand() * size;
+    const yy = rand() * size;
+    const len = 4 + rand() * 8;
+    a.strokeStyle = rand() > 0.5 ? '#FFFFFF' : '#EDE9E0';
+    a.lineWidth = 0.8;
+    a.beginPath();
+    a.moveTo(x, yy);
+    a.lineTo(x + (rand() > 0.5 ? len : -len), yy + (rand() - 0.5) * 1.5);
+    a.stroke();
+  }
+  a.globalAlpha = 1;
+  return { map: finishColorMap(albedo, aniso), roughnessMap: createFabricWeaveTexture(aniso) };
+}
+
+/**
  * Shared scalar-noise roughness (T1–T3 families without a dedicated map):
  * gentle broad patches so matte surfaces never read as flat plastic.
  */
@@ -507,6 +551,38 @@ export function createRoofShingleTexture(baseHex: string, highlightHex: string, 
   tex.repeat.set(2, 2);
   tex.anisotropy = maxAnisotropy;
   return tex;
+}
+
+/**
+ * Lantern-glass warm gradient (BUILD 02 Doc 05 §3.2 P3): a vertical warm
+ * emissive falloff — brightest just below the bulb's mid, easing toward the
+ * rim — so plaza lamp glass and festoon bulbs read as a "pool of light" at
+ * dusk instead of a uniform glow. Rides the SHARED lantern material as an
+ * emissiveMap: the dusk schedule (environmentRenderer) is untouched, zero new
+ * materials/meshes/draw calls.
+ */
+export function createLanternGlowTexture(aniso = 4): THREE.CanvasTexture {
+  const size = 64;
+  const canvas = document.createElement('canvas');
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext('2d')!;
+  const grad = ctx.createLinearGradient(0, 0, 0, size);
+  grad.addColorStop(0.0, '#C8A868'); // top rim: dimmest
+  grad.addColorStop(0.45, '#EED898'); // mid
+  grad.addColorStop(0.78, '#FFF4C8'); // bright pool just below the mid
+  grad.addColorStop(1.0, '#E8CC8A'); // base collar
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, size, size);
+  // Soft horizontal edge falloff so the glass cylinder's seam stays quiet.
+  const side = ctx.createLinearGradient(0, 0, size, 0);
+  side.addColorStop(0.0, 'rgba(0,0,0,0.18)');
+  side.addColorStop(0.25, 'rgba(0,0,0,0)');
+  side.addColorStop(0.75, 'rgba(0,0,0,0)');
+  side.addColorStop(1.0, 'rgba(0,0,0,0.18)');
+  ctx.fillStyle = side;
+  ctx.fillRect(0, 0, size, size);
+  return finishColorMap(canvas, aniso);
 }
 
 export function createContactShadowTexture(): THREE.CanvasTexture {

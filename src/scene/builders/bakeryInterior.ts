@@ -1,10 +1,11 @@
 import * as THREE from 'three';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { BAKERY_BOUNDS, BAKERY_INTERACTABLES, getBakeForDay } from '../../game/bakery';
 import { TimePhase, WorldState } from '../../game/types';
 import { getSeasonForDay } from '../../game/time';
 import { MaterialPalette, STORYBOOK_PALETTE } from '../materials';
-import { addContactShadow } from './vegetation';
 import { attachPorchSeasonLife, createPorchSeasonLife } from './porchSeasonLife';
+import { addStaticContactShadow } from '../contactShadows';
 
 /**
  * Hearth & Crumb Bakery Interior Cutaway Diorama (Milestone 3 Build 7).
@@ -60,26 +61,26 @@ export function buildHearthCrumbInterior(
   };
 
   // Shared calibrated storybook materials (registry-cached, zero warnings)
-  const darkStoneMat = palette.standard(STORYBOOK_PALETTE.fieldstoneDark, 0.9, 0.02);
-  const limestoneMat = palette.standard(STORYBOOK_PALETTE.limestone, 0.88, 0.02);
-  const creamMat = palette.standard(STORYBOOK_PALETTE.creamTrim, 0.78, 0.02);
-  const plasterMat = palette.standard('#F5DFC2', 0.86, 0.02); // bakery wall cream (matches exterior)
-  const cedarDarkMat = palette.standard(STORYBOOK_PALETTE.cedarDark, 0.74, 0.04);
-  const cedarWarmMat = palette.standard(STORYBOOK_PALETTE.cedarWarm, 0.72, 0.04);
-  const doorMat = palette.standard(STORYBOOK_PALETTE.doorCedar, 0.7, 0.04);
-  const brickMat = palette.standard('#A85842', 0.86, 0.02); // matches the exterior oven dome
+  const darkStoneMat = palette.standard(STORYBOOK_PALETTE.fieldstoneDark, 0.9, 0.02, { mapSet: 'stone' });
+  const limestoneMat = palette.standard(STORYBOOK_PALETTE.limestone, 0.88, 0.02, { mapSet: 'stone' });
+  const creamMat = palette.standard(STORYBOOK_PALETTE.creamTrim, 0.78, 0.02, { mapSet: 'timber-light' });
+  const plasterMat = palette.standard('#F5DFC2', 0.86, 0.02, { mapSet: 'plaster' }); // bakery wall cream (matches exterior)
+  const cedarDarkMat = palette.standard(STORYBOOK_PALETTE.cedarDark, 0.74, 0.04, { mapSet: 'timber-dark' });
+  const cedarWarmMat = palette.standard(STORYBOOK_PALETTE.cedarWarm, 0.72, 0.04, { mapSet: 'timber-dark' });
+  const doorMat = palette.standard(STORYBOOK_PALETTE.doorCedar, 0.7, 0.04, { mapSet: 'timber-dark' });
+  const brickMat = palette.standard('#A85842', 0.86, 0.02, { mapSet: 'stone' }); // matches the exterior oven dome
   const terracottaMat = palette.standard(STORYBOOK_PALETTE.terracottaPot, 0.58, 0.04);
   const ceramicMat = palette.standard(STORYBOOK_PALETTE.ceramicCream, 0.4, 0.04);
   const brassMat = palette.standard(STORYBOOK_PALETTE.agedBrass, 0.25, 0.86);
   const ironMat = palette.standard(STORYBOOK_PALETTE.wroughtIron, 0.45, 0.65);
   const copperMat = palette.standard('#C56B45', 0.28, 0.78);
-  const linenMat = palette.standard('#F5EEE0', 0.88, 0.0);
-  const linenRedMat = palette.standard('#CD6649', 0.82, 0.0); // awning stripe red
+  const linenMat = palette.standard('#F5EEE0', 0.88, 0.0, { mapSet: 'fabric' });
+  const linenRedMat = palette.standard('#CD6649', 0.82, 0.0, { mapSet: 'fabric' }); // awning stripe red
   const flourMat = palette.standard('#F3EBDC', 0.94, 0.0);
   const loafMat = palette.standard('#D7944A', 0.82, 0.0); // matches exterior display loaves
   const loafDeepMat = palette.standard('#B4733A', 0.86, 0.0);
   const mossMat = palette.standard(STORYBOOK_PALETTE.moss, 0.84, 0.0);
-  const floorPlankMat = palette.standard('#C7A578', 0.82, 0.03);
+  const floorPlankMat = palette.standard('#C7A578', 0.82, 0.03, { mapSet: 'timber-light' });
   const slateMat = palette.standard('#35393B', 0.86, 0.02);
 
   // Per-instance dynamic materials
@@ -362,7 +363,7 @@ export function buildHearthCrumbInterior(
   // ---------------------------------------------------------------------
   const ovenGroup = new THREE.Group();
   ovenGroup.position.set(-1.9, 0, -1.95);
-  addContactShadow(ovenGroup, shadowTex, 2.2, 1.0, 0.42, 0.018);
+  addStaticContactShadow(ovenGroup, shadowTex, 2.2, 1.0, 0.42, 0.018);
 
   const ovenBase = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(1.9, 0.62, 0.82)), darkStoneMat);
   ovenBase.position.y = 0.31;
@@ -422,7 +423,7 @@ export function buildHearthCrumbInterior(
   // ---------------------------------------------------------------------
   const counterGroup = new THREE.Group();
   counterGroup.position.set(-2.55, 0, 0.2);
-  addContactShadow(counterGroup, shadowTex, 1.0, 2.4, 0.4, 0.018);
+  addStaticContactShadow(counterGroup, shadowTex, 1.0, 2.4, 0.4, 0.018);
 
   const counterTop = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(0.72, 0.08, 2.0)), cedarWarmMat);
   counterTop.position.y = 0.92;
@@ -503,7 +504,7 @@ export function buildHearthCrumbInterior(
   // ---------------------------------------------------------------------
   const prepGroup = new THREE.Group();
   prepGroup.position.set(1.7, 0, -1.95);
-  addContactShadow(prepGroup, shadowTex, 1.9, 1.0, 0.42, 0.018);
+  addStaticContactShadow(prepGroup, shadowTex, 1.9, 1.0, 0.42, 0.018);
 
   const prepTop = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(1.7, 0.09, 0.76)), cedarWarmMat);
   prepTop.position.y = 0.86;
@@ -587,7 +588,7 @@ export function buildHearthCrumbInterior(
   // ---------------------------------------------------------------------
   const cafeGroup = new THREE.Group();
   cafeGroup.position.set(1.35, 0, 1.45);
-  addContactShadow(cafeGroup, shadowTex, 1.7, 1.7, 0.4, 0.018);
+  addStaticContactShadow(cafeGroup, shadowTex, 1.7, 1.7, 0.4, 0.018);
 
   const tableTop = new THREE.Mesh(trackGeo(new THREE.CylinderGeometry(0.58, 0.6, 0.07, 14)), cedarWarmMat);
   tableTop.position.y = 0.78;
@@ -780,19 +781,45 @@ export function buildHearthCrumbInterior(
     const runner = new THREE.Group();
     runner.name = 'winter_counter_runner';
     runner.position.set(-2.55, 0, 0.2);
-    const runnerBase = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(0.045, 0.4, 1.42)), linenMat);
-    runnerBase.position.set(0.38, 0.58, 0);
-    runner.add(runnerBase);
+    // BUILD 02 (Doc 05 §4.2.2): the winter counter runner graduates from 9
+    // interleaved slabs to a woven-edge extrusion — one linen body whose face
+    // profile carries a scalloped hem (sculpted drape, no cloth sim) + ONE
+    // merged red band mesh. Mesh count 9 → 2; the fabric family weave
+    // roughness now wraps a shaped silhouette.
+    // Face profile in shape space: shape x = runner length (world z, 1.42),
+    // shape y = runner height (world y, 0.4); extrusion depth = thickness (world x).
+    const runnerProfile = new THREE.Shape();
+    const hemY = -0.2;
+    runnerProfile.moveTo(-0.71, hemY + 0.09); // scalloped hem rises across the bottom edge
+    const hemW = 1.42 / 6;
+    for (let h = 0; h < 6; h++) {
+      const x0 = -0.71 + h * hemW;
+      runnerProfile.quadraticCurveTo(x0 + hemW * 0.5, hemY - 0.022, x0 + hemW, hemY + 0.09);
+    }
+    runnerProfile.lineTo(0.71, 0.2);
+    runnerProfile.lineTo(-0.71, 0.2);
+    runnerProfile.closePath();
+    const runnerGeo = trackGeo(new THREE.ExtrudeGeometry(runnerProfile, {
+      depth: 0.045,
+      bevelEnabled: true,
+      bevelThickness: 0.006,
+      bevelSize: 0.006,
+      bevelSegments: 1,
+    }));
+    runnerGeo.rotateY(Math.PI / 2); // face length → world Z; thickness → world X
+    const runnerBody = new THREE.Mesh(runnerGeo, linenMat);
+    runnerBody.position.set(0.3575, 0.58, 0); // thickness centered on the old 0.38 slab
+    runner.add(runnerBody);
+    const bandGeos: THREE.BufferGeometry[] = [];
     for (const rz of [-0.15, -0.05, 0.05, 0.15]) {
-      const stripe = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(0.05, 0.06, 1.43)), linenRedMat);
-      stripe.position.set(0.382, 0.58 + rz, 0);
-      runner.add(stripe);
+      const band = new THREE.BoxGeometry(0.052, 0.06, 1.43);
+      band.translate(0, rz, 0);
+      bandGeos.push(band);
     }
-    for (const fz of [-0.66, -0.22, 0.22, 0.66]) {
-      const fringe = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(0.045, 0.075, 0.022)), linenMat);
-      fringe.position.set(0.38, 0.345, fz);
-      runner.add(fringe);
-    }
+    const bands = new THREE.Mesh(trackGeo(mergeGeometries(bandGeos)!), linenRedMat);
+    bands.position.set(0.382, 0.58, 0);
+    runner.add(bands);
+    for (const g of bandGeos) g.dispose();
     seasonLife.winter.add(runner);
 
     // Mince pie cooling on the west windowsill
@@ -1257,7 +1284,7 @@ export function buildHearthCrumbPorchDressing(
 
   attachPorchSeasonLife(group, porchLife);
 
-  addContactShadow(group, shadowTex, 2.0, 1.4, 0.4, 0.018);
+  addStaticContactShadow(group, shadowTex, 2.0, 1.4, 0.4, 0.018);
 
   group.userData.dispose = () => {
     for (const g of ownedGeos) g.dispose();

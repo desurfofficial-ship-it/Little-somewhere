@@ -5,8 +5,14 @@ import {
   getProjectForDay,
 } from '../../game/copperwheel';
 import { TimePhase, WorldState } from '../../game/types';
+import { getSeasonForDay } from '../../game/time';
 import { MaterialPalette, STORYBOOK_PALETTE } from '../materials';
-import { addContactShadow } from './vegetation';
+import {
+  addContactShadow,
+} from './vegetation';
+import { addStaticContactShadow } from '../contactShadows';
+import { attachPorchSeasonLife, createPorchSeasonLife, PorchSeasonLife } from './porchSeasonLife';
+import { buildCopperKettle } from './interiorKit';
 
 /**
  * Copperwheel Cottage Interior Cutaway Diorama (Milestone 3 Build 9).
@@ -29,6 +35,18 @@ export interface CopperwheelInteriorRig {
   kettleSteamGroup: THREE.Group;
   /** The four day-cycle bench project groups (one visible per project day). */
   projectGroups: Record<string, THREE.Group>;
+  /**
+   * BUILD 02 (Doc 05 §4.3 P1): the workshop's four season groups — Copperwheel
+   * was the only unseasonal interior. Winter: flannel bench roll, pipe wrap,
+   * shelf evergreen; plus spring bulb pot, summer lavender bundle, autumn leaf
+   * bunting. All above-station placements (seasonal clearance law exempt).
+   */
+  seasonLife: {
+    spring: THREE.Group;
+    summer: THREE.Group;
+    autumn: THREE.Group;
+    winter: THREE.Group;
+  };
   update(world: WorldState, phase: TimePhase, elapsed: number): void;
   dispose(): void;
 }
@@ -52,21 +70,21 @@ export function buildCopperwheelInterior(
   };
 
   // Shared calibrated storybook materials
-  const darkStoneMat = palette.standard(STORYBOOK_PALETTE.fieldstoneDark, 0.9, 0.02);
-  const limestoneMat = palette.standard(STORYBOOK_PALETTE.limestone, 0.88, 0.02);
-  const creamMat = palette.standard(STORYBOOK_PALETTE.creamTrim, 0.78, 0.02);
-  const plasterMat = palette.standard('#E1DFD5', 0.86, 0.02); // matches the exterior walls
-  const trimMat = palette.standard('#564940', 0.74, 0.04); // matches the exterior dark trim
-  const cedarWarmMat = palette.standard(STORYBOOK_PALETTE.cedarWarm, 0.72, 0.04);
-  const mapleMat = palette.standard('#C9A876', 0.8, 0.02); // workbench top (matches crate wood)
-  const mapleEdgeMat = palette.standard('#9A7A50', 0.84, 0.02);
+  const darkStoneMat = palette.standard(STORYBOOK_PALETTE.fieldstoneDark, 0.9, 0.02, { mapSet: 'stone' });
+  const limestoneMat = palette.standard(STORYBOOK_PALETTE.limestone, 0.88, 0.02, { mapSet: 'stone' });
+  const creamMat = palette.standard(STORYBOOK_PALETTE.creamTrim, 0.78, 0.02, { mapSet: 'timber-light' });
+  const plasterMat = palette.standard('#E1DFD5', 0.86, 0.02, { mapSet: 'plaster' }); // matches the exterior walls
+  const trimMat = palette.standard('#564940', 0.74, 0.04, { mapSet: 'timber-dark' }); // matches the exterior dark trim
+  const cedarWarmMat = palette.standard(STORYBOOK_PALETTE.cedarWarm, 0.72, 0.04, { mapSet: 'timber-dark' });
+  const mapleMat = palette.standard('#C9A876', 0.8, 0.02, { mapSet: 'timber-light' }); // workbench top (matches crate wood)
+  const mapleEdgeMat = palette.standard('#9A7A50', 0.84, 0.02, { mapSet: 'timber-dark' });
   const brassMat = palette.standard(STORYBOOK_PALETTE.agedBrass, 0.25, 0.86);
   const ironMat = palette.standard(STORYBOOK_PALETTE.wroughtIron, 0.45, 0.65);
   const copperMat = palette.standard('#C56B45', 0.28, 0.78);
-  const feltMat = palette.standard('#7A6A4F', 0.92, 0.0);
-  const linenMat = palette.standard('#F5EEE0', 0.88, 0.0);
-  const quiltMat = palette.standard('#8FA08C', 0.86, 0.0);
-  const quiltTrimMat = palette.standard('#E9D9B8', 0.9, 0.0);
+  const feltMat = palette.standard('#7A6A4F', 0.92, 0.0, { mapSet: 'fabric' });
+  const linenMat = palette.standard('#F5EEE0', 0.88, 0.0, { mapSet: 'fabric' });
+  const quiltMat = palette.standard('#8FA08C', 0.86, 0.0, { mapSet: 'fabric' });
+  const quiltTrimMat = palette.standard('#E9D9B8', 0.9, 0.0, { mapSet: 'fabric' });
   const ceramicMat = palette.standard(STORYBOOK_PALETTE.ceramicCream, 0.4, 0.04);
   const walnutMat = palette.standard('#6B4A36', 0.62, 0.05);
   const crabwoodMat = palette.standard('#B98A5C', 0.7, 0.03);
@@ -277,7 +295,7 @@ export function buildCopperwheelInterior(
   // ---------------------------------------------------------------------
   const benchGroup = new THREE.Group();
   benchGroup.position.set(-1.58, 0, -1.97);
-  addContactShadow(benchGroup, shadowTex, 3.0, 1.0, 0.5, 0.018);
+  addStaticContactShadow(benchGroup, shadowTex, 3.0, 1.0, 0.5, 0.018);
 
   const benchTop = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(2.56, 0.1, 0.84)), mapleMat);
   benchTop.position.set(0, 0.92, 0);
@@ -463,7 +481,7 @@ export function buildCopperwheelInterior(
   // ---------------------------------------------------------------------
   const bedGroup = new THREE.Group();
   bedGroup.position.set(2.14, 0, -1.68);
-  addContactShadow(bedGroup, shadowTex, 1.7, 1.6, 0.45, 0.018);
+  addStaticContactShadow(bedGroup, shadowTex, 1.7, 1.6, 0.45, 0.018);
 
   const bedFrame = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(1.44, 0.26, 1.36)), walnutMat);
   bedFrame.position.set(0, 0.24, 0);
@@ -479,7 +497,10 @@ export function buildCopperwheelInterior(
   const quiltFold = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(1.3, 0.06, 0.2)), quiltTrimMat);
   quiltFold.position.set(-0.03, 0.6, -0.22);
   bedGroup.add(quiltFold);
-  const pillow = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(0.42, 0.12, 0.3)), linenMat);
+  // BUILD 02 (Doc 05 §4.2.2): curved pillow form (same footprint as the slab).
+  const pillowGeo = trackGeo(new THREE.SphereGeometry(0.24, 10, 8));
+  pillowGeo.scale(0.88, 0.26, 0.62);
+  const pillow = new THREE.Mesh(pillowGeo, linenMat);
   pillow.position.set(-0.38, 0.58, -0.42);
   pillow.rotation.y = 0.12;
   bedGroup.add(pillow);
@@ -530,7 +551,7 @@ export function buildCopperwheelInterior(
   // ---------------------------------------------------------------------
   const shelfGroup = new THREE.Group();
   shelfGroup.position.set(-2.58, 0, 0.28);
-  addContactShadow(shelfGroup, shadowTex, 1.0, 2.4, 0.42, 0.018);
+  addStaticContactShadow(shelfGroup, shadowTex, 1.0, 2.4, 0.42, 0.018);
 
   const shelfBody = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(0.72, 1.86, 2.14)), cedarWarmMat);
   shelfBody.position.set(0, 1.0, 0);
@@ -541,7 +562,24 @@ export function buildCopperwheelInterior(
   shelfGroup.add(shelfBack);
   // Three boards with mended clocks
   const boardGeo = trackGeo(new THREE.BoxGeometry(0.5, 0.05, 2.02));
-  const clockCaseGeo = trackGeo(new THREE.BoxGeometry(0.14, 0.2, 0.12));
+  // BUILD 02 (Doc 05 §4.2.2): the 14 mended-clock cases gain beveled tops —
+  // one shared extruded profile (bevel 0.018), same mesh count.
+  const clockCaseProfile = new THREE.Shape();
+  clockCaseProfile.moveTo(-0.07, -0.1);
+  clockCaseProfile.lineTo(0.07, -0.1);
+  clockCaseProfile.lineTo(0.07, 0.06);
+  clockCaseProfile.quadraticCurveTo(0.07, 0.1, 0.03, 0.1);
+  clockCaseProfile.lineTo(-0.03, 0.1);
+  clockCaseProfile.quadraticCurveTo(-0.07, 0.1, -0.07, 0.06);
+  clockCaseProfile.closePath();
+  const clockCaseGeo = trackGeo(new THREE.ExtrudeGeometry(clockCaseProfile, {
+    depth: 0.12,
+    bevelEnabled: true,
+    bevelThickness: 0.018,
+    bevelSize: 0.018,
+    bevelSegments: 1,
+  }));
+  clockCaseGeo.translate(0, 0, -0.06);
   const shelfRows: Array<[number, number]> = [
     [0.62, 5],
     [1.12, 4],
@@ -597,7 +635,7 @@ export function buildCopperwheelInterior(
   // ---------------------------------------------------------------------
   const stoveGroup = new THREE.Group();
   stoveGroup.position.set(2.58, 0, 0.6);
-  addContactShadow(stoveGroup, shadowTex, 1.0, 2.1, 0.45, 0.018);
+  addStaticContactShadow(stoveGroup, shadowTex, 1.0, 2.1, 0.45, 0.018);
 
   const stoveBody = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(0.72, 0.94, 1.5)), ironMat);
   stoveBody.position.set(0, 0.47, 0);
@@ -614,25 +652,18 @@ export function buildCopperwheelInterior(
   fireRail.position.set(-0.37, 0.42, -0.2);
   fireRail.rotation.y = Math.PI / 2;
   stoveGroup.add(fireRail);
-  // Copper kettle with spout + handle
-  const kettleBody = new THREE.Mesh(trackGeo(new THREE.CylinderGeometry(0.16, 0.19, 0.24, 12)), copperMat);
-  kettleBody.position.set(0, 1.14, 0.24);
-  kettleBody.castShadow = true;
-  stoveGroup.add(kettleBody);
-  const kettleLid = new THREE.Mesh(trackGeo(new THREE.CylinderGeometry(0.1, 0.14, 0.07, 12)), copperMat);
-  kettleLid.position.set(0, 1.3, 0.24);
-  stoveGroup.add(kettleLid);
-  const kettleKnob = new THREE.Mesh(trackGeo(new THREE.SphereGeometry(0.03, 6, 5)), kettleGlowMat);
-  kettleKnob.position.set(0, 1.36, 0.24);
-  stoveGroup.add(kettleKnob);
-  const kettleSpout = new THREE.Mesh(trackGeo(new THREE.CylinderGeometry(0.03, 0.045, 0.2, 7)), copperMat);
-  kettleSpout.rotation.z = 0.9;
-  kettleSpout.position.set(-0.18, 1.2, 0.24);
-  stoveGroup.add(kettleSpout);
-  const kettleHandle = new THREE.Mesh(trackGeo(new THREE.TorusGeometry(0.11, 0.015, 5, 12, Math.PI)), ironMat);
-  kettleHandle.rotation.z = Math.PI;
-  kettleHandle.position.set(0, 1.3, 0.24);
-  stoveGroup.add(kettleHandle);
+  // Copper kettle with spout + handle — BUILD 02 (Doc 05 §4.2.3): the shared
+  // kit's stove-cylinder style with the tracked glow-knob material and the
+  // −x spout of the stove corner; lid lathe-crowned.
+  const kettle = buildCopperKettle(palette, trackGeo, {
+    style: 'stove-cylinder',
+    bodyMat: copperMat,
+    glowKnob: true,
+    glowKnobMat: kettleGlowMat,
+    spoutSide: -1,
+  });
+  kettle.group.position.set(0, 1.14, 0.24);
+  stoveGroup.add(kettle.group);
   // Two stoneware cups waiting on the stove top
   const cupGeo = trackGeo(new THREE.CylinderGeometry(0.05, 0.04, 0.08, 9));
   const cupA = new THREE.Mesh(cupGeo, ceramicMat);
@@ -678,7 +709,7 @@ export function buildCopperwheelInterior(
   const chairGroup = new THREE.Group();
   chairGroup.position.set(-1.38, 0, 1.55);
   chairGroup.rotation.y = 0.5; // angled toward the room / kettle corner
-  addContactShadow(chairGroup, shadowTex, 1.5, 1.4, 0.5, 0.018);
+  addStaticContactShadow(chairGroup, shadowTex, 1.5, 1.4, 0.5, 0.018);
 
   const seatBase = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(0.86, 0.32, 0.8)), quiltMat);
   seatBase.position.set(0, 0.28, 0);
@@ -827,6 +858,80 @@ export function buildCopperwheelInterior(
   // ---------------------------------------------------------------------
   // Reactive update — zero per-frame allocation
   // ---------------------------------------------------------------------
+  // BUILD 02 (Doc 05 §4.3 P1): "The Workshop Through the Year" — the last
+  // unseasonal interior gains its season groups, in Arthur's own register:
+  // care wraps and warmth for the machines, never decoration for its own sake.
+  // Pieces sit on furniture tops (y > 0.8) or hug the north wall away from the
+  // station approach lanes, so the seasonal clearance law stays satisfied.
+  const seasonLife = {
+    spring: new THREE.Group(),
+    summer: new THREE.Group(),
+    autumn: new THREE.Group(),
+    winter: new THREE.Group(),
+  };
+  seasonLife.spring.name = 'copperwheel_season_spring';
+  seasonLife.summer.name = 'copperwheel_season_summer';
+  seasonLife.autumn.name = 'copperwheel_season_autumn';
+  seasonLife.winter.name = 'copperwheel_season_winter';
+  {
+    const flannelMat = palette.standard('#B76B5E', 0.88, 0.0, { mapSet: 'fabric' });
+    const wrapMat = palette.standard('#D8CBB2', 0.9, 0.0, { mapSet: 'fabric' });
+    const evergreenMat = palette.standard(STORYBOOK_PALETTE.foliageDeep, 0.86, 0.0);
+    const bulbMat = palette.standard('#EFC663', 0.7, 0.0);
+    const terracottaMat2 = palette.standard(STORYBOOK_PALETTE.terracottaPot, 0.44, 0.04);
+    const lavenderMat = palette.standard('#8F7FA8', 0.8, 0.0);
+    const leafAmberMat = palette.standard('#C98442', 0.85, 0.0);
+    // Winter: flannel roll on the bench's back edge + pipe wrap + shelf sprig.
+    const flannelRoll = new THREE.Mesh(new THREE.CylinderGeometry(0.075, 0.075, 0.42, 9), flannelMat);
+    flannelRoll.rotation.z = Math.PI / 2;
+    flannelRoll.position.set(-1.55, 1.02, -1.72);
+    flannelRoll.castShadow = true;
+    seasonLife.winter.add(flannelRoll);
+    const pipeWrap = new THREE.Mesh(new THREE.CylinderGeometry(0.105, 0.105, 0.3, 9), wrapMat);
+    pipeWrap.position.set(2.62, 1.35, -1.15);
+    seasonLife.winter.add(pipeWrap);
+    const shelfSprig = new THREE.Mesh(new THREE.ConeGeometry(0.06, 0.18, 5), evergreenMat);
+    shelfSprig.position.set(-2.6, 1.78, 0.2);
+    shelfSprig.rotation.z = 0.18;
+    seasonLife.winter.add(shelfSprig);
+    // Spring: a bulb pot on the windowsill behind the armchair (south-west).
+    const pot = new THREE.Mesh(new THREE.CylinderGeometry(0.075, 0.06, 0.13, 8), terracottaMat2);
+    pot.position.set(-2.55, 1.55, 1.9);
+    seasonLife.spring.add(pot);
+    for (let b = 0; b < 3; b++) {
+      const bulb = new THREE.Mesh(new THREE.SphereGeometry(0.045, 7, 6), bulbMat);
+      bulb.scale.set(1.0, 1.25, 1.0);
+      const ba = (b / 3) * Math.PI * 2;
+      bulb.position.set(-2.55 + Math.cos(ba) * 0.045, 1.68, 1.9 + Math.sin(ba) * 0.04);
+      seasonLife.spring.add(bulb);
+    }
+    // Summer: dried-lavender bundle hanging from the shelf board's underside lip.
+    for (let l = 0; l < 5; l++) {
+      const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.006, 0.22, 5), lavenderMat);
+      stem.position.set(-2.3 + l * 0.055, 1.55, 0.14);
+      stem.rotation.z = (l - 2) * 0.06;
+      seasonLife.summer.add(stem);
+    }
+    const twine = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.03, 6), wrapMat);
+    twine.position.set(-2.19, 1.68, 0.14);
+    seasonLife.summer.add(twine);
+    // Autumn: a leaf bunting strung along the bench's wall edge.
+    for (let l = 0; l < 5; l++) {
+      const leaf = new THREE.Mesh(new THREE.SphereGeometry(0.05, 6, 5), leafAmberMat);
+      leaf.scale.set(1.15, 0.5, 0.85);
+      leaf.position.set(-2.3 + l * 0.38, 1.92 + Math.sin(l * 1.4) * 0.03, -2.28);
+      leaf.rotation.y = l * 0.7;
+      seasonLife.autumn.add(leaf);
+    }
+    const buntingString = new THREE.Mesh(new THREE.BoxGeometry(1.7, 0.008, 0.008), wrapMat);
+    buntingString.position.set(-1.6, 1.98, -2.28);
+    seasonLife.autumn.add(buntingString);
+    for (const g of [seasonLife.spring, seasonLife.summer, seasonLife.autumn, seasonLife.winter]) {
+      g.visible = false;
+      group.add(g);
+    }
+  }
+
   function update(world: WorldState, phase: TimePhase, elapsed: number): void {
     const cws = world.copperwheelState;
     const checkedToday = (cws?.benchCheckedDay ?? 0) === world.day;
@@ -837,6 +942,12 @@ export function buildCopperwheelInterior(
     for (const key of Object.keys(projectGroups)) {
       projectGroups[key].visible = key === project.id;
     }
+    // BUILD 02: season gate — exactly one season group visible (scalar writes).
+    const cwSeason = world.season ?? getSeasonForDay(world.day).season;
+    seasonLife.spring.visible = cwSeason === 'spring';
+    seasonLife.summer.visible = cwSeason === 'summer';
+    seasonLife.autumn.visible = cwSeason === 'autumn';
+    seasonLife.winter.visible = cwSeason === 'winter';
     // The pendulum swings only while the bench was checked today (the helping moment)
     if (project.id === 'orchard_pendulum') {
       pendulumRodPivot.rotation.z = checkedToday
@@ -906,6 +1017,7 @@ export function buildCopperwheelInterior(
     benchLampLight,
     kettleSteamGroup,
     projectGroups,
+    seasonLife,
     update,
     dispose,
   };
@@ -923,7 +1035,7 @@ export const COPPERWHEEL_PROJECT_COUNT = 4;
 export function buildCopperwheelPorchDressing(
   palette: MaterialPalette,
   shadowTex: THREE.Texture,
-): THREE.Group {
+): THREE.Group & { porchSeasonLife?: PorchSeasonLife } {
   const group = new THREE.Group();
   const ownedGeos: THREE.BufferGeometry[] = [];
   const ownedMats: THREE.Material[] = [];
@@ -1005,7 +1117,53 @@ export function buildCopperwheelPorchDressing(
     group.add(signLeg);
   }
 
-  addContactShadow(group, shadowTex, 2.2, 1.2, 0.42, 0.018);
+  // BUILD 02 (Doc 05 §2.2 P1 + §4.3): Copperwheel's porch joins "Doorways of
+  // the Lane" — the last unseasonal porch gains its four season groups, in the
+  // workshop's own voice (clockwork care, evergreen + frost, herb sills).
+  const porchLife = createPorchSeasonLife('copperwheel');
+  {
+    const terracottaMat = palette.standard(STORYBOOK_PALETTE.terracottaPot, 0.44, 0.04, { envMapIntensity: 0.6 });
+    const leafMat = palette.standard(STORYBOOK_PALETTE.foliageMid, 0.85, 0.0);
+    const evergreenMat = palette.standard(STORYBOOK_PALETTE.foliageDeep, 0.86, 0.0);
+    const frostMat = palette.standard('#DCE9EE', 0.84, 0.0);
+    // Spring: a herb pot with fresh buds beside the step (Arthur mends through
+    // the seasons — the sill herbs come back each spring).
+    const springPot = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.08, 0.16, 8), terracottaMat);
+    springPot.position.set(0.42, 0.08, 0.52);
+    porchLife.spring.add(springPot);
+    for (let b = 0; b < 3; b++) {
+      const bud = new THREE.Mesh(new THREE.DodecahedronGeometry(0.045, 0), leafMat);
+      const ba = (b / 3) * Math.PI * 2;
+      bud.position.set(0.42 + Math.cos(ba) * 0.05, 0.2, 0.52 + Math.sin(ba) * 0.04);
+      porchLife.spring.add(bud);
+    }
+    // Summer: a copper watering cup on the crate lid (mending season keeps
+    // the workshop plants watered).
+    const summerCup = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.045, 0.1, 8), palette.standard('#C9794E', 0.34, 0.72));
+    summerCup.position.set(-0.75, 0.55, 0.42);
+    porchLife.summer.add(summerCup);
+    // Autumn: a leaf drift tucked against the sign leg.
+    for (let l = 0; l < 4; l++) {
+      const leaf = new THREE.Mesh(new THREE.SphereGeometry(0.045, 6, 5), palette.standard('#C98442', 0.85, 0.0));
+      leaf.scale.set(1.2, 0.5, 0.9);
+      leaf.position.set(0.72 + (l - 1.5) * 0.06, 0.03, 0.42 + (l % 2) * 0.08);
+      porchLife.autumn.add(leaf);
+    }
+    // Winter: frost-cloth roll on the crate + evergreen sprig on the sign
+    // (Doc 05 §4.3 winter idiom: flannel/pipe-warmth language outdoors).
+    const frostRoll = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.07, 0.34, 8), frostMat);
+    frostRoll.rotation.z = Math.PI / 2;
+    frostRoll.position.set(-0.75, 0.56, 0.15);
+    porchLife.winter.add(frostRoll);
+    const sprig = new THREE.Mesh(new THREE.ConeGeometry(0.05, 0.14, 5), evergreenMat);
+    sprig.position.set(0.72, 0.62, 0.28);
+    sprig.rotation.x = -0.3;
+    porchLife.winter.add(sprig);
+    attachPorchSeasonLife(group, porchLife);
+    group.userData.porchSeasonLife = porchLife;
+  }
+
+  addStaticContactShadow(group, shadowTex, 2.2, 1.2, 0.42, 0.018);
 
   group.userData.dispose = () => {
     for (const g of ownedGeos) g.dispose();

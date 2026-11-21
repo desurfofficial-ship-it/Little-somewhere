@@ -4,7 +4,11 @@ import { COTTAGE_INTERACTABLES, COTTAGE_SEAT_SPOTS } from '../../game/cottage';
 import { getSeasonForDay } from '../../game/time';
 import { CottageHomeState, TimePhase, WorldState } from '../../game/types';
 import { MaterialPalette, STORYBOOK_PALETTE } from '../materials';
-import { addContactShadow } from './vegetation';
+import {
+  addContactShadow,
+} from './vegetation';
+import { addStaticContactShadow } from '../contactShadows';
+import { buildCopperKettle } from './interiorKit';
 
 /**
  * Round-4 Pass 13 helpers: allocation-free memory lookups for the rig's per-frame
@@ -433,7 +437,7 @@ export function buildWillowCottageInterior(
   // A. Kettle & Stone Hearth (cottage_hearth: x=-3.45..-0.95, z=-2.68..-1.68, focus=(-2.15, -2.2))
   const hearthGroup = new THREE.Group();
   hearthGroup.position.set(-2.2, 0, -2.2);
-  addContactShadow(hearthGroup, shadowTex, 2.5, 1.35, 0.35, 0.022);
+  addStaticContactShadow(hearthGroup, shadowTex, 2.5, 1.35, 0.35, 0.022);
   const hearthSlab = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(2.35, 0.22, 0.96)), darkStoneMat);
   hearthSlab.position.set(0, 0.11, 0.02);
   const chimneyBase = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(1.56, 1.38, 0.86)), stoneMat);
@@ -454,14 +458,15 @@ export function buildWillowCottageInterior(
   const counterTop = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(0.78, 0.08, 0.88)), creamMat);
   counterTop.position.set(1.08, 0.88, 0.02);
 
-  // Copper kettle on trivet + 3 pooled rising steam puffs
-  const kettleBody = new THREE.Mesh(trackGeo(new THREE.SphereGeometry(0.17, 12, 10)), copperMat);
-  kettleBody.scale.set(1.0, 0.82, 1.0);
-  kettleBody.position.set(0.06, 0.48, 0.34);
-  const kettleLid = new THREE.Mesh(trackGeo(new THREE.CylinderGeometry(0.06, 0.09, 0.05, 10)), brassMat);
-  kettleLid.position.set(0.06, 0.62, 0.34);
-  const kettleHandle = new THREE.Mesh(trackGeo(new THREE.TorusGeometry(0.14, 0.018, 6, 12, Math.PI)), ironMat);
-  kettleHandle.position.set(0.06, 0.58, 0.34);
+  // Copper kettle on trivet + 3 pooled rising steam puffs.
+  // BUILD 02 (Doc 05 §4.2.3): the hearth kettle joins the shared interior kit
+  // (hearth-sphere style) and its lid graduates to the lathe-crowned crown.
+  const kettle = buildCopperKettle(palette, trackGeo, {
+    style: 'hearth-sphere',
+    bodyMat: copperMat,
+    trimMat: brassMat,
+  });
+  kettle.group.position.set(0.06, 0.48, 0.34);
   hearthGroup.add(
     hearthSlab,
     chimneyBase,
@@ -471,9 +476,7 @@ export function buildWillowCottageInterior(
     embers,
     counterBody,
     counterTop,
-    kettleBody,
-    kettleLid,
-    kettleHandle,
+    kettle.group,
   );
 
   const kettleSteamPuffs: THREE.Mesh[] = [];
@@ -723,7 +726,7 @@ export function buildWillowCottageInterior(
   // B. Patchwork Quilt Bed (cottage_bed: x=-3.42..-1.55, z=0.85..2.55, focus=(-2.4, 1.7))
   const bedGroup = new THREE.Group();
   bedGroup.position.set(-2.48, 0, 1.7);
-  addContactShadow(bedGroup, shadowTex, 2.0, 1.85, 0.35, 0.022);
+  addStaticContactShadow(bedGroup, shadowTex, 2.0, 1.85, 0.35, 0.022);
   const bedFrame = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(1.72, 0.34, 1.54)), cedarDarkMat);
   bedFrame.position.set(0, 0.24, 0);
   const headboard = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(0.14, 0.96, 1.58)), cedarDarkMat);
@@ -734,10 +737,15 @@ export function buildWillowCottageInterior(
   quilt.position.set(0.24, 0.49, 0);
   const quiltStripe = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(0.36, 0.21, 1.45)), sageMat);
   quiltStripe.position.set(-0.08, 0.495, 0);
-  const pillowA = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(0.36, 0.14, 0.56)), linenMat);
+  // BUILD 02 (Doc 05 §4.2.2): pillows become squashed-sphere forms with tucked
+  // corners (superellipsoid read) — same footprint as the old slabs, cloth
+  // softness at zero runtime cost.
+  const pillowGeo = trackGeo(new THREE.SphereGeometry(0.28, 10, 8));
+  pillowGeo.scale(0.64, 0.25, 1.0);
+  const pillowA = new THREE.Mesh(pillowGeo, linenMat);
   pillowA.position.set(-0.54, 0.6, -0.34);
   pillowA.rotation.z = -0.12;
-  const pillowB = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(0.36, 0.14, 0.56)), linenMat);
+  const pillowB = new THREE.Mesh(pillowGeo, linenMat);
   pillowB.position.set(-0.54, 0.6, 0.34);
   pillowB.rotation.z = -0.12;
   bedGroup.add(bedFrame, headboard, mattress, quilt, quiltStripe, pillowA, pillowB);
@@ -746,7 +754,7 @@ export function buildWillowCottageInterior(
   // C. Oak Table & Vase (cottage_table: x=-0.45..0.95, z=0.35..1.65, focus=(0.25, 1.0))
   const tableGroup = new THREE.Group();
   tableGroup.position.set(0.25, 0, 1.0);
-  addContactShadow(tableGroup, shadowTex, 1.55, 1.45, 0.32, 0.022);
+  addStaticContactShadow(tableGroup, shadowTex, 1.55, 1.45, 0.32, 0.022);
   const tableTop = new THREE.Mesh(trackGeo(new THREE.CylinderGeometry(0.64, 0.64, 0.08, 20)), cedarWarmMat);
   tableTop.position.set(0, 0.72, 0);
   const tablePedestal = new THREE.Mesh(trackGeo(new THREE.CylinderGeometry(0.11, 0.16, 0.66, 10)), cedarDarkMat);
@@ -910,7 +918,7 @@ export function buildWillowCottageInterior(
   // D. Keepsake Display Shelf (cottage_shelf: x=0.25..2.35, z=-2.68..-1.88, focus=(1.3, -2.25))
   const shelfGroup = new THREE.Group();
   shelfGroup.position.set(1.3, 0, -2.3);
-  addContactShadow(shelfGroup, shadowTex, 2.2, 0.95, 0.32, 0.022);
+  addStaticContactShadow(shelfGroup, shadowTex, 2.2, 0.95, 0.32, 0.022);
   const sideboard = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(1.96, 0.78, 0.64)), cedarWarmMat);
   sideboard.position.set(0, 0.41, 0);
   const sideboardTop = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(2.06, 0.07, 0.7)), cedarDarkMat);
@@ -991,7 +999,7 @@ export function buildWillowCottageInterior(
   // E. Window Almanac Desk (cottage_desk: x=1.35..2.95, z=1.8..2.66, focus=(2.15, 2.2))
   const deskGroup = new THREE.Group();
   deskGroup.position.set(2.15, 0, 2.22);
-  addContactShadow(deskGroup, shadowTex, 1.65, 0.95, 0.32, 0.022);
+  addStaticContactShadow(deskGroup, shadowTex, 1.65, 0.95, 0.32, 0.022);
   const deskTop = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(1.48, 0.08, 0.78)), cedarWarmMat);
   deskTop.position.set(0, 0.74, 0);
   for (const [lx, lz] of [

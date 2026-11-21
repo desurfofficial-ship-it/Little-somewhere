@@ -3,7 +3,8 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { ResidentAppearance, SeasonType } from '../../game/types';
 import { CharacterRig } from '../models';
 import { MaterialPalette, STORYBOOK_PALETTE } from '../materials';
-import { buildWinterKnitCollar } from '../builders/characters';
+import { buildWinterKnitCollar, shadeHex } from '../builders/characters';
+import { addStaticContactShadow } from '../contactShadows';
 
 export interface WillowCottageRig {
   group: THREE.Group;
@@ -57,6 +58,11 @@ export interface WillowPrototypeContext {
   flowerGroups: THREE.Group[];
 }
 
+/**
+ * Legacy per-mesh disc helper, kept ONLY for dynamic discs (walking residents,
+ * e.g. Jun) whose shadows must follow/hide with the rig. Static world discs
+ * route through the imported `addStaticContactShadow` batcher instead.
+ */
 function addContactShadow(
   parent: THREE.Object3D,
   shadowTex: THREE.Texture,
@@ -179,7 +185,7 @@ export function buildWillowStepCottage(ctx: WillowPrototypeContext): WillowCotta
   lanternMaterials.push(porchLanternMat);
 
   // Soft AO shadow skirt covering cottage + covered porch (effective in software GL too)
-  addContactShadow(group, shadowTex, 8.6, 7.2, 0.52, 0.016);
+  addStaticContactShadow(group, shadowTex, 8.6, 7.2, 0.52, 0.016);
 
   // Main cottage mass shifted slightly west (-0.65) to house a true 1.45m East covered porch
   const wallCenterX = -0.65;
@@ -889,7 +895,7 @@ export function buildWillowMailbox(ctx: WillowPrototypeContext): WillowMailboxRi
   const stampMat = palette.standard('#C86446', 0.68, 0.02);
   const flagMat = palette.standard('#D95642', 0.45, 0.05);
 
-  addContactShadow(group, shadowTex, 1.35, 1.35, 0.48, 0.018);
+  addStaticContactShadow(group, shadowTex, 1.35, 1.35, 0.48, 0.018);
 
   // Stone base collar + tucked clover & tiny daisies
   const basePad = new THREE.Mesh(new THREE.CylinderGeometry(0.32, 0.38, 0.1, 8), stoneMat);
@@ -970,7 +976,7 @@ function buildSculptedTree(
   variant: 'willow_birch' | 'apple_blossom' | 'sage_birch',
 ): THREE.Group {
   const tree = new THREE.Group();
-  addContactShadow(tree, shadowTex, 3.2, 3.2, 0.46, 0.02);
+  addStaticContactShadow(tree, shadowTex, 3.2, 3.2, 0.46, 0.02);
 
   const barkMat =
     variant === 'willow_birch' || variant === 'sage_birch'
@@ -1193,7 +1199,7 @@ export function buildWillowLaneCourtyardProps(ctx: WillowPrototypeContext): Will
   for (const sh of shrubSpots) {
     const sg = new THREE.Group();
     sg.position.set(sh.x, 0, sh.z);
-    addContactShadow(sg, shadowTex, 1.3 * sh.scale, 1.3 * sh.scale, 0.36, 0.018);
+    addStaticContactShadow(sg, shadowTex, 1.3 * sh.scale, 1.3 * sh.scale, 0.36, 0.018);
     const mainMound = new THREE.Mesh(
       new THREE.DodecahedronGeometry(0.42 * sh.scale, 1),
       sh.warm ? hedgeSunMat : hedgeMat,
@@ -1235,7 +1241,7 @@ export function buildWillowLaneCourtyardProps(ctx: WillowPrototypeContext): Will
   // E. COURTYARD LANTERN SIGNPOST at (-12.5, 0, 5.7) (matched to CIRCLE_OBSTACLES)
   const signpost = new THREE.Group();
   signpost.position.set(-12.5, 0, 5.7);
-  addContactShadow(signpost, shadowTex, 1.45, 1.45, 0.48, 0.018);
+  addStaticContactShadow(signpost, shadowTex, 1.45, 1.45, 0.48, 0.018);
 
   const signBase = new THREE.Mesh(new THREE.CylinderGeometry(0.32, 0.38, 0.14, 8), stoneCurbMat);
   signBase.position.y = 0.07;
@@ -1373,7 +1379,16 @@ export function buildStorybookJun(
     torsoPivot.add(btn);
   }
 
-  // Knit Amber Scarf Wrap + Tail (tail hangs from a pivot so it sways with stride — Pass 20)
+  // Two-tone panel (BUILD 02, Doc 04 §6.1): a lighter shoulder yoke behind the
+  // scarf — the courier's coat reads route-worn, and his front/back read
+  // separates at the isometric 3/4 view like the rest of the cast.
+  const junYoke = new THREE.Mesh(
+    new THREE.BoxGeometry(0.35, 0.06, 0.02),
+    palette.standard(shadeHex(appearance.coatColor, 0.12), 0.78, 0.02, { mapSet: 'fabric' }),
+  );
+  junYoke.name = 'courier_yoke_band';
+  junYoke.position.set(0, 0.562, 0.248);
+  torsoPivot.add(junYoke);
   const scarfCollar = new THREE.Mesh(new THREE.TorusGeometry(0.21, 0.065, 8, 14), scarfMat);
   scarfCollar.rotation.x = Math.PI / 2;
   scarfCollar.position.y = 0.6;

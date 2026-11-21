@@ -3,7 +3,7 @@ import {
   createWoodGrainMaps,
   createPlasterToothMaps,
   createStoneCourseMaps,
-  createFabricWeaveTexture,
+  createFabricAlbedoMaps,
   createNoiseRoughnessTexture,
   type ProceduralMapBundle,
 } from './textures';
@@ -40,7 +40,7 @@ export interface StandardMaterialSpec {
  *  - 'timber-light' / 'timber-dark': wood grain albedo + directional roughness (T3)
  *  - 'plaster': hand-troweled tooth (T1)
  *  - 'stone': course mortar-vs-face roughness split (T1)
- *  - 'fabric': crosshatch weave roughness (T2)
+ *  - 'fabric': near-white thread-row albedo + crosshatch weave roughness (T2)
  *  - 'foliage': shared scalar-noise roughness break-up (T1–T3 universal)
  */
 export type MapSetId =
@@ -189,8 +189,9 @@ export class MaterialPalette {
         bundle = createStoneCourseMaps('cobble');
         break;
       case 'fabric':
-        // Roughness-only family: weave carries the story without albedo noise.
-        bundle = { roughnessMap: createFabricWeaveTexture() };
+        // BUILD 02 (§8.1): albedo weave + roughness weave — near-white thread
+        // rows let garments read as stitched fibre; hue stays palette-owned.
+        bundle = createFabricAlbedoMaps();
         break;
       case 'foliage':
         bundle = { roughnessMap: createNoiseRoughnessTexture() };

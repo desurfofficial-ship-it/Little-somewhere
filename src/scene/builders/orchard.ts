@@ -1,7 +1,10 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { MaterialPalette, STORYBOOK_PALETTE } from '../materials';
-import { addContactShadow } from './vegetation';
+import {
+  addContactShadow,
+} from './vegetation';
+import { addStaticContactShadow } from '../contactShadows';
 
 /**
  * FERN HOLLOW ORCHARD — Milestone 3 Build 1 (north district landmark).
@@ -299,7 +302,7 @@ export function buildFernHollowOrchard(ctx: OrchardBuildContext): OrchardRig {
   // ------------------------------------------------------------------
   const gate = new THREE.Group();
   gate.position.set(ORCHARD_GATE.x, 0, ORCHARD_GATE.z);
-  addContactShadow(gate, shadowTex, 4.6, 1.5, 0.42, 0.016);
+  addStaticContactShadow(gate, shadowTex, 4.6, 1.5, 0.42, 0.016);
 
   const pierStones: THREE.BufferGeometry[] = [];
   const pierCaps: THREE.BufferGeometry[] = [];
@@ -392,7 +395,7 @@ export function buildFernHollowOrchard(ctx: OrchardBuildContext): OrchardRig {
   ladder.rotation.y = Math.atan2(-0.75, 0.25);
   ladder.rotation.x = 0.36;
   ladder.castShadow = castShadows;
-  const ladderShadow = addContactShadow(group, shadowTex, 1.2, 0.8, 0.4, 0.017);
+  const ladderShadow = addStaticContactShadow(group, shadowTex, 1.2, 0.8, 0.4, 0.017);
   ladderShadow.position.set(-5.85, 0.018, -20.35);
   group.add(ladder);
 
@@ -401,7 +404,7 @@ export function buildFernHollowOrchard(ctx: OrchardBuildContext): OrchardRig {
   // ------------------------------------------------------------------
   const corner = new THREE.Group();
   corner.position.set(-3.7, 0, -20.3);
-  addContactShadow(corner, shadowTex, 2.2, 1.7, 0.44, 0.016);
+  addStaticContactShadow(corner, shadowTex, 2.2, 1.7, 0.44, 0.016);
 
   const crateSlats: THREE.BufferGeometry[] = [];
   const crateIron: THREE.BufferGeometry[] = [];
@@ -476,7 +479,7 @@ export function buildFernHollowOrchard(ctx: OrchardBuildContext): OrchardRig {
   // ------------------------------------------------------------------
   const skepGroup = new THREE.Group();
   skepGroup.position.set(4.9, 0, -16.3);
-  addContactShadow(skepGroup, shadowTex, 1.4, 1.4, 0.4, 0.016);
+  addStaticContactShadow(skepGroup, shadowTex, 1.4, 1.4, 0.4, 0.016);
 
   const stoolParts: THREE.BufferGeometry[] = [];
   const seat = new THREE.CylinderGeometry(0.27, 0.27, 0.06, 10);
@@ -529,7 +532,7 @@ export function buildFernHollowOrchard(ctx: OrchardBuildContext): OrchardRig {
 
   // Glazed ceramic honey crock + wooden honey dipper resting at the skep base + trefoil clover
   const glazedHoneyMat = palette.standard('#D99A44', 0.4, 0.06);
-  const crockShadow = addContactShadow(skepGroup, shadowTex, 0.42, 0.42, 0.36, 0.019);
+  const crockShadow = addStaticContactShadow(skepGroup, shadowTex, 0.42, 0.42, 0.36, 0.019);
   crockShadow.position.set(0.36, 0.019, 0.22);
   const crockPts = [
     new THREE.Vector2(0.0, 0.0),

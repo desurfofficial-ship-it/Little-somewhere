@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { CarryableItemId } from '../../game/types';
 import { MaterialPalette, STORYBOOK_PALETTE } from '../materials';
 import { FountainRig, GazeboRig } from '../models';
@@ -6,7 +7,10 @@ import {
   createStorybookFountainWaterMaterial,
   createStorybookWaterStreamMaterial,
 } from '../waterShaders';
-import { addContactShadow } from './vegetation';
+import {
+  addContactShadow,
+} from './vegetation';
+import { addStaticContactShadow } from '../contactShadows';
 
 /**
  * Hero Centerpiece Landmark: Old Bell Gazebo at (0, 0, -9.5) (CIRCLE_OBSTACLES r=2.3).
@@ -22,7 +26,7 @@ export function buildStorybookGazebo(
   const group = new THREE.Group();
   group.position.set(0, 0, -9.5);
 
-  addContactShadow(group, shadowTex, 6.6, 6.6, 0.5, 0.02);
+  addStaticContactShadow(group, shadowTex, 6.6, 6.6, 0.5, 0.02);
 
   const stoneMat = palette.standard(STORYBOOK_PALETTE.limestone, 0.9, 0.02, {
     mapSet: 'stone',
@@ -94,8 +98,10 @@ export function buildStorybookGazebo(
     const cz = Math.sin(colAngle) * 2.08;
     colPositions.push({ angle: colAngle, x: cx, z: cz });
 
-    const plinth = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.36, 0.42), darkStoneMat);
-    plinth.position.set(cx, 0.78, cz);
+    // BUILD 02 (Doc 05 §2.2 P3): plinth top now overlaps the column base by
+    // 0.05 (was a 0.03 kiss) — zoom-inspection can no longer catch a seam.
+    const plinth = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.38, 0.42), darkStoneMat);
+    plinth.position.set(cx, 0.79, cz);
     plinth.rotation.y = -colAngle;
     plinth.castShadow = true;
 
@@ -292,7 +298,7 @@ export function buildStorybookFountain(
   const group = new THREE.Group();
   group.position.set(0, 0, 1.5);
 
-  addContactShadow(group, shadowTex, 5.8, 5.8, 0.48, 0.02);
+  addStaticContactShadow(group, shadowTex, 5.8, 5.8, 0.48, 0.02);
 
   const stoneMat = palette.standard(STORYBOOK_PALETTE.limestone, 0.88, 0.02, {
     mapSet: 'stone',
@@ -442,8 +448,14 @@ export function buildStorybookFountain(
     [1.65, 0.83, -1.25, 0.58],
     [0.4, 0.83, 2.02, 0.52],
   ];
+  // BUILD 02 (Doc 05 §3.2 P3): moss gradient on the basin stones — procedural
+  // tint, not geometry. Waterline tufts read deep and damp; coping tufts catch
+  // sun in a lighter sage. Deterministic by height, same mesh count.
+  const mossWaterlineMat = palette.standard('#4C6E3E', 0.9, 0.0);
+  const mossCopingMat = palette.standard(STORYBOOK_PALETTE.foliageSage, 0.86, 0.0);
   for (const [mx, my, mz, ms] of mossSpots) {
-    const tuft = new THREE.Mesh(new THREE.DodecahedronGeometry(0.24 * ms, 0), mossMat);
+    const tone = my > 0.5 ? mossCopingMat : mossWaterlineMat;
+    const tuft = new THREE.Mesh(new THREE.DodecahedronGeometry(0.24 * ms, 0), tone);
     tuft.scale.set(1.3, 0.55, 1.1);
     tuft.position.set(mx, my, mz);
     group.add(tuft);
@@ -646,7 +658,7 @@ export function buildStorybookTeaCart(
   const group = new THREE.Group();
   group.position.set(-5.4, 0, -3.2);
 
-  addContactShadow(group, shadowTex, 2.35, 1.75, 0.45, 0.018);
+  addStaticContactShadow(group, shadowTex, 2.35, 1.75, 0.45, 0.018);
 
   // Evident-craft families on the cart (V5 object gate, Doc 03 §8): timber grain
   // on the chassis, weave on the canopy cloth, kettle/cups answer the IBL.
@@ -682,25 +694,54 @@ export function buildStorybookTeaCart(
   counterTop.castShadow = true;
   group.add(counterBase, counterTop);
 
-  // Two spoked rear wheels + front support legs resting at y = 0
+  // Two spoked rear wheels + front support legs resting at y = 0.
+  // BUILD 02 (Doc 05 §2.2 P1, Doc 09 V5): the docstring promised "spoked rear
+  // wooden wheels" — the geometry finally keeps that promise. Rim torus + 6
+  // tapered spokes MERGED into one cedar geometry per wheel (mesh-neutral),
+  // brass hub kept.
+  const spokeGeosPerWheel: THREE.BufferGeometry[] = [];
+  for (let sp = 0; sp < 6; sp++) {
+    const spoke = new THREE.CylinderGeometry(0.016, 0.022, 0.42, 5);
+    spoke.rotateZ((sp / 6) * Math.PI * 2);
+    spoke.translate(
+      Math.cos((sp / 6) * Math.PI * 2) * 0.115,
+      Math.sin((sp / 6) * Math.PI * 2) * 0.115,
+      0,
+    );
+    spokeGeosPerWheel.push(spoke);
+  }
+  const spokesGeo = mergeGeometries(spokeGeosPerWheel)!;
   for (const wz of [-0.5, 0.5]) {
     const wheel = new THREE.Mesh(new THREE.TorusGeometry(0.24, 0.045, 6, 14), cedarDarkMat);
     wheel.position.set(-0.56, 0.285, wz);
+    wheel.castShadow = true;
+    const spokes = new THREE.Mesh(spokesGeo, cedarWarmMat);
+    spokes.name = 'wheel_spokes';
+    spokes.position.set(-0.56, 0.285, wz);
     const hub = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 0.08, 8), brassMat);
     hub.rotation.x = Math.PI / 2;
     hub.position.set(-0.56, 0.285, wz);
-    group.add(wheel, hub);
+    group.add(wheel, spokes, hub);
 
     const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.055, 0.3, 6), cedarDarkMat);
     leg.position.set(0.58, 0.15, wz * 0.76);
     group.add(leg);
   }
+  for (const g of spokeGeosPerWheel) g.dispose();
 
-  // Push handle on right side
+  // Push handle on right side — with a worn leather grip wrap where hands rest
+  // (Doc 05 §3.2: wear accumulates where hands hold; CoC wear-accumulation).
   const handle = new THREE.Mesh(new THREE.CylinderGeometry(0.032, 0.032, 0.96, 6), cedarDarkMat);
   handle.rotation.x = Math.PI / 2;
   handle.position.set(0.92, 0.88, 0);
-  group.add(handle);
+  const gripWrap = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.037, 0.037, 0.2, 8),
+    palette.standard('#7C4F32', 0.7, 0.04, { mapSet: 'fabric' }),
+  );
+  gripWrap.name = 'handle_grip_wrap';
+  gripWrap.rotation.x = Math.PI / 2;
+  gripWrap.position.set(0.92, 0.88, -0.22);
+  group.add(handle, gripWrap);
 
   // Brass tea kettle + spout + ceramic teapot + 2 teacups
   const kettle = new THREE.Mesh(new THREE.SphereGeometry(0.18, 10, 8), brassMat);
@@ -731,7 +772,7 @@ export function buildStorybookTeaCart(
 
   const stripeCount = 5;
   const stripeW = 1.78 / stripeCount;
-  for (let i = 0; i < stripeCount; i++) {
+  for (let i = 0; i < 5; i++) {
     const stripe = new THREE.Mesh(
       new THREE.BoxGeometry(stripeW, 0.1, 1.24),
       i % 2 === 0 ? canopyPlum : canopyCream,
@@ -740,6 +781,29 @@ export function buildStorybookTeaCart(
     stripe.castShadow = true;
     group.add(stripe);
   }
+
+  // BUILD 02 (Doc 05 §2.2 P1, Doc 09 V5): the docstring's "scalloped
+  // plum-cream striped awning" gains its scalloped valance — alternating
+  // half-cylinder scallops hanging from both canopy edges, merged per color
+  // (2 meshes) so the craft is mesh-light.
+  const scallopPlumGeos: THREE.BufferGeometry[] = [];
+  const scallopCreamGeos: THREE.BufferGeometry[] = [];
+  const scallopCount = 7;
+  for (const sz of [-1, 1]) {
+    for (let i = 0; i < scallopCount; i++) {
+      const scallop = new THREE.CylinderGeometry(0.092, 0.092, 0.11, 8, 1, false, 0, Math.PI);
+      scallop.rotateX(Math.PI); // open downward
+      scallop.rotateY(Math.PI / 2); // axis along X so the scallop row runs with the edge
+      scallop.translate(-0.79 + i * (1.58 / (scallopCount - 1)), 2.015, sz * 0.625);
+      const target = i % 2 === 0 ? scallopPlumGeos : scallopCreamGeos;
+      target.push(scallop);
+    }
+  }
+  const valancePlum = new THREE.Mesh(mergeGeometries(scallopPlumGeos)!, canopyPlum);
+  const valanceCream = new THREE.Mesh(mergeGeometries(scallopCreamGeos)!, canopyCream);
+  valancePlum.name = 'canopy_scalloped_valance';
+  group.add(valancePlum, valanceCream);
+  for (const g of [...scallopPlumGeos, ...scallopCreamGeos]) g.dispose();
 
   return group;
 }
@@ -762,7 +826,7 @@ export function buildStorybookNoticeboard(
   const group = new THREE.Group();
   group.position.set(4.4, 0, -3.2);
 
-  addContactShadow(group, shadowTex, 1.85, 1.25, 0.42, 0.018);
+  addStaticContactShadow(group, shadowTex, 1.85, 1.25, 0.42, 0.018);
 
   const stoneMat = palette.standard(STORYBOOK_PALETTE.limestone, 0.9, 0.02);
   const cedarMat = palette.standard(STORYBOOK_PALETTE.cedarDark, 0.78, 0.04);
@@ -798,7 +862,14 @@ export function buildStorybookNoticeboard(
   hoodShape.lineTo(0.28, 0);
   hoodShape.lineTo(0, 0.24);
   hoodShape.closePath();
-  const hoodGeo = new THREE.ExtrudeGeometry(hoodShape, { depth: 1.52, bevelEnabled: false });
+  // BUILD 02 bevel sweep (Doc 05 §2.2 P3): the hood's visible edges soften.
+  const hoodGeo = new THREE.ExtrudeGeometry(hoodShape, {
+    depth: 1.52,
+    bevelEnabled: true,
+    bevelThickness: 0.03,
+    bevelSize: 0.03,
+    bevelSegments: 1,
+  });
   hoodGeo.translate(0, 0, -0.76);
   hoodGeo.rotateY(Math.PI / 2);
   const hood = new THREE.Mesh(hoodGeo, roofMat);
@@ -841,7 +912,7 @@ export function buildStorybookBench(
   shadowTex: THREE.Texture,
 ): THREE.Group {
   const group = new THREE.Group();
-  addContactShadow(group, shadowTex, 1.6, 1.02, 0.44, 0.018);
+  addStaticContactShadow(group, shadowTex, 1.6, 1.02, 0.44, 0.018);
 
   const ironMat = palette.standard(STORYBOOK_PALETTE.wroughtIron, 0.38, 0.75, {
     envMapIntensity: 0.5,
@@ -895,14 +966,54 @@ export function buildStorybookBench(
   centerSpindle.rotation.x = -0.16;
   group.add(stretcher, centerSpindle);
 
-  // Four contoured cedar seat slats spanning z = -0.215..+0.265, top cleanly at y = 0.365
+  // Four contoured cedar seat slats spanning z = -0.215..+0.265, top cleanly at y = 0.365.
+  // BUILD 02 (Doc 05 §3.2 P2): each slat gains a crowned center bulge (lathe-
+  // profile extrusion + micro-bevel) — the seat reads as planed timber parts,
+  // not planes. Same mesh count; the seat contract (top y 0.365) is preserved
+  // by the profile's 0.052 peak landing exactly on the old box top.
+  const slatProfile = new THREE.Shape();
+  slatProfile.moveTo(-0.0475, -0.0225);
+  slatProfile.lineTo(-0.0475, 0.0225);
+  slatProfile.quadraticCurveTo(0, 0.0375, 0.0475, 0.0225); // crown peak ≈ +0.030
+  slatProfile.lineTo(0.0475, -0.0225);
+  slatProfile.closePath();
+  const slatGeo = new THREE.ExtrudeGeometry(slatProfile, {
+    depth: 1.18,
+    bevelEnabled: true,
+    bevelThickness: 0.006,
+    bevelSize: 0.006,
+    bevelSegments: 1,
+  });
+  slatGeo.rotateY(Math.PI / 2); // extrusion axis becomes X (the slat length)
+  slatGeo.translate(0, 0.3425, 0); // profile bottom lands at 0.32; edge top at 0.365
   for (const sz of [-0.17, -0.04, 0.09, 0.22]) {
-    const slat = new THREE.Mesh(new THREE.BoxGeometry(1.18, 0.045, 0.095), cedarMat);
-    slat.position.set(0, 0.342, sz);
+    const slat = new THREE.Mesh(slatGeo, cedarMat);
+    slat.position.set(0, 0, sz);
     slat.castShadow = true;
     slat.receiveShadow = true;
     group.add(slat);
   }
+
+  // BUILD 02 (Doc 05 §3.2 P2): wool winter seat cushions — seasonal group
+  // (hidden by default; the canvas shows it in winter, matching the interior
+  // knit language). Named + collected via `group.userData.winterCushions`.
+  const cushionGroup = new THREE.Group();
+  cushionGroup.name = 'winter_seat_cushion';
+  const woolMat = palette.standard('#B3554A', 0.86, 0.0, { mapSet: 'fabric' });
+  const woolMatB = palette.standard('#C86446', 0.86, 0.0, { mapSet: 'fabric' });
+  for (const [sz, mat] of [
+    [-0.1, woolMat],
+    [0.14, woolMatB],
+  ] as const) {
+    const cushion = new THREE.Mesh(new THREE.SphereGeometry(0.15, 10, 8), mat);
+    cushion.scale.set(3.6, 0.42, 1.25);
+    cushion.position.set(0, 0.375, sz);
+    cushion.castShadow = true;
+    cushionGroup.add(cushion);
+  }
+  cushionGroup.visible = false;
+  group.userData.winterCushions = cushionGroup;
+  group.add(cushionGroup);
 
   // Two recessed angled backrest slats (front face cleanly behind z = -0.262 so seated characters never pass through)
   const backSpecs: Array<{ y: number; z: number }> = [

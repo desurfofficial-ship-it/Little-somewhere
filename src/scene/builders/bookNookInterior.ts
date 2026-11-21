@@ -3,8 +3,9 @@ import { NOOK_INTERACTABLES, NOOK_SEAT_SPOTS, getFeaturedBookForDay } from '../.
 import { TimePhase, WorldState } from '../../game/types';
 import { getSeasonForDay } from '../../game/time';
 import { MaterialPalette, STORYBOOK_PALETTE } from '../materials';
-import { addContactShadow } from './vegetation';
 import { attachPorchSeasonLife, createPorchSeasonLife } from './porchSeasonLife';
+import { addStaticContactShadow } from '../contactShadows';
+import { buildCopperKettle } from './interiorKit';
 
 /**
  * Linden Book Nook Interior Cutaway Diorama (Milestone 3 Build 8).
@@ -60,22 +61,22 @@ export function buildLindenBookNookInterior(
   };
 
   // Shared calibrated storybook materials
-  const darkStoneMat = palette.standard(STORYBOOK_PALETTE.fieldstoneDark, 0.9, 0.02);
-  const limestoneMat = palette.standard(STORYBOOK_PALETTE.limestone, 0.88, 0.02);
-  const creamMat = palette.standard(STORYBOOK_PALETTE.creamTrim, 0.78, 0.02);
-  const plasterMat = palette.standard('#E8DEC9', 0.86, 0.02); // nook wall cream (matches exterior)
+  const darkStoneMat = palette.standard(STORYBOOK_PALETTE.fieldstoneDark, 0.9, 0.02, { mapSet: 'stone' });
+  const limestoneMat = palette.standard(STORYBOOK_PALETTE.limestone, 0.88, 0.02, { mapSet: 'stone' });
+  const creamMat = palette.standard(STORYBOOK_PALETTE.creamTrim, 0.78, 0.02, { mapSet: 'timber-light' });
+  const plasterMat = palette.standard('#E8DEC9', 0.86, 0.02, { mapSet: 'plaster' }); // nook wall cream (matches exterior)
   const cedarDarkMat = palette.standard('#5D4438', 0.74, 0.04); // nook trim brown (matches exterior)
-  const cedarWarmMat = palette.standard(STORYBOOK_PALETTE.cedarWarm, 0.72, 0.04);
-  const doorMat = palette.standard('#7A5463', 0.7, 0.04); // awning plum, echoes the shop front
+  const cedarWarmMat = palette.standard(STORYBOOK_PALETTE.cedarWarm, 0.72, 0.04, { mapSet: 'timber-dark' });
+  const doorMat = palette.standard('#7A5463', 0.7, 0.04, { mapSet: 'timber-dark' }); // awning plum, echoes the shop front
   const brassMat = palette.standard(STORYBOOK_PALETTE.agedBrass, 0.25, 0.86);
   const ironMat = palette.standard(STORYBOOK_PALETTE.wroughtIron, 0.45, 0.65);
   const copperMat = palette.standard('#C56B45', 0.28, 0.78);
-  const linenMat = palette.standard('#F5EEE0', 0.88, 0.0);
-  const linenPlumMat = palette.standard('#7A5463', 0.82, 0.0);
+  const linenMat = palette.standard('#F5EEE0', 0.88, 0.0, { mapSet: 'fabric' });
+  const linenPlumMat = palette.standard('#7A5463', 0.82, 0.0, { mapSet: 'fabric' });
   const ceramicMat = palette.standard(STORYBOOK_PALETTE.ceramicCream, 0.4, 0.04);
   const mossMat = palette.standard(STORYBOOK_PALETTE.moss, 0.84, 0.0);
-  const floorWoodMat = palette.standard('#B99B72', 0.82, 0.03);
-  const rugMat = palette.standard('#A8B8A0', 0.9, 0.0);
+  const floorWoodMat = palette.standard('#B99B72', 0.82, 0.03, { mapSet: 'timber-light' });
+  const rugMat = palette.standard('#A8B8A0', 0.9, 0.0, { mapSet: 'fabric' });
   const rugFringeMat = palette.standard('#E9D9B8', 0.9, 0.0);
 
   // Book spine colors (mirrors the outdoor book cart palette)
@@ -326,7 +327,7 @@ export function buildLindenBookNookInterior(
   // ---------------------------------------------------------------------
   const shelfGroup = new THREE.Group();
   shelfGroup.position.set(-0.68, 0, -2.0);
-  addContactShadow(shelfGroup, shadowTex, 3.6, 0.9, 0.42, 0.018);
+  addStaticContactShadow(shelfGroup, shadowTex, 3.6, 0.9, 0.42, 0.018);
 
   const shelfBody = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(3.5, 1.9, 0.62)), cedarWarmMat);
   shelfBody.position.set(0, 1.0, -0.08);
@@ -377,7 +378,7 @@ export function buildLindenBookNookInterior(
   // ---------------------------------------------------------------------
   const deskGroup = new THREE.Group();
   deskGroup.position.set(0.55, 0, 2.02);
-  addContactShadow(deskGroup, shadowTex, 1.9, 0.9, 0.42, 0.018);
+  addStaticContactShadow(deskGroup, shadowTex, 1.9, 0.9, 0.42, 0.018);
 
   const deskTop = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(1.72, 0.08, 0.62)), cedarWarmMat);
   deskTop.position.y = 0.84;
@@ -433,7 +434,7 @@ export function buildLindenBookNookInterior(
   // ---------------------------------------------------------------------
   const teaGroup = new THREE.Group();
   teaGroup.position.set(-2.06, 0, 0.35);
-  addContactShadow(teaGroup, shadowTex, 0.9, 1.9, 0.4, 0.018);
+  addStaticContactShadow(teaGroup, shadowTex, 0.9, 1.9, 0.4, 0.018);
 
   const teaConsole = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(0.68, 0.08, 1.7)), cedarWarmMat);
   teaConsole.position.y = 0.86;
@@ -445,21 +446,12 @@ export function buildLindenBookNookInterior(
     teaGroup.add(leg);
   }
 
-  // Little copper kettle + stoneware cups + honey pot
-  const kettleBody = new THREE.Mesh(trackGeo(new THREE.SphereGeometry(0.13, 9, 7)), copperMat);
-  kettleBody.position.set(-0.02, 1.06, -0.3);
-  kettleBody.castShadow = true;
-  teaGroup.add(kettleBody);
-  const kettleSpout = new THREE.Mesh(trackGeo(new THREE.CylinderGeometry(0.02, 0.03, 0.16, 7)), copperMat);
-  kettleSpout.position.set(0.13, 1.1, -0.3);
-  kettleSpout.rotation.z = -0.8;
-  teaGroup.add(kettleSpout);
-  const kettleHandle = new THREE.Mesh(trackGeo(new THREE.TorusGeometry(0.09, 0.014, 6, 12, Math.PI)), ironMat);
-  kettleHandle.position.set(-0.02, 1.16, -0.3);
-  teaGroup.add(kettleHandle);
-  const kettleLid = new THREE.Mesh(trackGeo(new THREE.CylinderGeometry(0.05, 0.06, 0.04, 8)), copperMat);
-  kettleLid.position.set(-0.02, 1.18, -0.3);
-  teaGroup.add(kettleLid);
+  // Little copper kettle + stoneware cups + honey pot.
+  // BUILD 02 (Doc 05 §4.2.3): petite kit kettle — same four-part recipe, room
+  // identity kept (r 0.13 sphere), lid lathe-crowned.
+  const kettle = buildCopperKettle(palette, trackGeo, { style: 'petite', bodyMat: copperMat });
+  kettle.group.position.set(-0.02, 1.06, -0.3);
+  teaGroup.add(kettle.group);
 
   const cupGeo = trackGeo(new THREE.CylinderGeometry(0.05, 0.04, 0.07, 9));
   for (const [cx, cz] of [
@@ -497,7 +489,7 @@ export function buildLindenBookNookInterior(
   // ---------------------------------------------------------------------
   const chairGroup = new THREE.Group();
   chairGroup.position.set(-0.9, 0, 1.6);
-  addContactShadow(chairGroup, shadowTex, 1.2, 1.2, 0.42, 0.018);
+  addStaticContactShadow(chairGroup, shadowTex, 1.2, 1.2, 0.42, 0.018);
 
   const cushion = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(0.95, 0.32, 0.95)), linenPlumMat);
   cushion.position.y = 0.36;
@@ -947,7 +939,7 @@ export function buildLindenBookNookPorchDressing(
   };
 
   const limestoneMat = palette.standard(STORYBOOK_PALETTE.limestone, 0.88, 0.02);
-  const cedarDarkMat = palette.standard('#5D4438', 0.74, 0.04);
+  const cedarDarkMat = palette.standard('#5D4438', 0.74, 0.04, { mapSet: 'timber-dark' });
   const ironMat = palette.standard(STORYBOOK_PALETTE.wroughtIron, 0.45, 0.65);
   const bookMats = ['#B5544A', '#4D7B64', '#5878A3'].map((c) => palette.standard(c, 0.72, 0.02));
 
@@ -1123,7 +1115,7 @@ export function buildLindenBookNookPorchDressing(
 
   attachPorchSeasonLife(group, porchLife);
 
-  addContactShadow(group, shadowTex, 1.6, 2.0, 0.4, 0.018);
+  addStaticContactShadow(group, shadowTex, 1.6, 2.0, 0.4, 0.018);
 
   group.userData.dispose = () => {
     for (const g of ownedGeos) g.dispose();

@@ -1,7 +1,10 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { MaterialPalette, STORYBOOK_PALETTE } from '../materials';
-import { addContactShadow } from './vegetation';
+import {
+  addContactShadow,
+} from './vegetation';
+import { addStaticContactShadow } from '../contactShadows';
 
 /**
  * The Wild Hollows (Build 10) — exterior geography for the world expansion.
@@ -67,6 +70,22 @@ export function buildWildHollows(
   // ------------------------------------------------------------------
   const stoneMat = palette.standard(STORYBOOK_PALETTE.limestone, 0.9, 0.02);
   const stoneDarkMat = palette.standard(STORYBOOK_PALETTE.fieldstoneDark, 0.92, 0.02);
+  // BUILD 02 (Doc 05 §1.6): rock variety — two genuinely distinct formulas +
+  // per-instance tint spread. Variant A is the existing angular icosa-squash;
+  // variant B is subdiv-1, flatter and river-worn. Merged batches split by
+  // index parity across the two tones so stone clusters stop reading as stamps.
+  const stoneMidMat = palette.standard('#9B9484', 0.9, 0.02);
+  const rockGeoA = (r: number): THREE.BufferGeometry => {
+    const g = new THREE.IcosahedronGeometry(r, 0);
+    g.scale(1.15, 0.62, 0.9);
+    return g;
+  };
+  const rockGeoB = (r: number): THREE.BufferGeometry => {
+    const g = new THREE.IcosahedronGeometry(r, 1);
+    g.scale(0.95, 0.5, 1.25);
+    g.rotateY(0.7);
+    return g;
+  };
   const cedarMat = palette.standard(STORYBOOK_PALETTE.cedarWarm, 0.76, 0.03);
   const cedarDarkMat = palette.standard(STORYBOOK_PALETTE.cedarDark, 0.8, 0.03);
   const ironMat = palette.standard(STORYBOOK_PALETTE.wroughtIron, 0.42, 0.72);
@@ -146,19 +165,21 @@ export function buildWildHollows(
   }
   // A few mossy coping stones peeking from the rims (merged, alternating mats
   // via vertex tint offsets is overkill — one dark-stone mesh reads the same)
-  const copingGeos: THREE.BufferGeometry[] = [];
+  const copingGeosA: THREE.BufferGeometry[] = [];
+  const copingGeosB: THREE.BufferGeometry[] = [];
   for (let i = 0; i < 7; i++) {
     const a = (i / 7) * Math.PI * 2 + 0.35;
     const tier = tiers[i % 3];
     const baseY = (i % 3) === 0 ? 0 : tiers[(i % 3) - 1].top;
-    const st = new THREE.IcosahedronGeometry(0.16, 0);
-    st.scale(1.15, 0.7, 0.9);
+    const st = i % 2 === 0 ? rockGeoA(0.16) : rockGeoB(0.16);
     st.translate(Math.cos(a) * (tier.r + 0.1), baseY + 0.14, Math.sin(a) * (tier.r + 0.1) * TIER_Z_SCALE);
-    copingGeos.push(st);
+    (i % 2 === 0 ? copingGeosA : copingGeosB).push(st);
   }
-  const copingMesh = new THREE.Mesh(own(mergeGeometries(copingGeos, false) ?? copingGeos[0]), stoneDarkMat);
-  copingMesh.castShadow = castShadows;
-  RISE.add(copingMesh);
+  const copingMeshA = new THREE.Mesh(own(mergeGeometries(copingGeosA, false) ?? copingGeosA[0]), stoneDarkMat);
+  const copingMeshB = new THREE.Mesh(own(mergeGeometries(copingGeosB, false) ?? copingGeosB[0]), stoneMidMat);
+  copingMeshA.castShadow = castShadows;
+  copingMeshB.castShadow = castShadows;
+  RISE.add(copingMeshA, copingMeshB);
 
   // Timber stair cutting the north face (ramp x 20.8..22.0, z 16.7..18.0 world
   // => local x -0.6..0.6, z -2.5..-1.2; top of stair meets deck y 0.62)
@@ -361,7 +382,7 @@ export function buildWildHollows(
   // ------------------------------------------------------------------
   const well = new THREE.Group();
   well.position.set(-21.4, 0, 19.0);
-  addContactShadow(well, shadowTex, 1.9, 1.9, 0.9, 0.02);
+  addStaticContactShadow(well, shadowTex, 1.9, 1.9, 0.9, 0.02);
 
   const wellRing = new THREE.Mesh(own(new THREE.CylinderGeometry(0.72, 0.8, 0.72, 14)), stoneMat);
   wellRing.position.y = 0.36;
@@ -377,18 +398,20 @@ export function buildWildHollows(
   wellLip.castShadow = castShadows;
   well.add(wellLip);
   // Mossy coping stones (merged into one dark-stone mesh)
-  const wellCopGeos: THREE.BufferGeometry[] = [];
+  const wellCopGeosA: THREE.BufferGeometry[] = [];
+  const wellCopGeosB: THREE.BufferGeometry[] = [];
   for (let i = 0; i < 6; i++) {
     const a = (i / 6) * Math.PI * 2 + 0.2;
-    const cop = new THREE.IcosahedronGeometry(0.15, 0);
-    cop.scale(1.1, 0.62, 0.9);
+    const cop = i % 2 === 0 ? rockGeoA(0.15) : rockGeoB(0.15);
     cop.rotateY(a * 2.1);
     cop.translate(Math.cos(a) * 0.85, 0.14, Math.sin(a) * 0.85);
-    wellCopGeos.push(cop);
+    (i % 2 === 0 ? wellCopGeosA : wellCopGeosB).push(cop);
   }
-  const wellCopMesh = new THREE.Mesh(own(mergeGeometries(wellCopGeos, false) ?? wellCopGeos[0]), stoneDarkMat);
-  wellCopMesh.castShadow = castShadows;
-  well.add(wellCopMesh);
+  const wellCopMeshA = new THREE.Mesh(own(mergeGeometries(wellCopGeosA, false) ?? wellCopGeosA[0]), stoneDarkMat);
+  const wellCopMeshB = new THREE.Mesh(own(mergeGeometries(wellCopGeosB, false) ?? wellCopGeosB[0]), stoneMidMat);
+  wellCopMeshA.castShadow = castShadows;
+  wellCopMeshB.castShadow = castShadows;
+  well.add(wellCopMeshA, wellCopMeshB);
   const mossCap = new THREE.Mesh(own(new THREE.SphereGeometry(0.24, 7, 5)), mossMat);
   mossCap.scale.set(1.3, 0.5, 0.9);
   mossCap.position.set(0.62, 0.68, -0.35);
@@ -522,7 +545,7 @@ export function buildWildHollows(
   // ------------------------------------------------------------------
   const brooklet = new THREE.Group();
   brooklet.position.set(-11.2, 0, 18.3);
-  addContactShadow(brooklet, shadowTex, 3.4, 1.7, 1.6, 0.015);
+  addStaticContactShadow(brooklet, shadowTex, 3.4, 1.7, 1.6, 0.015);
   // The raw cylinder already lies flat along Y (its height axis); scale gives a
   // thin ellipse in XZ — no rotation needed.
   const bedGeo = own(new THREE.CylinderGeometry(1.55, 1.7, 0.04, 20));
@@ -533,17 +556,19 @@ export function buildWildHollows(
   bedMesh.position.y = 0.045;
   bedMesh.receiveShadow = true;
   brooklet.add(bedMesh);
-  const bankStones: THREE.BufferGeometry[] = [];
+  const bankStonesA: THREE.BufferGeometry[] = [];
+  const bankStonesB: THREE.BufferGeometry[] = [];
   for (let i = 0; i < 10; i++) {
     const a = (i / 10) * Math.PI * 2;
-    const st = new THREE.IcosahedronGeometry(0.13, 0);
-    st.scale(1.1, 0.5, 0.85);
+    const st = i % 2 === 0 ? rockGeoA(0.13) : rockGeoB(0.13);
     st.translate(Math.cos(a) * 1.15, 0.05, Math.sin(a) * 0.62);
-    bankStones.push(st);
+    (i % 2 === 0 ? bankStonesA : bankStonesB).push(st);
   }
-  const bankMesh = new THREE.Mesh(own(mergeGeometries(bankStones, false) ?? bankStones[0]), stoneDarkMat);
-  bankMesh.castShadow = castShadows;
-  brooklet.add(bankMesh);
+  const bankMeshA = new THREE.Mesh(own(mergeGeometries(bankStonesA, false) ?? bankStonesA[0]), stoneDarkMat);
+  const bankMeshB = new THREE.Mesh(own(mergeGeometries(bankStonesB, false) ?? bankStonesB[0]), stoneMidMat);
+  bankMeshA.castShadow = castShadows;
+  bankMeshB.castShadow = castShadows;
+  brooklet.add(bankMeshA, bankMeshB);
   const footlogGeo = own(new THREE.CylinderGeometry(0.15, 0.17, 1.35, 9));
   footlogGeo.rotateZ(Math.PI / 2);
   const footlog = new THREE.Mesh(footlogGeo, cedarDarkMat);
@@ -624,9 +649,12 @@ export function buildWildHollows(
   ] as const) {
     const boulder = new THREE.Group();
     boulder.position.set(bx, 0, bz);
-    addContactShadow(boulder, shadowTex, 1.5 * bs, 1.5 * bs, 0.7 * bs, 0.02);
-    const rock = new THREE.Mesh(own(new THREE.IcosahedronGeometry(0.52 * bs, 1)), stoneMat);
-    rock.scale.set(1.2, 0.72, 1.0);
+    addStaticContactShadow(boulder, shadowTex, 1.5 * bs, 1.5 * bs, 0.7 * bs, 0.02);
+    // BUILD 02 (Doc 05 §1.6): per-instance tint spread — the second boulder
+    // wears the flatter river-worn variant and the weathered mid tone.
+    const useVariantB = bx > 20;
+    const rock = new THREE.Mesh(own(useVariantB ? rockGeoB(0.52 * bs) : rockGeoA(0.52 * bs)), useVariantB ? stoneMidMat : stoneMat);
+    if (!useVariantB) rock.scale.set(1.2, 0.72, 1.0);
     rock.position.y = 0.42 * bs;
     rock.rotation.y = bx;
     rock.castShadow = castShadows;
@@ -647,7 +675,7 @@ export function buildWildHollows(
   // Carved lane signpost (world 21.5, 0.8 — obstacle `lane_signpost`)
   const signpost = new THREE.Group();
   signpost.position.set(21.5, 0, 0.8);
-  addContactShadow(signpost, shadowTex, 0.8, 0.8, 0.4, 0.018);
+  addStaticContactShadow(signpost, shadowTex, 0.8, 0.8, 0.4, 0.018);
   const post = new THREE.Mesh(own(new THREE.CylinderGeometry(0.055, 0.07, 1.25, 7)), cedarDarkMat);
   post.position.y = 0.625;
   post.castShadow = castShadows;
@@ -694,7 +722,7 @@ export function buildWildHollows(
   // ------------------------------------------------------------------
   const beeLog = new THREE.Group();
   beeLog.position.set(11.0, 0, -19.7);
-  addContactShadow(beeLog, shadowTex, 2.0, 1.3, 0.9, 0.02);
+  addStaticContactShadow(beeLog, shadowTex, 2.0, 1.3, 0.9, 0.02);
   const logBodyGeo = own(new THREE.CylinderGeometry(0.26, 0.3, 1.5, 10));
   logBodyGeo.rotateZ(Math.PI / 2);
   logBodyGeo.rotateY(0.25);
@@ -745,21 +773,24 @@ export function buildWildHollows(
   // Stone cairn (world 8.2, -19.9 — obstacle `beeline_cairn`)
   const cairn = new THREE.Group();
   cairn.position.set(8.2, 0, -19.9);
-  addContactShadow(cairn, shadowTex, 0.9, 0.9, 0.45, 0.018);
-  const cairnStones: THREE.BufferGeometry[] = [];
+  addStaticContactShadow(cairn, shadowTex, 0.9, 0.9, 0.45, 0.018);
+  const cairnStonesA: THREE.BufferGeometry[] = [];
+  const cairnStonesB: THREE.BufferGeometry[] = [];
   let cy = 0;
   for (let i = 0; i < 4; i++) {
     const r = 0.3 - i * 0.055;
-    const st = new THREE.IcosahedronGeometry(r, 0);
-    st.scale(1.15, 0.6, 1.0);
+    const st = i % 2 === 0 ? rockGeoA(r) : rockGeoB(r);
     st.translate((i % 2 === 0 ? 0.03 : -0.04), cy + r * 0.45, 0);
     cy += r * 0.58;
-    cairnStones.push(st);
+    (i % 2 === 0 ? cairnStonesA : cairnStonesB).push(st);
   }
-  const cairnMesh = new THREE.Mesh(own(mergeGeometries(cairnStones, false) ?? cairnStones[0]), stoneMat);
-  cairnMesh.castShadow = castShadows;
-  cairnMesh.receiveShadow = true;
-  cairn.add(cairnMesh);
+  const cairnMeshA = new THREE.Mesh(own(mergeGeometries(cairnStonesA, false) ?? cairnStonesA[0]), stoneMat);
+  const cairnMeshB = new THREE.Mesh(own(mergeGeometries(cairnStonesB, false) ?? cairnStonesB[0]), stoneMidMat);
+  cairnMeshA.castShadow = castShadows;
+  cairnMeshB.castShadow = castShadows;
+  cairnMeshA.receiveShadow = true;
+  cairnMeshB.receiveShadow = true;
+  cairn.add(cairnMeshA, cairnMeshB);
   const cairnMoss = new THREE.Mesh(own(new THREE.SphereGeometry(0.14, 6, 5)), mossMat);
   cairnMoss.scale.set(1.3, 0.5, 1.0);
   cairnMoss.position.set(0.12, 0.5, 0.06);

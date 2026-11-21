@@ -102,6 +102,7 @@ import {
   createMeadowTexture,
   createOrchardSignTexture,
   createRoofShingleTexture,
+  createLanternGlowTexture,
 } from './textures';
 import { MaterialPalette, STORYBOOK_PALETTE } from './materials';
 import {
@@ -118,7 +119,8 @@ import {
   buildMirrorPondAndBridge,
   buildPerimeterBorder,
 } from './builders/vegetation';
-import { buildMeadowDressing } from './builders/botanicalDressing';
+import { flushStaticContactShadows, staticContactShadows } from './contactShadows';
+import { buildMeadowDressing, buildStructureDressing } from './builders/botanicalDressing';
 import { buildWildHollows } from './builders/wilds';
 import { buildFernHollowOrchard } from './builders/orchard';
 import { buildOrchardAmbientExtras, buildOrchardMicroLife } from './builders/orchardMicroLife';
@@ -205,6 +207,15 @@ export interface NeighborhoodCanvasProps {
   onSelectTarget: (target: InteractiveTarget) => void;
 }
 
+declare global {
+  interface Window {
+    /** BUILD 02 QA probe: contact-shadow batching stats (dev-gated with ?perf=1). */
+    __LS_SCENE_STATS__?: () => { buckets: number; instancedDiscs: number; looseDiscs: number };
+    __LS_CAMERA_SET__?: (z: number) => void;
+    __LS_CAMERA_GET__?: () => number;
+  }
+}
+
 const _vec3A = new THREE.Vector3();
 const _vec3B = new THREE.Vector3();
 const _raycaster = new THREE.Raycaster();
@@ -219,6 +230,7 @@ const _playerAnimOpts: CharacterAnimationOptions = {
   bankAngle: 0,
   carrying: false,
   isMoving: false,
+  carryPose: undefined,
 };
 const _npcAnimOpts: CharacterAnimationOptions = {
   emotion: 'relaxed',
@@ -403,7 +415,48 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
     if (perfProbe.enabled) {
       window.__LS_PERF__ = perfProbe;
       perfProbe.mountOverlay();
+      // BUILD 02 QA probe: one-shot scene stats for the capture/QA harness
+      // (dev-gated alongside the perf probe; counts contact-shadow batching).
+      window.__LS_SCENE_STATS__ = () => {
+        let buckets = 0;
+        let instancedDiscs = 0;
+        let looseDiscs = 0;
+        scene.traverse((o) => {
+          if ((o as THREE.InstancedMesh).isInstancedMesh && o.name === 'instanced_contact_shadows') {
+            buckets += 1;
+            instancedDiscs += (o as THREE.InstancedMesh).count;
+          }
+        });
+        scene.traverse((o) => {
+          const mesh = o as THREE.Mesh;
+          if (
+            mesh.isMesh &&
+            mesh.material instanceof THREE.MeshBasicMaterial &&
+            mesh.geometry instanceof THREE.PlaneGeometry &&
+            Math.abs(mesh.rotation.x + Math.PI / 2) < 0.01
+          ) {
+            looseDiscs += 1;
+          }
+        });
+        return { buckets, instancedDiscs, looseDiscs };
+      };
     }
+    // Camera QA hooks: the harness sets the zoom target directly (wheel
+    // events + the 0.05 dt clamp make long damp settles unreliable under
+    // SwiftShader throttling).
+    window.__LS_CAMERA_SET__ = (z: number) => {
+      zoomRef.current = THREE.MathUtils.clamp(z, 0.72, 1.45);
+      // Snap the rig immediately: under SwiftShader throttling the position
+      // damp needs dozens of wall-clock seconds to converge, which makes
+      // zoom-framed QA captures unreliable. The next tick's damp accepts the
+      // snapped position as its current value (desired == current → stable).
+      const zz = zoomRef.current;
+      const w = worldRef.current;
+      const fx = w.playerPos?.x ?? 0;
+      const fz = w.playerPos?.z ?? 0;
+      camera.position.set(fx + 19.5 * zz, 18.2 * zz, fz + 19.5 * zz);
+    };
+    window.__LS_CAMERA_GET__ = () => zoomRef.current;
     const sceneBuildStart = performance.now();
 
     const renderer = new THREE.WebGLRenderer({
@@ -561,6 +614,10 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
     // collision-aware seeded placement)
     const meadowDressing = buildMeadowDressing(palette, isSoftwareGl);
     exteriorRoot.add(meadowDressing.group);
+    // BUILD 02 (Doc 05 §3.2 relational dressing): clover/moss tufts settle the
+    // template cottages into their lawns (2 instanced draw calls).
+    const structureDressing = buildStructureDressing(palette);
+    exteriorRoot.add(structureDressing.group);
 
     // Fern Hollow Orchard — Milestone 3 north district landmark (instanced
     // crabapple trees sharing the grove season-tint materials, gate, ladder,
@@ -728,6 +785,12 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
       emissiveIntensity: 0.22,
       roughness: 0.2,
     });
+    // BUILD 02 (Doc 05 §3.2 P3): the shared lantern glass gains the warm
+    // gradient emissive map — plaza lamps + festoons read as pools of light at
+    // dusk. The dusk intensity schedule in environmentRenderer is untouched.
+    lanternMat.emissiveMap = createLanternGlowTexture(4);
+    lanternMat.needsUpdate = true;
+    palette.registerTexture(lanternMat.emissiveMap);
     const lampStoneMat = palette.standard(STORYBOOK_PALETTE.limestone, 0.88, 0.02);
     const lampIronMat = palette.standard(STORYBOOK_PALETTE.wroughtIron, 0.42, 0.72);
     const festoonGroup = new THREE.Group();
@@ -833,21 +896,27 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
     // Willow Step Cottage Interior Cutaway Diorama (toggles cleanly via interiorRoot)
     const cottageInteriorRig = buildWillowCottageInterior(palette, shadowTex);
     interiorRoot.add(cottageInteriorRig.group);
+    // BUILD 02: each interior rig is a contact-shadow batch boundary — its
+    // static discs batch INSIDE the group so visibility follows the room.
+    cottageInteriorRig.group.userData.contactBatchRoot = true;
 
     // Sunbeam Greenhouse Interior Cutaway Diorama (M3 Build 6 — same cutaway contract)
     const greenhouseInteriorRig = buildSunbeamGreenhouseInterior(palette, shadowTex, { isSoftwareGl });
     greenhouseInteriorRig.group.visible = false;
     interiorRoot.add(greenhouseInteriorRig.group);
+    greenhouseInteriorRig.group.userData.contactBatchRoot = true;
 
     // Hearth & Crumb Bakery Interior Cutaway Diorama (M3 Build 7 — same cutaway contract)
     const bakeryInteriorRig = buildHearthCrumbInterior(palette, shadowTex, { isSoftwareGl });
     bakeryInteriorRig.group.visible = false;
     interiorRoot.add(bakeryInteriorRig.group);
+    bakeryInteriorRig.group.userData.contactBatchRoot = true;
 
     // Linden Book Nook Interior Cutaway Diorama (M3 Build 8 — same cutaway contract)
     const nookInteriorRig = buildLindenBookNookInterior(palette, shadowTex, { isSoftwareGl });
     nookInteriorRig.group.visible = false;
     interiorRoot.add(nookInteriorRig.group);
+    nookInteriorRig.group.userData.contactBatchRoot = true;
 
     // Living Relationships (LR-2): indoor resident rig for hosted Book Nook visits
     const nookOccupantRig = buildStorybookCharacter(
@@ -873,6 +942,7 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
     const copperwheelInteriorRig = buildCopperwheelInterior(palette, shadowTex, { isSoftwareGl });
     copperwheelInteriorRig.group.visible = false;
     interiorRoot.add(copperwheelInteriorRig.group);
+    copperwheelInteriorRig.group.userData.contactBatchRoot = true;
 
     // Exterior Sunbeam Greenhouse doorway on the west glass wall (M3 Build 6).
     // Phase A reconciliation: the leaf now sits IN the west glazing plane
@@ -901,6 +971,8 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
     const copperwheelPorchDressing = buildCopperwheelPorchDressing(palette, shadowTex);
     copperwheelPorchDressing.position.set(13.1, 0, -8.72);
     exteriorRoot.add(copperwheelPorchDressing);
+    // BUILD 02: Copperwheel's porch joins the seasons (Doc 05 §2.2 P1).
+    const copperwheelPorchLife = copperwheelPorchDressing.userData.porchSeasonLife as PorchSeasonLife;
 
     // Tap-to-walk destination indicator ring
     const destRing = new THREE.Mesh(
@@ -1133,6 +1205,7 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
     }
 
     // 12. Handcrafted Cedar Benches at SEAT_SPOTS + raycast proxies
+    const benchCushionGroups: THREE.Group[] = [];
     for (const seat of SEAT_SPOTS) {
       const bench = buildStorybookBench(palette, shadowTex);
       bench.position.set(
@@ -1142,6 +1215,10 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
       );
       bench.rotation.y = seat.facingAngle;
       exteriorRoot.add(bench);
+      // BUILD 02 (Doc 05 §3.2): winter wool cushions ship hidden; the season
+      // edge block reveals them.
+      const cushions = bench.userData.winterCushions as THREE.Group | undefined;
+      if (cushions) benchCushionGroups.push(cushions);
 
       const seatHit = new THREE.Mesh(
         new THREE.CylinderGeometry(0.68, 0.68, 1.0, 8),
@@ -1180,6 +1257,12 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
 
       carryableRigs[def.id] = { group, shadow, hitProxy };
     }
+
+    // BUILD 02 (Doc 06 §3.4): collapse the ~90 static contact-shadow quads into
+    // per-(subtree, opacity) InstancedMesh buckets — visual output identical,
+    // draw calls drop by the largest un-instanced category. Must run AFTER all
+    // placement above (world matrices are read here, once, at build time).
+    flushStaticContactShadows(scene);
 
     // Input Tracking (WASD + Arrows + Shift Sprint + A* Tap-to-Walk + Interaction)
     const keysDown = new Set<string>();
@@ -1771,6 +1854,7 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
         // skipped entirely while any interior is on screen.
         applyPorchSeason(bakeryPorchLife, world.season);
         applyPorchSeason(nookPorchLife, world.season);
+        applyPorchSeason(copperwheelPorchLife, world.season);
       }
 
       // Pass 7: soft hearth crackle room-tone — started/stopped on state transitions only,
@@ -2097,6 +2181,13 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
         applyCharacterWinterTint(nookOccupantRig, world.season);
         for (const rid of RESIDENT_ORDER) {
           applyCharacterWinterTint(residentRigs[rid], world.season);
+        }
+        // BUILD 02 seasonal surfaces (edge-triggered, zero per-frame cost):
+        // meadow wildflowers widen ±1 hue stop in spring (Doc 05 §5.3) and the
+        // benches grow their wool winter cushions (Doc 05 §3.2).
+        meadowDressing.setSpringSpread(world.season === 'spring');
+        for (const cushions of benchCushionGroups) {
+          cushions.visible = world.season === 'winter';
         }
       }
 
@@ -2443,6 +2534,10 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
       _playerAnimOpts.lookPitch = playerLookPitch;
       _playerAnimOpts.bankAngle = playerMotion.bankAngle;
       _playerAnimOpts.carrying = Boolean(world.playerHeldItem);
+      // BUILD 02 (Doc 04 §4.4): the heavy water pail carries two-hand — both
+      // mitts forward with a slight lean back; everything else keeps the rig's
+      // build-time pose.
+      _playerAnimOpts.carryPose = world.playerHeldItem === 'water_pail' ? 'two-hand' : undefined;
       _playerAnimOpts.isMoving = playerMotion.speed > 0.25;
       _playerAnimOpts.accelLean = playerMotion.accelAmount;
       _playerAnimOpts.squash =
@@ -2561,6 +2656,7 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
       perfProbe.disposeOverlay();
       if (window.__LS_PERF__ === perfProbe) {
         delete window.__LS_PERF__;
+        delete window.__LS_SCENE_STATS__;
       }
       cancelAnimationFrame(frameId);
       clearTimeout(frameId);
@@ -2571,6 +2667,7 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
       renderer.domElement.removeEventListener('pointerdown', handlePointerDown);
       renderer.domElement.removeEventListener('wheel', handleWheel);
       envController.dispose();
+      staticContactShadows.dispose();
       cottageInteriorRig.dispose();
       greenhouseInteriorRig.dispose();
       bakeryInteriorRig.dispose();
@@ -2579,6 +2676,7 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
       nookOccupantHitMat.dispose();
       copperwheelInteriorRig.dispose();
       meadowDressing.dispose();
+      structureDressing.dispose();
       orchardRig.dispose();
       orchardMicroLifeRig.dispose();
       orchardAmbientExtrasRig.dispose();

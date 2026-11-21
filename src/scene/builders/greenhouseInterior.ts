@@ -8,7 +8,10 @@ import {
 import { GreenhouseCropId, TimePhase, WorldState } from '../../game/types';
 import { getSeasonForDay } from '../../game/time';
 import { MaterialPalette, STORYBOOK_PALETTE } from '../materials';
-import { addContactShadow } from './vegetation';
+import {
+  addContactShadow,
+} from './vegetation';
+import { addStaticContactShadow } from '../contactShadows';
 
 /**
  * Sunbeam Greenhouse Interior Cutaway Diorama (Milestone 3 Build 6).
@@ -70,21 +73,21 @@ export function buildSunbeamGreenhouseInterior(
   };
 
   // Shared calibrated storybook materials (registry-cached, zero warnings)
-  const darkStoneMat = palette.standard(STORYBOOK_PALETTE.fieldstoneDark, 0.9, 0.02);
-  const limestoneMat = palette.standard(STORYBOOK_PALETTE.limestone, 0.88, 0.02);
-  const creamMat = palette.standard(STORYBOOK_PALETTE.creamTrim, 0.78, 0.02);
-  const cedarDarkMat = palette.standard(STORYBOOK_PALETTE.cedarDark, 0.74, 0.04);
-  const cedarWarmMat = palette.standard(STORYBOOK_PALETTE.cedarWarm, 0.72, 0.04);
-  const doorMat = palette.standard(STORYBOOK_PALETTE.doorCedar, 0.7, 0.04);
-  const sageMat = palette.standard(STORYBOOK_PALETTE.sageShutter, 0.72, 0.02);
+  const darkStoneMat = palette.standard(STORYBOOK_PALETTE.fieldstoneDark, 0.9, 0.02, { mapSet: 'stone' });
+  const limestoneMat = palette.standard(STORYBOOK_PALETTE.limestone, 0.88, 0.02, { mapSet: 'stone' });
+  const creamMat = palette.standard(STORYBOOK_PALETTE.creamTrim, 0.78, 0.02, { mapSet: 'timber-light' });
+  const cedarDarkMat = palette.standard(STORYBOOK_PALETTE.cedarDark, 0.74, 0.04, { mapSet: 'timber-dark' });
+  const cedarWarmMat = palette.standard(STORYBOOK_PALETTE.cedarWarm, 0.72, 0.04, { mapSet: 'timber-dark' });
+  const doorMat = palette.standard(STORYBOOK_PALETTE.doorCedar, 0.7, 0.04, { mapSet: 'timber-dark' });
+  const sageMat = palette.standard(STORYBOOK_PALETTE.sageShutter, 0.72, 0.02, { mapSet: 'timber-dark' });
   const terracottaMat = palette.standard(STORYBOOK_PALETTE.terracottaPot, 0.58, 0.04);
   const ceramicMat = palette.standard(STORYBOOK_PALETTE.ceramicCream, 0.4, 0.04);
   const brassMat = palette.standard(STORYBOOK_PALETTE.agedBrass, 0.25, 0.86);
   const ironMat = palette.standard(STORYBOOK_PALETTE.wroughtIron, 0.45, 0.65);
   const copperMat = palette.standard('#C56B45', 0.28, 0.78);
-  const foliageMat = palette.standard(STORYBOOK_PALETTE.foliageMid, 0.8, 0.0);
-  const foliageDeepMat = palette.standard(STORYBOOK_PALETTE.foliageDeep, 0.82, 0.0);
-  const foliageSunMat = palette.standard(STORYBOOK_PALETTE.foliageSun, 0.78, 0.0);
+  const foliageMat = palette.standard(STORYBOOK_PALETTE.foliageMid, 0.8, 0.0, { mapSet: 'foliage' });
+  const foliageDeepMat = palette.standard(STORYBOOK_PALETTE.foliageDeep, 0.82, 0.0, { mapSet: 'foliage' });
+  const foliageSunMat = palette.standard(STORYBOOK_PALETTE.foliageSun, 0.78, 0.0, { mapSet: 'foliage' });
   const petalCreamMat = palette.standard(STORYBOOK_PALETTE.petalCream, 0.66, 0.0);
   const petalLavenderMat = palette.standard(STORYBOOK_PALETTE.petalLavender, 0.66, 0.0);
   const mossMat = palette.standard(STORYBOOK_PALETTE.moss, 0.84, 0.0);
@@ -373,7 +376,7 @@ export function buildSunbeamGreenhouseInterior(
   // ---------------------------------------------------------------------
   const pottingGroup = new THREE.Group();
   pottingGroup.position.set(-1.9, 0, -2.15);
-  addContactShadow(pottingGroup, shadowTex, 2.15, 1.0, 0.42, 0.018);
+  addStaticContactShadow(pottingGroup, shadowTex, 2.15, 1.0, 0.42, 0.018);
 
   const benchTop = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(1.85, 0.09, 0.78)), cedarWarmMat);
   benchTop.position.y = 0.86;
@@ -441,7 +444,7 @@ export function buildSunbeamGreenhouseInterior(
   // ---------------------------------------------------------------------
   const shelfGroup = new THREE.Group();
   shelfGroup.position.set(2.62, 0, 0.05);
-  addContactShadow(shelfGroup, shadowTex, 1.0, 2.7, 0.4, 0.018);
+  addStaticContactShadow(shelfGroup, shadowTex, 1.0, 2.7, 0.4, 0.018);
 
   const shelfLong = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(0.68, 0.07, 2.5)), cedarWarmMat);
   shelfLong.position.y = 0.92;
@@ -604,7 +607,7 @@ export function buildSunbeamGreenhouseInterior(
   // ---------------------------------------------------------------------
   const waterGroup = new THREE.Group();
   waterGroup.position.set(2.05, 0, -2.18);
-  addContactShadow(waterGroup, shadowTex, 1.1, 1.0, 0.42, 0.018);
+  addStaticContactShadow(waterGroup, shadowTex, 1.1, 1.0, 0.42, 0.018);
 
   const barrel = new THREE.Mesh(trackGeo(new THREE.CylinderGeometry(0.34, 0.3, 0.78, 12)), cedarDarkMat);
   barrel.position.y = 0.39;
@@ -648,7 +651,7 @@ export function buildSunbeamGreenhouseInterior(
   // ---------------------------------------------------------------------
   const tableGroup = new THREE.Group();
   tableGroup.position.set(0.1, 0, 2.12);
-  addContactShadow(tableGroup, shadowTex, 2.1, 0.9, 0.42, 0.018);
+  addStaticContactShadow(tableGroup, shadowTex, 2.1, 0.9, 0.42, 0.018);
 
   const tableTop = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(1.95, 0.08, 0.82)), cedarWarmMat);
   tableTop.position.y = 0.8;
@@ -1156,7 +1159,7 @@ export function buildSunbeamGreenhouseDoorway(
     group.add(start);
   }
 
-  addContactShadow(group, shadowTex, 2.4, 1.6, 0.4, 0.018);
+  addStaticContactShadow(group, shadowTex, 2.4, 1.6, 0.4, 0.018);
 
   group.userData.dispose = () => {
     for (const g of ownedGeos) g.dispose();
