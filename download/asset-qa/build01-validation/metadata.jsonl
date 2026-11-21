@@ -1,0 +1,4 @@
+{"shot":"perf_plaza_hero","viewport":"1440x900","zoom":"1.0","note":"20s veteran golden-hour gameplay, measured","gl":"ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)","pageErrors":0,"perf":"{\"frames\":12,\"avgFps\":0.5523336095001381,\"p50Ms\":1806.5,\"p95Ms\":1900.0999755859375,\"maxMs\":1900.0999999996275,\"spikesOver33\":12,\"spikesOver16\":12,\"drawCalls\":2241,\"triangles\":136385,\"geometries\":2182,\"textures\":20,\"programs\":35,\"sceneBuildMs\":1911.9000000003725}"}
+{"shot":"plaza_hero","viewport":"desktop","meta":["1.0", "golden summer hero"]}
+{"shot":"plaza_hero_145","viewport":"desktop","meta":["1.45", "survey squint"]}
+{"shot":"plaza_winter_midday","viewport":"desktop","meta":["1.0", "winter value-band check"]}

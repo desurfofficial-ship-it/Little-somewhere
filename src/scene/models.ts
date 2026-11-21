@@ -81,6 +81,23 @@ export interface CharacterRig {
   mouthSmile?: THREE.Mesh;
   /** Universal (Pass 20): small "o" ring shown for the surprised emotion. */
   mouthO?: THREE.Mesh;
+  /**
+   * Build 01 (Doc 04 §4): hand-anchored attach point on the right mitten — props
+   * with a visible grip narrative parent here so carried items ride the hand.
+   */
+  handAnchor?: THREE.Group;
+  /**
+   * Build 01 (Doc 04 §4.4): carry pose variant — 'cradle' (two-arm tray, the
+   * historical pose) or 'side' (one bent arm; book/sketchbook carriers). Set at
+   * build time from the signature prop; the driver picks the pose when carrying.
+   */
+  carryPose?: 'cradle' | 'side';
+  /**
+   * Build 01 (Doc 04 §3): baked posture lean (radians, torso pitch). Applied by
+   * animateCharacterRig every frame before damping — archetype massing's "welcoming
+   * lean forward" without fighting the animation driver.
+   */
+  postureLeanX?: number;
   /** NPC hanging-cloth accessory pivot (shawl/scarf tail) — sways with stride & rest breath. */
   swayTail?: THREE.Group;
   /** Base height scale of bodyGroup — enables squash-&-stretch without losing proportions. */

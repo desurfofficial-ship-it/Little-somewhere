@@ -1,6 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import * as THREE from 'three';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+import { PerfProbe } from './perfProbe';
 import {
   CarryableItemId,
   CottageInteractableId,
@@ -394,6 +395,17 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
       return /SwiftShader|llvmpipe|softpipe|Software|Basic Render/i.test(gpu);
     })();
 
+    // Visual QA performance probe (Doc 08 Phase 0.2): opt-in via ?perf=1 only.
+    // Disabled probes cost nothing and never touch the DOM.
+    const perfProbe = new PerfProbe(
+      new URLSearchParams(window.location.search).get('perf') === '1',
+    );
+    if (perfProbe.enabled) {
+      window.__LS_PERF__ = perfProbe;
+      perfProbe.mountOverlay();
+    }
+    const sceneBuildStart = performance.now();
+
     const renderer = new THREE.WebGLRenderer({
       antialias: !isSoftwareGl,
       powerPreference: 'high-performance',
@@ -499,9 +511,26 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
     const flowerGroups: THREE.Group[] = [];
 
     // Cobblestone road & plaza slabs (offset by +0.02 on Y to prevent Z-fighting)
+    // V6 carrier (Doc 09): cobble albedo stays the identity texture; the stone-course
+    // roughness map makes mortar read rougher than stone faces (Doc 03 §5.1 T1),
+    // and the controller deepens the winter value band (Doc 03 §2.2).
+    const cobbleStoneRough = palette.mapBundle('stone')?.roughnessMap;
+    let cobbleRoughMap: THREE.Texture | null = null;
+    if (cobbleStoneRough) {
+      // The cobble albedo repeats 4x4 (40 courses/tile); the stone-course
+      // roughness family tiles 5x5 per repeat — clone at matching repeat so
+      // mortar roughness lines up with the visible mortar lines (review fix).
+      cobbleRoughMap = cobbleStoneRough.clone();
+      cobbleRoughMap.wrapS = THREE.RepeatWrapping;
+      cobbleRoughMap.wrapT = THREE.RepeatWrapping;
+      cobbleRoughMap.repeat.set(4, 4);
+      cobbleRoughMap.needsUpdate = true;
+      palette.registerTexture(cobbleRoughMap);
+    }
     const cobbleMat = new THREE.MeshStandardMaterial({
       color: '#FFFFFF',
       map: cobbleTex,
+      roughnessMap: cobbleRoughMap,
       roughness: 0.86,
       metalness: 0.02,
     });
@@ -774,9 +803,11 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
       scene,
       exteriorRoot,
       groundMat,
+      cobbleMat,
       groveRig,
       hemiLight,
       sunLight,
+      rimLight,
       windowMaterials,
       willowWindowMaterials: willowCottage.windowMats,
       lanternMat,
@@ -1871,6 +1902,9 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
         }
 
         _npcAnimOpts.emotion = rt.emotion;
+        // Build 01 (Doc 04 §5.2): the sim's emotion intensity (0.55–0.85) now
+        // reaches the rig — face + emotion-pose amplitudes scale, feelings arrive.
+        _npcAnimOpts.emotionIntensity = rt.emotionIntensity;
         _npcAnimOpts.lookYaw = lookYaw;
         _npcAnimOpts.lookPitch = 0;
         // Pass 25: residents get the player's motion feel (bank/lean/squash)
@@ -2049,6 +2083,7 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
       timer.update();
       const rawDt = timer.getDelta();
       const dt = Math.min(rawDt, 0.05);
+      perfProbe.frame(rawDt * 1000);
       const elapsed = timer.getElapsed();
       const state = screenStateRef.current;
       const world = worldRef.current;
@@ -2492,6 +2527,14 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
 
       renderer.render(scene, camera);
 
+      // Perf QA sampling (opt-in; branch costs ~2 int increments when disabled)
+      if (perfProbe.shouldSampleGpu()) {
+        perfProbe.sampleGpu(renderer);
+      }
+      if (perfProbe.shouldUpdateOverlay()) {
+        perfProbe.refreshOverlay();
+      }
+
       if (isSoftwareGl) {
         afterDraw(tick);
       } else {
@@ -2510,8 +2553,15 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
       frameId = requestAnimationFrame(tick);
     }
 
+    // One-time scene assembly cost (rigs, materials, textures) — measured, not estimated.
+    perfProbe.noteSceneBuild(performance.now() - sceneBuildStart);
+
     return () => {
       disposed = true;
+      perfProbe.disposeOverlay();
+      if (window.__LS_PERF__ === perfProbe) {
+        delete window.__LS_PERF__;
+      }
       cancelAnimationFrame(frameId);
       clearTimeout(frameId);
       resizeObs.disconnect();

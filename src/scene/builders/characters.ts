@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import {
   CharacterEmotion,
   NpcAnimationState,
@@ -23,7 +24,83 @@ export interface CharacterAnimationOptions {
   accelLean?: number;
   /** Squash & stretch: positive compresses the figure (skid/step impact), negative stretches (launch). */
   squash?: number;
+  /**
+   * Build 01 (Doc 04 §5.2): simulation emotion intensity (0.55–0.85, simulation.ts).
+   * Scales face + emotion-pose amplitudes so feelings arrive instead of snapping.
+   * The historical default 0.75 maps to a multiplier of exactly 1.0 — every
+   * existing test expectation is preserved when the option is absent.
+   */
+  emotionIntensity?: number;
 }
+
+// ---------------------------------------------------------------------------
+// Body archetype system (Doc 04 §3) — massing variety UNDER the shared builder.
+// The five-archetype vocabulary parameterizes the existing per-character
+// tailoring branch; nothing here invents new characters or changes identities.
+// Cast roll-out is validation-gated (Doc 09 V1/V2): only Clara's Hearth-Round
+// massing ships in Build 01; every other cast member stays 'standard' until
+// the validation set passes, then the assignment table below extends.
+// ---------------------------------------------------------------------------
+
+export type BodyArchetype = 'standard' | 'hearth-round' | 'barrel' | 'slender' | 'bean';
+
+interface ArchetypeParams {
+  /** Lower flare radius of the coat skirt (0.34 / 0.37 base). */
+  coatSkirtFlare?: number;
+  /** Front/back flattening of the skirt (keeps seated-clearance contract green while widening the read). */
+  coatSkirtFlattenZ?: number;
+  /** Bottom radius of the chest cylinder (0.26 base). */
+  coatChestBottom?: number;
+  /** Top radius of the chest cylinder (0.23 base). */
+  coatChestTop?: number;
+  /** Baked torso pitch (radians) added by the animation driver every frame. */
+  postureLeanX?: number;
+  /** Sleeve radius multiplier. */
+  sleeveScale?: number;
+  /** Pant radius multiplier. */
+  pantScale?: number;
+  /** Head radius multiplier (archetype-relative massing). */
+  headScale?: number;
+}
+
+const BODY_ARCHETYPES: Record<BodyArchetype, ArchetypeParams> = {
+  standard: {},
+  // Clara: the warm hearth of the town gains the silhouette of warmth —
+  // soft, wider lower mass, welcoming lean (Doc 04 §3.1).
+  'hearth-round': {
+    coatSkirtFlare: 0.4,
+    coatSkirtFlattenZ: 0.9, // elliptical skirt: ±0.36 front/back — seated clearance holds
+    coatChestBottom: 0.275,
+    postureLeanX: 0.02,
+  },
+  barrel: {
+    coatChestTop: 0.295,
+    coatChestBottom: 0.275,
+    sleeveScale: 1.12,
+    pantScale: 1.12,
+    headScale: 0.96,
+  },
+  slender: {
+    coatChestTop: 0.235,
+    coatSkirtFlare: 0.315,
+    sleeveScale: 0.92,
+  },
+  bean: {
+    headScale: 1.05,
+    sleeveScale: 0.9,
+    pantScale: 0.9,
+  },
+};
+
+/**
+ * Validation-gated cast assignment (Doc 04 §3.2). Build 01 activates Clara
+ * only (V1); Rowan is verified as 'standard' (V2 — the design system must
+ * support different people, not one repeated template). Extending this table
+ * to the remaining residents is the post-validation cast roll-out.
+ */
+const ARCHETYPE_ASSIGNMENT: Partial<Record<CharacterArchetypeId, BodyArchetype>> = {
+  clara: 'hearth-round',
+};
 
 // ---------------------------------------------------------------------------
 // Winter knit tinting — season-driven knitwear color shift (visually noticeable)
@@ -154,6 +231,9 @@ export function buildStorybookCharacter(
 ): CharacterRig {
   const root = new THREE.Group();
   const s = appearance.heightScale;
+  // Build 01 (Doc 04 §3): archetype massing layer — additive configuration
+  // under the existing builder; unassigned ids keep the exact standard body.
+  const archetype = BODY_ARCHETYPES[ARCHETYPE_ASSIGNMENT[characterId] ?? 'standard'];
 
   addContactShadow(root, shadowTex, 1.12, 1.12, 0.54, 0.024);
 
@@ -177,31 +257,51 @@ export function buildStorybookCharacter(
   root.add(bodyGroup);
 
   const bootMat = palette.standard('#46342A', 0.72, 0.05);
+  // Fabric-family garments carry the weave roughness map (Doc 03 §5.1 T2) so
+  // clothing reads as stitched fibre rather than painted plastic at gameplay
+  // distance. Brass gains its per-family environment response (Doc 06 §2.2).
   const trousersMat = palette.standard(
     characterId === 'pip' ? '#466886' : characterId === 'barnaby' ? '#584B42' : '#404552',
     0.84,
     0.02,
+    { mapSet: 'fabric' },
   );
-  const coatMat = palette.standard(appearance.coatColor, 0.78, 0.02);
-  const shirtMat = palette.standard(appearance.shirtColor, 0.84, 0.01);
-  const accentMat = palette.standard(appearance.accentColor, 0.74, 0.04);
+  const coatMat = palette.standard(appearance.coatColor, 0.78, 0.02, { mapSet: 'fabric' });
+  const shirtMat = palette.standard(appearance.shirtColor, 0.84, 0.01, { mapSet: 'fabric' });
+  const accentMat = palette.standard(appearance.accentColor, 0.74, 0.04, { mapSet: 'fabric' });
   const skinMat = palette.standard(appearance.skinColor, 0.7, 0.02);
   const blushMat = palette.standard('#E59580', 0.74, 0.0);
   const hairMat = palette.standard(appearance.hairColor, 0.82, 0.03);
   const eyeMat = palette.standard('#1E1814', 0.16, 0.08);
   const highlightMat = palette.standard('#FAF5EC', 0.12, 0.0);
-  const brassMat = palette.standard(STORYBOOK_PALETTE.agedBrass, 0.24, 0.85);
+  const brassMat = palette.standard(STORYBOOK_PALETTE.agedBrass, 0.24, 0.85, {
+    envMapIntensity: 1.0,
+  });
   const leatherMat = palette.standard('#7C4F32', 0.68, 0.06);
 
-  // 1. Articulated Legs (hip pivot at y = 0.42)
+  // 1. Articulated Legs (hip pivot at y = 0.42) — boots gain toe-cap massing
+  // and a heel block (Doc 04 §4.3) for grounded, chunky stances. The three
+  // boot parts merge into ONE geometry so the visual upgrade stays
+  // draw-call neutral (review finding: Phase 2 must not grow mesh count).
   const makeLeg = (xPos: number) => {
     const legPivot = new THREE.Group();
     legPivot.position.set(xPos, 0.42, 0);
-    const pant = new THREE.Mesh(new THREE.CylinderGeometry(0.105, 0.092, 0.22, 8), trousersMat);
+    const pantR = 0.105 * (archetype.pantScale ?? 1);
+    const pant = new THREE.Mesh(
+      new THREE.CylinderGeometry(pantR, pantR * 0.876, 0.22, 8),
+      trousersMat,
+    );
     pant.position.y = -0.11;
     pant.castShadow = true;
-    const boot = new THREE.Mesh(new THREE.CapsuleGeometry(0.095, 0.1, 4, 8), bootMat);
-    boot.position.set(0, -0.28, 0.03);
+    const bootCapsule = new THREE.CapsuleGeometry(0.095, 0.1, 4, 8);
+    bootCapsule.translate(0, -0.28, 0.03);
+    const toeGeo = new THREE.SphereGeometry(0.072, 8, 6);
+    toeGeo.scale(1.0, 0.78, 1.1);
+    toeGeo.translate(0, -0.3, 0.115);
+    const heelGeo = new THREE.BoxGeometry(0.1, 0.09, 0.09);
+    heelGeo.translate(0, -0.295, -0.065);
+    const boot = new THREE.Mesh(mergeGeometries([bootCapsule, toeGeo, heelGeo])!, bootMat);
+    boot.name = 'boot';
     boot.castShadow = true;
     legPivot.add(pant, boot);
     return legPivot;
@@ -215,18 +315,30 @@ export function buildStorybookCharacter(
   torsoPivot.position.set(0, 0.45, 0);
   bodyGroup.add(torsoPivot);
 
+  // Coat massing (Hearth-Round widens Clara's lower mass; Doc 04 §3.1).
+  // The skirt z-flatten keeps the seated-clearance contract green while the
+  // wider flare reads as a soft welcoming silhouette from the gameplay camera.
+  const skirtFlareBase =
+    characterId === 'clara' || characterId === 'mina' || characterId === 'nora' ? 0.37 : 0.34;
+  const skirtFlare = archetype.coatSkirtFlare ?? skirtFlareBase;
   const coatSkirt = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.24, skirtFlare, 0.35, 12),
+    coatMat,
+  );
+  coatSkirt.position.y = 0.1;
+  if (archetype.coatSkirtFlattenZ !== undefined) {
+    coatSkirt.scale.z = archetype.coatSkirtFlattenZ;
+  }
+  coatSkirt.castShadow = true;
+  const coatChest = new THREE.Mesh(
     new THREE.CylinderGeometry(
-      0.24,
-      characterId === 'clara' || characterId === 'mina' || characterId === 'nora' ? 0.37 : 0.34,
-      0.35,
+      archetype.coatChestTop ?? 0.23,
+      archetype.coatChestBottom ?? 0.26,
+      0.38,
       12,
     ),
     coatMat,
   );
-  coatSkirt.position.y = 0.1;
-  coatSkirt.castShadow = true;
-  const coatChest = new THREE.Mesh(new THREE.CylinderGeometry(0.23, 0.26, 0.38, 12), coatMat);
   coatChest.position.y = 0.42;
   coatChest.castShadow = true;
   const lapel = new THREE.Mesh(new THREE.BoxGeometry(0.13, 0.32, 0.06), shirtMat);
@@ -300,10 +412,22 @@ export function buildStorybookCharacter(
     const apronBib = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.26, 0.05), shirtMat);
     apronBib.position.set(0, 0.39, 0.24);
     const apronSkirt = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.255, 0.38, 0.34, 12, 1, false, -Math.PI * 0.38, Math.PI * 0.76),
+      new THREE.CylinderGeometry(
+        0.255,
+        archetype.coatSkirtFlare !== undefined ? archetype.coatSkirtFlare + 0.02 : 0.38,
+        0.34,
+        12,
+        1,
+        false,
+        -Math.PI * 0.38,
+        Math.PI * 0.76,
+      ),
       shirtMat,
     );
     apronSkirt.position.set(0, 0.1, 0.02);
+    if (archetype.coatSkirtFlattenZ !== undefined) {
+      apronSkirt.scale.z = archetype.coatSkirtFlattenZ;
+    }
     torsoPivot.add(apronBib, apronSkirt);
   } else if (characterId === 'barnaby') {
     const leatherApron = new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.52, 0.06), leatherMat);
@@ -431,40 +555,84 @@ export function buildStorybookCharacter(
   carrySocket.position.set(0, 0.31, 0.37);
   torsoPivot.add(carrySocket);
 
-  // 3. Articulated Sleeved Arms with Cuffs & Clay Hands (shoulder pivot at y = 0.53 inside torsoPivot)
+  // 3. Articulated Sleeved Arms with Cuffs & Sculpted Mitten Hands (shoulder pivot at
+  // y = 0.53 inside torsoPivot). Mittens (Doc 04 §4): two-lobe squashed-sphere palm
+  // + opposable thumb capsule — hands become a readability asset at gameplay
+  // distance, and `handAnchor` lets grip props ride the hand through every pose.
   const makeArm = (side: -1 | 1) => {
     const armPivot = new THREE.Group();
     armPivot.position.set(side * 0.3, 0.53, 0);
-    const sleeve = new THREE.Mesh(new THREE.CylinderGeometry(0.074, 0.094, 0.33, 8), coatMat);
+    const sleeveR = 0.074 * (archetype.sleeveScale ?? 1);
+    const sleeve = new THREE.Mesh(
+      new THREE.CylinderGeometry(sleeveR, sleeveR * 1.27, 0.33, 8),
+      coatMat,
+    );
     sleeve.position.set(side * 0.04, -0.155, 0);
     sleeve.rotation.z = side * 0.18;
     sleeve.castShadow = true;
-    const cuff = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.09, 0.06, 8), shirtMat);
+    const cuff = new THREE.Mesh(
+      new THREE.CylinderGeometry(sleeveR * 1.216, sleeveR * 1.216, 0.06, 8),
+      shirtMat,
+    );
     cuff.position.set(side * 0.07, -0.31, 0);
     cuff.rotation.z = side * 0.18;
-    const hand = new THREE.Mesh(new THREE.SphereGeometry(0.07, 8, 8), skinMat);
+
+    const hand = new THREE.Group();
+    hand.name = 'hand';
     hand.position.set(side * 0.09, -0.38, 0.02);
-    armPivot.add(sleeve, cuff, hand);
-    return armPivot;
+    // Two-lobe mitten (Doc 04 §4: ≈0.095 equiv volume — the "single cheapest
+    // quality win"): palm + knuckle lobe + thumb merged into one geometry so
+    // the fuller hand stays draw-call neutral.
+    const palmGeo = new THREE.SphereGeometry(0.078, 8, 7);
+    palmGeo.scale(1.15, 0.8, 1.25);
+    const knuckleGeo = new THREE.SphereGeometry(0.062, 8, 6);
+    knuckleGeo.scale(1.1, 0.7, 1.05);
+    knuckleGeo.translate(0, 0.014, 0.05);
+    const thumbGeo = new THREE.CapsuleGeometry(0.028, 0.032, 4, 6);
+    thumbGeo.rotateX(0.5);
+    thumbGeo.rotateZ(side * 0.35);
+    thumbGeo.translate(side * -0.03, -0.012, 0.062);
+    const palm = new THREE.Mesh(
+      mergeGeometries([palmGeo, knuckleGeo, thumbGeo])!,
+      skinMat,
+    );
+    palm.castShadow = true;
+    hand.add(palm);
+
+    const handAnchor = new THREE.Group();
+    handAnchor.name = 'hand_anchor';
+    handAnchor.position.copy(hand.position);
+
+    armPivot.add(sleeve, cuff, hand, handAnchor);
+    return { armPivot, handAnchor };
   };
-  const leftArm = makeArm(-1);
-  const rightArm = makeArm(1);
+  const leftArmResult = makeArm(-1);
+  const rightArmResult = makeArm(1);
+  const leftArm = leftArmResult.armPivot;
+  const rightArm = rightArmResult.armPivot;
   torsoPivot.add(leftArm, rightArm);
 
   // 4. Expressive Head + Blush + Catchlight Eyes + Eyelids + Brows + Nose + Hair + Hats
+  // Build 01 face v2 (Doc 04 §2.1): the head grows to r 0.310 (head:height ≈ 1:2.6)
+  // and every facial part rescales to resolve at ~30 m / 28° FOV — eyes, brows and
+  // mouth carry personality at gameplay distance. All part names and visibility
+  // rules are unchanged (identity contract, Doc 04 §9).
+  const HEAD_R = 0.31 * (archetype.headScale ?? 1);
   const headGroup = new THREE.Group();
   headGroup.position.set(0, 0.9, 0);
 
-  const head = new THREE.Mesh(new THREE.SphereGeometry(0.285, 14, 12), skinMat);
+  const head = new THREE.Mesh(new THREE.SphereGeometry(HEAD_R, 14, 12), skinMat);
   head.castShadow = true;
   headGroup.add(head);
 
-  const nose = new THREE.Mesh(new THREE.SphereGeometry(0.04, 8, 8), skinMat);
-  nose.position.set(0, -0.02, 0.275);
+  const nose = new THREE.Mesh(new THREE.SphereGeometry(0.052, 8, 8), skinMat);
+  nose.position.set(0, -0.02, 0.283);
   headGroup.add(nose);
 
-  const lidGeo = new THREE.BoxGeometry(0.082, 0.056, 0.036);
-  const browGeo = new THREE.BoxGeometry(0.074, 0.02, 0.024);
+  // Curved lids: squashed spherical lens caps that slide/scale over the eye
+  // (Doc 04 §5.1 upgrade 1) instead of the v1 skin boxes.
+  const lidGeo = new THREE.SphereGeometry(0.062, 8, 6);
+  const browGeo = new THREE.BoxGeometry(0.096, 0.024, 0.03);
 
   let leftEyelid!: THREE.Mesh;
   let rightEyelid!: THREE.Mesh;
@@ -472,24 +640,24 @@ export function buildStorybookCharacter(
   let rightBrow!: THREE.Mesh;
 
   for (const sx of [-1, 1] as const) {
-    const blush = new THREE.Mesh(new THREE.SphereGeometry(0.05, 8, 8), blushMat);
+    const blush = new THREE.Mesh(new THREE.SphereGeometry(0.062, 8, 8), blushMat);
     blush.scale.set(1.2, 0.72, 0.45);
-    blush.position.set(sx * 0.155, -0.06, 0.22);
+    blush.position.set(sx * 0.155, -0.06, 0.245);
     headGroup.add(blush);
 
-    const eye = new THREE.Mesh(new THREE.SphereGeometry(0.036, 8, 8), eyeMat);
-    eye.position.set(sx * 0.105, 0.025, 0.252);
-    const catchlight = new THREE.Mesh(new THREE.SphereGeometry(0.013, 6, 6), highlightMat);
-    catchlight.position.set(sx * 0.105 + 0.012, 0.04, 0.284);
+    const eye = new THREE.Mesh(new THREE.SphereGeometry(0.052, 8, 8), eyeMat);
+    eye.position.set(sx * 0.12, 0.025, 0.272);
+    const catchlight = new THREE.Mesh(new THREE.SphereGeometry(0.02, 6, 6), highlightMat);
+    catchlight.position.set(sx * 0.12 + 0.014, 0.042, 0.322);
     headGroup.add(eye, catchlight);
 
     const eyelid = new THREE.Mesh(lidGeo, skinMat);
-    eyelid.position.set(sx * 0.105, 0.056, 0.268);
-    eyelid.scale.y = 0.2;
+    eyelid.position.set(sx * 0.12, 0.07, 0.272);
+    eyelid.scale.set(1.0, 0.2, 0.55); // z-flattened lens cap — stays behind the bangs
     headGroup.add(eyelid);
 
     const brow = new THREE.Mesh(browGeo, hairMat);
-    brow.position.set(sx * 0.105, 0.078, 0.274);
+    brow.position.set(sx * 0.12, 0.078, 0.29);
     headGroup.add(brow);
 
     if (sx === -1) {
@@ -506,31 +674,31 @@ export function buildStorybookCharacter(
   // steers arc rotation (smile vs frown) and scale from the character's emotion.
   const mouthMat = palette.standard('#A85546', 0.62, 0.0);
   const mouthSmile = new THREE.Mesh(
-    new THREE.TorusGeometry(0.06, 0.0125, 6, 14, Math.PI * 0.72),
+    new THREE.TorusGeometry(0.07, 0.018, 6, 14, Math.PI * 0.72),
     mouthMat,
   );
   mouthSmile.name = 'mouth_smile';
   mouthSmile.rotation.z = Math.PI * 1.14;
-  mouthSmile.position.set(0, -0.118, 0.252);
-  const mouthO = new THREE.Mesh(new THREE.TorusGeometry(0.032, 0.013, 6, 12), mouthMat);
+  mouthSmile.position.set(0, -0.118, 0.268);
+  const mouthO = new THREE.Mesh(new THREE.TorusGeometry(0.037, 0.015, 6, 12), mouthMat);
   mouthO.name = 'mouth_o';
-  mouthO.position.set(0, -0.125, 0.25);
+  mouthO.position.set(0, -0.125, 0.266);
   mouthO.visible = false;
   headGroup.add(mouthSmile, mouthO);
 
   // Character-specific eyewear / mustache accents
   if (characterId === 'nora') {
     for (const sx of [-1, 1]) {
-      const lensRim = new THREE.Mesh(new THREE.TorusGeometry(0.055, 0.012, 6, 12), brassMat);
-      lensRim.position.set(sx * 0.105, 0.025, 0.285);
+      const lensRim = new THREE.Mesh(new THREE.TorusGeometry(0.068, 0.013, 6, 12), brassMat);
+      lensRim.position.set(sx * 0.12, 0.025, 0.302);
       headGroup.add(lensRim);
     }
-    const bridge = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.014, 0.014), brassMat);
-    bridge.position.set(0, 0.03, 0.285);
+    const bridge = new THREE.Mesh(new THREE.BoxGeometry(0.096, 0.014, 0.014), brassMat);
+    bridge.position.set(0, 0.03, 0.302);
     headGroup.add(bridge);
   } else if (characterId === 'arthur') {
-    const loupe = new THREE.Mesh(new THREE.TorusGeometry(0.058, 0.015, 6, 12), brassMat);
-    loupe.position.set(0.108, 0.028, 0.288);
+    const loupe = new THREE.Mesh(new THREE.TorusGeometry(0.068, 0.016, 6, 12), brassMat);
+    loupe.position.set(0.12, 0.028, 0.304);
     headGroup.add(loupe);
   } else if (characterId === 'barnaby') {
     const stache = new THREE.Mesh(new THREE.CapsuleGeometry(0.045, 0.14, 4, 6), hairMat);
@@ -583,15 +751,15 @@ export function buildStorybookCharacter(
     for (const [fx, fy] of freckleSpecs) {
       const freckle = new THREE.Mesh(new THREE.SphereGeometry(0.014, 6, 5), freckleMat);
       const fxLen = Math.hypot(fx, fy, 1);
-      freckle.position.set((fx / fxLen) * 0.282, (fy / fxLen) * 0.282, (1 / fxLen) * 0.282);
+      freckle.position.set((fx / fxLen) * 0.307, (fy / fxLen) * 0.307, (1 / fxLen) * 0.307);
       freckles.add(freckle);
     }
     headGroup.add(freckles);
   }
 
-  // Hair cap + sculpted bangs
+  // Hair cap + sculpted bangs (scaled to the v2 head radius)
   const hairCap = new THREE.Mesh(
-    new THREE.SphereGeometry(0.3, 12, 10, 0, Math.PI * 2, 0, Math.PI * 0.58),
+    new THREE.SphereGeometry(0.325, 12, 10, 0, Math.PI * 2, 0, Math.PI * 0.58),
     hairMat,
   );
   hairCap.rotation.x = -0.32;
@@ -600,7 +768,7 @@ export function buildStorybookCharacter(
   for (const bx of [-0.11, 0, 0.11]) {
     const bang = new THREE.Mesh(new THREE.DodecahedronGeometry(0.07, 0), hairMat);
     bang.scale.set(1.1, 0.72, 0.8);
-    bang.position.set(bx, 0.135, 0.24);
+    bang.position.set(bx, 0.135, 0.26);
     headGroup.add(bang);
   }
 
@@ -613,7 +781,7 @@ export function buildStorybookCharacter(
     const lockLen = characterId === 'mina' ? 0.3 : 0.2;
     for (const sx of [-1, 1]) {
       const lock = new THREE.Mesh(new THREE.CapsuleGeometry(0.052, lockLen, 4, 6), hairMat);
-      lock.position.set(sx * 0.245, 0.02 - lockLen * 0.45, 0.04);
+      lock.position.set(sx * 0.265, 0.02 - lockLen * 0.45, 0.04);
       lock.rotation.z = sx * 0.05;
       lock.castShadow = true;
       locks.add(lock);
@@ -624,7 +792,7 @@ export function buildStorybookCharacter(
     const backFall = new THREE.Mesh(new THREE.SphereGeometry(0.24, 10, 8), hairMat);
     backFall.name = 'hair_back_fall';
     backFall.scale.set(0.85, 1.25, 0.5);
-    backFall.position.set(0, -0.14, -0.17);
+    backFall.position.set(0, -0.14, -0.185);
     headGroup.add(backFall);
   } else if (characterId === 'clara') {
     // Two neat temple strands framing the baker's bun
@@ -632,7 +800,7 @@ export function buildStorybookCharacter(
     strands.name = 'hair_temple_strands';
     for (const sx of [-1, 1]) {
       const strand = new THREE.Mesh(new THREE.CapsuleGeometry(0.026, 0.15, 4, 5), hairMat);
-      strand.position.set(sx * 0.225, -0.03, 0.12);
+      strand.position.set(sx * 0.245, -0.03, 0.13);
       strand.rotation.z = sx * 0.1;
       strands.add(strand);
     }
@@ -642,14 +810,14 @@ export function buildStorybookCharacter(
     const tuft = new THREE.Mesh(new THREE.DodecahedronGeometry(0.075, 0), hairMat);
     tuft.name = 'hair_escaped_tuft';
     tuft.scale.set(1.1, 0.8, 0.9);
-    tuft.position.set(0.02, 0.1, -0.24);
+    tuft.position.set(0.02, 0.1, -0.26);
     tuft.rotation.set(0.3, 0.5, 0.2);
     headGroup.add(tuft);
   }
 
-  // Hat / Hair Style Variants
+  // Hat / Hair Style Variants (scaled to the v2 head)
   if (appearance.hatStyle === 'beret') {
-    const beretCrown = new THREE.Mesh(new THREE.CylinderGeometry(0.29, 0.23, 0.11, 12), accentMat);
+    const beretCrown = new THREE.Mesh(new THREE.CylinderGeometry(0.31, 0.245, 0.11, 12), accentMat);
     beretCrown.position.set(0.04, 0.25, -0.02);
     beretCrown.rotation.z = -0.18;
     const beretStem = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.025, 0.06, 6), accentMat);
@@ -687,7 +855,7 @@ export function buildStorybookCharacter(
       headGroup.add(flower);
     }
   } else if (appearance.hatStyle === 'cap') {
-    const capCrown = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.275, 0.15, 12), accentMat);
+    const capCrown = new THREE.Mesh(new THREE.CylinderGeometry(0.325, 0.295, 0.15, 12), accentMat);
     capCrown.position.set(0, 0.21, -0.02);
     capCrown.rotation.x = -0.14;
     const visor = new THREE.Mesh(
@@ -698,14 +866,14 @@ export function buildStorybookCharacter(
     visor.rotation.x = 0.08;
     headGroup.add(capCrown, visor);
   } else if (appearance.hatStyle === 'bun') {
-    const bun = new THREE.Mesh(new THREE.SphereGeometry(0.145, 10, 10), hairMat);
-    bun.position.set(0, 0.23, -0.21);
-    const hairPin = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.025, 0.025), accentMat);
-    hairPin.position.set(0, 0.24, -0.21);
+    const bun = new THREE.Mesh(new THREE.SphereGeometry(0.155, 10, 10), hairMat);
+    bun.position.set(0, 0.23, -0.225);
+    const hairPin = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.025, 0.025), accentMat);
+    hairPin.position.set(0, 0.24, -0.225);
     hairPin.rotation.z = 0.35;
     headGroup.add(bun, hairPin);
   } else if (appearance.hatStyle === 'hood') {
-    const hood = new THREE.Mesh(new THREE.DodecahedronGeometry(0.315, 1), coatMat);
+    const hood = new THREE.Mesh(new THREE.DodecahedronGeometry(0.34, 1), coatMat);
     hood.scale.set(1.02, 0.95, 1.08);
     hood.position.set(0, 0.05, -0.07);
     headGroup.add(hood);
@@ -713,18 +881,25 @@ export function buildStorybookCharacter(
 
   torsoPivot.add(headGroup);
 
-  // 5. Detailed Signature Props
+  // 5. Detailed Signature Props — grip props (watering can, book, loaf basket,
+  // fruit basket) parent to the right-hand `hand_anchor` (Doc 04 §4.2) so they
+  // visibly ride the mitten through every pose; torso-mounted two-hand props
+  // (violin) stay where they are.
   if (appearance.propType === 'watering_can') {
-    const canMat = palette.standard('#6EA6B5', 0.34, 0.55);
+    const canMat = palette.standard('#6EA6B5', 0.34, 0.55, { envMapIntensity: 0.85 });
+    const canGroup = new THREE.Group();
+    canGroup.name = 'watering_can_prop';
+    // Offsets relative to the right hand anchor (0.09, -0.38, 0.02 in arm space)
     const canBody = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.13, 0.24, 10), canMat);
-    canBody.position.set(0.1, -0.44, 0.08);
+    canBody.position.set(0.01, -0.06, 0.06);
     const spout = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.045, 0.22, 6), canMat);
-    spout.position.set(0.1, -0.4, 0.22);
+    spout.position.set(0.01, -0.02, 0.2);
     spout.rotation.x = 0.72;
     const rose = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.03, 0.04, 8), brassMat);
-    rose.position.set(0.1, -0.32, 0.3);
+    rose.position.set(0.01, 0.06, 0.28);
     rose.rotation.x = 0.72;
-    rightArm.add(canBody, spout, rose);
+    canGroup.add(canBody, spout, rose);
+    rightArmResult.handAnchor.add(canGroup);
   } else if (appearance.propType === 'violin') {
     const violinWood = palette.standard('#8C4A2B', 0.45, 0.08);
     const violinGroup = new THREE.Group();
@@ -747,23 +922,27 @@ export function buildStorybookCharacter(
     );
     const pageMat = palette.standard('#FAF2E1', 0.88, 0.0);
     const book = new THREE.Group();
-    book.position.set(0.05, -0.36, 0.12);
+    book.name = 'book_prop';
+    book.position.set(-0.04, 0.02, 0.1);
     book.rotation.y = 0.25;
     book.rotation.x = -0.35;
     const cover = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.045, 0.3), coverMat);
     const pages = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.052, 0.28), pageMat);
     pages.position.x = 0.01;
     book.add(cover, pages);
-    rightArm.add(book);
+    rightArmResult.handAnchor.add(book);
   } else if (appearance.propType === 'loaf') {
     const basketMat = palette.standard('#B48653', 0.84, 0.02);
     const loafMat = palette.standard('#D8964B', 0.82, 0.0);
+    const loafGroup = new THREE.Group();
+    loafGroup.name = 'loaf_basket_prop';
     const basket = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.12, 0.12, 10), basketMat);
-    basket.position.set(0.06, -0.38, 0.14);
+    basket.position.set(-0.03, 0, 0.12);
     const loaf = new THREE.Mesh(new THREE.CapsuleGeometry(0.085, 0.16, 4, 6), loafMat);
     loaf.rotation.z = Math.PI / 2;
-    loaf.position.set(0.06, -0.31, 0.14);
-    rightArm.add(basket, loaf);
+    loaf.position.set(-0.03, 0.07, 0.12);
+    loafGroup.add(basket, loaf);
+    rightArmResult.handAnchor.add(loafGroup);
   } else if (appearance.propType === 'fruit_basket') {
     // Orchard-keeper's woven gathering basket with a high rim + heaped crabapples
     const basketMat = palette.standard('#A9804F', 0.84, 0.02);
@@ -776,12 +955,14 @@ export function buildStorybookCharacter(
       new THREE.Vector2(0.165, 0.185),
     ];
     const basketGeo = new THREE.LatheGeometry(basketProfile, 9);
+    const fruitBasketGroup = new THREE.Group();
+    fruitBasketGroup.name = 'fruit_basket_prop';
     const basket = new THREE.Mesh(basketGeo, basketMat);
-    basket.position.set(0.07, -0.5, 0.13);
+    basket.position.set(-0.02, -0.12, 0.11);
     basket.castShadow = true;
     const rim = new THREE.Mesh(new THREE.TorusGeometry(0.172, 0.02, 5, 12), basketShadeMat);
     rim.rotation.x = Math.PI / 2;
-    rim.position.set(0.07, -0.315, 0.13);
+    rim.position.set(-0.02, 0.065, 0.11);
     const appleMat = palette.standard('#C8553D', 0.5, 0.02);
     const leafMat = palette.standard('#5F8B4C', 0.8, 0.0);
     for (const [ax, ay, az] of [
@@ -791,14 +972,15 @@ export function buildStorybookCharacter(
     ] as const) {
       const apple = new THREE.Mesh(new THREE.SphereGeometry(0.052, 7, 6), appleMat);
       apple.scale.set(1.0, 0.88, 1.0);
-      apple.position.set(0.07 + ax, -0.29 + ay, 0.13 + az);
+      apple.position.set(-0.02 + ax, 0.09 + ay, 0.11 + az);
       apple.castShadow = true;
       const leaf = new THREE.Mesh(new THREE.ConeGeometry(0.032, 0.055, 4), leafMat);
       leaf.rotation.z = 0.5;
-      leaf.position.set(0.07 + ax + 0.02, -0.29 + ay + 0.055, 0.13 + az);
-      rightArm.add(apple, leaf);
+      leaf.position.set(-0.02 + ax + 0.02, 0.09 + ay + 0.055, 0.11 + az);
+      fruitBasketGroup.add(apple, leaf);
     }
-    rightArm.add(basket, rim);
+    fruitBasketGroup.add(basket, rim);
+    rightArmResult.handAnchor.add(fruitBasketGroup);
   }
 
   // Story quest indicator diamond overhead
@@ -861,6 +1043,12 @@ export function buildStorybookCharacter(
     leftBrow,
     rightBrow,
     carrySocket,
+    handAnchor: rightArmResult.handAnchor,
+    carryPose:
+      appearance.propType === 'book' || appearance.propType === 'sketchbook'
+        ? 'side'
+        : 'cradle',
+    postureLeanX: archetype.postureLeanX,
     ringMesh,
     questPip,
     scarfPivot: rigExtras.scarfPivot,
@@ -892,6 +1080,12 @@ export function animateCharacterRig(
   const emotion = opts?.emotion ?? 'relaxed';
   const carrying = opts?.carrying ?? animState === 'carry';
   const bankAngle = opts?.bankAngle ?? 0;
+  // Build 01 (Doc 04 §5.2): emotion intensity plumbing. 0.75 is the historical
+  // default → amplitude multiplier exactly 1.0, so every existing pose and
+  // test expectation is preserved when the option is absent.
+  const emotionIntensity = THREE.MathUtils.clamp(opts?.emotionIntensity ?? 0.75, 0.55, 0.9);
+  const faceAmp = emotionIntensity / 0.75;
+  const poseAmp = 0.6 + 0.4 * (emotionIntensity / 0.75);
 
   let targetLeftLegX = 0;
   let targetRightLegX = 0;
@@ -1059,12 +1253,21 @@ export function animateCharacterRig(
     targetBodyY = Math.sin(elapsed * 1.8 + phaseSeed) * 0.02;
   }
 
-  // Override arm cradle cleanly whenever carrying a prop across idle/walk/run
+  // Override arm cradle cleanly whenever carrying a prop across idle/walk/run.
+  // Carry variants (Doc 04 §4.4): 'cradle' (two-arm basket/loaf tray) vs 'side'
+  // (one bent arm for book/sketchbook the hand visibly holds).
   if (carrying && animState !== 'sit' && animState !== 'wave') {
-    targetLeftArmX = -0.84;
-    targetRightArmX = -0.84;
-    targetLeftArmZ = 0.14;
-    targetRightArmZ = -0.14;
+    if (rig.carryPose === 'side') {
+      targetRightArmX = -0.66;
+      targetRightArmZ = -0.2;
+      targetLeftArmX = 0;
+      targetLeftArmZ = 0.06;
+    } else {
+      targetLeftArmX = -0.84;
+      targetRightArmX = -0.84;
+      targetLeftArmZ = 0.14;
+      targetRightArmZ = -0.14;
+    }
   }
 
   // Player polish: lean into launch acceleration, keep the gaze level
@@ -1075,63 +1278,72 @@ export function animateCharacterRig(
   }
   const squash = opts?.squash ?? 0;
 
-  // Emotion posture & facial modifiers
+  // Emotion posture & facial modifiers — deltas scale with the resident's
+  // emotion intensity (poseAmp / faceAmp), so feelings arrive, not snap.
   let eyelidScaleY = 0.2;
-  let eyelidPosY = 0.056;
+  let eyelidPosY = 0.07; // v2: lids ride the larger eye spheres (r 0.052)
   let browOffsetY = 0.078;
   let browTiltZ = 0;
 
   if (emotion === 'happy') {
-    targetTorsoX -= 0.03;
-    browOffsetY = 0.085;
-    eyelidScaleY = 0.26;
+    targetTorsoX -= 0.03 * poseAmp;
+    browOffsetY = 0.078 + 0.007 * faceAmp;
+    eyelidScaleY = 0.2 + 0.06 * faceAmp;
   } else if (emotion === 'excited') {
-    targetTorsoX -= 0.05;
-    browOffsetY = 0.092;
-    eyelidScaleY = 0.16;
+    targetTorsoX -= 0.05 * poseAmp;
+    browOffsetY = 0.078 + 0.014 * faceAmp;
+    eyelidScaleY = 0.2 - 0.04 * faceAmp;
     if (animState === 'idle' || animState === 'talk') {
-      targetBodyY += Math.abs(Math.sin(elapsed * 5.2 + phaseSeed)) * 0.028;
+      targetBodyY += Math.abs(Math.sin(elapsed * 5.2 + phaseSeed)) * 0.028 * poseAmp;
     }
   } else if (emotion === 'sad') {
-    targetTorsoX += 0.08;
-    targetHeadX += 0.08;
-    eyelidScaleY = 0.45;
-    eyelidPosY = 0.044;
-    browOffsetY = 0.076;
-    browTiltZ = 0.24;
+    targetTorsoX += 0.08 * poseAmp;
+    targetHeadX += 0.08 * poseAmp;
+    eyelidScaleY = 0.2 + 0.25 * faceAmp;
+    eyelidPosY = 0.07 - 0.022 * faceAmp;
+    browOffsetY = 0.078 - 0.002 * faceAmp;
+    browTiltZ = 0.24 * faceAmp;
   } else if (emotion === 'tired') {
-    targetTorsoX += 0.1;
-    targetHeadX += 0.09;
-    eyelidScaleY = 0.62;
-    eyelidPosY = 0.04;
-    browOffsetY = 0.072;
+    targetTorsoX += 0.1 * poseAmp;
+    targetHeadX += 0.09 * poseAmp;
+    eyelidScaleY = 0.2 + 0.42 * faceAmp;
+    eyelidPosY = 0.07 - 0.028 * faceAmp;
+    browOffsetY = 0.078 - 0.006 * faceAmp;
   } else if (emotion === 'frustrated' || emotion === 'angry') {
-    targetTorsoX += 0.05;
-    eyelidScaleY = 0.34;
-    eyelidPosY = 0.048;
-    browOffsetY = 0.072;
-    browTiltZ = emotion === 'angry' ? -0.32 : -0.22;
+    targetTorsoX += 0.05 * poseAmp;
+    eyelidScaleY = 0.2 + 0.14 * faceAmp;
+    eyelidPosY = 0.07 - 0.018 * faceAmp;
+    browOffsetY = 0.078 - 0.006 * faceAmp;
+    browTiltZ = (emotion === 'angry' ? -0.32 : -0.22) * faceAmp;
   } else if (emotion === 'curious') {
-    targetHeadZ += 0.1;
-    browOffsetY = 0.088;
-    browTiltZ = 0.1;
-    eyelidScaleY = 0.14;
+    targetHeadZ += 0.1 * poseAmp;
+    browOffsetY = 0.078 + 0.01 * faceAmp;
+    browTiltZ = 0.1 * faceAmp;
+    eyelidScaleY = 0.2 - 0.06 * faceAmp;
   } else if (emotion === 'surprised') {
-    browOffsetY = 0.096;
-    eyelidScaleY = 0.1;
-    targetHeadX -= 0.06;
+    browOffsetY = 0.078 + 0.018 * faceAmp;
+    eyelidScaleY = 0.2 - 0.1 * faceAmp;
+    targetHeadX -= 0.06 * poseAmp;
   } else if (emotion === 'embarrassed') {
-    targetHeadX += 0.08;
-    targetHeadZ -= 0.08;
-    browOffsetY = 0.082;
-    browTiltZ = 0.16;
+    targetHeadX += 0.08 * poseAmp;
+    targetHeadZ -= 0.08 * poseAmp;
+    browOffsetY = 0.078 + 0.004 * faceAmp;
+    browTiltZ = 0.16 * faceAmp;
   }
 
-  // Deterministic natural blink cycle (~every 4.3s)
+  // Deterministic natural blink cycle (~every 4.3s) — unconditional, so the
+  // rhythm is identical for every intensity level. The lens cap fully covers
+  // the r-0.052 eye without poking past the brow (review fix: blink overshoot).
   const blinkPhase = (elapsed + phaseSeed * 1.7) % 4.3;
   if (blinkPhase > 4.14) {
-    eyelidScaleY = 1.38;
-    eyelidPosY = 0.025;
+    eyelidScaleY = 1.05;
+    eyelidPosY = 0.018;
+  }
+
+  // Baked archetype posture (Hearth-Round's welcoming lean) — added before
+  // damping so the lean composes with every animation state.
+  if (rig.postureLeanX) {
+    targetTorsoX += rig.postureLeanX;
   }
 
   // Apply clamped head look-at toward targetLookPos
@@ -1218,6 +1430,8 @@ export function animateCharacterRig(
       default:
         break;
     }
+    // Emotion intensity scales the mouth's amplitude away from neutral 1.0.
+    smileScaleT = 1 + (smileScaleT - 1) * faceAmp;
     rig.mouthSmile.visible = !showO;
     rig.mouthO.visible = showO;
     if (showO) {

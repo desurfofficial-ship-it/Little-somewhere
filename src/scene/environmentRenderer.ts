@@ -35,15 +35,41 @@ const _hemiSkyDusk = new THREE.Color('#47568C');
 const _hemiGroundMorning = new THREE.Color('#7A664E');
 const _hemiGroundDusk = new THREE.Color('#34324A');
 
+// Season-aware hemisphere ground moods (Doc 06 §3.2): spring dew-sage, summer
+// honey earth, autumn umber, winter blue-gray hush. Dusk settles into the same
+// shared twilight ground as before — the identity dusk curve is preserved.
+const _hemiGroundSpring = new THREE.Color('#7A8A5E');
+const _hemiGroundSummer = new THREE.Color('#8A744E');
+const _hemiGroundAutumn = new THREE.Color('#7E5C3E');
+const _hemiGroundWinter = new THREE.Color('#4E5560');
+const _hemiGroundSeasonWork = new THREE.Color();
+
+// Dusk rim curve (Doc 06 §3.3): twilight sculpts instead of flattening — the
+// rim light keeps its cool daylight color and intensity through golden hour,
+// then eases down and warms toward indigo as the sun drops.
+const _rimDay = new THREE.Color('#C8DCF2');
+const _rimDusk = new THREE.Color('#9FA8D8');
+const _rimWork = new THREE.Color();
+
+// Winter cobble value recalibration (Doc 03 §2.2): the winter phase's wash
+// toward cream is counteracted by DEEPENING the cobble value band (cool, not
+// re-saturated). Other seasons keep the neutral identity tint.
+const _cobbleWinter = new THREE.Color('#C9CFD8');
+const _cobbleNeutral = new THREE.Color('#FFFFFF');
+
 const _seasonTint = new THREE.Color();
 const _dummy = new THREE.Object3D();
 
 export interface EnvironmentRendererDeps {
   scene: THREE.Scene;
   groundMat: THREE.MeshStandardMaterial;
+  /** Plaza/lane cobble material — winter value recalibration target (Doc 03 §2.2). */
+  cobbleMat?: THREE.MeshStandardMaterial;
   groveRig: GroveTreesRig;
   hemiLight: THREE.HemisphereLight;
   sunLight: THREE.DirectionalLight;
+  /** Optional cool rim light — driven by the dusk curve when provided (Doc 06 §3.3). */
+  rimLight?: THREE.DirectionalLight;
   windowMaterials: THREE.MeshStandardMaterial[];
   lanternMat: THREE.MeshStandardMaterial;
   prototypeLanternMats: THREE.MeshStandardMaterial[];
@@ -175,6 +201,19 @@ export class EnvironmentVisualController {
       this.lastSeason = composed.season.season;
       _seasonTint.set(composed.season.meadowTintHex);
       groundMat.color.copy(_seasonTint);
+      // Hemisphere ground mood follows the season (Doc 06 §3.2)
+      switch (composed.season.season) {
+        case 'spring': _hemiGroundSeasonWork.copy(_hemiGroundSpring); break;
+        case 'summer': _hemiGroundSeasonWork.copy(_hemiGroundSummer); break;
+        case 'autumn': _hemiGroundSeasonWork.copy(_hemiGroundAutumn); break;
+        case 'winter': _hemiGroundSeasonWork.copy(_hemiGroundWinter); break;
+      }
+      // Winter cobble deepening (Doc 03 §2.2) — value band, not saturation
+      if (this.deps.cobbleMat) {
+        this.deps.cobbleMat.color.copy(
+          composed.season.season === 'winter' ? _cobbleWinter : _cobbleNeutral,
+        );
+      }
       _seasonTint.set(composed.season.groveBaseTintHex);
       groveRig.crownBaseMat.color.copy(_seasonTint);
       _seasonTint.set(composed.season.groveTopTintHex);
@@ -368,9 +407,19 @@ export class EnvironmentVisualController {
 
     const duskFactor = Math.max(0, (tNorm - 0.58) / 0.42);
     hemiLight.color.copy(_hemiSkyMorning).lerp(_hemiSkyDusk, duskFactor);
-    hemiLight.groundColor.copy(_hemiGroundMorning).lerp(_hemiGroundDusk, duskFactor);
+    // Season-aware ground: the season mood owns the daylight ground color and
+    // the existing twilight ground remains the shared dusk destination.
+    hemiLight.groundColor.copy(_hemiGroundSeasonWork).lerp(_hemiGroundDusk, duskFactor);
     hemiLight.intensity = THREE.MathUtils.lerp(0.54, 0.22, duskFactor);
     scene.environmentIntensity = THREE.MathUtils.lerp(0.68, 0.15, duskFactor);
+
+    // Dusk rim curve (Doc 06 §3.3): intensity eases 0.45 → 0.18 and the color
+    // shifts #C8DCF2 → #9FA8D8 so twilight sculpts silhouettes instead of
+    // flattening them. Daylight values match the rig's identity defaults.
+    if (this.deps.rimLight) {
+      this.deps.rimLight.intensity = THREE.MathUtils.lerp(0.45, 0.18, duskFactor);
+      this.deps.rimLight.color.copy(_rimWork.copy(_rimDay).lerp(_rimDusk, duskFactor));
+    }
     const rainSunScale = effWeather === 'light_rain' ? 0.78 : 1.0;
     sunLight.intensity =
       THREE.MathUtils.lerp(1.52, 0.44, Math.max(0, (tNorm - 0.62) / 0.38)) * rainSunScale;

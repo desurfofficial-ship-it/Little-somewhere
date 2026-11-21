@@ -127,22 +127,50 @@ export function buildWillowCottageInterior(
   };
 
   // Shared calibrated storybook materials
-  const stoneMat = palette.standard(STORYBOOK_PALETTE.limestone, 0.9, 0.02);
-  const darkStoneMat = palette.standard(STORYBOOK_PALETTE.fieldstoneDark, 0.92, 0.02);
-  const plasterMat = palette.standard(STORYBOOK_PALETTE.warmPlaster, 0.86, 0.01);
-  const creamMat = palette.standard(STORYBOOK_PALETTE.creamTrim, 0.78, 0.02);
-  const cedarDarkMat = palette.standard(STORYBOOK_PALETTE.cedarDark, 0.76, 0.04);
-  const cedarWarmMat = palette.standard(STORYBOOK_PALETTE.cedarWarm, 0.72, 0.04);
-  const doorMat = palette.standard(STORYBOOK_PALETTE.doorCedar, 0.72, 0.04);
-  const floorOakMat = palette.standard('#9C724E', 0.74, 0.03);
-  const floorPlankDarkMat = palette.standard('#855F3E', 0.78, 0.03);
-  const terracottaMat = palette.standard(STORYBOOK_PALETTE.terracottaPot, 0.62, 0.03);
-  const sageMat = palette.standard(STORYBOOK_PALETTE.sageShutter, 0.74, 0.02);
-  const ceramicMat = palette.standard(STORYBOOK_PALETTE.ceramicCream, 0.4, 0.04);
-  const brassMat = palette.standard(STORYBOOK_PALETTE.agedBrass, 0.25, 0.86);
-  const ironMat = palette.standard(STORYBOOK_PALETTE.wroughtIron, 0.45, 0.65);
-  const copperMat = palette.standard('#C56B45', 0.28, 0.78);
-  const linenMat = palette.standard('#F5EEE0', 0.88, 0.0);
+  // Evident-craft interior families (Doc 05 §4.2.1): floors show grain, the
+  // hearth surround shows courses, linens show weave, ceramics answer the IBL.
+  const stoneMat = palette.standard(STORYBOOK_PALETTE.limestone, 0.9, 0.02, {
+    mapSet: 'stone',
+    envMapIntensity: 0.35,
+  });
+  const darkStoneMat = palette.standard(STORYBOOK_PALETTE.fieldstoneDark, 0.92, 0.02, {
+    mapSet: 'stone',
+    envMapIntensity: 0.35,
+  });
+  const plasterMat = palette.standard(STORYBOOK_PALETTE.warmPlaster, 0.86, 0.01, {
+    mapSet: 'plaster',
+  });
+  const creamMat = palette.standard(STORYBOOK_PALETTE.creamTrim, 0.78, 0.02, {
+    mapSet: 'timber-light',
+  });
+  const cedarDarkMat = palette.standard(STORYBOOK_PALETTE.cedarDark, 0.76, 0.04, {
+    mapSet: 'timber-dark',
+  });
+  const cedarWarmMat = palette.standard(STORYBOOK_PALETTE.cedarWarm, 0.72, 0.04, {
+    mapSet: 'timber-dark',
+  });
+  const doorMat = palette.standard(STORYBOOK_PALETTE.doorCedar, 0.72, 0.04, {
+    mapSet: 'timber-dark',
+  });
+  const floorOakMat = palette.standard('#9C724E', 0.74, 0.03, { mapSet: 'timber-light' });
+  const floorPlankDarkMat = palette.standard('#855F3E', 0.78, 0.03, { mapSet: 'timber-dark' });
+  const terracottaMat = palette.standard(STORYBOOK_PALETTE.terracottaPot, 0.62, 0.03, {
+    envMapIntensity: 0.6,
+  });
+  const sageMat = palette.standard(STORYBOOK_PALETTE.sageShutter, 0.74, 0.02, {
+    mapSet: 'timber-dark',
+  });
+  const ceramicMat = palette.standard(STORYBOOK_PALETTE.ceramicCream, 0.4, 0.04, {
+    envMapIntensity: 0.6,
+  });
+  const brassMat = palette.standard(STORYBOOK_PALETTE.agedBrass, 0.25, 0.86, {
+    envMapIntensity: 1.0,
+  });
+  const ironMat = palette.standard(STORYBOOK_PALETTE.wroughtIron, 0.45, 0.65, {
+    envMapIntensity: 0.5,
+  });
+  const copperMat = palette.standard('#C56B45', 0.28, 0.78, { envMapIntensity: 0.85 });
+  const linenMat = palette.standard('#F5EEE0', 0.88, 0.0, { mapSet: 'fabric' });
   const foliageMat = palette.standard(STORYBOOK_PALETTE.foliageMid, 0.82, 0.0);
   const petalCreamMat = palette.standard(STORYBOOK_PALETTE.petalCream, 0.7, 0.0);
   const petalMarigoldMat = palette.standard(STORYBOOK_PALETTE.petalMarigold, 0.68, 0.0);

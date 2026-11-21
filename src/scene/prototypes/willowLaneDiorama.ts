@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { ResidentAppearance, SeasonType } from '../../game/types';
 import { CharacterRig } from '../models';
 import { MaterialPalette, STORYBOOK_PALETTE } from '../materials';
@@ -1316,18 +1317,20 @@ export function buildStorybookJun(
   root.add(bodyGroup);
 
   const bootMat = palette.standard('#46342A', 0.72, 0.05);
-  const trousersMat = palette.standard('#344A61', 0.84, 0.02);
-  const coatMat = palette.standard(appearance.coatColor, 0.78, 0.02);
-  const coatShadeMat = palette.standard('#3B5F87', 0.8, 0.02);
-  const shirtMat = palette.standard(appearance.shirtColor, 0.84, 0.01);
-  const scarfMat = palette.standard(appearance.accentColor, 0.86, 0.01);
+  const trousersMat = palette.standard('#344A61', 0.84, 0.02, { mapSet: 'fabric' });
+  const coatMat = palette.standard(appearance.coatColor, 0.78, 0.02, { mapSet: 'fabric' });
+  const coatShadeMat = palette.standard('#3B5F87', 0.8, 0.02, { mapSet: 'fabric' });
+  const shirtMat = palette.standard(appearance.shirtColor, 0.84, 0.01, { mapSet: 'fabric' });
+  const scarfMat = palette.standard(appearance.accentColor, 0.86, 0.01, { mapSet: 'fabric' });
   const skinMat = palette.standard(appearance.skinColor, 0.7, 0.02);
   const blushMat = palette.standard('#E59580', 0.74, 0.0);
   const hairMat = palette.standard(appearance.hairColor, 0.82, 0.03);
   const eyeMat = palette.standard('#1E1814', 0.16, 0.08);
   const highlightMat = palette.standard('#FAF5EC', 0.12, 0.0);
   const leatherMat = palette.standard('#7D4F30', 0.64, 0.08);
-  const brassMat = palette.standard(STORYBOOK_PALETTE.agedBrass, 0.24, 0.85);
+  const brassMat = palette.standard(STORYBOOK_PALETTE.agedBrass, 0.24, 0.85, {
+    envMapIntensity: 1.0,
+  });
   const paperMat = palette.standard('#FAF2E1', 0.88, 0.0);
   const stampMat = palette.standard('#C86446', 0.65, 0.02);
 
@@ -1388,7 +1391,9 @@ export function buildStorybookJun(
   carrySocket.position.set(0, 0.31, 0.37);
   torsoPivot.add(carrySocket);
 
-  // Pivoted Sleeved Arms with Cream Cuffs & Clay Hands (shoulder pivot at y = 0.53 inside torsoPivot)
+  // Pivoted Sleeved Arms with Cream Cuffs & Sculpted Mitten Hands (shoulder pivot at y = 0.53)
+  // — Jun shares the shared builder's hand system (Doc 04 §4), including the
+  // hand anchor for future grip props.
   const makeArm = (side: -1 | 1) => {
     const armPivot = new THREE.Group();
     armPivot.position.set(side * 0.3, 0.53, 0);
@@ -1399,13 +1404,32 @@ export function buildStorybookJun(
     const cuff = new THREE.Mesh(new THREE.CylinderGeometry(0.092, 0.092, 0.06, 8), shirtMat);
     cuff.position.set(side * 0.07, -0.32, 0);
     cuff.rotation.z = side * 0.18;
-    const hand = new THREE.Mesh(new THREE.SphereGeometry(0.072, 8, 8), skinMat);
+    const hand = new THREE.Group();
+    hand.name = 'hand';
     hand.position.set(side * 0.09, -0.39, 0.02);
-    armPivot.add(sleeve, cuff, hand);
-    return armPivot;
+    // Same two-lobe merged mitten as the shared builder (draw-call neutral).
+    const palmGeo = new THREE.SphereGeometry(0.078, 8, 7);
+    palmGeo.scale(1.15, 0.8, 1.25);
+    const knuckleGeo = new THREE.SphereGeometry(0.062, 8, 6);
+    knuckleGeo.scale(1.1, 0.7, 1.05);
+    knuckleGeo.translate(0, 0.014, 0.05);
+    const thumbGeo = new THREE.CapsuleGeometry(0.028, 0.032, 4, 6);
+    thumbGeo.rotateX(0.5);
+    thumbGeo.rotateZ(side * 0.35);
+    thumbGeo.translate(side * -0.03, -0.012, 0.062);
+    const palm = new THREE.Mesh(mergeGeometries([palmGeo, knuckleGeo, thumbGeo])!, skinMat);
+    palm.castShadow = true;
+    hand.add(palm);
+    const handAnchor = new THREE.Group();
+    handAnchor.name = 'hand_anchor';
+    handAnchor.position.set(side * 0.09, -0.39, 0.02);
+    armPivot.add(sleeve, cuff, hand, handAnchor);
+    return { armPivot, handAnchor };
   };
-  const leftArm = makeArm(-1);
-  const rightArm = makeArm(1);
+  const leftArmResult = makeArm(-1);
+  const rightArmResult = makeArm(1);
+  const leftArm = leftArmResult.armPivot;
+  const rightArm = rightArmResult.armPivot;
   torsoPivot.add(leftArm, rightArm);
 
   // Cross-Body Leather Courier Satchel + Brass Buckle + Peeking Postcard
@@ -1433,45 +1457,47 @@ export function buildStorybookJun(
   torsoPivot.add(bagGroup);
 
   // Expressive Storybook Head + Hair Tufts + Courier Cap + Brass Post-Horn Badge
+  // — face v2 scales shared with buildStorybookCharacter (Doc 04 §2.1, roadmap
+  // item 2.5): Jun's face consumes the same camera-calibrated part sizes.
   const headGroup = new THREE.Group();
   headGroup.position.set(0, 0.9, 0);
 
-  const head = new THREE.Mesh(new THREE.SphereGeometry(0.285, 14, 12), skinMat);
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.31, 14, 12), skinMat);
   head.castShadow = true;
   headGroup.add(head);
 
   // Sculpted nose + warm cheek blush
-  const nose = new THREE.Mesh(new THREE.SphereGeometry(0.042, 8, 8), skinMat);
-  nose.position.set(0, -0.02, 0.275);
+  const nose = new THREE.Mesh(new THREE.SphereGeometry(0.052, 8, 8), skinMat);
+  nose.position.set(0, -0.02, 0.283);
   headGroup.add(nose);
 
-  const lidGeo = new THREE.BoxGeometry(0.082, 0.056, 0.036);
-  const browGeo = new THREE.BoxGeometry(0.074, 0.02, 0.024);
+  const lidGeo = new THREE.SphereGeometry(0.062, 8, 6);
+  const browGeo = new THREE.BoxGeometry(0.096, 0.024, 0.03);
   let leftEyelid!: THREE.Mesh;
   let rightEyelid!: THREE.Mesh;
   let leftBrow!: THREE.Mesh;
   let rightBrow!: THREE.Mesh;
 
   for (const sx of [-1, 1] as const) {
-    const blush = new THREE.Mesh(new THREE.SphereGeometry(0.052, 8, 8), blushMat);
+    const blush = new THREE.Mesh(new THREE.SphereGeometry(0.062, 8, 8), blushMat);
     blush.scale.set(1.2, 0.72, 0.45);
-    blush.position.set(sx * 0.155, -0.06, 0.22);
+    blush.position.set(sx * 0.155, -0.06, 0.245);
     headGroup.add(blush);
 
     // Expressive eye + tiny warm catchlight dot
-    const eye = new THREE.Mesh(new THREE.SphereGeometry(0.038, 8, 8), eyeMat);
-    eye.position.set(sx * 0.105, 0.025, 0.252);
-    const catchlight = new THREE.Mesh(new THREE.SphereGeometry(0.013, 6, 6), highlightMat);
-    catchlight.position.set(sx * 0.105 + 0.012, 0.04, 0.284);
+    const eye = new THREE.Mesh(new THREE.SphereGeometry(0.052, 8, 8), eyeMat);
+    eye.position.set(sx * 0.12, 0.025, 0.272);
+    const catchlight = new THREE.Mesh(new THREE.SphereGeometry(0.02, 6, 6), highlightMat);
+    catchlight.position.set(sx * 0.12 + 0.014, 0.042, 0.322);
     headGroup.add(eye, catchlight);
 
     const eyelid = new THREE.Mesh(lidGeo, skinMat);
-    eyelid.position.set(sx * 0.105, 0.056, 0.268);
+    eyelid.position.set(sx * 0.12, 0.056, 0.272);
     eyelid.scale.y = 0.2;
     headGroup.add(eyelid);
 
     const brow = new THREE.Mesh(browGeo, hairMat);
-    brow.position.set(sx * 0.105, 0.078, 0.274);
+    brow.position.set(sx * 0.12, 0.078, 0.29);
     headGroup.add(brow);
 
     if (sx === -1) {
@@ -1486,21 +1512,21 @@ export function buildStorybookJun(
   // Expressive mouth (Pass 20, universal) — same contract as the shared builder
   const junMouthMat = palette.standard('#A85546', 0.62, 0.0);
   const junMouthSmile = new THREE.Mesh(
-    new THREE.TorusGeometry(0.06, 0.0125, 6, 14, Math.PI * 0.72),
+    new THREE.TorusGeometry(0.07, 0.018, 6, 14, Math.PI * 0.72),
     junMouthMat,
   );
   junMouthSmile.name = 'mouth_smile';
   junMouthSmile.rotation.z = Math.PI * 1.14;
-  junMouthSmile.position.set(0, -0.118, 0.252);
-  const junMouthO = new THREE.Mesh(new THREE.TorusGeometry(0.032, 0.013, 6, 12), junMouthMat);
+  junMouthSmile.position.set(0, -0.118, 0.268);
+  const junMouthO = new THREE.Mesh(new THREE.TorusGeometry(0.037, 0.015, 6, 12), junMouthMat);
   junMouthO.name = 'mouth_o';
-  junMouthO.position.set(0, -0.125, 0.25);
+  junMouthO.position.set(0, -0.125, 0.266);
   junMouthO.visible = false;
   headGroup.add(junMouthSmile, junMouthO);
 
   // Sculpted back hair + bangs tufts under cap
   const hairBack = new THREE.Mesh(
-    new THREE.SphereGeometry(0.3, 12, 10, 0, Math.PI * 2, 0, Math.PI * 0.6),
+    new THREE.SphereGeometry(0.325, 12, 10, 0, Math.PI * 2, 0, Math.PI * 0.6),
     hairMat,
   );
   hairBack.rotation.x = -0.35;
@@ -1509,19 +1535,19 @@ export function buildStorybookJun(
   for (const bx of [-0.11, 0, 0.11]) {
     const bang = new THREE.Mesh(new THREE.DodecahedronGeometry(0.072, 0), hairMat);
     bang.scale.set(1.1, 0.75, 0.8);
-    bang.position.set(bx, 0.13, 0.24);
+    bang.position.set(bx, 0.13, 0.26);
     headGroup.add(bang);
   }
 
-  // Courier Cap + Visor + Brass Badge
+  // Courier Cap + Visor + Brass Badge (scaled to the v2 head)
   const capCrown = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.31, 0.28, 0.16, 12),
+    new THREE.CylinderGeometry(0.325, 0.295, 0.16, 12),
     coatMat,
   );
   capCrown.position.set(0, 0.21, -0.02);
   capCrown.rotation.x = -0.14;
   capCrown.castShadow = true;
-  const capBand = new THREE.Mesh(new THREE.CylinderGeometry(0.285, 0.285, 0.06, 12), coatShadeMat);
+  const capBand = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.3, 0.06, 12), coatShadeMat);
   capBand.position.set(0, 0.14, 0);
   capBand.rotation.x = -0.14;
   const capVisor = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.3, 0.04, 12, 1, false, -Math.PI * 0.36, Math.PI * 0.72), coatShadeMat);
@@ -1529,7 +1555,7 @@ export function buildStorybookJun(
   capVisor.rotation.x = 0.08;
   const capBadge = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.045, 0.025, 8), brassMat);
   capBadge.rotation.x = Math.PI / 2;
-  capBadge.position.set(0, 0.22, 0.28);
+  capBadge.position.set(0, 0.22, 0.3);
   headGroup.add(capCrown, capBand, capVisor, capBadge);
 
   torsoPivot.add(headGroup);
@@ -1579,6 +1605,8 @@ export function buildStorybookJun(
     leftBrow,
     rightBrow,
     carrySocket,
+    handAnchor: rightArmResult.handAnchor,
+    carryPose: 'cradle',
     ringMesh,
     questPip,
     mouthSmile: junMouthSmile,
