@@ -122,4 +122,5 @@ Residents must feel like **expressive miniature storybook figurines**, never rec
 
 - Maintain full visual parity of scene content across GPU and `isSoftwareGl` devices; scale **only** DPR (`1` on software GL, `<= 2` on GPU), AA, shadow map, and non-essential particle density.
 - Share materials via palette caches; batch repeated flora/curbs/props with `InstancedMesh` wherever instance count `> 15–20`.
-- Keep draw calls bounded (`<= 120–150` across the diorama) and zero per-frame allocations inside `tick()`.
+- Keep draw calls bounded at or below the **measured baseline (2,242 draw calls, BUILD 01)** and zero per-frame allocations inside `tick()`.
+  - *Reconciliation (BUILD 02, explicit — see `visual-identity-evolution/implementation/build02-implementation-report.md` §14.3):* the original `<= 120–150` figure predates the current scene's density and never described the real diorama (the honest measured value at the BUILD 01 baseline was ≈2,238–2,242). The binding rule is now: **hold the net at or below the measured baseline; every addition must name its draw-call offset**, and the sanctioned reduction tools are instanced contact-shadow batches and merged-geometry builders. BUILD 02 measured 2,229 (−0.6% vs baseline) with 91 contact discs batched into 17 instanced buckets.

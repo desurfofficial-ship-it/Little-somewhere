@@ -207,6 +207,15 @@ export interface NeighborhoodCanvasProps {
   onSelectTarget: (target: InteractiveTarget) => void;
 }
 
+declare global {
+  interface Window {
+    /** BUILD 02 QA probe: contact-shadow batching stats (dev-gated with ?perf=1). */
+    __LS_SCENE_STATS__?: () => { buckets: number; instancedDiscs: number; looseDiscs: number };
+    __LS_CAMERA_SET__?: (z: number) => void;
+    __LS_CAMERA_GET__?: () => number;
+  }
+}
+
 const _vec3A = new THREE.Vector3();
 const _vec3B = new THREE.Vector3();
 const _raycaster = new THREE.Raycaster();
@@ -406,7 +415,48 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
     if (perfProbe.enabled) {
       window.__LS_PERF__ = perfProbe;
       perfProbe.mountOverlay();
+      // BUILD 02 QA probe: one-shot scene stats for the capture/QA harness
+      // (dev-gated alongside the perf probe; counts contact-shadow batching).
+      window.__LS_SCENE_STATS__ = () => {
+        let buckets = 0;
+        let instancedDiscs = 0;
+        let looseDiscs = 0;
+        scene.traverse((o) => {
+          if ((o as THREE.InstancedMesh).isInstancedMesh && o.name === 'instanced_contact_shadows') {
+            buckets += 1;
+            instancedDiscs += (o as THREE.InstancedMesh).count;
+          }
+        });
+        scene.traverse((o) => {
+          const mesh = o as THREE.Mesh;
+          if (
+            mesh.isMesh &&
+            mesh.material instanceof THREE.MeshBasicMaterial &&
+            mesh.geometry instanceof THREE.PlaneGeometry &&
+            Math.abs(mesh.rotation.x + Math.PI / 2) < 0.01
+          ) {
+            looseDiscs += 1;
+          }
+        });
+        return { buckets, instancedDiscs, looseDiscs };
+      };
     }
+    // Camera QA hooks: the harness sets the zoom target directly (wheel
+    // events + the 0.05 dt clamp make long damp settles unreliable under
+    // SwiftShader throttling).
+    window.__LS_CAMERA_SET__ = (z: number) => {
+      zoomRef.current = THREE.MathUtils.clamp(z, 0.72, 1.45);
+      // Snap the rig immediately: under SwiftShader throttling the position
+      // damp needs dozens of wall-clock seconds to converge, which makes
+      // zoom-framed QA captures unreliable. The next tick's damp accepts the
+      // snapped position as its current value (desired == current → stable).
+      const zz = zoomRef.current;
+      const w = worldRef.current;
+      const fx = w.playerPos?.x ?? 0;
+      const fz = w.playerPos?.z ?? 0;
+      camera.position.set(fx + 19.5 * zz, 18.2 * zz, fz + 19.5 * zz);
+    };
+    window.__LS_CAMERA_GET__ = () => zoomRef.current;
     const sceneBuildStart = performance.now();
 
     const renderer = new THREE.WebGLRenderer({
@@ -2606,6 +2656,7 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
       perfProbe.disposeOverlay();
       if (window.__LS_PERF__ === perfProbe) {
         delete window.__LS_PERF__;
+        delete window.__LS_SCENE_STATS__;
       }
       cancelAnimationFrame(frameId);
       clearTimeout(frameId);
