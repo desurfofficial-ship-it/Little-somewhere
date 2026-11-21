@@ -10,7 +10,7 @@
 | Base | verified `origin/main` = `545e323` (PR #5 merge `5681eec` + doc 14 addendum; verified against the live remote at initiative start — doc 01 §1) |
 | Working tree | clean at every recorded checkpoint (mutations applied and reverted with verified clean tree) |
 | PR #3 / PR #5 | untouched (directive compliance: not closed, not modified; PR #5 history unaltered) |
-| Publication | branch pushed; draft PR opened and left **unmerged** for explicit review (see WORKLOG Entry 053) |
+| Publication | branch committed locally and preserved (`ec93aba` tip); **push blocked** — `git push` fails with `could not read Username for 'https://github.com': No such device or address` (no credential helper configured, no `gh` CLI, no `GH_TOKEN`/`GITHUB_TOKEN` in the environment; the PAT supplied in a prior session was never stored and is not available). Nothing has been published; the draft PR remains to be opened once credentials exist (see WORKLOG Entry 053) |
 
 ## B. Findings → resolution summary
 
