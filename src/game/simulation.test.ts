@@ -246,3 +246,37 @@ test('Step 3.6: discrete social encounters propagate gossip deterministically wi
   assert.notDeepEqual(simA.npcRuntime, simOtherSeed.npcRuntime);
 });
 
+
+// ---------------------------------------------------------------------------
+// Systemic reliability initiative — SR-10 / register F-SIM-1 (doc 02 §SR-10):
+// the pure wrapper must not leak in-place resident writes into the retained
+// input world. First natural leak on the un-fixed boundary: pure step 682
+// (updateResidentEmotionInPlace writing residents[id].mood through the shared
+// residents record). Production is unaffected by design — it runs exclusively
+// through stepSimulationInPlace (NeighborhoodCanvas.tsx), which owns mutation.
+// ---------------------------------------------------------------------------
+
+test('pure stepSimulation never leaks resident mutations into the retained input (SR-10 / F-SIM-1)', () => {
+  const world = createFreshWorldState();
+  const snapshot = structuredClone(world.residents);
+  let current = world;
+  for (let i = 0; i < 700; i++) {
+    current = stepSimulation(current, 1 / 60);
+  }
+  assert.deepEqual(
+    world.residents,
+    snapshot,
+    'input residents must stay untouched after 700 pure steps (un-fixed boundary leaked mood at step 682)',
+  );
+  // Isolation must not change the computed trajectory: a second, independent
+  // run from an identical pristine input must produce the identical state.
+  let replay = createFreshWorldState();
+  for (let i = 0; i < 700; i++) {
+    replay = stepSimulation(replay, 1 / 60);
+  }
+  assert.equal(
+    JSON.stringify(replay),
+    JSON.stringify(current),
+    'two independent pure runs remain value-identical after the isolation fix',
+  );
+});

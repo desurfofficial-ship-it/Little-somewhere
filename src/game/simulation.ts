@@ -1056,6 +1056,16 @@ export function stepSimulation(
     ...world,
     playerPos: { x: world.playerPos.x, z: world.playerPos.z },
     worldProps: world.worldProps ? { ...world.worldProps } : world.worldProps,
+    // SR-10 / register F-SIM-1 (systemic-reliability doc 03 §3): the pure
+    // wrapper must not alias the input's resident records — in-place writers
+    // like updateResidentEmotionInPlace (residents[id].mood) cross every other
+    // clone boundary otherwise. Per-record shallow clone: cheap (~0.4 µs at
+    // the default population), value-preserving, and confined to the pure
+    // path — stepSimulationInPlace (production) keeps its owned mutation.
+    residents: RESIDENT_ORDER.reduce((acc, id) => {
+      acc[id] = { ...world.residents[id] };
+      return acc;
+    }, {} as WorldState['residents']),
     npcRuntime: cloneNpcRuntime(world.npcRuntime),
     npcRelations: { ...world.npcRelations },
     activeEncounters: world.activeEncounters.map((e) => ({
