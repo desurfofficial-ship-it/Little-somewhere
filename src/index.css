@@ -86,6 +86,21 @@
   box-shadow: var(--shadow-drawer);
 }
 
+/* BUILD 04 a11y floor (Doc 08 §7.5): HUD padding honors the notch / home
+   indicator on `viewport-fit=cover` devices. Same visual padding as the old
+   p-3 sm:p-5, lifted to max(padding, inset) per side. */
+.safe-area-pad {
+  padding: max(0.75rem, env(safe-area-inset-top)) max(0.75rem, env(safe-area-inset-right))
+    max(0.75rem, env(safe-area-inset-bottom)) max(0.75rem, env(safe-area-inset-left));
+}
+
+@media (min-width: 640px) {
+  .safe-area-pad {
+    padding: max(1.25rem, env(safe-area-inset-top)) max(1.25rem, env(safe-area-inset-right))
+      max(1.25rem, env(safe-area-inset-bottom)) max(1.25rem, env(safe-area-inset-left));
+  }
+}
+
 /* Custom thin scrollbars inside journal/dialogue sheets */
 .storybook-scroll::-webkit-scrollbar {
   width: 6px;

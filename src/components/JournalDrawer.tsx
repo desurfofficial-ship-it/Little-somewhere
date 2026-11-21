@@ -17,6 +17,8 @@ import {
   saveJournalReadKeys,
 } from '../game/journal';
 import { WorldState } from '../game/types';
+import { PortraitCanvas } from './DialogueVisuals';
+import { resolvePortrait } from '../game/dialogue/assets';
 
 interface JournalDrawerProps {
   open: boolean;
@@ -593,13 +595,25 @@ export const JournalDrawer: React.FC<JournalDrawerProps> = ({
                     <div className="space-y-2.5">
                       <div className="flex items-start justify-between gap-3">
                         <div className="flex items-center gap-3 min-w-0">
-                          <div
-                            className="w-10 h-10 rounded-full shrink-0 border-2 border-linen flex items-center justify-center font-display font-bold text-linen"
-                            style={{ backgroundColor: person.coatColor }}
-                            aria-hidden="true"
-                          >
-                            {person.name.charAt(0)}
-                          </div>
+                          {/* BUILD 04 portrait unification (Doc 03 §9.4): People cards
+                             reuse the dialogue's procedural knit-portrait painter.
+                             Un-met neighbors keep the coat-color initial — the
+                             mystery is part of the story. */}
+                          {person.met ? (
+                            <PortraitCanvas
+                              descriptor={resolvePortrait(undefined, person.id)}
+                              size={40}
+                              className="shrink-0 rounded-full"
+                            />
+                          ) : (
+                            <div
+                              className="w-10 h-10 rounded-full shrink-0 border-2 border-linen flex items-center justify-center font-display font-bold text-linen"
+                              style={{ backgroundColor: person.coatColor }}
+                              aria-hidden="true"
+                            >
+                              {person.name.charAt(0)}
+                            </div>
+                          )}
                           <div className="min-w-0">
                             <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
                               <h4 className="font-display text-lg font-semibold text-espresso">

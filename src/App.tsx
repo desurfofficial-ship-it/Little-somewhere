@@ -11,6 +11,7 @@ import {
   ZoomIn,
   ZoomOut,
 } from 'lucide-react';
+import { SeasonGlyph, WeatherGlyph } from './components/icons';
 import {
   CarryableItemId,
   CottageInteractableId,
@@ -1242,7 +1243,7 @@ export default function App() {
 
       {/* Playing HUD (World-matched, >= 85% unobstructed center) */}
       {screenState !== 'title' && (
-        <div className="fixed inset-0 z-10 pointer-events-none flex flex-col justify-between p-3 sm:p-5">
+        <div className="fixed inset-0 z-10 pointer-events-none flex flex-col justify-between safe-area-pad">
           {/* Top Bar: Left Location & Clock | Right Compact Utility Buttons */}
           <div className="flex items-start justify-between gap-2 sm:gap-3">
             <div className="bg-linen/95 border border-stone-line rounded-2xl px-3 py-2 sm:px-4 sm:py-2.5 shadow-elevation-card pointer-events-auto min-w-0 max-w-[172px] sm:max-w-md">
@@ -1258,8 +1259,12 @@ export default function App() {
                   {isIndoors ? 'Indoors' : phaseLabel}
                 </span>
                 <span className="hidden md:inline" aria-hidden="true">·</span>
-                <span className="hidden md:inline font-sans">
-                  {getSeasonLabel(hudSeason)} · {getWeatherLabel(hudWeather)}
+                <span className="hidden md:inline font-sans inline-flex items-center gap-1">
+                  <SeasonGlyph season={hudSeason} className="w-3.5 h-3.5 text-sage shrink-0" />
+                  {getSeasonLabel(hudSeason)}
+                  <span aria-hidden="true">·</span>
+                  <WeatherGlyph weather={hudWeather} className="w-3.5 h-3.5 text-terracotta shrink-0" />
+                  {getWeatherLabel(hudWeather)}
                 </span>
               </div>
             </div>
@@ -1310,14 +1315,14 @@ export default function App() {
                 <span className="hidden sm:inline">Journal</span>
               </button>
 
-              <div className="hidden md:flex items-center gap-1 bg-linen/95 border border-stone-line rounded-xl p-0.5 shadow-sm">
+              <div className="flex items-center gap-1 bg-linen/95 border border-stone-line rounded-xl p-0.5 shadow-sm">
                 <button
                   type="button"
                   onClick={() => {
                     zoomRef.current = Math.min(1.45, zoomRef.current + 0.14);
                   }}
                   aria-label="Zoom out"
-                  className="min-h-[40px] min-w-[40px] flex items-center justify-center rounded-lg hover:bg-linen-deep text-espresso transition-colors cursor-pointer"
+                  className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg hover:bg-linen-deep text-espresso transition-colors cursor-pointer"
                 >
                   <ZoomOut className="w-4 h-4" />
                 </button>
@@ -1327,7 +1332,7 @@ export default function App() {
                     zoomRef.current = Math.max(0.72, zoomRef.current - 0.14);
                   }}
                   aria-label="Zoom in"
-                  className="min-h-[40px] min-w-[40px] flex items-center justify-center rounded-lg hover:bg-linen-deep text-espresso transition-colors cursor-pointer"
+                  className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg hover:bg-linen-deep text-espresso transition-colors cursor-pointer"
                 >
                   <ZoomIn className="w-4 h-4" />
                 </button>
@@ -1355,7 +1360,11 @@ export default function App() {
 
           {/* Gentle Memory / Story Toast or Lightweight Nearby Neighbor Whisper */}
           {toastText ? (
-            <div className="self-center mt-1.5 bg-linen/95 border border-terracotta/40 rounded-xl px-3.5 py-1.5 shadow-elevation-card flex items-center gap-2 text-xs sm:text-sm font-medium text-espresso">
+            <div
+              role="status"
+              aria-live="polite"
+              className="self-center mt-1.5 bg-linen/95 border border-terracotta/40 rounded-xl px-3.5 py-1.5 shadow-elevation-card flex items-center gap-2 text-xs sm:text-sm font-medium text-espresso"
+            >
               <Sparkles className="w-3.5 h-3.5 text-terracotta shrink-0" />
               <span>{toastText}</span>
             </div>
@@ -1363,7 +1372,11 @@ export default function App() {
             nearbyBubble &&
             !anyModalOpen &&
             screenState === 'playing' && (
-              <div className="self-center mt-1.5 max-w-[300px] sm:max-w-sm bg-linen/88 border border-stone-line/80 rounded-xl px-3 py-1 shadow-sm text-[11px] sm:text-xs text-espresso text-center">
+              <div
+                role="status"
+                aria-live="polite"
+                className="self-center mt-1.5 max-w-[300px] sm:max-w-sm bg-linen/88 border border-stone-line/80 rounded-xl px-3 py-1 shadow-sm text-[11px] sm:text-xs text-espresso text-center"
+              >
                 <span className="font-display font-semibold text-terracotta">
                   {nearbyBubble.name}:
                 </span>{' '}

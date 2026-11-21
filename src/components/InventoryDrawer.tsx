@@ -1,5 +1,8 @@
 import React, { useMemo, useState } from 'react';
-import { Gift, PackageOpen, Sparkles, Sprout, X } from 'lucide-react';
+import { PackageOpen, X } from 'lucide-react';
+import { KeepsakeIcon, SproutIcon } from './icons';
+import { SubjectCanvas } from './DialogueVisuals';
+import { subjectForItem } from '../game/dialogue/assets';
 import {
   PERSONAL_ITEMS,
   PERSONAL_ITEM_CATEGORY_LABELS,
@@ -160,7 +163,14 @@ export const InventoryDrawer: React.FC<InventoryDrawerProps> = ({
                   >
                     <div>
                       <div className="flex items-start justify-between gap-2">
-                        <div className="min-w-0">
+                        {/* BUILD 04 item thumbnails (Doc 03 §9.3): tinted canvas
+                           thumbnails from the SAME SubjectCanvas painter. */}
+                        <SubjectCanvas
+                          descriptor={subjectForItem(def.id)}
+                          size={44}
+                          className="shrink-0 rounded-lg border border-parchment"
+                        />
+                        <div className="min-w-0 flex-1 pl-2">
                           <h3 className="font-display text-base font-semibold text-espresso leading-snug">
                             {def.label}
                           </h3>
@@ -181,19 +191,21 @@ export const InventoryDrawer: React.FC<InventoryDrawerProps> = ({
                       <span className="text-[11px] text-umber flex items-center gap-1">
                         {def.category === 'keepsake' ? (
                           <>
-                            <Sparkles className="w-3.5 h-3.5 text-sage shrink-0" />
+                            {/* BUILD 04 (Doc 03 §9.2): cozy-domain slots use the bespoke
+                               storybook icon family; lucide stays for functional glyphs. */}
+                            <KeepsakeIcon className="w-3.5 h-3.5 text-sage shrink-0" />
                             <span>
                               {isDisplayedOnShelf ? 'On your cottage shelf' : 'Cottage shelf keepsake'}
                             </span>
                           </>
                         ) : !def.giftable ? (
                           <>
-                            <Sprout className="w-3.5 h-3.5 text-sage shrink-0" />
+                            <SproutIcon className="w-3.5 h-3.5 text-sage shrink-0" />
                             <span>For sowing at Sunbeam Greenhouse</span>
                           </>
                         ) : (
                           <>
-                            <Gift className="w-3.5 h-3.5 text-terracotta shrink-0" />
+                            <KeepsakeIcon className="w-3.5 h-3.5 text-terracotta shrink-0" />
                             <span>
                               {def.homeDisplayable === 'vase'
                                 ? 'Giftable · Fits table vase'

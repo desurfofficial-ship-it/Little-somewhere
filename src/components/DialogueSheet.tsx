@@ -24,8 +24,30 @@ import {
   WorldState,
 } from '../game/types';
 import { isChoiceAvailable } from '../game/narrative';
-import { resolvePortrait, resolveSubjectImage } from '../game/dialogue/assets';
+import { resolvePortrait, resolveSubjectImage, subjectForItem } from '../game/dialogue/assets';
 import { PortraitCanvas, SubjectCanvas, useDialogueVisualSize } from './DialogueVisuals';
+
+/**
+ * BUILD 04 a11y floor (Doc 08 §7.5): the five DialogueChoice tones each carry a
+ * distinct tactile style in the storybook palette family — warm (terracotta
+ * rose), curious (honey), gentle (sage), practical (stone) and blunt (firmer
+ * clay red). Gift choices keep their dedicated sage treatment.
+ */
+const TONE_STYLES: Record<NonNullable<DialogueChoice['tone']>, string> = {
+  warm: 'bg-[#F7ECE6] hover:bg-[#EFE0D7] border-[#DEC1B4] text-[#4E2F23]',
+  curious: 'bg-[#F8F0DD] hover:bg-[#F2E7CB] border-[#E2C98F] text-[#4F3A12]',
+  gentle: 'bg-[#EEF3EC] hover:bg-[#E2ECE0] border-[#B6CBB5] text-[#263829]',
+  practical: 'bg-[#F3E9D9] hover:bg-[#E9DBC6] border-[#D8C9B3] text-espresso',
+  blunt: 'bg-[#F2E3DE] hover:bg-[#EAD6CF] border-[#C9A493] text-[#4E2F23]',
+};
+
+const TONE_CHEVRONS: Record<NonNullable<DialogueChoice['tone']>, string> = {
+  warm: 'text-terracotta',
+  curious: 'text-[#B98A2E]',
+  gentle: 'text-sage',
+  practical: 'text-espresso-muted',
+  blunt: 'text-[#9E614C]',
+};
 import {
   getEmotionLabel,
   getHeartLevel,
@@ -397,28 +419,27 @@ export const DialogueSheet: React.FC<DialogueSheetProps> = ({
         <div className="mt-3 flex flex-col gap-1.5">
           {availableChoices.map((choice) => {
             const isGift = Boolean(choice.deliverHeldItem);
-            const isBlunt = choice.tone === 'blunt' || Boolean(choice.isNegative);
+            // BUILD 04 a11y floor (Doc 08 §7.5): all five DialogueChoice.tone values
+            // carry a distinct tactile style — gift keeps its own treatment.
+            const toneStyle = isGift
+              ? 'bg-[#EEF3EC] hover:bg-[#E2ECE0] border-[#B6CBB5] text-[#263829]'
+              : TONE_STYLES[choice.tone ?? 'practical'];
+            const toneChevron = isGift
+              ? 'text-sage'
+              : TONE_CHEVRONS[choice.tone ?? 'practical'];
             return (
               <button
                 key={choice.id}
                 type="button"
                 onClick={() => onSelectChoice(choice)}
-                className={`w-full min-h-[44px] px-3.5 py-2 text-left rounded-xl active:scale-[0.995] border text-sm font-medium transition-all cursor-pointer flex items-center justify-between gap-2.5 ${
-                  isGift
-                    ? 'bg-[#EEF3EC] hover:bg-[#E2ECE0] border-[#B6CBB5] text-[#263829]'
-                    : isBlunt
-                    ? 'bg-[#F7ECE6] hover:bg-[#EFE0D7] border-[#DEC1B4] text-[#4E2F23]'
-                    : 'bg-[#F3E9D9] hover:bg-[#E9DBC6] border-[#D8C9B3] text-espresso'
-                }`}
+                className={`w-full min-h-[44px] px-3.5 py-2 text-left rounded-xl active:scale-[0.995] border text-sm font-medium transition-all cursor-pointer flex items-center justify-between gap-2.5 ${toneStyle}`}
               >
                 <span className="leading-snug">{choice.label}</span>
                 {isGift ? (
                   <Gift className="w-4 h-4 text-sage shrink-0" aria-hidden="true" />
                 ) : (
                   <ChevronRight
-                    className={`w-4 h-4 shrink-0 ${
-                      isBlunt ? 'text-[#9E614C]' : 'text-terracotta'
-                    }`}
+                    className={`w-4 h-4 shrink-0 ${toneChevron}`}
                     aria-hidden="true"
                   />
                 )}
@@ -465,7 +486,15 @@ export const DialogueSheet: React.FC<DialogueSheetProps> = ({
                           }}
                           className="w-full min-h-[44px] px-3 py-2 rounded-xl bg-linen hover:bg-[#EFE5D5] border border-stone-line text-left flex items-center justify-between gap-2 transition-colors cursor-pointer"
                         >
-                          <div className="min-w-0">
+                          {/* BUILD 04 item thumbnails (Doc 03 §9.3): the gift picker
+                             reuses the SubjectCanvas painter — same visual voice as
+                             the satchel. */}
+                          <SubjectCanvas
+                            descriptor={subjectForItem(def.id)}
+                            size={36}
+                            className="shrink-0 rounded-lg border border-parchment"
+                          />
+                          <div className="min-w-0 flex-1 pl-1">
                             <div className="text-xs sm:text-sm font-semibold text-espresso truncate">
                               {def.label}
                             </div>

@@ -715,6 +715,290 @@ function paintSubject(
       ctx.stroke();
       break;
     }
+    // BUILD 04 (Doc 03 §9.3): parametric satchel-item scenes — tinted by the
+    // recipe's primary/accent tones, same painter, no new systems.
+    case 'item_sprig': {
+      ctx.strokeStyle = '#7B9F5C';
+      ctx.lineWidth = Math.max(1.6, S * 0.03);
+      ctx.beginPath();
+      ctx.moveTo(S * 0.5, S * 0.82);
+      ctx.quadraticCurveTo(S * 0.46, S * 0.6, S * 0.52, S * 0.34);
+      ctx.stroke();
+      ctx.fillStyle = accent;
+      ctx.beginPath();
+      ctx.ellipse(S * 0.36, S * 0.66, S * 0.08, S * 0.045, -0.7, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.beginPath();
+      ctx.ellipse(S * 0.63, S * 0.56, S * 0.08, S * 0.045, 0.7, 0, Math.PI * 2);
+      ctx.fill();
+      const sprigBlooms: Array<[number, number, number]> = [
+        [0.52, 0.3, 0.085],
+        [0.38, 0.38, 0.065],
+        [0.63, 0.4, 0.06],
+      ];
+      for (const [bx, by, br] of sprigBlooms) {
+        ctx.fillStyle = primary;
+        ctx.beginPath();
+        ctx.arc(S * bx, S * by, S * br, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = hexWithAlpha(UI_PALETTE.honey, 0.9);
+        ctx.beginPath();
+        ctx.arc(S * bx, S * by, S * br * 0.32, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      break;
+    }
+    case 'item_seeds': {
+      // Kraft seed pouch with a tinted band and scattered seeds.
+      box(S * 0.26, S * 0.34, S * 0.48, S * 0.44, '#D9C4A4', 0.06);
+      box(S * 0.26, S * 0.46, S * 0.48, S * 0.12, primary, 0.04);
+      ctx.strokeStyle = '#B9A382';
+      ctx.lineWidth = Math.max(1.3, S * 0.022);
+      ctx.beginPath();
+      ctx.moveTo(S * 0.26, S * 0.34);
+      ctx.lineTo(S * 0.38, S * 0.24);
+      ctx.lineTo(S * 0.62, S * 0.24);
+      ctx.lineTo(S * 0.74, S * 0.34);
+      ctx.stroke();
+      ctx.fillStyle = accent;
+      for (const [sx, sy] of [
+        [0.42, 0.84],
+        [0.52, 0.88],
+        [0.62, 0.82],
+        [0.47, 0.78],
+      ] as Array<[number, number]>) {
+        ctx.beginPath();
+        ctx.ellipse(S * sx, S * sy, S * 0.028, S * 0.02, 0.5, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      break;
+    }
+    case 'item_honey_jar': {
+      ctx.fillStyle = hexWithAlpha(primary, 0.88);
+      paintRoundedRect(ctx, S * 0.32, S * 0.4, S * 0.36, S * 0.4, S * 0.08);
+      ctx.fill();
+      box(S * 0.3, S * 0.3, S * 0.4, S * 0.12, accent, 0.05);
+      box(S * 0.3, S * 0.38, S * 0.4, S * 0.05, UI_PALETTE.linen, 0.02);
+      ctx.fillStyle = hexWithAlpha(UI_PALETTE.linen, 0.55);
+      ctx.beginPath();
+      ctx.ellipse(S * 0.41, S * 0.6, S * 0.035, S * 0.1, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = primary;
+      ctx.beginPath();
+      ctx.ellipse(S * 0.5, S * 0.86, S * 0.1, S * 0.02, 0, 0, Math.PI * 2);
+      ctx.fill();
+      break;
+    }
+    case 'item_tart': {
+      ctx.fillStyle = '#D9BC96';
+      ctx.beginPath();
+      ctx.arc(S * 0.5, S * 0.56, S * 0.28, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = primary;
+      ctx.beginPath();
+      ctx.arc(S * 0.5, S * 0.56, S * 0.2, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = hexWithAlpha('#D9BC96', 0.95);
+      ctx.lineWidth = Math.max(1.4, S * 0.024);
+      for (const off of [-0.1, 0, 0.1]) {
+        ctx.beginPath();
+        ctx.moveTo(S * (0.5 + off), S * 0.38);
+        ctx.lineTo(S * (0.5 - off), S * 0.74);
+        ctx.stroke();
+      }
+      break;
+    }
+    case 'item_shortbread': {
+      box(S * 0.24, S * 0.42, S * 0.4, S * 0.16, primary, 0.05);
+      box(S * 0.34, S * 0.52, S * 0.42, S * 0.16, hexWithAlpha(primary, 0.85), 0.05);
+      ctx.fillStyle = accent;
+      for (const [px, py] of [
+        [0.32, 0.47],
+        [0.44, 0.47],
+        [0.56, 0.49],
+        [0.46, 0.58],
+        [0.58, 0.58],
+        [0.68, 0.58],
+      ] as Array<[number, number]>) {
+        ctx.beginPath();
+        ctx.arc(S * px, S * py, S * 0.016, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      break;
+    }
+    case 'item_river_glass': {
+      ctx.fillStyle = primary;
+      ctx.beginPath();
+      ctx.ellipse(S * 0.5, S * 0.56, S * 0.26, S * 0.18, -0.2, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = hexWithAlpha(accent, 0.65);
+      ctx.beginPath();
+      ctx.ellipse(S * 0.42, S * 0.5, S * 0.1, S * 0.035, -0.5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = hexWithAlpha(UI_PALETTE.linen, 0.7);
+      ctx.lineWidth = Math.max(1.3, S * 0.02);
+      ctx.beginPath();
+      ctx.arc(S * 0.5, S * 0.56, S * 0.19, -2.4, -1.2);
+      ctx.stroke();
+      break;
+    }
+    case 'item_feather': {
+      ctx.strokeStyle = hexWithAlpha(UI_PALETTE.umber, 0.8);
+      ctx.lineWidth = Math.max(1.3, S * 0.02);
+      ctx.beginPath();
+      ctx.moveTo(S * 0.64, S * 0.2);
+      ctx.quadraticCurveTo(S * 0.44, S * 0.5, S * 0.36, S * 0.82);
+      ctx.stroke();
+      ctx.fillStyle = primary;
+      ctx.beginPath();
+      ctx.ellipse(S * 0.46, S * 0.46, S * 0.13, S * 0.24, 0.6, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = hexWithAlpha(UI_PALETTE.linen, 0.55);
+      for (const off of [-0.06, 0.02, 0.1]) {
+        ctx.beginPath();
+        ctx.moveTo(S * (0.4 + off), S * (0.34 + off * 1.6));
+        ctx.lineTo(S * (0.3 + off), S * (0.44 + off * 1.6));
+        ctx.stroke();
+      }
+      break;
+    }
+    case 'item_fern': {
+      ctx.strokeStyle = primary;
+      ctx.lineWidth = Math.max(1.5, S * 0.026);
+      ctx.beginPath();
+      ctx.moveTo(S * 0.5, S * 0.84);
+      ctx.quadraticCurveTo(S * 0.54, S * 0.5, S * 0.48, S * 0.2);
+      ctx.stroke();
+      ctx.fillStyle = primary;
+      for (let i = 0; i < 5; i++) {
+        const fy = 0.76 - i * 0.13;
+        const fl = 0.1 - i * 0.014;
+        ctx.beginPath();
+        ctx.ellipse(S * (0.5 - fl), S * fy, S * fl, S * 0.035, -0.45, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = i % 2 === 0 ? primary : hexWithAlpha(accent, 0.9);
+        ctx.beginPath();
+        ctx.ellipse(S * (0.5 + fl), S * fy, S * fl, S * 0.035, 0.45, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = primary;
+      }
+      break;
+    }
+    case 'item_cedar_rose': {
+      ctx.fillStyle = primary;
+      ctx.beginPath();
+      ctx.arc(S * 0.5, S * 0.52, S * 0.24, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = hexWithAlpha(accent, 0.85);
+      ctx.lineWidth = Math.max(1.6, S * 0.028);
+      for (const [rr, a0] of [
+        [0.18, 0.4],
+        [0.13, 2.2],
+        [0.08, 4.1],
+        [0.04, 0.9],
+      ] as Array<[number, number]>) {
+        ctx.beginPath();
+        ctx.arc(S * 0.5, S * 0.52, S * rr, a0, a0 + 5.2);
+        ctx.stroke();
+      }
+      break;
+    }
+    case 'item_zine': {
+      ctx.save();
+      ctx.translate(S * 0.5, S * 0.54);
+      ctx.rotate(-0.12);
+      box(-S * 0.22, -S * 0.28, S * 0.44, S * 0.56, primary, 0.05);
+      box(-S * 0.22, -S * 0.28, S * 0.06, S * 0.56, hexWithAlpha(UI_PALETTE.umber, 0.35), 0.03);
+      ctx.strokeStyle = hexWithAlpha(UI_PALETTE.linen, 0.85);
+      ctx.lineWidth = Math.max(1.3, S * 0.02);
+      for (const ly of [-0.12, -0.02, 0.08]) {
+        ctx.beginPath();
+        ctx.moveTo(S * -0.1, S * ly);
+        ctx.lineTo(S * 0.14, S * ly);
+        ctx.stroke();
+      }
+      ctx.fillStyle = accent;
+      ctx.beginPath();
+      ctx.arc(S * 0.05, S * -0.19, S * 0.045, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+      break;
+    }
+    case 'item_bell': {
+      ctx.fillStyle = primary;
+      ctx.beginPath();
+      ctx.moveTo(S * 0.38, S * 0.62);
+      ctx.quadraticCurveTo(S * 0.34, S * 0.36, S * 0.5, S * 0.3);
+      ctx.quadraticCurveTo(S * 0.66, S * 0.36, S * 0.62, S * 0.62);
+      ctx.closePath();
+      ctx.fill();
+      box(S * 0.34, S * 0.6, S * 0.32, S * 0.06, hexWithAlpha(primary, 0.8), 0.03);
+      ctx.fillStyle = accent;
+      ctx.beginPath();
+      ctx.arc(S * 0.5, S * 0.72, S * 0.04, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = accent;
+      ctx.lineWidth = Math.max(1.4, S * 0.024);
+      ctx.beginPath();
+      ctx.arc(S * 0.5, S * 0.28, S * 0.05, Math.PI * 0.15, Math.PI * 0.85, true);
+      ctx.stroke();
+      break;
+    }
+    case 'item_watercolor_card': {
+      ctx.save();
+      ctx.translate(S * 0.5, S * 0.54);
+      ctx.rotate(0.08);
+      box(-S * 0.26, -S * 0.3, S * 0.52, S * 0.6, UI_PALETTE.linen, 0.04);
+      ctx.fillStyle = hexWithAlpha(primary, 0.75);
+      ctx.beginPath();
+      ctx.ellipse(-S * 0.04, -S * 0.04, S * 0.14, S * 0.1, 0.3, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = hexWithAlpha(accent, 0.7);
+      ctx.beginPath();
+      ctx.ellipse(S * 0.1, S * 0.12, S * 0.07, S * 0.05, -0.4, 0, Math.PI * 2);
+      ctx.fill();
+      box(S * -0.05, -S * 0.36, S * 0.1, S * 0.09, hexWithAlpha('#D9BC96', 0.9), 0.02);
+      ctx.restore();
+      break;
+    }
+    case 'item_wreath': {
+      ctx.strokeStyle = primary;
+      ctx.lineWidth = Math.max(2.2, S * 0.05);
+      ctx.beginPath();
+      ctx.arc(S * 0.5, S * 0.52, S * 0.2, 0.4, Math.PI * 2 + 0.2);
+      ctx.stroke();
+      ctx.fillStyle = accent;
+      for (const [wx, wy] of [
+        [0.5, 0.28],
+        [0.68, 0.42],
+        [0.66, 0.66],
+        [0.34, 0.7],
+      ] as Array<[number, number]>) {
+        ctx.beginPath();
+        ctx.arc(S * wx, S * wy, S * 0.035, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      break;
+    }
+    case 'item_music_box': {
+      box(S * 0.26, S * 0.46, S * 0.48, S * 0.3, primary, 0.07);
+      box(S * 0.26, S * 0.36, S * 0.48, S * 0.12, hexWithAlpha(primary, 0.82), 0.06);
+      box(S * 0.42, S * 0.39, S * 0.16, S * 0.05, accent, 0.02);
+      ctx.strokeStyle = accent;
+      ctx.lineWidth = Math.max(1.6, S * 0.03);
+      ctx.beginPath();
+      ctx.arc(S * 0.4, S * 0.62, S * 0.05, 0.3, Math.PI * 1.7);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(S * 0.45, S * 0.62);
+      ctx.lineTo(S * 0.45, S * 0.5);
+      ctx.stroke();
+      ctx.fillStyle = accent;
+      ctx.beginPath();
+      ctx.arc(S * 0.44, S * 0.49, S * 0.022, 0, Math.PI * 2);
+      ctx.fill();
+      break;
+    }
     case 'workbench':
       box(S * 0.14, S * 0.44, S * 0.72, S * 0.1, wood);
       box(S * 0.2, S * 0.54, S * 0.06, S * 0.26, hexWithAlpha(wood, 0.8));
