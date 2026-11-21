@@ -421,7 +421,7 @@ function sanitizeMemories(rawMemories: unknown, warnings?: string[]): JournalMem
     const dropped = out.length - JOURNAL_MEMORY_CAP;
     out.length = JOURNAL_MEMORY_CAP;
     warnings?.push(
-      `world.memories trimmed to JOURNAL_MEMORY_CAP on load (${dropped} rows dropped, newest kept)`,
+      `world.memories trimmed to JOURNAL_MEMORY_CAP on load (${dropped} rows dropped, first rows kept)`,
     );
   }
   if (droppedRows > 0) {
@@ -659,6 +659,12 @@ function sanitizeNpcRelations(
   const residentSet = new Set<string>(RESIDENT_ORDER);
   let droppedUnknownPairs = 0;
   let normalizedNonCanonical = 0;
+  // Adversarial-review AR-2 (doc 09): two spellings of one pair (canonical and
+  // reversed) both re-key to the same canonical key; without a written-set the
+  // last-processed entry silently overrode the first. Collapse keep-first with
+  // a warning, mirroring the SR-8 duplicate-id semantics.
+  const writtenKeys = new Set<string>();
+  let collapsedDuplicatePairs = 0;
   for (const [rawKey, entry] of Object.entries(raw)) {
     if (!isRecord(entry)) continue;
     const parts = rawKey.split(':');
@@ -706,6 +712,11 @@ function sanitizeNpcRelations(
     if (typeof entry.lastGossipEventId === 'string' && entry.lastGossipEventId.length > 0) {
       sanitizedRel.lastGossipEventId = entry.lastGossipEventId;
     }
+    if (writtenKeys.has(key)) {
+      collapsedDuplicatePairs++;
+      continue;
+    }
+    writtenKeys.add(key);
     out[key] = sanitizedRel;
   }
   if (droppedUnknownPairs > 0) {
@@ -713,6 +724,9 @@ function sanitizeNpcRelations(
   }
   if (normalizedNonCanonical > 0) {
     warnings?.push(`non-canonical npcRelations pair keys normalized on load (${normalizedNonCanonical})`);
+  }
+  if (collapsedDuplicatePairs > 0) {
+    warnings?.push(`duplicate npcRelations pair entries collapsed keep-first on load (${collapsedDuplicatePairs})`);
   }
   return out;
 }
@@ -1723,6 +1737,14 @@ function sanitizeLivingRelationships(
     } else {
       warnings.push('inconsistent interior occupancy cleared on load');
     }
+  } else if (isRecord(candidate.occupancy)) {
+    // Adversarial-review AR-1/AR-1b (doc 09): the outer drop — no live
+    // accepted invitation to anchor the persisted occupancy, or the player is
+    // exterior — was silent while the inner inconsistency drop warned. Every
+    // drop warns (doc 03 §7).
+    warnings.push(
+      'interior occupancy cleared on load (no live accepted invitation to anchor it)',
+    );
   }
 
   // Load invariant step 4 (SR-2b): an occupancy without its activeActivity
@@ -1893,8 +1915,7 @@ function sanitizeGreenhouseState(raw: unknown, warnings: string[]): GreenhouseSt
 /**
  * Pure sequential v1 -> v2 save upgrader.
  */
-export function migrateV1ToV2(v1Raw: Record<string, unknown>): Record<string, unknown> {
-  const warnings: string[] = [];
+export function migrateV1ToV2(v1Raw: Record<string, unknown>, warnings: string[] = []): Record<string, unknown> {
   const day = Math.max(1, Math.floor(asFiniteNumber(v1Raw.day, 1)));
   const minuteOfDay = clampMinuteOfDay(asFiniteNumber(v1Raw.minuteOfDay, DEFAULT_START_MINUTE));
   const flags = sanitizeFlags(v1Raw.flags, warnings);
@@ -1904,7 +1925,10 @@ export function migrateV1ToV2(v1Raw: Record<string, unknown>): Record<string, un
   const playerRelations = createInitialPlayerRelations(residents);
   const npcRelations = createInitialNpcRelations(flags.claraArthurReconciled);
 
-  const memories = sanitizeMemories(v1Raw.memories).map((m) => ({
+  // AR-3 (doc 09): the caller's warnings array is passed through so per-step
+  // repairs (including the memories cap) are observable in the load result
+  // instead of being swallowed by this local array.
+  const memories = sanitizeMemories(v1Raw.memories, warnings).map((m) => ({
     ...m,
     phase: m.phase || getTimePhase(minuteOfDay),
   }));
@@ -1952,13 +1976,12 @@ export function migrateV2ToV3(v2Raw: Record<string, unknown>): Record<string, un
  * Pure sequential v3 -> v4 save upgrader adding bounded per-NPC subjective memories.
  * Strictly avoids manufacturing firsthand memories without save-backed participant/witness evidence.
  */
-export function migrateV3ToV4(v3Raw: Record<string, unknown>): Record<string, unknown> {
-  const warnings: string[] = [];
+export function migrateV3ToV4(v3Raw: Record<string, unknown>, warnings: string[] = []): Record<string, unknown> {
   const day = Math.max(1, Math.floor(asFiniteNumber(v3Raw.day, 1)));
   const minuteOfDay = clampMinuteOfDay(asFiniteNumber(v3Raw.minuteOfDay, DEFAULT_START_MINUTE));
   const flags = sanitizeFlags(v3Raw.flags, warnings);
   const residents = sanitizeResidents(v3Raw.residents, warnings);
-  const memories = sanitizeMemories(v3Raw.memories);
+  const memories = sanitizeMemories(v3Raw.memories, warnings);
   const playerRelations = sanitizePlayerRelations(v3Raw.playerRelations, residents);
   const worldEvents = sanitizeWorldEvents(v3Raw.worldEvents);
 
@@ -2342,7 +2365,7 @@ export function migrateWorldState(raw: unknown): MigrationResult {
   let version = detected;
 
   if (version === 1) {
-    working = migrateV1ToV2(working);
+    working = migrateV1ToV2(working, warnings);
     version = 2;
   }
 
@@ -2352,7 +2375,7 @@ export function migrateWorldState(raw: unknown): MigrationResult {
   }
 
   if (version === 3) {
-    working = migrateV3ToV4(working);
+    working = migrateV3ToV4(working, warnings);
     version = 4;
   }
 

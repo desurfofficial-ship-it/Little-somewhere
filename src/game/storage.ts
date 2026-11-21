@@ -42,8 +42,23 @@ export function createFreshWorldState(): WorldState {
   return createDefaultWorldState();
 }
 
-export function serializeWorldState(state: WorldState): string {
-  return JSON.stringify(sanitizeWorldState(state));
+export function serializeWorldState(state: WorldState, warnings?: string[]): string {
+  // AR-5 (systemic-reliability doc 09): the save path runs the same sanitizer
+  // as the load path, but its repair decisions were constructed and discarded.
+  // An explicit sink collects them; without one they surface on console.warn
+  // with the same classified prefix as the load path (doc 03 §7).
+  const saveWarnings: string[] = [];
+  const json = JSON.stringify(sanitizeWorldState(state, saveWarnings));
+  if (saveWarnings.length > 0) {
+    if (warnings) {
+      warnings.push(...saveWarnings);
+    } else {
+      for (const w of saveWarnings) {
+        console.warn(`[little-somewhere save] ${w}`);
+      }
+    }
+  }
+  return json;
 }
 
 export function deserializeWorldState(rawJson: string): MigrationResult {

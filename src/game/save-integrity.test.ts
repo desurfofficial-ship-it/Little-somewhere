@@ -534,3 +534,133 @@ test('save revision stays stable across load for a healthy save', () => {
   const after = deserializeWorldState(serializeWorldState(healthy)).state;
   assert.equal(computeWorldSaveRevision(after), before, 'repair-free loads keep the save fingerprint');
 });
+
+// ---------------------------------------------------------------------------
+// Adversarial-review round (doc 09): warning parity, re-key collisions,
+// counter-domain dispositions, save-path observability. Each test pins a
+// finding from the independent adversarial review of the initiative diff.
+// ---------------------------------------------------------------------------
+
+test('AR-1: occupancy dropped for lack of a live accepted invitation warns (no silent drop)', () => {
+  // A persisted occupancy the load path cannot anchor (no active invitation)
+  // is dropped — the adversarial review caught that this outer drop was
+  // silent while the inner inconsistency drop warned. Every drop warns now.
+  const res = loadMutated(worldWithAcceptedLiveInvitation(), (raw) => {
+    raw.invitations = { ...(raw.invitations as Record<string, unknown>), active: null };
+    raw.occupancy = {
+      residentId: 'nora',
+      location: 'nook_interior',
+      stationId: 'nook_table',
+      localPos: { x: 1, z: 1 },
+      facing: 0,
+      invitationId: 'whatever',
+    };
+  });
+  assert.equal(res.state.occupancy, null, 'unanchorable occupancy is cleared');
+  assert.ok(
+    res.warnings.some((w) => w.includes('occupancy') && w.includes('cleared')),
+    `expected an occupancy-drop warning, got: ${JSON.stringify(res.warnings)}`,
+  );
+});
+
+test('AR-1b: occupancy dropped because the player is exterior warns (no silent drop)', () => {
+  const res = loadMutated(worldWithAcceptedLiveInvitation(), (raw) => {
+    raw.playerLocation = 'exterior';
+  });
+  assert.equal(res.state.occupancy, null);
+  assert.ok(
+    res.warnings.some((w) => w.includes('occupancy') && w.includes('cleared')),
+    `expected an occupancy-drop warning, got: ${JSON.stringify(res.warnings)}`,
+  );
+});
+
+test('AR-2: a re-keyed npcRelations duplicate collapses keep-first with a warning', () => {
+  // 'jun:clara' is a reversed (non-canonical) spelling of 'clara:jun' —
+  // getNpcPairKey re-keys both to the same canonical key; the adversarial
+  // review found the last-processed entry silently overrode the first.
+  // The collapse must be keep-first + warned, mirroring SR-8 semantics.
+  const res = loadMutated(createFreshWorldState(), (raw) => {
+    raw.npcRelations = {
+      ...(raw.npcRelations as Record<string, unknown>),
+      'clara:jun': { affinity: 42, tension: 9 },
+      'jun:clara': { affinity: 31, tension: 4 },
+    };
+  });
+  const rel = (res.state.npcRelations as Record<string, { affinity: number }>)['clara:jun'];
+  assert.equal(rel.affinity, 42, 'keep-first: the first entry in document order wins');
+  assert.ok(
+    res.warnings.some((w) => w.includes('duplicate npcRelations')),
+    `expected a duplicate-collapse warning, got: ${JSON.stringify(res.warnings)}`,
+  );
+});
+
+test('AR-3: legacy v1 migrations surface their per-step warnings (memories trim is observable)', () => {
+  // migrateV1ToV2/migrateV3ToV4 previously kept local warning arrays that
+  // never reached the load result — an over-cap memories array in a v1 save
+  // was trimmed silently. The warnings must merge into the load result.
+  const raw = JSON.parse(serializeWorldState(createFreshWorldState())) as Record<string, unknown>;
+  raw.schemaVersion = 1;
+  raw.memories = journalMemoryRows(120, 'mem_v1');
+  const res = deserializeWorldState(JSON.stringify(raw));
+  assert.equal(res.state.memories.length, JOURNAL_MEMORY_CAP, 'cap engages through the v1 path');
+  assert.ok(
+    res.warnings.some((w) => w.includes('memories')),
+    `expected the v1 trim warning to surface, got: ${JSON.stringify(res.warnings)}`,
+  );
+});
+
+test('AR-4: extreme-but-domain-valid counters load unchanged (no invented ceilings)', () => {
+  // Adversarial-review disposition for SR-5: the sanitizer enforces ceilings
+  // exactly where production writers have them (affinity -50..100,
+  // reliability 0..100, tension 0..100, dailyAffinityGained 0..20);
+  // day / familiarity / bellRungCount are legitimately unbounded in
+  // production, so clamping them here would corrupt legitimate long saves.
+  // This pins the acceptance behavior (day chosen inside the spring season
+  // band so the season cross-check does not fire).
+  const res = loadMutated(createFreshWorldState(), (raw) => {
+    raw.day = 1 + 4 * 100000; // spring again: 1 + k * (DAYS_PER_SEASON * SEASON_ORDER.length)
+    raw.bellRungCount = 500000;
+    const rel = raw.playerRelations as Record<string, Record<string, unknown>>;
+    rel.nora = { ...rel.nora, familiarity: 250 };
+  });
+  assert.equal(res.state.day, 400001, 'unbounded-by-design day is accepted unchanged');
+  assert.equal(res.state.bellRungCount, 500000);
+  assert.equal(res.state.playerRelations.nora.familiarity, 250);
+  assert.deepEqual(res.warnings, [], 'accept-unchanged must not warn');
+});
+
+test('AR-5: the save path surfaces sanitizer repairs (sink param + console.warn parity)', (t) => {
+  // The same sanitizer runs per save; repairs it made on the save path were
+  // constructed and discarded. The save path now emits the same classified
+  // warnings as the load path: an explicit sink collects them, and without
+  // one they surface on console.warn with the shared prefix.
+  const dirty = createFreshWorldState();
+  dirty.memories = journalMemoryRows(120, 'mem_save') as unknown as WorldState['memories'];
+  const sink: string[] = [];
+  const json = serializeWorldState(dirty, sink);
+  const parsed = JSON.parse(json) as { memories: unknown[] };
+  assert.equal(parsed.memories.length, JOURNAL_MEMORY_CAP, 'save path still converges to the cap');
+  assert.ok(
+    sink.some((w) => w.includes('memories')),
+    `expected the sink to receive the trim warning, got: ${JSON.stringify(sink)}`,
+  );
+  // Without an explicit sink the same warnings surface on console.warn.
+  const capture = t.mock.method(console, 'warn', () => {});
+  try {
+    serializeWorldState(dirty);
+    assert.ok(
+      capture.mock.calls.some((c) => String(c.arguments[0]).includes('[little-somewhere save]')),
+      `expected a save-path console warning, got: ${JSON.stringify(capture.mock.calls.map((c) => c.arguments))}`,
+    );
+  } finally {
+    capture.mock.restore();
+  }
+  // And a healthy save stays silent.
+  const quiet = t.mock.method(console, 'warn', () => {});
+  try {
+    serializeWorldState(createFreshWorldState());
+    assert.equal(quiet.mock.calls.length, 0, 'healthy saves must not warn');
+  } finally {
+    quiet.mock.restore();
+  }
+});
