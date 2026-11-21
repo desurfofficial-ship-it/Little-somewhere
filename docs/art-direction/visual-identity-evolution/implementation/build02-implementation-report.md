@@ -1,6 +1,6 @@
 # BUILD 02 — Implementation Report: The Living World Craft Overhaul
 
-**Status**: Implemented (Stages 0–7) · **Branch**: `feat/visual-identity-evolution-build-02` · **Baseline**: `1f7ffa5` (origin/main, the PR-#4 merge of BUILD 01) · **Brief**: BUILD 02 "THE LIVING WORLD CRAFT OVERHAUL"
+**Status**: Implemented (Stages 0–7), reconciled with the concurrent Build-10/LR recovery merge (PR #5, `545e323`) — see the reconciliation note in WORKLOG Entry 053 · **Branch**: `feat/visual-identity-evolution-build-02` · **Baseline**: `1f7ffa5` (origin/main, the PR-#4 merge of BUILD 01) · **Brief**: BUILD 02 "THE LIVING WORLD CRAFT OVERHAUL"
 
 **Direction**: continues Storybook Diorama V2 ("Readable Form, Evident Craft, Living Warmth", Doc 03) under the official PREMIUM HANDCRAFTED STORYBOOK DIORAMA identity. Nothing in `src/game/` changed (verified per stage: `git diff 1f7ffa5..HEAD -- src/game/` is empty). WorldState v11 untouched; no new dependencies; no schema, migration, or reducer changes.
 
@@ -19,7 +19,7 @@ BUILD 02 extends the BUILD 01 foundation into the whole playable world across si
 | 4 — Interior craftsmanship | `5919c92` | Texture program across all five interiors, curved-surface program, kettle kit de-duplication, Copperwheel interior seasonLife. |
 | 5/6 — Integration, QA, evidence | this commit | Full-cast + architecture + interior capture evidence; measured perf; QA probes; gameplay regression; adversarial review; this report. |
 
-Test totals: **401 (BUILD 01 baseline) → 423 passing** (+5 contact-shadow batching, +4 cast roll-out, +9 exterior craft, +4 interior craft). `tsc --noEmit` and `vite build` clean at every stage.
+Test totals: **401 (BUILD 01 baseline) → 423 (BUILD 02) → 447 passing after reconciling the concurrent Build-10/LR recovery work (PR #5)** (+5 contact-shadow batching, +4 cast roll-out, +9 exterior craft, +4 interior craft). `tsc --noEmit` and `vite build` clean at every stage.
 
 ## 2. Complete resident differentiation matrix
 
