@@ -57,7 +57,7 @@ export const VirtualJoystick: React.FC<VirtualJoystickProps> = ({ vectorRef }) =
         reset();
       }}
       onPointerCancel={reset}
-      className="relative w-24 h-24 shrink-0 rounded-full bg-[#FAF5EC]/85 border-2 border-[#CBBBA3] shadow-[0_6px_20px_rgba(45,36,30,0.16)] flex items-center justify-center touch-none pointer-events-auto cursor-grab active:cursor-grabbing"
+      className="relative w-24 h-24 shrink-0 rounded-full bg-linen/85 border-2 border-[#CBBBA3] shadow-elevation-card flex items-center justify-center touch-none pointer-events-auto cursor-grab active:cursor-grabbing"
     >
       {/* Compass ticks */}
       <div className="absolute inset-2 rounded-full border border-dashed border-[#D8C9B4] pointer-events-none" />
@@ -66,7 +66,7 @@ export const VirtualJoystick: React.FC<VirtualJoystickProps> = ({ vectorRef }) =
         style={{
           transform: `translate(${knobOffset.x}px, ${knobOffset.y}px)`,
         }}
-        className="w-10 h-10 rounded-full bg-[#C86446] border-2 border-[#FAF5EC] shadow-md pointer-events-none transition-transform duration-75"
+        className="w-10 h-10 rounded-full bg-terracotta border-2 border-linen shadow-md pointer-events-none transition-transform duration-75"
       />
     </div>
   );

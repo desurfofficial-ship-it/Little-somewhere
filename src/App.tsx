@@ -134,17 +134,17 @@ class SceneErrorBoundary extends Component<SceneErrorBoundaryProps, SceneErrorBo
     if (this.state.hasError) {
       return (
         <div className="absolute inset-0 bg-[#DCEBF2] flex items-center justify-center p-6">
-          <div className="bg-[#FAF5EC] border border-[#D4C4AE] rounded-2xl p-6 max-w-sm text-center shadow-[0_12px_32px_rgba(45,36,30,0.14)]">
-            <h2 className="font-display text-lg font-semibold text-[#2D241E] mb-2">
+          <div className="bg-linen border border-stone-line rounded-2xl p-6 max-w-sm text-center shadow-elevation-sheet">
+            <h2 className="font-display text-lg font-semibold text-espresso mb-2">
               Willow Lane Needs a Fresh Breeze
             </h2>
-            <p className="text-sm text-[#6A5B50] mb-4">
+            <p className="text-sm text-espresso-muted mb-4">
               The 3D neighborhood view couldn’t finish loading. Reload to reconnect cleanly.
             </p>
             <button
               type="button"
               onClick={() => window.location.reload()}
-              className="min-h-[44px] px-5 py-2.5 rounded-xl bg-[#C86446] hover:bg-[#B45539] text-[#FAF5EC] text-sm font-semibold cursor-pointer transition-colors"
+              className="min-h-[44px] px-5 py-2.5 rounded-xl bg-terracotta hover:bg-terracotta-deep text-linen text-sm font-semibold cursor-pointer transition-colors"
             >
               Reload Neighborhood
             </button>
@@ -1245,11 +1245,11 @@ export default function App() {
         <div className="fixed inset-0 z-10 pointer-events-none flex flex-col justify-between p-3 sm:p-5">
           {/* Top Bar: Left Location & Clock | Right Compact Utility Buttons */}
           <div className="flex items-start justify-between gap-2 sm:gap-3">
-            <div className="bg-[#FAF5EC]/95 border border-[#D4C4AE] rounded-2xl px-3 py-2 sm:px-4 sm:py-2.5 shadow-[0_6px_20px_rgba(45,36,30,0.12)] pointer-events-auto min-w-0 max-w-[172px] sm:max-w-md">
-              <div className="font-display text-sm sm:text-lg font-semibold text-[#2D241E] truncate">
+            <div className="bg-linen/95 border border-stone-line rounded-2xl px-3 py-2 sm:px-4 sm:py-2.5 shadow-elevation-card pointer-events-auto min-w-0 max-w-[172px] sm:max-w-md">
+              <div className="font-display text-sm sm:text-lg font-semibold text-espresso truncate">
                 {locationLabel}
               </div>
-              <div className="text-[11px] sm:text-xs text-[#6A5B50] flex items-center gap-1 sm:gap-1.5 font-mono-nums whitespace-nowrap truncate">
+              <div className="text-[11px] sm:text-xs text-espresso-muted flex items-center gap-1 sm:gap-1.5 font-mono-nums whitespace-nowrap truncate">
                 <span>Day {worldSnapshot.day}</span>
                 <span aria-hidden="true">·</span>
                 <span>{formatClock(hudClock)}</span>
@@ -1270,9 +1270,9 @@ export default function App() {
                 onClick={handleAdvanceTwoHours}
                 aria-label="Advance time 2 hours"
                 title="Advance time 2 hours"
-                className="hidden sm:flex min-h-[44px] px-3 py-2 rounded-xl bg-[#FAF5EC]/95 hover:bg-[#F1E8D9] border border-[#D4C4AE] text-[#2D241E] text-xs font-semibold items-center gap-1.5 shadow-sm transition-colors cursor-pointer whitespace-nowrap"
+                className="hidden sm:flex min-h-[44px] px-3 py-2 rounded-xl bg-linen/95 hover:bg-linen-deep border border-stone-line text-espresso text-xs font-semibold items-center gap-1.5 shadow-sm transition-colors cursor-pointer whitespace-nowrap"
               >
-                <Clock className="w-4 h-4 text-[#C86446]" />
+                <Clock className="w-4 h-4 text-terracotta" />
                 <span>+2h</span>
               </button>
 
@@ -1287,9 +1287,9 @@ export default function App() {
                 }}
                 aria-label="Open Satchel"
                 title="Satchel & Keepsakes [I]"
-                className="min-h-[44px] min-w-[44px] px-2.5 sm:px-3.5 py-2 rounded-xl bg-[#FAF5EC]/95 hover:bg-[#F1E8D9] border border-[#D4C4AE] text-[#2D241E] text-xs sm:text-sm font-semibold flex items-center justify-center gap-1.5 sm:gap-2 shadow-sm transition-colors cursor-pointer whitespace-nowrap"
+                className="min-h-[44px] min-w-[44px] px-2.5 sm:px-3.5 py-2 rounded-xl bg-linen/95 hover:bg-linen-deep border border-stone-line text-espresso text-xs sm:text-sm font-semibold flex items-center justify-center gap-1.5 sm:gap-2 shadow-sm transition-colors cursor-pointer whitespace-nowrap"
               >
-                <ShoppingBag className="w-4 h-4 text-[#5E8062] shrink-0" />
+                <ShoppingBag className="w-4 h-4 text-sage shrink-0" />
                 <span className="hidden sm:inline">Satchel</span>
               </button>
 
@@ -1304,20 +1304,20 @@ export default function App() {
                 }}
                 aria-label="Open Pocket Journal"
                 title="Pocket Journal [J]"
-                className="min-h-[44px] min-w-[44px] px-2.5 sm:px-3.5 py-2 rounded-xl bg-[#FAF5EC]/95 hover:bg-[#F1E8D9] border border-[#D4C4AE] text-[#2D241E] text-xs sm:text-sm font-semibold flex items-center justify-center gap-1.5 sm:gap-2 shadow-sm transition-colors cursor-pointer whitespace-nowrap"
+                className="min-h-[44px] min-w-[44px] px-2.5 sm:px-3.5 py-2 rounded-xl bg-linen/95 hover:bg-linen-deep border border-stone-line text-espresso text-xs sm:text-sm font-semibold flex items-center justify-center gap-1.5 sm:gap-2 shadow-sm transition-colors cursor-pointer whitespace-nowrap"
               >
-                <BookOpen className="w-4 h-4 text-[#C86446] shrink-0" />
+                <BookOpen className="w-4 h-4 text-terracotta shrink-0" />
                 <span className="hidden sm:inline">Journal</span>
               </button>
 
-              <div className="hidden md:flex items-center gap-1 bg-[#FAF5EC]/95 border border-[#D4C4AE] rounded-xl p-0.5 shadow-sm">
+              <div className="hidden md:flex items-center gap-1 bg-linen/95 border border-stone-line rounded-xl p-0.5 shadow-sm">
                 <button
                   type="button"
                   onClick={() => {
                     zoomRef.current = Math.min(1.45, zoomRef.current + 0.14);
                   }}
                   aria-label="Zoom out"
-                  className="min-h-[40px] min-w-[40px] flex items-center justify-center rounded-lg hover:bg-[#F1E8D9] text-[#2D241E] transition-colors cursor-pointer"
+                  className="min-h-[40px] min-w-[40px] flex items-center justify-center rounded-lg hover:bg-linen-deep text-espresso transition-colors cursor-pointer"
                 >
                   <ZoomOut className="w-4 h-4" />
                 </button>
@@ -1327,7 +1327,7 @@ export default function App() {
                     zoomRef.current = Math.max(0.72, zoomRef.current - 0.14);
                   }}
                   aria-label="Zoom in"
-                  className="min-h-[40px] min-w-[40px] flex items-center justify-center rounded-lg hover:bg-[#F1E8D9] text-[#2D241E] transition-colors cursor-pointer"
+                  className="min-h-[40px] min-w-[40px] flex items-center justify-center rounded-lg hover:bg-linen-deep text-espresso transition-colors cursor-pointer"
                 >
                   <ZoomIn className="w-4 h-4" />
                 </button>
@@ -1337,7 +1337,7 @@ export default function App() {
                 type="button"
                 onClick={handleToggleMute}
                 aria-label={muted ? 'Unmute audio' : 'Mute audio'}
-                className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-xl bg-[#FAF5EC]/95 hover:bg-[#F1E8D9] border border-[#D4C4AE] text-[#2D241E] shadow-sm transition-colors cursor-pointer"
+                className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-xl bg-linen/95 hover:bg-linen-deep border border-stone-line text-espresso shadow-sm transition-colors cursor-pointer"
               >
                 {muted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
               </button>
@@ -1346,7 +1346,7 @@ export default function App() {
                 type="button"
                 onClick={() => setScreenState('paused')}
                 aria-label="Pause game"
-                className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-xl bg-[#FAF5EC]/95 hover:bg-[#F1E8D9] border border-[#D4C4AE] text-[#2D241E] shadow-sm transition-colors cursor-pointer"
+                className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-xl bg-linen/95 hover:bg-linen-deep border border-stone-line text-espresso shadow-sm transition-colors cursor-pointer"
               >
                 <Pause className="w-4 h-4" />
               </button>
@@ -1355,16 +1355,16 @@ export default function App() {
 
           {/* Gentle Memory / Story Toast or Lightweight Nearby Neighbor Whisper */}
           {toastText ? (
-            <div className="self-center mt-1.5 bg-[#FAF5EC]/95 border border-[#C86446]/40 rounded-xl px-3.5 py-1.5 shadow-[0_6px_18px_rgba(45,36,30,0.16)] flex items-center gap-2 text-xs sm:text-sm font-medium text-[#2D241E]">
-              <Sparkles className="w-3.5 h-3.5 text-[#C86446] shrink-0" />
+            <div className="self-center mt-1.5 bg-linen/95 border border-terracotta/40 rounded-xl px-3.5 py-1.5 shadow-elevation-card flex items-center gap-2 text-xs sm:text-sm font-medium text-espresso">
+              <Sparkles className="w-3.5 h-3.5 text-terracotta shrink-0" />
               <span>{toastText}</span>
             </div>
           ) : (
             nearbyBubble &&
             !anyModalOpen &&
             screenState === 'playing' && (
-              <div className="self-center mt-1.5 max-w-[300px] sm:max-w-sm bg-[#FAF5EC]/88 border border-[#D4C4AE]/80 rounded-xl px-3 py-1 shadow-sm text-[11px] sm:text-xs text-[#2D241E] text-center">
-                <span className="font-display font-semibold text-[#C86446]">
+              <div className="self-center mt-1.5 max-w-[300px] sm:max-w-sm bg-linen/88 border border-stone-line/80 rounded-xl px-3 py-1 shadow-sm text-[11px] sm:text-xs text-espresso text-center">
+                <span className="font-display font-semibold text-terracotta">
                   {nearbyBubble.name}:
                 </span>{' '}
                 <span>“{nearbyBubble.text}”</span>
@@ -1386,13 +1386,13 @@ export default function App() {
                   <button
                     type="button"
                     onClick={handlePlaceHeldItem}
-                    className="min-h-[44px] px-3.5 py-2 rounded-xl bg-[#FAF5EC]/95 hover:bg-[#F1E8D9] border border-[#D4C4AE] text-[#2D241E] text-xs sm:text-sm font-semibold flex items-center gap-2 shadow-sm transition-colors cursor-pointer whitespace-nowrap"
+                    className="min-h-[44px] px-3.5 py-2 rounded-xl bg-linen/95 hover:bg-linen-deep border border-stone-line text-espresso text-xs sm:text-sm font-semibold flex items-center gap-2 shadow-sm transition-colors cursor-pointer whitespace-nowrap"
                   >
                     <span className="hidden sm:inline">
                       Carrying {worldSnapshot.worldProps[playerHeldItem].label} ·
                     </span>
-                    <span className="text-[#C86446]">Set Down</span>
-                    <span className="hidden sm:inline text-xs text-[#6A5B50] font-mono-nums">[G]</span>
+                    <span className="text-terracotta">Set Down</span>
+                    <span className="hidden sm:inline text-xs text-espresso-muted font-mono-nums">[G]</span>
                   </button>
                 )}
 
@@ -1400,7 +1400,7 @@ export default function App() {
                   <button
                     type="button"
                     onClick={() => openTargetInteraction(nearestTarget)}
-                    className="min-h-[48px] max-w-full px-4 sm:px-5 py-3 rounded-2xl bg-[#C86446] hover:bg-[#B45539] active:scale-[0.98] text-[#FAF5EC] font-semibold text-sm sm:text-base shadow-[0_8px_24px_rgba(45,36,30,0.25)] flex items-center gap-2 sm:gap-2.5 transition-all cursor-pointer"
+                    className="min-h-[48px] max-w-full px-4 sm:px-5 py-3 rounded-2xl bg-terracotta hover:bg-terracotta-deep active:scale-[0.98] text-linen font-semibold text-sm sm:text-base shadow-elevation-sheet flex items-center gap-2 sm:gap-2.5 transition-all cursor-pointer"
                   >
                     {nearestTarget.kind === 'resident' ? (
                       <MessageCircle className="w-4 h-4 shrink-0" />
@@ -1416,7 +1416,7 @@ export default function App() {
                       type="button"
                       data-testid="intro-control-tip"
                       onClick={() => setIntroTipDismissed(true)}
-                      className="min-h-[44px] bg-[#FAF5EC]/90 hover:bg-[#FAF5EC] border border-[#D4C4AE] rounded-xl px-3.5 py-2 text-[11px] sm:text-xs text-[#5E5046] shadow-sm text-right leading-snug cursor-pointer transition-opacity"
+                      className="min-h-[44px] bg-linen/90 hover:bg-linen border border-stone-line rounded-xl px-3.5 py-2 text-[11px] sm:text-xs text-umber shadow-sm text-right leading-snug cursor-pointer transition-opacity"
                     >
                       <span>Walk or tap neighbors to talk</span>
                       <span className="hidden sm:inline"> · Shift sprints</span>

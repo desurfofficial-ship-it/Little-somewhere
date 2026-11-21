@@ -3,6 +3,7 @@ import type {
   PortraitDescriptor,
   SubjectDescriptor,
 } from '../game/dialogue/assets';
+import { UI_PALETTE } from './uiPalette';
 
 /**
  * Procedural portrait / subject painters for the dialogue sheet (Priorities 2–3).
@@ -11,8 +12,8 @@ import type {
  * (repaints happen only when the descriptor or size actually changes).
  */
 
-const INK = '#2D241E';
-const LINEN_BORDER = '#D4C4AE';
+const INK = UI_PALETTE.espresso;
+const LINEN_BORDER = UI_PALETTE.stoneLine;
 
 function paintRoundedRect(
   ctx: CanvasRenderingContext2D,
@@ -146,7 +147,7 @@ function paintPortraitMotifBadge(
   const cy = size * 0.815;
   const r = size * 0.155;
   ctx.save();
-  ctx.fillStyle = '#FAF5EC';
+  ctx.fillStyle = UI_PALETTE.linen;
   ctx.strokeStyle = LINEN_BORDER;
   ctx.lineWidth = Math.max(1, size * 0.02);
   ctx.beginPath();
@@ -253,7 +254,7 @@ function paintPortrait(
     paintRoundedRect(ctx, 0, 0, size, size, size * 0.3);
     ctx.fillStyle = desc.color;
     ctx.fill();
-    ctx.fillStyle = '#FAF5EC';
+    ctx.fillStyle = UI_PALETTE.linen;
     ctx.font = `bold ${Math.round(size * 0.44)}px "Plus Jakarta Sans", system-ui, sans-serif`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
@@ -475,7 +476,7 @@ function paintSubject(
   ctx.clearRect(0, 0, size, size);
   const S = size;
   paintRoundedRect(ctx, 0, 0, S, S, S * 0.26);
-  ctx.fillStyle = desc.kind === 'procedural' ? desc.backdrop : '#F1E8D9';
+  ctx.fillStyle = desc.kind === 'procedural' ? desc.backdrop : UI_PALETTE.linenDeep;
   ctx.fill();
 
   if (desc.kind === 'fallback') {
@@ -483,7 +484,7 @@ function paintSubject(
     const cx = S * 0.5;
     const cy = S * 0.52;
     const r = S * 0.2;
-    ctx.fillStyle = '#C86446';
+    ctx.fillStyle = UI_PALETTE.terracotta;
     ctx.beginPath();
     ctx.arc(cx, cy, r, 0, Math.PI * 2);
     ctx.fill();
@@ -527,7 +528,7 @@ function paintSubject(
       break;
     case 'hearth':
       box(S * 0.2, S * 0.3, S * 0.6, S * 0.5, '#8C7D6F', 0.06);
-      ctx.fillStyle = '#2D241E';
+      ctx.fillStyle = UI_PALETTE.espresso;
       ctx.beginPath();
       ctx.arc(S * 0.5, S * 0.72, S * 0.18, Math.PI, Math.PI * 2);
       ctx.fill();
@@ -535,7 +536,7 @@ function paintSubject(
       ctx.beginPath();
       ctx.ellipse(S * 0.5, S * 0.68, S * 0.09, S * 0.14, 0, 0, Math.PI * 2);
       ctx.fill();
-      ctx.fillStyle = '#E5A93C';
+      ctx.fillStyle = UI_PALETTE.honey;
       ctx.beginPath();
       ctx.ellipse(S * 0.5, S * 0.7, S * 0.05, S * 0.08, 0, 0, Math.PI * 2);
       ctx.fill();
@@ -564,7 +565,7 @@ function paintSubject(
       box(S * 0.18, S * 0.48, S * 0.64, S * 0.05, wood);
       box(S * 0.24, S * 0.31, S * 0.1, S * 0.17, accent);
       box(S * 0.36, S * 0.31, S * 0.08, S * 0.17, primary);
-      box(S * 0.5, S * 0.35, S * 0.12, S * 0.13, '#E5A93C');
+      box(S * 0.5, S * 0.35, S * 0.12, S * 0.13, UI_PALETTE.honey);
       box(S * 0.3, S * 0.53, S * 0.14, S * 0.16, primary);
       box(S * 0.5, S * 0.55, S * 0.1, S * 0.14, accent);
       break;
@@ -572,7 +573,7 @@ function paintSubject(
       box(S * 0.18, S * 0.5, S * 0.64, S * 0.08, wood);
       box(S * 0.24, S * 0.58, S * 0.05, S * 0.22, hexWithAlpha(wood, 0.8));
       box(S * 0.71, S * 0.58, S * 0.05, S * 0.22, hexWithAlpha(wood, 0.8));
-      box(S * 0.36, S * 0.4, S * 0.22, S * 0.1, '#FAF5EC');
+      box(S * 0.36, S * 0.4, S * 0.22, S * 0.1, UI_PALETTE.linen);
       ctx.strokeStyle = hexWithAlpha(INK, 0.6);
       ctx.lineWidth = Math.max(1, S * 0.015);
       ctx.beginPath();
@@ -599,7 +600,7 @@ function paintSubject(
     case 'bed_quilt':
       box(S * 0.14, S * 0.5, S * 0.72, S * 0.22, wood, 0.05);
       box(S * 0.14, S * 0.42, S * 0.72, S * 0.12, primary, 0.05);
-      ctx.strokeStyle = hexWithAlpha('#FAF5EC', 0.7);
+      ctx.strokeStyle = hexWithAlpha(UI_PALETTE.linen, 0.7);
       ctx.lineWidth = Math.max(1.4, S * 0.02);
       for (const fx of [0.34, 0.5, 0.66]) {
         ctx.beginPath();
@@ -611,7 +612,7 @@ function paintSubject(
     case 'doorway':
       box(S * 0.26, S * 0.24, S * 0.48, S * 0.58, wood, 0.05);
       box(S * 0.32, S * 0.3, S * 0.36, S * 0.52, hexWithAlpha(wood, 0.55), 0.04);
-      ctx.fillStyle = '#E5A93C';
+      ctx.fillStyle = UI_PALETTE.honey;
       ctx.beginPath();
       ctx.arc(S * 0.62, S * 0.56, S * 0.025, 0, Math.PI * 2);
       ctx.fill();
@@ -652,7 +653,7 @@ function paintSubject(
       break;
     case 'bakery_oven':
       box(S * 0.2, S * 0.28, S * 0.6, S * 0.52, '#6E6259', 0.05);
-      box(S * 0.28, S * 0.4, S * 0.44, S * 0.22, '#2D241E', 0.04);
+      box(S * 0.28, S * 0.4, S * 0.44, S * 0.22, UI_PALETTE.espresso, 0.04);
       ctx.fillStyle = accent;
       ctx.beginPath();
       ctx.ellipse(S * 0.5, S * 0.62, S * 0.16, S * 0.1, 0, Math.PI, Math.PI * 2);
@@ -663,7 +664,7 @@ function paintSubject(
       box(S * 0.16, S * 0.44, S * 0.68, S * 0.1, wood);
       box(S * 0.22, S * 0.54, S * 0.05, S * 0.26, hexWithAlpha(wood, 0.8));
       box(S * 0.73, S * 0.54, S * 0.05, S * 0.26, hexWithAlpha(wood, 0.8));
-      ctx.fillStyle = '#FAF5EC';
+      ctx.fillStyle = UI_PALETTE.linen;
       ctx.beginPath();
       ctx.ellipse(S * 0.42, S * 0.4, S * 0.09, S * 0.05, 0, 0, Math.PI * 2);
       ctx.fill();
@@ -698,7 +699,7 @@ function paintSubject(
     case 'tea_console':
     case 'teacup': {
       box(S * 0.24, S * 0.52, S * 0.52, S * 0.08, wood);
-      ctx.fillStyle = '#FAF5EC';
+      ctx.fillStyle = UI_PALETTE.linen;
       ctx.beginPath();
       ctx.arc(S * 0.5, S * 0.44, S * 0.12, 0, Math.PI * 2);
       ctx.fill();
@@ -756,7 +757,7 @@ function paintSubject(
       break;
     case 'noticeboard':
       box(S * 0.2, S * 0.24, S * 0.6, S * 0.5, wood, 0.04);
-      box(S * 0.28, S * 0.32, S * 0.16, S * 0.14, '#FAF5EC', 0.02);
+      box(S * 0.28, S * 0.32, S * 0.16, S * 0.14, UI_PALETTE.linen, 0.02);
       box(S * 0.5, S * 0.36, S * 0.2, S * 0.16, '#EEF3EC', 0.02);
       ctx.fillStyle = accent;
       ctx.beginPath();
@@ -779,7 +780,7 @@ function paintSubject(
       ctx.beginPath();
       ctx.ellipse(S * 0.52, S * 0.34, S * 0.22, S * 0.14, 0, 0, Math.PI * 2);
       ctx.fill();
-      ctx.fillStyle = '#2D241E';
+      ctx.fillStyle = UI_PALETTE.espresso;
       ctx.beginPath();
       ctx.ellipse(S * 0.52, S * 0.64, S * 0.07, S * 0.1, 0, 0, Math.PI * 2);
       ctx.fill();
@@ -819,7 +820,7 @@ function paintSubject(
       ctx.beginPath();
       ctx.arc(S * 0.5, S * 0.36, S * 0.05, 0, Math.PI * 2);
       ctx.fill();
-      ctx.fillStyle = '#2D241E';
+      ctx.fillStyle = UI_PALETTE.espresso;
       ctx.beginPath();
       ctx.ellipse(S * 0.5, S * 0.72, S * 0.05, S * 0.03, 0, 0, Math.PI * 2);
       ctx.fill();
@@ -849,7 +850,7 @@ function paintSubject(
       ctx.ellipse(S * 0.3, S * 0.54, S * 0.05, S * 0.1, 0, Math.PI * 0.5, Math.PI * 1.5);
       ctx.fill();
       box(S * 0.46, S * 0.64, S * 0.05, S * 0.16, wood);
-      ctx.fillStyle = '#FAF5EC';
+      ctx.fillStyle = UI_PALETTE.linen;
       ctx.fillRect(S * 0.52, S * 0.48, S * 0.1, S * 0.03);
       break;
     // The Wild Hollows (Build 10)
@@ -893,7 +894,7 @@ function paintSubject(
     case 'wildflower':
       // three foxglove-bell stems with petal clusters
       for (const [sx, sh] of [[0.36, 0.6], [0.5, 0.72], [0.64, 0.56]] as const) {
-        ctx.strokeStyle = '#5E8062';
+        ctx.strokeStyle = UI_PALETTE.sage;
         ctx.lineWidth = Math.max(1.6, S * 0.02);
         ctx.beginPath();
         ctx.moveTo(S * sx, S * 0.78);
@@ -905,7 +906,7 @@ function paintSubject(
           ctx.ellipse(S * (sx + (i % 2 === 0 ? 0.045 : -0.045)), S * (0.78 - sh + 0.08 + i * 0.09), S * 0.04, S * 0.05, 0, 0, Math.PI * 2);
           ctx.fill();
         }
-        ctx.fillStyle = '#E5A93C';
+        ctx.fillStyle = UI_PALETTE.honey;
         ctx.beginPath();
         ctx.arc(S * sx, S * (0.78 - sh - 0.02), S * 0.035, 0, Math.PI * 2);
         ctx.fill();
@@ -927,7 +928,7 @@ function paintSubject(
       ctx.ellipse(S * 0.46, S * 0.575, S * 0.2, S * 0.045, 0, 0, Math.PI * 2);
       ctx.fill();
       // clover tuft + bee
-      ctx.strokeStyle = '#5E8062';
+      ctx.strokeStyle = UI_PALETTE.sage;
       ctx.lineWidth = Math.max(1.4, S * 0.016);
       ctx.beginPath();
       ctx.moveTo(S * 0.3, S * 0.76);
@@ -935,11 +936,11 @@ function paintSubject(
       ctx.moveTo(S * 0.32, S * 0.76);
       ctx.lineTo(S * 0.34, S * 0.67);
       ctx.stroke();
-      ctx.fillStyle = '#E5A93C';
+      ctx.fillStyle = UI_PALETTE.honey;
       ctx.beginPath();
       ctx.ellipse(S * 0.52, S * 0.44, S * 0.045, S * 0.032, -0.5, 0, Math.PI * 2);
       ctx.fill();
-      ctx.fillStyle = '#2D241E';
+      ctx.fillStyle = UI_PALETTE.espresso;
       ctx.beginPath();
       ctx.ellipse(S * 0.545, S * 0.42, S * 0.018, S * 0.014, -0.5, 0, Math.PI * 2);
       ctx.fill();
