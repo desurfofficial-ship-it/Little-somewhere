@@ -44,6 +44,7 @@ import {
 } from './memories';
 import { cloneStorylines } from './storylines';
 import { expireInvitationsInPlace } from './invitations';
+import { discoverExplorationInPlace } from './exploration';
 import { distance2D, getSeatById, isPointWalkable } from './worldMap';
 
 export interface SimulationStepOptions {
@@ -629,6 +630,15 @@ export function stepSimulationInPlace(
   if (!world.npcActivityHistory) world.npcActivityHistory = createInitialNpcActivityHistory();
 
   const phase = getTimePhase(world.minuteOfDay);
+
+  // 0. Wild Hollows exploration discoveries (Build 10): deterministic, exterior-only,
+  // pure in-place sideFlag + journal memory grant — same discipline as encounters.
+  {
+    const outside = world.playerLocation === 'exterior';
+    const ex = outside ? world.playerPos.x : world.exteriorPlayerPos.x;
+    const ez = outside ? world.playerPos.z : world.exteriorPlayerPos.z;
+    discoverExplorationInPlace(world, ex, ez);
+  }
 
   // 1. Expire finished social encounters and greetings cleanly
   for (let k = world.activeEncounters.length - 1; k >= 0; k--) {
