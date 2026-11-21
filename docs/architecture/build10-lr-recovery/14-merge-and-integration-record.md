@@ -55,6 +55,13 @@ Five read-only specialists (architecture, Build-10 recovery, LR adversarial, sav
 
 Deferred register in doc 12 §2 (10 findings: F-UX-1 journal/toast freshness, F-SIM-1 pure-wrapper residents clone, F-SAVE-1/2 sanitizer hardening, F-SAVE-3 uncapped journal + serialize cost, F-ENTER-1 enter-reducer asymmetry, F-WORLD-1 Sorrel-center walkability, F-ASSET-1 QA PNG size, F-DOC-1 historical count, F-PRED-1 inline-predicate coverage) — each with severity, reachability, and rationale; none blocks integration.
 
-## 9. Merge outcome (recorded post-merge — PENDING)
+## 9. Merge outcome (recorded post-merge)
 
-This section is intentionally left pending at candidate publication. It is completed by a follow-up docs commit on main immediately after the merge, recording: the PR link, the merge commit, the resulting origin/main HEAD, the merge timestamp, CI status (this repository has no GitHub Actions workflows — verified during Phase Zero; the authoritative gates are the local suite/tsc/build plus the independent audit), the post-merge verification results on the merged tree, and the branch-retention decision. The candidate this record was published with is `4f3b203`; the post-merge verification re-checks the merged tree itself.
+- **Pull request:** [#5 — Restore Build-10 exploration and reconcile Living Relationships](https://github.com/desurfofficial-ship-it/Little-somewhere/pull/5) (head `a2200eb`, base `eb95d77`, mergeable_state `clean` at merge time)
+- **Merge method:** merge commit via the GitHub merge API (the repository's established history-preserving policy, matching PR #1/#4; no squash, no rebase, no force-push, no admin bypass)
+- **Merge commit / resulting origin/main HEAD:** **`5681eec`** — `Merge pull request #5 from desurfofficial-ship-it/fix/build10-lr-reconciliation`
+- **Merge timestamp:** `2026-11-21T08:16:57Z`
+- **CI:** no GitHub Actions workflows exist on this repository (verified during Phase Zero: `.github/` absent) — the authoritative gates are the local suite/tsc/build plus the independent audit, all green on the exact candidate
+- **Post-merge verification on the merged tree (fresh worktree at `5681eec`):** `npm test` **425/425 pass** · `npx tsc --noEmit` **0 errors** · `npm run build` **exit 0** · restored step-0 block, both dialogue registrations, strict predicate, H-1 guard, regression suites, docs 01–14, WORKLOG 051–052 and HANDOVER §17 all present on the merged tree (remote tree spot-checked via `git ls-tree`/`git grep` on `origin/main` before the local clone; full local verification after)
+- **Branch retention:** `fix/build10-lr-reconciliation` retained on origin (not deleted), per the project's convention of retaining historical branches (cf. `feat/botanical-dressing-micro-life`, `feat/visual-identity-evolution-build-01`)
+- **PR #3:** open/draft at head `d615a8e` — untouched by the entire operation (re-verified via the GitHub API after the merge)

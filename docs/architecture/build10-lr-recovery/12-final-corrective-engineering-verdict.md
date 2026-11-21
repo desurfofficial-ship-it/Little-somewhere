@@ -39,3 +39,9 @@
 ## 4. Verdict basis
 
 Every mandatory gate in the integration mandate passes on the exact candidate recorded in doc 14 §1: the Build-10 systems are restored and browser-verified in real gameplay; the Living Relationships lifecycle is unified on one strict predicate with its decision records on main; the full suite (425/425), TypeScript, and the production build are green; five independent specialists and a mutation suite failed to break the result; every remaining finding is deferred with a documented rationale; PR #3 remains untouched.
+
+---
+
+## 5. Post-merge addendum (recorded after the merge)
+
+**POST-MERGE VERIFIED.** PR #5 merged into main as `5681eec` (2026-11-21T08:16:57Z, merge-commit method). An independent post-merge review inspected the resulting main tree without relying on the merge report and confirmed: D-01 and D-02 restored on the merged tree; invitation lifecycle consistency preserved (one strict predicate; the H-1 guard present); no main-only feature regressed (the full 401-test main suite passes inside 425/425); no files unintentionally overwritten (WORKLOG 048–050 verbatim, HANDOVER §16 amendment explicit); both decision histories (19-doc audit preserved externally; records 20/21 byte-identical on main) discoverable; the full suite (425/425), TypeScript (0 errors) and production build (exit 0) green on the merged tree; the browser scenarios of doc 09 reproducible from the committed staging script. Merge outcome recorded in doc 14 §9.
