@@ -125,6 +125,7 @@ import { buildWildHollows } from './builders/wilds';
 import { buildFernHollowOrchard } from './builders/orchard';
 import { buildOrchardAmbientExtras, buildOrchardMicroLife } from './builders/orchardMicroLife';
 import { buildAllReactiveRigs } from './builders/reactiveProps';
+import { buildProgressionPresentation } from './progressionPresentation';
 import { buildWillowCottageInterior } from './builders/cottageInterior';
 import {
   buildSunbeamGreenhouseDoorway,
@@ -212,6 +213,7 @@ declare global {
     /** BUILD 02 QA probe: contact-shadow batching stats (dev-gated with ?perf=1). */
     __LS_SCENE_STATS__?: () => { buckets: number; instancedDiscs: number; looseDiscs: number };
     __LS_CAMERA_SET__?: (z: number) => void;
+    __LS_DRIFT_PROBE__?: () => { groveBase: string; groveTop: string; wildsBase: string | null; progress: number };
     __LS_CAMERA_GET__?: () => number;
   }
 }
@@ -457,6 +459,13 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
       camera.position.set(fx + 19.5 * zz, 18.2 * zz, fz + 19.5 * zz);
     };
     window.__LS_CAMERA_GET__ = () => zoomRef.current;
+    // BUILD 03 QA probe: live canopy-drift verification (dev/QA only, zero per-frame cost).
+    window.__LS_DRIFT_PROBE__ = () => ({
+      groveBase: `#${groveRig.crownBaseMat.color.getHexString()}`,
+      groveTop: `#${groveRig.crownTopMat.color.getHexString()}`,
+      wildsBase: wildsRig ? `#${wildsRig.crownBaseMat.color.getHexString()}` : null,
+      progress: (worldRef.current.day - 1) % 10 / 9,
+    });
     const sceneBuildStart = performance.now();
 
     const renderer = new THREE.WebGLRenderer({
@@ -844,6 +853,16 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
     festoonGroup.visible = false;
     exteriorRoot.add(festoonGroup);
 
+    // BUILD 03 (Doc 07 §5): progression presentation rigs — all storyline props,
+    // tokens, echoes, and exploration marks, pre-built hidden and toggled by the
+    // derived state inside the renderer's revision-gated static block. Mounted
+    // BEFORE flushStaticContactShadows so their static contact discs batch.
+    function buildAndMountProgressionRigs() {
+      const rigs = buildProgressionPresentation({ palette, shadowTex, isSoftwareGl });
+      exteriorRoot.add(rigs.group);
+      return rigs;
+    }
+
     // Reactive micro-props & pooled ambient life (environment hooks + micro-life)
     function buildAndMountReactiveRigs() {
       const rigs = buildAllReactiveRigs(palette, isSoftwareGl);
@@ -861,6 +880,8 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
       );
       return rigs;
     }
+
+    const progressionRigs = buildAndMountProgressionRigs();
 
     const envController = new EnvironmentVisualController({
       scene,
@@ -887,6 +908,8 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
       bellSwingVelRef,
       isSoftwareGl,
       reactiveRigs: buildAndMountReactiveRigs(),
+      progressionRigs,
+      meadowDressing: meadowDressing,
       orchardRig,
       orchardMicroLife: orchardMicroLifeRig,
       orchardAmbientExtras: orchardAmbientExtrasRig,
@@ -2183,9 +2206,12 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
           applyCharacterWinterTint(residentRigs[rid], world.season);
         }
         // BUILD 02 seasonal surfaces (edge-triggered, zero per-frame cost):
-        // meadow wildflowers widen ±1 hue stop in spring (Doc 05 §5.3) and the
-        // benches grow their wool winter cushions (Doc 05 §3.2).
-        meadowDressing.setSpringSpread(world.season === 'spring');
+        // benches grow their wool winter cushions in winter (Doc 05 §3.2).
+        // BUILD 03 review HIGH-2: the meadow retint here was REMOVED — it ran on
+        // tick 1 (lastKnitSeason boot edge) and wiped the within-season drift that
+        // Frame 0's static block had applied, with no revision change to heal it.
+        // meadowDressing.setSeasonDayProgress re-bases (and handles the spring
+        // spread ±1 hue stop) on EVERY revision edge inside the renderer.
         for (const cushions of benchCushionGroups) {
           cushions.visible = world.season === 'winter';
         }
@@ -2658,6 +2684,7 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
         delete window.__LS_PERF__;
         delete window.__LS_SCENE_STATS__;
       }
+      delete window.__LS_DRIFT_PROBE__;
       cancelAnimationFrame(frameId);
       clearTimeout(frameId);
       resizeObs.disconnect();
@@ -2667,6 +2694,7 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
       renderer.domElement.removeEventListener('pointerdown', handlePointerDown);
       renderer.domElement.removeEventListener('wheel', handleWheel);
       envController.dispose();
+      progressionRigs.dispose();
       staticContactShadows.dispose();
       cottageInteriorRig.dispose();
       greenhouseInteriorRig.dispose();

@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { COTTAGE_INTERACTABLES, COTTAGE_SEAT_SPOTS } from '../../game/cottage';
 
 import { getSeasonForDay } from '../../game/time';
+import { composeProgressionVisualState } from '../../game/progressionVisuals';
 import { CottageHomeState, TimePhase, WorldState } from '../../game/types';
 import { MaterialPalette, STORYBOOK_PALETTE } from '../materials';
 import {
@@ -75,6 +76,19 @@ export interface WillowCottageInteriorRig {
     bakeryCard: THREE.Group;
     nookBook: THREE.Group;
     teaCaddy: THREE.Group;
+  };
+  /**
+   * BUILD 03 (Doc 07 §5.5/§5.3c): tiered memento growth + sill-posy season drift.
+   * Derived read-only from reachable monotonic counters and dayOfSeason (deviations
+   * A2/A3); stage 0 keeps every new group hidden so a fresh save stays parity-clean.
+   */
+  progressionTiers: {
+    bookTier2: THREE.Group;
+    bookTier3: THREE.Group;
+    honeyDipperTier: THREE.Group;
+    recipeCard2: THREE.Group;
+    posyGrowth: THREE.Group;
+    posyGrowthFull: THREE.Group;
   };
   /**
    * Round-4 Pass 14: seasons of home — observation handles for the seasonal sill
@@ -540,6 +554,18 @@ export function buildWillowCottageInterior(
   const cardLineC = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(0.06, 0.01, 0.004)), cedarDarkMat);
   cardLineC.position.set(0.0, -0.03, 0.008);
   bakeryCard.add(cardSheet, cardLineA, cardLineB, cardLineC);
+  // BUILD 03 5.5 — a second recipe card once kneading has truly accumulated
+  // (kneadingSessions >= 5; reachable monotonic counter, deviation A2/A3 rule).
+  const recipeCard2 = new THREE.Group();
+  recipeCard2.position.set(0.012, 0.115, 0.003);
+  recipeCard2.rotation.z = -0.14;
+  recipeCard2.rotation.y = 0.22;
+  recipeCard2.visible = false;
+  const cardSheet2 = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(0.14, 0.1, 0.01)), paperCardMat);
+  const cardLine2 = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(0.09, 0.01, 0.004)), cedarDarkMat);
+  cardLine2.position.set(-0.01, 0.02, 0.007);
+  recipeCard2.add(cardSheet2, cardLine2);
+  bakeryCard.add(recipeCard2);
   hearthGroup.add(bakeryCard);
 
   // R5 (Round-5 Pass 16). The hearth wall keeps the seasons — the chimney breast
@@ -1118,6 +1144,30 @@ export function buildWillowCottageInterior(
   posySpring.visible = false;
   posySummer.visible = false;
   posyAutumn.visible = false;
+  // BUILD 03 5.3c — sill-posy growth (dayOfSeason 3/7 thresholds; stage 0 = fully
+  // hidden so fresh-save parity holds, review C1). A second bud vase beside the
+  // season posy bottle: few stems at stage 1, full at stage 2, bare in winter.
+  const posyGrowth = new THREE.Group();
+  posyGrowth.position.set(-3.14, 0.98, -0.72);
+  posyGrowth.visible = false;
+  const growthBottle = new THREE.Mesh(trackGeo(new THREE.CylinderGeometry(0.03, 0.042, 0.1, 10)), jarGlassMat);
+  growthBottle.position.y = 0.05;
+  posyGrowth.add(growthBottle);
+  const posyGrowthFull = new THREE.Group();
+  const growthStemGeoA = trackGeo(new THREE.CylinderGeometry(0.007, 0.009, 0.16, 5));
+  growthStemGeoA.translate(0, 0.18, 0);
+  growthStemGeoA.rotateZ(0.1);
+  const growthStemGeoB = trackGeo(new THREE.CylinderGeometry(0.007, 0.009, 0.13, 5));
+  growthStemGeoB.translate(0.03, 0.16, 0.01);
+  growthStemGeoB.rotateZ(-0.16);
+  const growthStemA = new THREE.Mesh(growthStemGeoA, foliageMat);
+  const growthStemB = new THREE.Mesh(growthStemGeoB, foliageMat);
+  const growthHeadA = new THREE.Mesh(trackGeo(new THREE.SphereGeometry(0.024, 6, 5)), petalCreamMat);
+  growthHeadA.position.set(0.035, 0.27, 0);
+  posyGrowthFull.add(growthStemA, growthStemB, growthHeadA);
+  posyGrowthFull.visible = false;
+  posyGrowth.add(posyGrowthFull);
+  group.add(posyGrowth);
   group.add(posySpring, posySummer, posyAutumn);
 
   // G. Front Porch Doorway (interior_door: focus=(3.45, 0.0))
@@ -1506,6 +1556,19 @@ export function buildWillowCottageInterior(
   const crockSwatch = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(0.05, 0.06, 0.01)), paperCardMat);
   crockSwatch.position.set(0.0, 0.055, 0.081);
   orchardHoney.add(crockJar, crockLid, crockSwatch);
+  // BUILD 03 5.5 — honey dipper leaning on the crock once the harvest counter has
+  // genuinely accumulated (greenhouseState.totalHarvests >= 3; deviation A3).
+  const honeyDipperTier = new THREE.Group();
+  honeyDipperTier.position.set(-0.115, 0.02, 0.055);
+  honeyDipperTier.rotation.z = 0.5;
+  honeyDipperTier.visible = false;
+  const dipperHandle = new THREE.Mesh(trackGeo(new THREE.CylinderGeometry(0.011, 0.013, 0.13, 6)), cedarDarkMat);
+  dipperHandle.position.y = 0.065;
+  const dipperHead = new THREE.Mesh(trackGeo(new THREE.SphereGeometry(0.026, 7, 6)), cedarWarmMat);
+  dipperHead.position.y = 0.012;
+  dipperHead.scale.set(1.0, 1.25, 1.0);
+  honeyDipperTier.add(dipperHandle, dipperHead);
+  orchardHoney.add(honeyDipperTier);
   shelfGroup.add(orchardHoney);
 
   // H8. Rolled blanket at the bed foot (inside cottage_bed footprint)
@@ -1531,6 +1594,28 @@ export function buildWillowCottageInterior(
   const bookmarkRibbon = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(0.016, 0.008, 0.11)), terracottaMat);
   bookmarkRibbon.position.set(0.05, 0.018, -0.005);
   nookBook.add(bookCover, bookPages, bookmarkRibbon);
+  // BUILD 03 5.5 — book stack growth tiers (booksRead >= 2 / >= 4; the counter caps
+  // at 4 per cycle, so both tiers are reachable — deviation A2). Children of nookBook
+  // so they inherit its placement on the quilt.
+  const bookTier2 = new THREE.Group();
+  bookTier2.position.set(-0.028, 0.03, 0.018);
+  bookTier2.rotation.y = -0.42;
+  bookTier2.visible = false;
+  const tier2Cover = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(0.18, 0.024, 0.124)), terracottaMat);
+  tier2Cover.position.y = 0.012;
+  const tier2Pages = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(0.155, 0.018, 0.1)), linenMat);
+  tier2Pages.position.y = 0.006;
+  bookTier2.add(tier2Cover, tier2Pages);
+  const bookTier3 = new THREE.Group();
+  bookTier3.position.set(0.022, 0.055, -0.012);
+  bookTier3.rotation.y = 0.55;
+  bookTier3.visible = false;
+  const tier3Cover = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(0.17, 0.022, 0.118)), sageMat);
+  tier3Cover.position.y = 0.011;
+  const tier3Pages = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(0.148, 0.017, 0.096)), linenMat);
+  tier3Pages.position.y = 0.005;
+  bookTier3.add(tier3Cover, tier3Pages);
+  nookBook.add(bookTier2, bookTier3);
   bedGroup.add(nookBook);
 
   // H9. Umbrella by the door jamb + scarf peg on the north wall east end
@@ -1824,6 +1909,18 @@ export function buildWillowCottageInterior(
     homeMementos.orchardHoney.visible = hasMemoryId(world.memories, 'mem_orchard_harvest');
     homeMementos.teaCaddy.visible = hasMemoryIdPrefix(world.memories, 'mem_teatable_');
 
+    // BUILD 03 5.5/5.3c — tiered mementos + sill-posy growth (pure derived state;
+    // the compose rides the module-level cache and shares the renderer's single
+    // derivation source — no second source of truth).
+    const progression = composeProgressionVisualState(world);
+    bookTier2.visible = progression.mementoTiers.bookStackTier >= 2;
+    bookTier3.visible = progression.mementoTiers.bookStackTier >= 3;
+    honeyDipperTier.visible = progression.mementoTiers.honeyDipper;
+    recipeCard2.visible = progression.mementoTiers.recipeCardTier >= 2;
+    const posyStage = progression.seasonDrift.posyStage;
+    posyGrowth.visible = posyStage > 0;
+    posyGrowthFull.visible = posyStage >= 2;
+
     // Warm kettle steam puffs
     const kettleWarm =
       (cs?.kettleWarmUntilMinute ?? 0) > 0 && world.minuteOfDay <= cs.kettleWarmUntilMinute;
@@ -1931,6 +2028,14 @@ export function buildWillowCottageInterior(
     moteMaterial: moteMat,
     curtainPanels: { north: curtainNorth, south: curtainSouth },
     homeMementos,
+    progressionTiers: {
+      bookTier2,
+      bookTier3,
+      honeyDipperTier,
+      recipeCard2,
+      posyGrowth,
+      posyGrowthFull,
+    },
     seasonLife,
     winterComforts,
     update,

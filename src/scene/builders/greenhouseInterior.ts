@@ -7,6 +7,7 @@ import {
 } from '../../game/greenhouse';
 import { GreenhouseCropId, TimePhase, WorldState } from '../../game/types';
 import { getSeasonForDay } from '../../game/time';
+import { composeProgressionVisualState } from '../../game/progressionVisuals';
 import { MaterialPalette, STORYBOOK_PALETTE } from '../materials';
 import {
   addContactShadow,
@@ -458,6 +459,16 @@ export function buildSunbeamGreenhouseInterior(
     brace.position.set(0, 0.63, sz);
     shelfGroup.add(brace);
   }
+
+  // BUILD 03 5.2c — keepsake echo: Mina's woven_herb_wreath rests on the growing
+  // shelf once the gift was granted (neighborGiftsReceived). Derived; zero save impact.
+  const wreathEcho = new THREE.Group();
+  wreathEcho.position.set(0.12, 0.99, -0.6);
+  wreathEcho.visible = false;
+  const wreathRing = new THREE.Mesh(trackGeo(new THREE.TorusGeometry(0.095, 0.02, 5, 12)), foliageMat);
+  wreathRing.rotation.x = Math.PI / 2;
+  wreathEcho.add(wreathRing);
+  shelfGroup.add(wreathEcho);
   // Lower shelf props: spare pots + watering tin
   const lowerPot = new THREE.Mesh(trackGeo(new THREE.CylinderGeometry(0.13, 0.1, 0.16, 9)), terracottaMat);
   lowerPot.position.set(0.02, 0.45, -0.85);
@@ -963,6 +974,10 @@ export function buildSunbeamGreenhouseInterior(
   // Reactive update — zero per-frame allocation, idle sway + stage visibility
   // ---------------------------------------------------------------------
   function update(world: WorldState, phase: TimePhase, elapsed: number): void {
+    // BUILD 03 5.2c — keepsake echo toggle (single derivation source)
+    wreathEcho.visible = composeProgressionVisualState(world).keepsakeEchoes.some(
+      (e) => e.residentId === 'mina',
+    );
     const gh = world.greenhouseState;
 
     // Pass 24: seasonal dressing answers the calendar (visual-only, zero alloc)

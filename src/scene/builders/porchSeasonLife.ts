@@ -13,8 +13,9 @@ import { SeasonType } from '../../game/types';
  * with `applyPorchSeason` once per outdoor frame — four scalar visibility
  * writes per porch, zero allocation, deterministic.
  *
- * Copperwheel Cottage's porch dressing is Arthur's content and is
- * intentionally NOT wired to this system.
+ * BUILD 02 note: Copperwheel Cottage's porch IS wired (canvas `applyPorchSeason`
+ * on the copperwheel porch group) — the earlier "intentionally NOT wired"
+ * docstring contradicted the code and was corrected by BUILD 03 (audit A7).
  */
 
 export interface PorchSeasonLife {
