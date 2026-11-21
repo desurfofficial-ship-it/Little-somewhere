@@ -103,28 +103,25 @@ export function isInvitationLive(
 }
 
 /**
- * Returns true iff an invitation has passed its expiry day or window end (or is malformed).
- * Unlike `!isInvitationLive`, returns false for valid invitations whose window has not opened yet
- * (`day <= expiresDay && minuteOfDay < windowStartMinute`), allowing LR2-04b pre-window stays.
+ * Returns true iff an invitation is not live at `(day, minuteOfDay)` (or is malformed).
+ *
+ * D-03 decision of record (build10-lr-recovery doc 05 §3): the tick reconciler
+ * and the save/load sanitizer use ONE strict predicate — `isInvitationExpired`
+ * is exactly `!isInvitationLive` (doc 14 §2.4 "Anything else is expired").
+ * The previous tolerant reading (pre-window actives survive the tick) created a
+ * state that `serializeWorldState` silently archived as `expired` on the next
+ * autosave, i.e. a save-compatibility hazard with no production upside:
+ * production offers are always live at creation (anchored window start,
+ * doc 20 §4), so only hand-staged or malformed states can be pre-window.
+ * Doc 21 §2.4 (Decision B, option A) requires such tests to stage invites that
+ * are live at creation instead.
  */
 export function isInvitationExpired(
   invitation: unknown,
   day: number,
   minuteOfDay: number,
 ): boolean {
-  if (!invitation || typeof invitation !== 'object') return true;
-  const inv = invitation as Partial<InvitationRecord>;
-  if (typeof inv.id !== 'string' || inv.id.length === 0) return true;
-  if (inv.status !== 'offered' && inv.status !== 'accepted') return true;
-  if (typeof inv.expiresDay !== 'number' || !Number.isFinite(inv.expiresDay)) return true;
-  if (typeof inv.windowStartMinute !== 'number' || !Number.isFinite(inv.windowStartMinute)) return true;
-  if (typeof inv.windowEndMinute !== 'number' || !Number.isFinite(inv.windowEndMinute)) return true;
-  if (typeof day !== 'number' || !Number.isFinite(day)) return true;
-  if (typeof minuteOfDay !== 'number' || !Number.isFinite(minuteOfDay)) return true;
-
-  if (day > inv.expiresDay) return true;
-  if (day === inv.expiresDay && minuteOfDay > inv.windowEndMinute) return true;
-  return false;
+  return !isInvitationLive(invitation, day, minuteOfDay);
 }
 
 function computeOfferWindow(

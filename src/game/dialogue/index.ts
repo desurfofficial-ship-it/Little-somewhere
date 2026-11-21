@@ -35,6 +35,7 @@ import { GREENHOUSE_TOPICS } from './interiors/greenhouse';
 import { BAKERY_TOPICS } from './interiors/bakery';
 import { BOOK_NOOK_TOPICS } from './interiors/bookNook';
 import { COPPERWHEEL_TOPICS } from './interiors/copperwheel';
+import { WILDS_TOPICS } from './interiors/wilds';
 import { INVITATION_TOPICS } from './invitations';
 
 export const DIALOGUE_TOPICS: readonly DialogueTopic[] = [
@@ -58,5 +59,6 @@ export const DIALOGUE_TOPICS: readonly DialogueTopic[] = [
   ...BAKERY_TOPICS, // 2 topics
   ...BOOK_NOOK_TOPICS, // 2 topics
   ...COPPERWHEEL_TOPICS, // 2 topics (Milestone 3 Build 9 — Copperwheel Cottage, Arthur)
+  ...WILDS_TOPICS, // 2 topics (Build 10 — The Wild Hollows exploration check-ins)
   ...INVITATION_TOPICS, // Living Relationships LR-1 / LR-2
 ];

@@ -41,3 +41,19 @@ This package designs the Invitation, Teaching, Home Visit, and Shared Activities
 - Complex multi-NPC interior pathfinding in the first milestones  
 - Forced social interactions  
 - Redesign of working relationship, dialogue, or interior contracts
+
+## Implementation & Decision Records (13–21, added during implementation)
+
+| # | Document | Purpose |
+|---|---|---|
+| 13 | Adversarial Pre-Implementation Review | Independent challenge of the implementation plan |
+| 14 | Revised Architecture | Spec of record for LR-1/LR-2 as built (§2.4 strict predicate, §2.3 gates, §4 occupancy/load invariants) |
+| 15 | Implementation Readiness Checklist | Red-test-first merge conditions |
+| 16 | LR-1/LR-2 Acceptance Test Plan | Frozen acceptance gates (LR1-*, LR2-*) |
+| 17 | Acceptance Plan Audit | Independent audit of doc 16 |
+| 18 | Acceptance Plan Correction Report | Doc 18 mitigation records |
+| 19 | Final Acceptance Readiness Review | Gate sign-off before implementation |
+| 20 | [LR-1 Implementation Notes](20-lr1-implementation-notes.md) | Implementation record incl. anchoring policy (recovered from the PR #3 archive, byte-identical) |
+| 21 | [LR-1 Design Decision Record](21-lr1-design-decision-record.md) | Decision A (gate-4 offer-time reading) & Decision B (LR2-04b staging) — recovered byte-identical from PR #3 `d615a8e`; Decision B's re-anchored staging is implemented on main since the Build-10/LR recovery (WORKLOG Entry 051) |
+
+**Post-implementation corrective record**: `docs/architecture/build10-lr-recovery/` (docs 01–14) — Build-10 restoration, strict-predicate unification (doc 05), adversarial validation, gameplay QA, and the merge/integration record.
