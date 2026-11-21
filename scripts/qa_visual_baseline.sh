@@ -127,20 +127,20 @@ add('copperwheel_dusk', place(s, {'x': 14.7, 'z': -7.3}, -2.35))
 
 # --- CLARA (V1) -------------------------------------------------------------
 s = with_env()
-pin(s, 'clara', -11.9, -7.3, -2.36, 'idle')   # facing NW: back silhouette to the SE camera
-add('clara_back_silhouette', place(s, {'x': -10.8, 'z': -6.2}, -2.36))
+pin(s, 'clara', -2.6, 1.2, -2.36, 'idle')   # open plaza SE of the fountain — no door proxies nearby
+add('clara_back_silhouette', place(s, {'x': -1.5, 'z': 2.3}, -2.36))
 
 s = with_env()
-pin(s, 'clara', -11.9, -7.3, 0.78, 'idle')    # facing SE: face toward the camera
-add('clara_plaza_default', place(s, {'x': -10.8, 'z': -6.2}, -2.36))
+pin(s, 'clara', -2.6, 1.2, 0.78, 'idle')    # facing SE: face toward the camera, clear of door proxies
+add('clara_plaza_default', place(s, {'x': -1.5, 'z': 2.3}, -2.36))
 
 s = with_env()
-pin(s, 'clara', -11.9, -7.3, 0.78, 'idle')
-add('clara_dialogue', place(s, {'x': -11.15, 'z': -6.85}, -2.36))
+pin(s, 'clara', -2.6, 1.2, 0.78, 'idle')
+add('clara_dialogue', place(s, {'x': -1.85, 'z': 1.75}, -2.36))
 
 s = with_env(minute=840, season='winter', day=33)
-pin(s, 'clara', -11.9, -7.3, 0.78, 'idle')
-add('clara_winter_knit', place(s, {'x': -10.8, 'z': -6.2}, -2.36))
+pin(s, 'clara', -2.6, 1.2, 0.78, 'idle')
+add('clara_winter_knit', place(s, {'x': -1.5, 'z': 2.3}, -2.36))
 
 # Seated at the east plaza bench (seated-clearance visual row)
 s = with_env()
