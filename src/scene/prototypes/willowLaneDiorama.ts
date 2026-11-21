@@ -1316,18 +1316,20 @@ export function buildStorybookJun(
   root.add(bodyGroup);
 
   const bootMat = palette.standard('#46342A', 0.72, 0.05);
-  const trousersMat = palette.standard('#344A61', 0.84, 0.02);
-  const coatMat = palette.standard(appearance.coatColor, 0.78, 0.02);
-  const coatShadeMat = palette.standard('#3B5F87', 0.8, 0.02);
-  const shirtMat = palette.standard(appearance.shirtColor, 0.84, 0.01);
-  const scarfMat = palette.standard(appearance.accentColor, 0.86, 0.01);
+  const trousersMat = palette.standard('#344A61', 0.84, 0.02, { mapSet: 'fabric' });
+  const coatMat = palette.standard(appearance.coatColor, 0.78, 0.02, { mapSet: 'fabric' });
+  const coatShadeMat = palette.standard('#3B5F87', 0.8, 0.02, { mapSet: 'fabric' });
+  const shirtMat = palette.standard(appearance.shirtColor, 0.84, 0.01, { mapSet: 'fabric' });
+  const scarfMat = palette.standard(appearance.accentColor, 0.86, 0.01, { mapSet: 'fabric' });
   const skinMat = palette.standard(appearance.skinColor, 0.7, 0.02);
   const blushMat = palette.standard('#E59580', 0.74, 0.0);
   const hairMat = palette.standard(appearance.hairColor, 0.82, 0.03);
   const eyeMat = palette.standard('#1E1814', 0.16, 0.08);
   const highlightMat = palette.standard('#FAF5EC', 0.12, 0.0);
   const leatherMat = palette.standard('#7D4F30', 0.64, 0.08);
-  const brassMat = palette.standard(STORYBOOK_PALETTE.agedBrass, 0.24, 0.85);
+  const brassMat = palette.standard(STORYBOOK_PALETTE.agedBrass, 0.24, 0.85, {
+    envMapIntensity: 1.0,
+  });
   const paperMat = palette.standard('#FAF2E1', 0.88, 0.0);
   const stampMat = palette.standard('#C86446', 0.65, 0.02);
 

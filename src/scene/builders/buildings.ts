@@ -166,16 +166,46 @@ function buildStorybookCottageCore(
 
   addContactShadow(group, shadowTex, width + 2.4, depth + 2.4, 0.46, 0.018);
 
-  const stoneMat = palette.standard(STORYBOOK_PALETTE.limestone, 0.9, 0.02);
-  const darkStoneMat = palette.standard(STORYBOOK_PALETTE.fieldstoneDark, 0.92, 0.02);
-  const wallMat = palette.standard(opts.wallColor, 0.85, 0.01);
-  const trimMat = palette.standard(opts.trimColor, 0.74, 0.04);
-  const creamTrimMat = palette.standard(STORYBOOK_PALETTE.creamTrim, 0.78, 0.02);
-  const shutterMat = palette.standard(STORYBOOK_PALETTE.sageShutter, 0.74, 0.03);
-  const potMat = palette.standard(STORYBOOK_PALETTE.terracottaPot, 0.44, 0.04);
-  const doorMat = palette.standard(STORYBOOK_PALETTE.doorCedar, 0.7, 0.05);
-  const brassMat = palette.standard(STORYBOOK_PALETTE.agedBrass, 0.24, 0.86);
-  const ironMat = palette.standard(STORYBOOK_PALETTE.wroughtIron, 0.42, 0.72);
+  // Evident-craft material families (Doc 06 §2.1): plaster walls carry tooth,
+  // timber carries grain, stone carries course mortar — each tier distinct at
+  // gameplay distance; metals answer the environment map per family.
+  const stoneMat = palette.standard(STORYBOOK_PALETTE.limestone, 0.9, 0.02, {
+    mapSet: 'stone',
+    envMapIntensity: 0.35,
+    groundGradient: 0.6,
+  });
+  const darkStoneMat = palette.standard(STORYBOOK_PALETTE.fieldstoneDark, 0.92, 0.02, {
+    mapSet: 'stone',
+    envMapIntensity: 0.35,
+    groundGradient: 0.6,
+  });
+  const wallMat = palette.standard(opts.wallColor, 0.85, 0.01, {
+    mapSet: 'plaster',
+    groundGradient: 2.7,
+  });
+  const trimMat = palette.standard(opts.trimColor, 0.74, 0.04, {
+    mapSet: 'timber-dark',
+    groundGradient: 2.7,
+  });
+  const creamTrimMat = palette.standard(STORYBOOK_PALETTE.creamTrim, 0.78, 0.02, {
+    mapSet: 'timber-light',
+  });
+  const shutterMat = palette.standard(STORYBOOK_PALETTE.sageShutter, 0.74, 0.03, {
+    mapSet: 'timber-dark',
+  });
+  const potMat = palette.standard(STORYBOOK_PALETTE.terracottaPot, 0.44, 0.04, {
+    envMapIntensity: 0.6,
+  });
+  const doorMat = palette.standard(STORYBOOK_PALETTE.doorCedar, 0.7, 0.05, {
+    mapSet: 'timber-dark',
+    groundGradient: 1.6,
+  });
+  const brassMat = palette.standard(STORYBOOK_PALETTE.agedBrass, 0.24, 0.86, {
+    envMapIntensity: 1.0,
+  });
+  const ironMat = palette.standard(STORYBOOK_PALETTE.wroughtIron, 0.42, 0.72, {
+    envMapIntensity: 0.5,
+  });
 
   const roofMat = palette.get(opts.roofCacheKey, {
     color: '#FFFFFF',
@@ -193,6 +223,7 @@ function buildStorybookCottageCore(
     emissiveIntensity: 0.24,
     roughness: 0.16,
     metalness: 0.08,
+    envMapIntensity: 0.9, // glass family (Doc 06 §2.2)
   });
   windowMaterials.push(winMat);
 
@@ -202,6 +233,7 @@ function buildStorybookCottageCore(
     emissiveIntensity: 0.25,
     roughness: 0.18,
     metalness: 0.05,
+    envMapIntensity: 0.9, // lantern-glass family
   });
   lanternMaterials.push(lanternMat);
 

@@ -24,12 +24,30 @@ export function buildStorybookGazebo(
 
   addContactShadow(group, shadowTex, 6.6, 6.6, 0.5, 0.02);
 
-  const stoneMat = palette.standard(STORYBOOK_PALETTE.limestone, 0.9, 0.02);
-  const darkStoneMat = palette.standard(STORYBOOK_PALETTE.fieldstoneDark, 0.92, 0.02);
-  const cedarDarkMat = palette.standard(STORYBOOK_PALETTE.cedarDark, 0.78, 0.04);
-  const cedarWarmMat = palette.standard(STORYBOOK_PALETTE.cedarWarm, 0.75, 0.04);
-  const trimCreamMat = palette.standard(STORYBOOK_PALETTE.creamTrim, 0.76, 0.02);
-  const brassMat = palette.standard(STORYBOOK_PALETTE.agedBrass, 0.24, 0.86);
+  const stoneMat = palette.standard(STORYBOOK_PALETTE.limestone, 0.9, 0.02, {
+    mapSet: 'stone',
+    envMapIntensity: 0.35,
+    groundGradient: 0.8,
+  });
+  const darkStoneMat = palette.standard(STORYBOOK_PALETTE.fieldstoneDark, 0.92, 0.02, {
+    mapSet: 'stone',
+    envMapIntensity: 0.35,
+    groundGradient: 0.8,
+  });
+  const cedarDarkMat = palette.standard(STORYBOOK_PALETTE.cedarDark, 0.78, 0.04, {
+    mapSet: 'timber-dark',
+    groundGradient: 2.4,
+  });
+  const cedarWarmMat = palette.standard(STORYBOOK_PALETTE.cedarWarm, 0.75, 0.04, {
+    mapSet: 'timber-dark',
+    groundGradient: 2.4,
+  });
+  const trimCreamMat = palette.standard(STORYBOOK_PALETTE.creamTrim, 0.76, 0.02, {
+    mapSet: 'timber-light',
+  });
+  const brassMat = palette.standard(STORYBOOK_PALETTE.agedBrass, 0.24, 0.86, {
+    envMapIntensity: 1.0,
+  });
   const ropeMat = palette.standard('#D7C5A0', 0.9, 0.0);
 
   const roofMat = roofTex
@@ -276,12 +294,26 @@ export function buildStorybookFountain(
 
   addContactShadow(group, shadowTex, 5.8, 5.8, 0.48, 0.02);
 
-  const stoneMat = palette.standard(STORYBOOK_PALETTE.limestone, 0.88, 0.02);
-  const darkStoneMat = palette.standard(STORYBOOK_PALETTE.fieldstoneDark, 0.91, 0.02);
-  const curbMat = palette.standard(STORYBOOK_PALETTE.limestoneCurb, 0.86, 0.02);
+  const stoneMat = palette.standard(STORYBOOK_PALETTE.limestone, 0.88, 0.02, {
+    mapSet: 'stone',
+    envMapIntensity: 0.35,
+    groundGradient: 2.6,
+  });
+  const darkStoneMat = palette.standard(STORYBOOK_PALETTE.fieldstoneDark, 0.91, 0.02, {
+    mapSet: 'stone',
+    envMapIntensity: 0.35,
+    groundGradient: 2.6,
+  });
+  const curbMat = palette.standard(STORYBOOK_PALETTE.limestoneCurb, 0.86, 0.02, {
+    mapSet: 'stone',
+    envMapIntensity: 0.35,
+    groundGradient: 2.6,
+  });
   const mossMat = palette.standard(STORYBOOK_PALETTE.moss, 0.88, 0.0);
-  const bronzeMat = palette.standard('#8E7043', 0.28, 0.82);
-  const brassMat = palette.standard(STORYBOOK_PALETTE.agedBrass, 0.24, 0.86);
+  const bronzeMat = palette.standard('#8E7043', 0.28, 0.82, { envMapIntensity: 0.85 });
+  const brassMat = palette.standard(STORYBOOK_PALETTE.agedBrass, 0.24, 0.86, {
+    envMapIntensity: 1.0,
+  });
   const copperMat = palette.standard('#C9794E', 0.28, 0.82);
   const basinBedMat = palette.standard('#8E8475', 0.93, 0.0);
   const leafDryMat = palette.standard('#B86D3B', 0.86, 0.0);
@@ -616,13 +648,28 @@ export function buildStorybookTeaCart(
 
   addContactShadow(group, shadowTex, 2.35, 1.75, 0.45, 0.018);
 
-  const cedarDarkMat = palette.standard(STORYBOOK_PALETTE.cedarDark, 0.78, 0.04);
-  const cedarWarmMat = palette.standard(STORYBOOK_PALETTE.cedarWarm, 0.74, 0.04);
-  const creamMat = palette.standard(STORYBOOK_PALETTE.creamTrim, 0.78, 0.02);
-  const brassMat = palette.standard(STORYBOOK_PALETTE.agedBrass, 0.24, 0.85);
-  const ceramicMat = palette.standard(STORYBOOK_PALETTE.ceramicCream, 0.36, 0.05);
-  const canopyPlum = palette.standard('#8A67AF', 0.8, 0.02);
-  const canopyCream = palette.standard('#F4EAD6', 0.82, 0.02);
+  // Evident-craft families on the cart (V5 object gate, Doc 03 §8): timber grain
+  // on the chassis, weave on the canopy cloth, kettle/cups answer the IBL.
+  const cedarDarkMat = palette.standard(STORYBOOK_PALETTE.cedarDark, 0.78, 0.04, {
+    mapSet: 'timber-dark',
+    groundGradient: 1.3,
+  });
+  const cedarWarmMat = palette.standard(STORYBOOK_PALETTE.cedarWarm, 0.74, 0.04, {
+    mapSet: 'timber-dark',
+    groundGradient: 1.3,
+  });
+  const creamMat = palette.standard(STORYBOOK_PALETTE.creamTrim, 0.78, 0.02, {
+    mapSet: 'timber-light',
+    groundGradient: 1.3,
+  });
+  const brassMat = palette.standard(STORYBOOK_PALETTE.agedBrass, 0.24, 0.85, {
+    envMapIntensity: 1.0,
+  });
+  const ceramicMat = palette.standard(STORYBOOK_PALETTE.ceramicCream, 0.36, 0.05, {
+    envMapIntensity: 0.6,
+  });
+  const canopyPlum = palette.standard('#8A67AF', 0.8, 0.02, { mapSet: 'fabric' });
+  const canopyCream = palette.standard('#F4EAD6', 0.82, 0.02, { mapSet: 'fabric' });
 
   // Grounded chassis & cabinet
   const counterBase = new THREE.Mesh(new THREE.BoxGeometry(1.52, 0.66, 0.92), cedarWarmMat);
@@ -796,10 +843,20 @@ export function buildStorybookBench(
   const group = new THREE.Group();
   addContactShadow(group, shadowTex, 1.6, 1.02, 0.44, 0.018);
 
-  const ironMat = palette.standard(STORYBOOK_PALETTE.wroughtIron, 0.38, 0.75);
-  const cedarMat = palette.standard(STORYBOOK_PALETTE.cedarWarm, 0.78, 0.03);
-  const cedarDarkMat = palette.standard(STORYBOOK_PALETTE.cedarDark, 0.82, 0.03);
-  const brassMat = palette.standard(STORYBOOK_PALETTE.agedBrass, 0.24, 0.85);
+  const ironMat = palette.standard(STORYBOOK_PALETTE.wroughtIron, 0.38, 0.75, {
+    envMapIntensity: 0.5,
+  });
+  const cedarMat = palette.standard(STORYBOOK_PALETTE.cedarWarm, 0.78, 0.03, {
+    mapSet: 'timber-dark',
+    groundGradient: 0.7,
+  });
+  const cedarDarkMat = palette.standard(STORYBOOK_PALETTE.cedarDark, 0.82, 0.03, {
+    mapSet: 'timber-dark',
+    groundGradient: 0.7,
+  });
+  const brassMat = palette.standard(STORYBOOK_PALETTE.agedBrass, 0.24, 0.85, {
+    envMapIntensity: 1.0,
+  });
 
   // Two scrolled iron leg frames (front legs at z=+0.22, recessed tilted backrest stiles at z=-0.27)
   for (const sx of [-0.54, 0.54]) {

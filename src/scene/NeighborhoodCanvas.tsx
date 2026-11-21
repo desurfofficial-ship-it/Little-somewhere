@@ -511,9 +511,13 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
     const flowerGroups: THREE.Group[] = [];
 
     // Cobblestone road & plaza slabs (offset by +0.02 on Y to prevent Z-fighting)
+    // V6 carrier (Doc 09): cobble albedo stays the identity texture; the stone-course
+    // roughness map makes mortar read rougher than stone faces (Doc 03 §5.1 T1),
+    // and the controller deepens the winter value band (Doc 03 §2.2).
     const cobbleMat = new THREE.MeshStandardMaterial({
       color: '#FFFFFF',
       map: cobbleTex,
+      roughnessMap: palette.mapBundle('stone')?.roughnessMap ?? null,
       roughness: 0.86,
       metalness: 0.02,
     });
@@ -786,9 +790,11 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
       scene,
       exteriorRoot,
       groundMat,
+      cobbleMat,
       groveRig,
       hemiLight,
       sunLight,
+      rimLight,
       windowMaterials,
       willowWindowMaterials: willowCottage.windowMats,
       lanternMat,

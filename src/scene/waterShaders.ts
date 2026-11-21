@@ -118,6 +118,14 @@ export function createStorybookPondWaterMaterial(): THREE.MeshStandardMaterial {
         diffuseColor.rgb = mix(deepTeal, shallowAqua, shallowMask * 0.65);
         diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.84, 0.96, 0.98), caustic * 0.26 * (1.0 - 0.6 * uWinter));
 
+        // Fresnel lift (Doc 06 §2.2 water note): view-angle reflectivity toward
+        // grazing angles. Analytic flat-surface up-vector — no new shader
+        // programs, same uniform drivers; ice suppresses the sky lift.
+        vec3 upView = normalize((viewMatrix * vec4(0.0, 1.0, 0.0, 0.0)).xyz);
+        float facing = clamp(dot(normalize(vViewPosition), upView), 0.0, 1.0);
+        float fresnel = pow(1.0 - facing, 3.0);
+        diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.70, 0.82, 0.92), fresnel * 0.32 * (1.0 - 0.55 * uWinter));
+
         // Gentle shoreline lapping highlight
         float shoreWave = 0.5 + 0.5 * sin(edgeMetric * 18.0 - uTime * 2.4);
         float shoreFoam = smoothstep(0.86, 1.02, edgeMetric) * shoreWave * (1.0 - 0.5 * uWinter);

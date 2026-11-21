@@ -177,20 +177,26 @@ export function buildStorybookCharacter(
   root.add(bodyGroup);
 
   const bootMat = palette.standard('#46342A', 0.72, 0.05);
+  // Fabric-family garments carry the weave roughness map (Doc 03 §5.1 T2) so
+  // clothing reads as stitched fibre rather than painted plastic at gameplay
+  // distance. Brass gains its per-family environment response (Doc 06 §2.2).
   const trousersMat = palette.standard(
     characterId === 'pip' ? '#466886' : characterId === 'barnaby' ? '#584B42' : '#404552',
     0.84,
     0.02,
+    { mapSet: 'fabric' },
   );
-  const coatMat = palette.standard(appearance.coatColor, 0.78, 0.02);
-  const shirtMat = palette.standard(appearance.shirtColor, 0.84, 0.01);
-  const accentMat = palette.standard(appearance.accentColor, 0.74, 0.04);
+  const coatMat = palette.standard(appearance.coatColor, 0.78, 0.02, { mapSet: 'fabric' });
+  const shirtMat = palette.standard(appearance.shirtColor, 0.84, 0.01, { mapSet: 'fabric' });
+  const accentMat = palette.standard(appearance.accentColor, 0.74, 0.04, { mapSet: 'fabric' });
   const skinMat = palette.standard(appearance.skinColor, 0.7, 0.02);
   const blushMat = palette.standard('#E59580', 0.74, 0.0);
   const hairMat = palette.standard(appearance.hairColor, 0.82, 0.03);
   const eyeMat = palette.standard('#1E1814', 0.16, 0.08);
   const highlightMat = palette.standard('#FAF5EC', 0.12, 0.0);
-  const brassMat = palette.standard(STORYBOOK_PALETTE.agedBrass, 0.24, 0.85);
+  const brassMat = palette.standard(STORYBOOK_PALETTE.agedBrass, 0.24, 0.85, {
+    envMapIntensity: 1.0,
+  });
   const leatherMat = palette.standard('#7C4F32', 0.68, 0.06);
 
   // 1. Articulated Legs (hip pivot at y = 0.42)
