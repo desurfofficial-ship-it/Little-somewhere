@@ -1,0 +1,25 @@
+{"shot":"perf_plaza_hero","viewport":"1440x900","zoom":"1.0","note":"20s veteran golden-hour gameplay, measured","gl":"ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)","pageErrors":0,"perf":"{\"frames\":13,\"avgFps\":0.45792384374229456,\"p50Ms\":1577.5999755859375,\"p95Ms\":9604.400390625,\"maxMs\":9604.39999999851,\"spikesOver33\":13,\"spikesOver16\":13,\"drawCalls\":2238,\"triangles\":129259,\"geometries\":2181,\"textures\":10,\"programs\":24,\"sceneBuildMs\":1783.0999999996275}"}
+{"shot":"plaza_hero","viewport":"desktop","meta":["1.0", "golden summer hero"]}
+{"shot":"plaza_hero_145","viewport":"desktop","meta":["1.45", "survey squint"]}
+{"shot":"plaza_winter_midday","viewport":"desktop","meta":["1.0", "winter value-band check"]}
+{"shot":"plaza_dusk","viewport":"desktop","meta":["1.0", "dusk lantern choreography"]}
+{"shot":"plaza_residents_medium","viewport":"desktop","meta":["1.0", "cast differentiation read"]}
+{"shot":"tea_cart_hero","viewport":"desktop","meta":["1.0", "V5 object gate"]}
+{"shot":"copperwheel_hero","viewport":"desktop","meta":["1.0", "V3 hero angle"]}
+{"shot":"copperwheel_dusk","viewport":"desktop","meta":["1.0", "gear medallion + lantern emissive"]}
+{"shot":"clara_back_silhouette","viewport":"desktop","meta":["1.0", "V1 silhouette read"]}
+{"shot":"clara_plaza_default","viewport":"desktop","meta":["1.0", "V1 default framing"]}
+{"shot":"clara_dialogue","viewport":"desktop","meta":["dialogue", "conversation framing, sheet open"]}
+{"shot":"clara_dialogue_closed","viewport":"desktop","meta":["0.72", "face crop, sheet closed"]}
+{"shot":"clara_winter_knit","viewport":"desktop","meta":["1.0", "winter-dyed knits"]}
+{"shot":"clara_seated_bench","viewport":"desktop","meta":["1.0", "seated clearance visual"]}
+{"shot":"rowan_plaza_identity","viewport":"desktop","meta":["1.0", "V2 identity read"]}
+{"shot":"rowan_orchard_workplace","viewport":"desktop","meta":["1.0", "orchard workplace context"]}
+{"shot":"rowan_walk_stride_a","viewport":"desktop","meta":["1.0", "mid-stride gait frame a"]}
+{"shot":"rowan_walk_stride_a_b","viewport":"desktop","meta":["1.0", "mid-stride gait frame b"]}
+{"shot":"hearth_morning","viewport":"desktop","meta":["interior-0.68", "morning hearth"]}
+{"shot":"hearth_morning_072","viewport":"desktop","meta":["interior-0.56", "hearth detail"]}
+{"shot":"hearth_dusk","viewport":"desktop","meta":["interior-0.68", "dusk hearth truth-light"]}
+{"shot":"hearth_dusk_072","viewport":"desktop","meta":["interior-0.56", "hearth detail dusk"]}
+{"shot":"hearth_winter","viewport":"desktop","meta":["interior-0.68", "winter hearth"]}
+{"shot":"hearth_winter_072","viewport":"desktop","meta":["interior-0.56", "hearth detail winter"]}

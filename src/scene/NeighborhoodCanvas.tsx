@@ -1,6 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import * as THREE from 'three';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+import { PerfProbe } from './perfProbe';
 import {
   CarryableItemId,
   CottageInteractableId,
@@ -393,6 +394,17 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
       gl.getExtension('WEBGL_lose_context')?.loseContext();
       return /SwiftShader|llvmpipe|softpipe|Software|Basic Render/i.test(gpu);
     })();
+
+    // Visual QA performance probe (Doc 08 Phase 0.2): opt-in via ?perf=1 only.
+    // Disabled probes cost nothing and never touch the DOM.
+    const perfProbe = new PerfProbe(
+      new URLSearchParams(window.location.search).get('perf') === '1',
+    );
+    if (perfProbe.enabled) {
+      window.__LS_PERF__ = perfProbe;
+      perfProbe.mountOverlay();
+    }
+    const sceneBuildStart = performance.now();
 
     const renderer = new THREE.WebGLRenderer({
       antialias: !isSoftwareGl,
@@ -2049,6 +2061,7 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
       timer.update();
       const rawDt = timer.getDelta();
       const dt = Math.min(rawDt, 0.05);
+      perfProbe.frame(rawDt * 1000);
       const elapsed = timer.getElapsed();
       const state = screenStateRef.current;
       const world = worldRef.current;
@@ -2492,6 +2505,14 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
 
       renderer.render(scene, camera);
 
+      // Perf QA sampling (opt-in; branch costs ~2 int increments when disabled)
+      if (perfProbe.shouldSampleGpu()) {
+        perfProbe.sampleGpu(renderer);
+      }
+      if (perfProbe.shouldUpdateOverlay()) {
+        perfProbe.refreshOverlay();
+      }
+
       if (isSoftwareGl) {
         afterDraw(tick);
       } else {
@@ -2509,6 +2530,9 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
     } else {
       frameId = requestAnimationFrame(tick);
     }
+
+    // One-time scene assembly cost (rigs, materials, textures) — measured, not estimated.
+    perfProbe.noteSceneBuild(performance.now() - sceneBuildStart);
 
     return () => {
       disposed = true;
