@@ -5,6 +5,7 @@ import type {
   CopperwheelInteractableId,
   GreenhouseInteractableId,
   NookInteractableId,
+  PersonalItemId,
   PropInteractableId,
   ResidentId,
 } from '../types';
@@ -212,7 +213,24 @@ export type SubjectScene =
   | 'wildflower'
   | 'bee_log'
   // rituals
-  | 'teacup';
+  | 'teacup'
+  // satchel item thumbnails (BUILD 04, Doc 03 §9.3 — the SAME SubjectCanvas
+  // painter, tinted scenes; no new systems). Parametric scenes take their
+  // personality from the recipe's primary/accent tones.
+  | 'item_sprig'
+  | 'item_seeds'
+  | 'item_honey_jar'
+  | 'item_tart'
+  | 'item_shortbread'
+  | 'item_river_glass'
+  | 'item_feather'
+  | 'item_fern'
+  | 'item_cedar_rose'
+  | 'item_zine'
+  | 'item_bell'
+  | 'item_watercolor_card'
+  | 'item_wreath'
+  | 'item_music_box';
 
 export interface SubjectRecipe {
   kind: 'procedural';
@@ -278,6 +296,20 @@ export const SUBJECT_IMAGE_KEYS: Record<SubjectScene, string> = {
   stone_well: 'subject_stone_well',
   wildflower: 'subject_wildflower',
   bee_log: 'subject_bee_log',
+  item_sprig: 'subject_item_sprig',
+  item_seeds: 'subject_item_seeds',
+  item_honey_jar: 'subject_item_honey_jar',
+  item_tart: 'subject_item_tart',
+  item_shortbread: 'subject_item_shortbread',
+  item_river_glass: 'subject_item_river_glass',
+  item_feather: 'subject_item_feather',
+  item_fern: 'subject_item_fern',
+  item_cedar_rose: 'subject_item_cedar_rose',
+  item_zine: 'subject_item_zine',
+  item_bell: 'subject_item_bell',
+  item_watercolor_card: 'subject_item_watercolor_card',
+  item_wreath: 'subject_item_wreath',
+  item_music_box: 'subject_item_music_box',
 };
 
 /** World-prop interactions → their subject key (Priority 2 task 5 wiring). */
@@ -424,4 +456,61 @@ export function resolveSubjectImage(key: string | undefined): SubjectDescriptor 
     }
   }
   return { kind: 'fallback' };
+}
+
+// ---------------------------------------------------------------------------
+// BUILD 04 (Doc 03 §9.3): satchel item thumbnails — the 25-item catalog gets
+// tinted canvas thumbnails by reusing the SAME SubjectCanvas painter. Pure
+// data: each item maps to an existing (or new parametric) subject scene with
+// item-specific tones. No new systems; unknown ids fall back to the yarn ball.
+// ---------------------------------------------------------------------------
+
+const ITEM_BACKDROP = '#FBF3E4';
+
+interface ItemSubjectSpec {
+  subject: SubjectScene;
+  primary: string;
+  accent?: string;
+}
+
+const ITEM_SUBJECT_SPECS: Record<PersonalItemId, ItemSubjectSpec> = {
+  crabapple: { subject: 'item_sprig', primary: '#C86446', accent: '#5E8062' },
+  lemon_thyme: { subject: 'item_sprig', primary: '#E5C96B', accent: '#7B9F5C' },
+  chamomile_blossom: { subject: 'item_sprig', primary: '#FAF5EC', accent: '#E5A93C' },
+  lavender_sprig: { subject: 'item_sprig', primary: '#9B8BC4', accent: '#5E8062' },
+  wild_honey: { subject: 'item_honey_jar', primary: '#E5A93C', accent: '#B45539' },
+  chamomile_seeds: { subject: 'item_seeds', primary: '#E5A93C', accent: '#7B9F5C' },
+  lavender_seeds: { subject: 'item_seeds', primary: '#9B8BC4', accent: '#7B9F5C' },
+  thyme_seeds: { subject: 'item_seeds', primary: '#5E8062', accent: '#E5A93C' },
+  foxglove_seeds: { subject: 'item_seeds', primary: '#C96E93', accent: '#7B9F5C' },
+  foxglove_bloom: { subject: 'item_sprig', primary: '#C96E93', accent: '#5E8062' },
+  meadow_posy: { subject: 'item_sprig', primary: '#C86446', accent: '#E5A93C' },
+  chamomile_pear_tea: { subject: 'teacup', primary: '#E5A93C', accent: '#5E8062' },
+  lavender_chamomile_tea: { subject: 'teacup', primary: '#9B8BC4', accent: '#E5A93C' },
+  herb_loaf: { subject: 'loaf', primary: '#C99A5B', accent: '#7B9F5C' },
+  crabapple_tart: { subject: 'item_tart', primary: '#C86446', accent: '#E5C96B' },
+  lavender_shortbread: { subject: 'item_shortbread', primary: '#E5C96B', accent: '#9B8BC4' },
+  smooth_river_glass: { subject: 'item_river_glass', primary: '#7FB5C4', accent: '#FAF5EC' },
+  heron_feather: { subject: 'item_feather', primary: '#B8C6CF', accent: '#5E8062' },
+  pressed_fern: { subject: 'item_fern', primary: '#5E8062', accent: '#7B9F5C' },
+  cedar_shaving_rose: { subject: 'item_cedar_rose', primary: '#A8805B', accent: '#8F6A3C' },
+  willow_zine_copy: { subject: 'item_zine', primary: '#5E8062', accent: '#C86446' },
+  brass_pocket_bell: { subject: 'item_bell', primary: '#C9A253', accent: '#8C7D6F' },
+  pond_watercolor_card: { subject: 'item_watercolor_card', primary: '#7FB5C4', accent: '#C86446' },
+  woven_herb_wreath: { subject: 'item_wreath', primary: '#5E8062', accent: '#E5A93C' },
+  cedar_music_box: { subject: 'item_music_box', primary: '#A8805B', accent: '#C9A253' },
+};
+
+/** Resolves a satchel item id into its paintable subject thumbnail descriptor. */
+export function subjectForItem(itemId: PersonalItemId): SubjectDescriptor {
+  const spec = ITEM_SUBJECT_SPECS[itemId];
+  if (!spec) return { kind: 'fallback' };
+  return {
+    kind: 'procedural',
+    subject: spec.subject,
+    backdrop: ITEM_BACKDROP,
+    wood: SUBJECT_WOOD,
+    primary: spec.primary,
+    accent: spec.accent ?? SUBJECT_ACCENT,
+  };
 }

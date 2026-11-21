@@ -453,3 +453,99 @@ test('two-hand carry variant: driver bends both arms forward with a lean back', 
     'two-hand leans slightly back under the weight',
   );
 });
+
+// ---------------------------------------------------------------------------
+// BUILD 04 — Life in Motion (Doc 04 §5.1.2 talk mouth-flap, §8.2.2 two-segment
+// arms, §8.2.3 pre-bent leg geometry). Additive locks: the historical contracts
+// above are untouched; these cover the new capabilities only.
+// ---------------------------------------------------------------------------
+
+test('BUILD 04: talk/converse flaps the smile arc height, uniform scale restores at rest', () => {
+  const rig = buildRig('clara');
+  const mouth = rig.mouthSmile!;
+  // Talk: the flap oscillates scale.y (±25% @ ~9 Hz, intensity-scaled).
+  animateCharacterRig(rig, 'talk', 0, 0.055, 1 / 30, 0);
+  const flapLow = mouth.scale.y;
+  animateCharacterRig(rig, 'talk', 0, 0.13, 1 / 30, 0);
+  const flapHigh = mouth.scale.y;
+  assert.ok(
+    Math.abs(flapHigh - flapLow) > 0.05,
+    `talk flap modulates scale.y (got ${flapLow.toFixed(3)} → ${flapHigh.toFixed(3)})`,
+  );
+  assert.ok(flapHigh > flapLow, 'flap phase at t=0.13 sits above the t=0.055 trough');
+  assert.ok(
+    Math.abs(mouth.scale.x - 1) < 0.05,
+    'flap rides scale.y only — the smile width contract is untouched',
+  );
+  // Leaving the talk state restores the uniform mouth scale.
+  animateCharacterRig(rig, 'idle', 0, 0.13, 1 / 30, 0);
+  assert.ok(
+    Math.abs(mouth.scale.y - mouth.scale.x) < 1e-6,
+    'non-talk frames keep the mouth scale uniform (identity contract)',
+  );
+});
+
+test('BUILD 04: elbows articulate per state and clamp, with the hand exactly where it hung', () => {
+  const rig = buildRig('rowan');
+  assert.ok(rig.leftElbow && rig.rightElbow, 'rig exposes both elbow pivots');
+  assert.equal(rig.leftElbow.parent, rig.leftArm, 'left elbow rides the left arm pivot');
+  assert.equal(rig.rightElbow.parent, rig.rightArm, 'right elbow rides the right arm pivot');
+  // World-space hand position is unchanged by the re-parent (Doc 04 §8.2.2 gate):
+  // elbow + hand offsets must still sum to the historical (±0.09, −0.38, 0.02) hang.
+  const hand = findNamed(rig.root, 'hand')!;
+  for (const [elbow, sign] of [
+    [rig.leftElbow, -1],
+    [rig.rightElbow, 1],
+  ] as const) {
+    const armHand = hand.name === 'hand' ? elbow!.children.find((c) => c.name === 'hand')! : hand;
+    const sumX = elbow!.position.x + armHand.position.x;
+    assert.ok(
+      Math.abs(sumX - sign * 0.09) < 0.002 && Math.abs(elbow!.position.y + armHand.position.y + 0.38) < 0.002,
+      `hand hangs at its historical offset (side ${sign}: x ${sumX.toFixed(3)}, y ${(elbow!.position.y + armHand.position.y).toFixed(3)})`,
+    );
+  }
+  // Idle: forearms rest straight (damped toward 0).
+  for (let i = 0; i < 30; i++) animateCharacterRig(rig, 'idle', 0, i / 30, 1 / 30, 0);
+  assert.ok(Math.abs(rig.rightElbow.rotation.x) < 0.05, 'idle forearms rest straight');
+  // Wave: the forearm snaps from the elbow.
+  for (let i = 0; i < 40; i++) animateCharacterRig(rig, 'wave', 0, i * 0.037, 1 / 30, 0);
+  assert.ok(rig.rightElbow.rotation.x < -0.6, `wave bends the right forearm (got ${rig.rightElbow.rotation.x.toFixed(2)})`);
+  // Walk: gentle natural bend.
+  for (let i = 0; i < 40; i++) animateCharacterRig(rig, 'walk', i * 0.19, i / 30, 1 / 30, 0);
+  assert.ok(
+    Math.abs(rig.rightElbow.rotation.x - -0.25) < 0.08,
+    'walk carries a natural forearm bend',
+  );
+});
+
+test('BUILD 04: Jun shares the two-segment arm system', () => {
+  const rig = buildRig('jun');
+  assert.ok(rig.leftElbow && rig.rightElbow, 'Jun rig exposes elbow pivots');
+  for (let i = 0; i < 40; i++) animateCharacterRig(rig, 'wave', 0, i * 0.037, 1 / 30, 0);
+  assert.ok(rig.rightElbow!.rotation.x < -0.6, 'Jun waves from the elbow like the cast');
+});
+
+test('BUILD 04: pre-bent knee is baked into pant/boot geometry without new DOF', () => {
+  const rig = buildRig('rowan');
+  const leg = rig.leftLeg;
+  const pant = leg.children.find(
+    (c) => c instanceof THREE.Mesh && (c.geometry as THREE.CylinderGeometry).parameters,
+  ) as THREE.Mesh;
+  assert.ok(pant, 'pant remains a parameterized cylinder mesh');
+  const pos = (pant.geometry as THREE.CylinderGeometry).attributes.position as THREE.BufferAttribute;
+  let maxBendZ = 0;
+  for (let vi = 0; vi < pos.count; vi++) {
+    if (pos.getY(vi) < -0.05) maxBendZ = Math.max(maxBendZ, pos.getZ(vi));
+  }
+  assert.ok(maxBendZ > 0.015, `lower pant vertices bake a forward knee arc (got ${maxBendZ.toFixed(3)})`);
+  const boot = findNamed(rig.root, 'boot') as THREE.Mesh;
+  boot.geometry.computeBoundingBox();
+  const bb = boot.geometry.boundingBox!;
+  assert.ok(bb.max.z > 0.12, 'boot toe massing still leads the bend');
+  assert.ok(bb.min.z < -0.1, 'heel stays planted behind the body line');
+  // No new joint: the boot is still a DIRECT child of the hip pivot (no knee DOF).
+  const leftBoot = leg.children.find((c) => c.name === 'boot');
+  assert.ok(leftBoot && leftBoot instanceof THREE.Mesh, 'boot remains a direct child of the hip pivot');
+  const rightBoot = rig.rightLeg.children.find((c) => c.name === 'boot');
+  assert.ok(rightBoot && rightBoot instanceof THREE.Mesh, 'both legs keep the direct boot child');
+});

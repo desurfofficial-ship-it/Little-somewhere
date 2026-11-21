@@ -1,5 +1,26 @@
 @import "tailwindcss";
 
+/* BUILD 04 (Doc 03 §9.1): the declared palette becomes REAL design tokens.
+   Tailwind v4 `@theme` emits every entry as a CSS custom property AND a
+   semantic utility family (bg-linen, text-espresso, border-stone-line, ...).
+   Values are byte-identical to the historical literals — adoption is a pure
+   refactor, verified by the capture pair + uiTokenDiscipline test. */
+@theme {
+  --color-linen: #FAF5EC;
+  --color-linen-deep: #F1E8D9;
+  --color-page-ground: #E7DFCF;
+  --color-espresso: #2D241E;
+  --color-espresso-muted: #6A5B50;
+  --color-umber: #5E5046;
+  --color-terracotta: #C86446;
+  --color-terracotta-deep: #B45539;
+  --color-sage: #5E8062;
+  --color-honey: #E5A93C;
+  --color-stone-line: #D4C4AE;
+  --color-parchment: #E2D4C0;
+  --color-card-warm: #F4ECE0;
+}
+
 @layer base {
   :root {
     --font-display: 'Fraunces', Georgia, serif;
@@ -12,6 +33,11 @@
     --terracotta: #C86446;
     --sage: #5E8062;
     --honey: #E5A93C;
+    /* BUILD 04 (Doc 03 §9.1): the elevation/shadow scale — three named rungs
+       (card / sheet / drawer) replace the one-off arbitrary shadows. */
+    --shadow-card: 0 6px 18px rgba(45, 36, 30, 0.16);
+    --shadow-sheet: 0 14px 36px rgba(45, 36, 30, 0.22);
+    --shadow-drawer: 0 20px 56px rgba(45, 36, 30, 0.28);
   }
 
   html,
@@ -22,11 +48,18 @@
     margin: 0;
     padding: 0;
     overflow: hidden;
-    background-color: #E7DFCF;
+    background-color: var(--color-page-ground);
     color: var(--espresso);
     font-family: var(--font-sans);
     -webkit-tap-highlight-color: transparent;
     user-select: none;
+  }
+
+  /* BUILD 04 a11y floor (Doc 08 §7.5): focus-visible everywhere — a warm
+     terracotta ring for keyboard navigation, never shown for pointer input. */
+  :focus-visible {
+    outline: 2px solid var(--terracotta);
+    outline-offset: 2px;
   }
 }
 
@@ -37,6 +70,35 @@
 .font-mono-nums {
   font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
+}
+
+/* Elevation scale utilities (Doc 03 §9.1) — prefer these over arbitrary
+   shadow-[...] values so every floating surface sits on the same three rungs. */
+.shadow-elevation-card {
+  box-shadow: var(--shadow-card);
+}
+
+.shadow-elevation-sheet {
+  box-shadow: var(--shadow-sheet);
+}
+
+.shadow-elevation-drawer {
+  box-shadow: var(--shadow-drawer);
+}
+
+/* BUILD 04 a11y floor (Doc 08 §7.5): HUD padding honors the notch / home
+   indicator on `viewport-fit=cover` devices. Same visual padding as the old
+   p-3 sm:p-5, lifted to max(padding, inset) per side. */
+.safe-area-pad {
+  padding: max(0.75rem, env(safe-area-inset-top)) max(0.75rem, env(safe-area-inset-right))
+    max(0.75rem, env(safe-area-inset-bottom)) max(0.75rem, env(safe-area-inset-left));
+}
+
+@media (min-width: 640px) {
+  .safe-area-pad {
+    padding: max(1.25rem, env(safe-area-inset-top)) max(1.25rem, env(safe-area-inset-right))
+      max(1.25rem, env(safe-area-inset-bottom)) max(1.25rem, env(safe-area-inset-left));
+  }
 }
 
 /* Custom thin scrollbars inside journal/dialogue sheets */

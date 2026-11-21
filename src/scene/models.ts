@@ -65,6 +65,13 @@ export interface CharacterRig {
   rightLeg: THREE.Object3D;
   leftArm: THREE.Object3D;
   rightArm: THREE.Object3D;
+  /**
+   * BUILD 04 (Doc 04 §8.2.2): clamped elbow pivots under the sleeve — the
+   * mitten and hand anchor ride them; rotation.x is driven per animation state
+   * by `animateCharacterRig` (negative = forearm closes forward).
+   */
+  leftElbow?: THREE.Object3D;
+  rightElbow?: THREE.Object3D;
   headGroup: THREE.Group;
   leftEyelid?: THREE.Mesh;
   rightEyelid?: THREE.Mesh;

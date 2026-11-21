@@ -12,6 +12,7 @@ import { GroveTreesRig } from './builders/vegetation';
 import { WildsRig } from './builders/wilds';
 import { ReactiveVisualRigs } from './builders/reactiveProps';
 import { getWaterShaderUniforms } from './waterShaders';
+import { updateAmbientMotion } from './ambientSway';
 import { computeChimneySmokeStrength } from '../game/cottage';
 import { CANOPY_DRIFT_TARGETS } from '../game/progressionVisuals';
 import type { ProgressionPresentationRigs } from './progressionPresentation';
@@ -183,6 +184,7 @@ export class EnvironmentVisualController {
     focusPos: Vec2,
     elapsed: number,
     dt: number,
+    isIndoors = false,
   ): void {
     const {
       scene,
@@ -275,7 +277,6 @@ export class EnvironmentVisualController {
       gazeboRig.clapperMesh.visible = env.bellGleaming;
       gazeboRig.ribbonMesh.visible = env.reconciledTogether;
       bakeryTablesGroup.visible = env.bakeryTablesOpen;
-      festoonGroup.visible = env.festoonLanterns || composed.timeOfDay.phase === 'dusk';
       oakGlint.visible = !world.flags.foundBrassClapper;
       mbFlag.rotation.z = world.mailboxUnread ? 0 : -1.2;
       fountainRig.waterMesh.visible = env.fountainFlowing;
@@ -300,15 +301,6 @@ export class EnvironmentVisualController {
       // cloned materials are ensured once (the shared brassMat has no emissive).
       this.applyNoticeboardGlint(flyers, composed.progression.housekeeping.noticeboardGlint);
 
-      const phase = composed.timeOfDay.phase;
-      lanternMat.emissiveIntensity =
-        phase === 'dusk' ? 2.15 : composed.timeOfDay.lanternScheduleActive ? 0.95 : 0.15;
-      const protoGlow =
-        phase === 'dusk' ? 2.35 : composed.timeOfDay.lanternScheduleActive ? 0.95 : 0.22;
-      for (let i = 0; i < prototypeLanternMats.length; i++) {
-        prototypeLanternMats[i].emissiveIntensity = protoGlow;
-      }
-
       // Reactive NPC micro-props (revision-gated, see composeEnvironmentState npcTouches)
       const rigs = this.deps.reactiveRigs;
       if (rigs) {
@@ -330,7 +322,7 @@ export class EnvironmentVisualController {
       if (this.deps.orchardRig) {
         this.deps.orchardRig.setGatheringVisual(
           env.orchardGatheringOutcome ?? 'none',
-          composed.timeOfDay.lanternScheduleActive || phase === 'golden',
+          composed.timeOfDay.lanternScheduleActive || composed.timeOfDay.phase === 'golden',
         );
       }
     }
@@ -398,6 +390,26 @@ export class EnvironmentVisualController {
       }
     }
 
+    // 2.8 BUILD 04 AM-4 — lantern & festoon glow now track the clock per-frame
+    // (same phase-lag defect the window glow had until 2.7: the write was
+    // revision-gated, so golden->dusk lagged until the next revision event) and
+    // gain a gentle dusk breathe — a warm ±0.06 shimmer around the schedule
+    // value, deterministic from the shared elapsed clock. Restraint: no flicker,
+    // no cross-fade against the established day/night curves (Doc 06 §3.1).
+    {
+      const phase = composed.timeOfDay.phase;
+      const breathe = phase === 'dusk' ? Math.sin(elapsed * 2.6) * 0.06 : 0;
+      lanternMat.emissiveIntensity =
+        (phase === 'dusk' ? 2.15 : composed.timeOfDay.lanternScheduleActive ? 0.95 : 0.15) + breathe;
+      const protoGlow =
+        (phase === 'dusk' ? 2.35 : composed.timeOfDay.lanternScheduleActive ? 0.95 : 0.22) + breathe;
+      for (let i = 0; i < prototypeLanternMats.length; i++) {
+        prototypeLanternMats[i].emissiveIntensity = protoGlow;
+      }
+      festoonGroup.visible =
+        composed.playerChanges.festoonLanterns || phase === 'dusk';
+    }
+
     // 3. Continuous Time-of-Day + Weather Atmosphere Curves (zero GC)
     const { tNorm } = composed.timeOfDay;
     if (tNorm < 0.35) {
@@ -463,6 +475,16 @@ export class EnvironmentVisualController {
     const sunHeight = Math.max(8, 24 - Math.abs(tNorm - 0.44) * 30);
     sunLight.position.set(Math.cos(sunAngle) * 26, sunHeight, 16);
 
+    // BUILD 04 AM-5: the exterior ambient sections (4-6) skip their per-frame
+    // work while the player is indoors — the exterior root is hidden, so pond
+    // koi, rain/petal matrices and orchard sway previously executed invisibly.
+    // Sections 1-3 and the per-frame glow writes above always run: they are
+    // cheap scalar writes, and the season/revision state must stay consistent
+    // for the frame the player steps back outside.
+    if (isIndoors) {
+      return;
+    }
+
     // 4. Continuous Ambient Motion (Oak Glint, Fountain Cascades & Droplets, Mirror Pond Life, Bell Swing, Weather)
     this.fountainSplashAge = Math.min(99, this.fountainSplashAge + dt);
     this.pondSplashAge = Math.min(99, this.pondSplashAge + dt);
@@ -470,6 +492,11 @@ export class EnvironmentVisualController {
     const isWinter = composed.season.season === 'winter' ? 1 : 0;
     const isRain = effWeather === 'light_rain' ? 1 : 0;
     const windStrength = effWeather === 'breezy' ? 1 : effWeather === 'light_rain' ? 0.65 : 0.25;
+
+    // BUILD 04 AM-1/2/3 — shared ambient motion driver: shader-sway uniforms
+    // (grove/wilds crowns + meadow tufts) and hanging-sign swingers. ONE call,
+    // two scalar writes per material + two per sign (see ambientSway.ts).
+    updateAmbientMotion(elapsed, windStrength, isWinter);
 
     if (oakGlint.visible) {
       oakGlint.position.y = 0.36 + Math.sin(elapsed * 3.0) * 0.05;

@@ -17,6 +17,8 @@ import {
   saveJournalReadKeys,
 } from '../game/journal';
 import { WorldState } from '../game/types';
+import { PortraitCanvas } from './DialogueVisuals';
+import { resolvePortrait } from '../game/dialogue/assets';
 
 interface JournalDrawerProps {
   open: boolean;
@@ -160,22 +162,22 @@ export const JournalDrawer: React.FC<JournalDrawerProps> = ({
 
   return (
     <div
-      className="fixed inset-0 z-40 flex items-center justify-center p-2.5 sm:p-6 bg-[#2D241E]/45 pointer-events-auto"
+      className="fixed inset-0 z-40 flex items-center justify-center p-2.5 sm:p-6 bg-espresso/45 pointer-events-auto"
       onClick={handleClose}
     >
       <div
         role="dialog"
         aria-label="Pocket Journal"
         onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-3xl max-h-[86vh] bg-[#FAF5EC] border border-[#D4C4AE] rounded-2xl shadow-[0_20px_56px_rgba(45,36,30,0.28)] flex flex-col overflow-hidden"
+        className="w-full max-w-3xl max-h-[86vh] bg-linen border border-stone-line rounded-2xl shadow-elevation-drawer flex flex-col overflow-hidden"
       >
         {/* Notebook Header */}
         <div className="flex items-start justify-between gap-3 px-4 sm:px-5 py-3.5 sm:py-4 border-b border-[#E5D9C7]">
           <div className="min-w-0">
-            <h2 className="font-display text-xl sm:text-2xl font-bold text-[#2D241E] leading-tight">
+            <h2 className="font-display text-xl sm:text-2xl font-bold text-espresso leading-tight">
               Pocket Journal
             </h2>
-            <p className="text-xs text-[#6A5B50] mt-0.5 leading-snug">
+            <p className="text-xs text-espresso-muted mt-0.5 leading-snug">
               <span className="font-mono-nums">Day {journal.day}</span> ({journal.seasonLabel}) ·{' '}
               {journal.phaseLabel} · {journal.weatherLabel} ·{' '}
               <span className="font-mono-nums">{journal.memories.length}</span>{' '}
@@ -187,7 +189,7 @@ export const JournalDrawer: React.FC<JournalDrawerProps> = ({
               <button
                 type="button"
                 onClick={markAllRead}
-                className="min-h-[44px] px-2.5 sm:px-3 py-2 rounded-xl text-xs font-medium text-[#5E5046] hover:bg-[#EFE5D5] transition-colors cursor-pointer whitespace-nowrap"
+                className="min-h-[44px] px-2.5 sm:px-3 py-2 rounded-xl text-xs font-medium text-umber hover:bg-[#EFE5D5] transition-colors cursor-pointer whitespace-nowrap"
               >
                 Mark read
               </button>
@@ -196,7 +198,7 @@ export const JournalDrawer: React.FC<JournalDrawerProps> = ({
               type="button"
               onClick={handleClose}
               aria-label="Close journal"
-              className="min-h-[44px] min-w-[44px] shrink-0 flex items-center justify-center rounded-xl text-[#6A5B50] hover:bg-[#EFE5D5] transition-colors cursor-pointer"
+              className="min-h-[44px] min-w-[44px] shrink-0 flex items-center justify-center rounded-xl text-espresso-muted hover:bg-[#EFE5D5] transition-colors cursor-pointer"
             >
               <X className="w-5 h-5" />
             </button>
@@ -226,8 +228,8 @@ export const JournalDrawer: React.FC<JournalDrawerProps> = ({
                 onKeyDown={(e) => handleTabKeyDown(e, idx)}
                 className={`min-w-0 w-full sm:w-auto min-h-[44px] px-3 sm:px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold flex items-center justify-center gap-1.5 sm:gap-2 cursor-pointer whitespace-nowrap sm:shrink-0 ${
                   active
-                    ? 'bg-[#C86446] text-[#FAF5EC]'
-                    : 'bg-[#F1E8D9] text-[#4E4036] hover:bg-[#E7DAC5]'
+                    ? 'bg-terracotta text-linen'
+                    : 'bg-linen-deep text-[#4E4036] hover:bg-[#E7DAC5]'
                 }`}
               >
                 <Icon className="w-4 h-4 shrink-0" />
@@ -235,7 +237,7 @@ export const JournalDrawer: React.FC<JournalDrawerProps> = ({
                 {unreadCount > 0 && (
                   <span
                     className={`font-mono-nums text-[11px] font-semibold ${
-                      active ? 'text-[#FAF5EC]/90' : 'text-[#B45539]'
+                      active ? 'text-linen/90' : 'text-terracotta-deep'
                     }`}
                     aria-label={`${unreadCount} new`}
                   >
@@ -264,7 +266,7 @@ export const JournalDrawer: React.FC<JournalDrawerProps> = ({
                     <div className="flex flex-wrap items-baseline justify-between gap-2">
                       <h3
                         id="journal-heading-invitation"
-                        className="font-display text-base font-semibold text-[#2D241E]"
+                        className="font-display text-base font-semibold text-espresso"
                       >
                         Today&apos;s Invitation · {journal.activeInvitation.title}
                       </h3>
@@ -279,7 +281,7 @@ export const JournalDrawer: React.FC<JournalDrawerProps> = ({
                         ? `${journal.activeInvitation.hostName} is waiting inside ${journal.activeInvitation.locationLabel}.`
                         : `${journal.activeInvitation.hostName} asked if you'd like to meet at ${journal.activeInvitation.locationLabel}.`}
                     </p>
-                    <p className="text-[11px] font-mono-nums text-[#6A5B50]">
+                    <p className="text-[11px] font-mono-nums text-espresso-muted">
                       Window today: {journal.activeInvitation.windowLabel}
                     </p>
                   </div>
@@ -291,11 +293,11 @@ export const JournalDrawer: React.FC<JournalDrawerProps> = ({
                 <div className="flex items-baseline justify-between gap-2 mb-3">
                   <h3
                     id="journal-heading-main-story"
-                    className="font-display text-lg font-semibold text-[#2D241E]"
+                    className="font-display text-lg font-semibold text-espresso"
                   >
                     {journal.mainStoryTitle}
                   </h3>
-                  <span className="text-xs text-[#6A5B50] font-mono-nums shrink-0">
+                  <span className="text-xs text-espresso-muted font-mono-nums shrink-0">
                     {completedMainCount}/{totalMainSteps} Chapters
                   </span>
                 </div>
@@ -311,14 +313,14 @@ export const JournalDrawer: React.FC<JournalDrawerProps> = ({
                             ? 'bg-[#F7EFE2] border-[#D9BC96]'
                             : isCompleted
                             ? 'bg-[#F3F5EE] border-[#CEDAC8]'
-                            : 'bg-[#F4ECE0] border-[#E2D4C0]'
+                            : 'bg-card-warm border-parchment'
                         }`}
                       >
                         <div
                           className={`w-6 h-6 rounded-full shrink-0 mt-0.5 flex items-center justify-center border ${
                             isCompleted
-                              ? 'bg-[#5E8062] border-[#5E8062] text-[#FAF5EC]'
-                              : 'bg-[#FAF5EC] border-[#C9B8A3] text-[#C86446]'
+                              ? 'bg-sage border-sage text-linen'
+                              : 'bg-linen border-[#C9B8A3] text-terracotta'
                           }`}
                           aria-hidden="true"
                         >
@@ -332,19 +334,19 @@ export const JournalDrawer: React.FC<JournalDrawerProps> = ({
                           <div className="flex flex-wrap items-baseline justify-between gap-x-2 gap-y-0.5">
                             <p
                               className={`text-sm font-semibold ${
-                                isCompleted ? 'text-[#2D241E]' : 'text-[#3D3128]'
+                                isCompleted ? 'text-espresso' : 'text-[#3D3128]'
                               }`}
                             >
                               {step.title}
                             </p>
-                            <span className="text-[11px] font-medium text-[#6A5B50] shrink-0">
+                            <span className="text-[11px] font-medium text-espresso-muted shrink-0">
                               {step.isNew ? (
-                                <span className="text-[#B45539] font-semibold">New · </span>
+                                <span className="text-terracotta-deep font-semibold">New · </span>
                               ) : null}
                               {isCompleted ? 'Completed' : 'Ongoing'}
                             </span>
                           </div>
-                          <p className="text-xs sm:text-[13px] text-[#5E5046] mt-1 leading-relaxed">
+                          <p className="text-xs sm:text-[13px] text-umber mt-1 leading-relaxed">
                             {step.detailText}
                           </p>
                         </div>
@@ -359,19 +361,19 @@ export const JournalDrawer: React.FC<JournalDrawerProps> = ({
                 <div className="flex items-baseline justify-between gap-2 mb-3">
                   <h3
                     id="journal-heading-active-stories"
-                    className="font-display text-lg font-semibold text-[#2D241E]"
+                    className="font-display text-lg font-semibold text-espresso"
                   >
                     Ongoing Developments
                   </h3>
                   {journal.activeStorylines.length > 0 && (
-                    <span className="text-xs text-[#6A5B50] font-mono-nums shrink-0">
+                    <span className="text-xs text-espresso-muted font-mono-nums shrink-0">
                       {journal.activeStorylines.length} Active
                     </span>
                   )}
                 </div>
 
                 {journal.activeStorylines.length === 0 ? (
-                  <div className="p-4 rounded-xl bg-[#F4ECE0] border border-[#E2D4C0] text-sm text-[#5E5046] leading-relaxed">
+                  <div className="p-4 rounded-xl bg-card-warm border border-parchment text-sm text-umber leading-relaxed">
                     {journal.completedStorylines.length > 0
                       ? 'Every thread you have begun along the lane is settled for now. Chat warmly with neighbors as the days turn to uncover new ones.'
                       : 'No personal threads started yet. Keep chatting with neighbors around Willow Step Lane—new stories open up as friendships deepen.'}
@@ -384,16 +386,16 @@ export const JournalDrawer: React.FC<JournalDrawerProps> = ({
                         className={`p-4 rounded-xl border space-y-2 ${
                           story.isNew
                             ? 'bg-[#F7EFE2] border-[#D9BC96]'
-                            : 'bg-[#F4ECE0] border-[#E2D4C0]'
+                            : 'bg-card-warm border-parchment'
                         }`}
                       >
                         <div className="flex flex-wrap items-baseline justify-between gap-2">
-                          <h4 className="font-display text-base font-semibold text-[#2D241E]">
+                          <h4 className="font-display text-base font-semibold text-espresso">
                             {story.title}
                           </h4>
-                          <span className="text-xs text-[#6A5B50] shrink-0">
+                          <span className="text-xs text-espresso-muted shrink-0">
                             {story.isNew ? (
-                              <span className="text-[#B45539] font-semibold">New · </span>
+                              <span className="text-terracotta-deep font-semibold">New · </span>
                             ) : null}
                             Ongoing ·{' '}
                             <span className="font-mono-nums">
@@ -402,7 +404,7 @@ export const JournalDrawer: React.FC<JournalDrawerProps> = ({
                           </span>
                         </div>
 
-                        <p className="text-xs text-[#6A5B50]">
+                        <p className="text-xs text-espresso-muted">
                           {story.category === 'interconnected_conflict'
                             ? 'Neighborhood matter'
                             : 'Personal story'}{' '}
@@ -423,7 +425,7 @@ export const JournalDrawer: React.FC<JournalDrawerProps> = ({
                         )}
 
                         {story.notes.length > 0 && (
-                          <ul className="pt-2 border-t border-[#E5D9C7] space-y-1 text-xs text-[#5E5046]">
+                          <ul className="pt-2 border-t border-[#E5D9C7] space-y-1 text-xs text-umber">
                             {story.notes.map((note, idx) => (
                               <li key={idx}>• {note}</li>
                             ))}
@@ -441,11 +443,11 @@ export const JournalDrawer: React.FC<JournalDrawerProps> = ({
                   <div className="flex items-baseline justify-between gap-2 mb-3">
                     <h3
                       id="journal-heading-completed-stories"
-                      className="font-display text-lg font-semibold text-[#2D241E]"
+                      className="font-display text-lg font-semibold text-espresso"
                     >
                       Completed Stories
                     </h3>
-                    <span className="text-xs text-[#5E8062] font-mono-nums shrink-0">
+                    <span className="text-xs text-sage font-mono-nums shrink-0">
                       {journal.completedStorylines.length} Settled
                     </span>
                   </div>
@@ -463,18 +465,18 @@ export const JournalDrawer: React.FC<JournalDrawerProps> = ({
                         <div className="flex flex-wrap items-baseline justify-between gap-2">
                           <div className="flex items-center gap-2 min-w-0">
                             <span
-                              className="w-5 h-5 rounded-full bg-[#5E8062] text-[#FAF5EC] flex items-center justify-center shrink-0"
+                              className="w-5 h-5 rounded-full bg-sage text-linen flex items-center justify-center shrink-0"
                               aria-hidden="true"
                             >
                               <Check className="w-3 h-3" />
                             </span>
-                            <h4 className="font-display text-base font-semibold text-[#2D241E]">
+                            <h4 className="font-display text-base font-semibold text-espresso">
                               {story.title}
                             </h4>
                           </div>
                           <span className="text-xs text-[#4B6B4F] shrink-0">
                             {story.isNew ? (
-                              <span className="text-[#B45539] font-semibold">New · </span>
+                              <span className="text-terracotta-deep font-semibold">New · </span>
                             ) : null}
                             Completed
                             {story.completedDay !== undefined ? (
@@ -517,17 +519,17 @@ export const JournalDrawer: React.FC<JournalDrawerProps> = ({
               <div className="flex items-baseline justify-between gap-2">
                 <h3
                   id="journal-heading-memories"
-                  className="font-display text-lg font-semibold text-[#2D241E]"
+                  className="font-display text-lg font-semibold text-espresso"
                 >
                   Personal Memories
                 </h3>
-                <span className="text-xs text-[#6A5B50] font-mono-nums shrink-0">
+                <span className="text-xs text-espresso-muted font-mono-nums shrink-0">
                   {journal.memories.length} Recorded
                 </span>
               </div>
 
               {journal.memories.length === 0 ? (
-                <div className="p-4 rounded-xl bg-[#F4ECE0] border border-[#E2D4C0] text-sm text-[#5E5046]">
+                <div className="p-4 rounded-xl bg-card-warm border border-parchment text-sm text-umber">
                   Your notebook pages are open and ready for your first shared moments along the lane.
                 </div>
               ) : (
@@ -538,16 +540,16 @@ export const JournalDrawer: React.FC<JournalDrawerProps> = ({
                       className={`p-3.5 sm:p-4 rounded-xl border ${
                         mem.isNew
                           ? 'bg-[#F7EFE2] border-[#D9BC96]'
-                          : 'bg-[#FAF5EC] border-[#E2D4C0]'
+                          : 'bg-linen border-parchment'
                       }`}
                     >
                       <div className="flex flex-wrap items-baseline justify-between gap-2">
-                        <h4 className="font-display text-base font-semibold text-[#2D241E]">
+                        <h4 className="font-display text-base font-semibold text-espresso">
                           {mem.title}
                         </h4>
-                        <span className="text-xs text-[#6A5B50] shrink-0">
+                        <span className="text-xs text-espresso-muted shrink-0">
                           {mem.isNew ? (
-                            <span className="text-[#B45539] font-semibold">New · </span>
+                            <span className="text-terracotta-deep font-semibold">New · </span>
                           ) : (
                             <span>Read · </span>
                           )}
@@ -571,11 +573,11 @@ export const JournalDrawer: React.FC<JournalDrawerProps> = ({
               <div className="flex items-baseline justify-between gap-2">
                 <h3
                   id="journal-heading-people"
-                  className="font-display text-lg font-semibold text-[#2D241E]"
+                  className="font-display text-lg font-semibold text-espresso"
                 >
                   Neighbors Around the Lane
                 </h3>
-                <span className="text-xs text-[#6A5B50] font-mono-nums shrink-0">
+                <span className="text-xs text-espresso-muted font-mono-nums shrink-0">
                   {journal.people.filter((p) => p.met).length}/{journal.people.length} Met
                 </span>
               </div>
@@ -587,31 +589,43 @@ export const JournalDrawer: React.FC<JournalDrawerProps> = ({
                     className={`p-4 rounded-xl border flex flex-col justify-between gap-3 ${
                       person.isNew
                         ? 'bg-[#F7EFE2] border-[#D9BC96]'
-                        : 'bg-[#F4ECE0] border-[#E2D4C0]'
+                        : 'bg-card-warm border-parchment'
                     }`}
                   >
                     <div className="space-y-2.5">
                       <div className="flex items-start justify-between gap-3">
                         <div className="flex items-center gap-3 min-w-0">
-                          <div
-                            className="w-10 h-10 rounded-full shrink-0 border-2 border-[#FAF5EC] flex items-center justify-center font-display font-bold text-[#FAF5EC]"
-                            style={{ backgroundColor: person.coatColor }}
-                            aria-hidden="true"
-                          >
-                            {person.name.charAt(0)}
-                          </div>
+                          {/* BUILD 04 portrait unification (Doc 03 §9.4): People cards
+                             reuse the dialogue's procedural knit-portrait painter.
+                             Un-met neighbors keep the coat-color initial — the
+                             mystery is part of the story. */}
+                          {person.met ? (
+                            <PortraitCanvas
+                              descriptor={resolvePortrait(undefined, person.id)}
+                              size={40}
+                              className="shrink-0 rounded-full"
+                            />
+                          ) : (
+                            <div
+                              className="w-10 h-10 rounded-full shrink-0 border-2 border-linen flex items-center justify-center font-display font-bold text-linen"
+                              style={{ backgroundColor: person.coatColor }}
+                              aria-hidden="true"
+                            >
+                              {person.name.charAt(0)}
+                            </div>
+                          )}
                           <div className="min-w-0">
                             <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
-                              <h4 className="font-display text-lg font-semibold text-[#2D241E]">
+                              <h4 className="font-display text-lg font-semibold text-espresso">
                                 {person.name}
                               </h4>
                               {person.cueKind !== 'none' && (
-                                <span className="text-xs font-semibold text-[#B45539]">
+                                <span className="text-xs font-semibold text-terracotta-deep">
                                   · {person.cueTitle ?? 'Story waiting'}
                                 </span>
                               )}
                             </div>
-                            <p className="text-xs text-[#6A5B50] leading-snug">
+                            <p className="text-xs text-espresso-muted leading-snug">
                               {person.roleLabel}
                             </p>
                           </div>
@@ -627,7 +641,7 @@ export const JournalDrawer: React.FC<JournalDrawerProps> = ({
                                 key={idx}
                                 className={`w-3.5 h-3.5 ${
                                   idx < person.trust
-                                    ? 'fill-[#C86446] text-[#C86446]'
+                                    ? 'fill-terracotta text-terracotta'
                                     : 'fill-transparent text-[#C7B7A2]'
                                 }`}
                               />
@@ -637,7 +651,7 @@ export const JournalDrawer: React.FC<JournalDrawerProps> = ({
                       </div>
 
                       {!person.met ? (
-                        <p className="text-sm text-[#5E5046] leading-relaxed">
+                        <p className="text-sm text-umber leading-relaxed">
                           Haven’t introduced yourselves yet — stop by to say hello when you pass in the square.
                         </p>
                       ) : (
@@ -650,7 +664,7 @@ export const JournalDrawer: React.FC<JournalDrawerProps> = ({
 
                           {person.knownNotes.length > 0 && (
                             <div className="pt-2 border-t border-[#E5D9C7] space-y-1.5">
-                              <p className="text-[11px] font-semibold text-[#6A5B50]">
+                              <p className="text-[11px] font-semibold text-espresso-muted">
                                 Shared notes &amp; word heard
                               </p>
                               <ul className="space-y-1.5">
@@ -664,8 +678,8 @@ export const JournalDrawer: React.FC<JournalDrawerProps> = ({
                                         note.certaintyKind === 'rumor'
                                           ? 'text-[#9A5B32]'
                                           : note.certaintyKind === 'secondhand'
-                                          ? 'text-[#6A5B50]'
-                                          : 'text-[#5E8062]'
+                                          ? 'text-espresso-muted'
+                                          : 'text-sage'
                                       }`}
                                     >
                                       {note.isNew ? 'New · ' : ''}
@@ -679,7 +693,7 @@ export const JournalDrawer: React.FC<JournalDrawerProps> = ({
                           )}
 
                           {person.discoveredConnections.length > 0 && (
-                            <p className="text-xs text-[#6A5B50]">
+                            <p className="text-xs text-espresso-muted">
                               Connected with {person.discoveredConnections.join(', ')}
                             </p>
                           )}
@@ -687,9 +701,9 @@ export const JournalDrawer: React.FC<JournalDrawerProps> = ({
                       )}
                     </div>
 
-                    <div className="pt-2 border-t border-[#E5D9C7] text-xs text-[#5E5046] flex flex-col gap-1">
+                    <div className="pt-2 border-t border-[#E5D9C7] text-xs text-umber flex flex-col gap-1">
                       {person.met && person.tierLabel && person.emotionLabel && person.reliabilityLabel && (
-                        <div className="flex flex-wrap items-center justify-between gap-2 text-[#6A5B50]">
+                        <div className="flex flex-wrap items-center justify-between gap-2 text-espresso-muted">
                           <span>
                             {person.tierLabel} · {person.emotionLabel}
                           </span>
@@ -710,12 +724,12 @@ export const JournalDrawer: React.FC<JournalDrawerProps> = ({
           {tab === 'discoveries' && (
             <div className="space-y-6">
               {/* Time Control Card */}
-              <div className="p-4 rounded-xl bg-[#F4ECE0] border border-[#E2D4C0] flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div className="p-4 rounded-xl bg-card-warm border border-parchment flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div>
-                  <h3 className="font-display text-lg font-semibold text-[#2D241E]">
+                  <h3 className="font-display text-lg font-semibold text-espresso">
                     Watch the Neighborhood Shift
                   </h3>
-                  <p className="text-sm text-[#5E5046] mt-0.5">
+                  <p className="text-sm text-umber mt-0.5">
                     Neighbors walk between cottages, the plaza, and Mirror Pond across Morning, Afternoon, Golden Hour, and Lantern Dusk.
                   </p>
                 </div>
@@ -726,7 +740,7 @@ export const JournalDrawer: React.FC<JournalDrawerProps> = ({
                     onAdvanceTime();
                     onClose();
                   }}
-                  className="w-full sm:w-auto min-h-[44px] px-4 py-2 rounded-xl bg-[#5E8062] hover:bg-[#4F6E53] text-sm font-semibold text-[#FAF5EC] flex items-center justify-center gap-2 transition-colors cursor-pointer whitespace-nowrap shrink-0"
+                  className="w-full sm:w-auto min-h-[44px] px-4 py-2 rounded-xl bg-sage hover:bg-[#4F6E53] text-sm font-semibold text-linen flex items-center justify-center gap-2 transition-colors cursor-pointer whitespace-nowrap shrink-0"
                 >
                   <Clock className="w-4 h-4" />
                   <span>Advance 2 Hours</span>
@@ -736,11 +750,11 @@ export const JournalDrawer: React.FC<JournalDrawerProps> = ({
               {/* Season & Sky */}
               <section
                 aria-labelledby="journal-heading-sky"
-                className="p-4 rounded-xl bg-[#F4ECE0] border border-[#E2D4C0]"
+                className="p-4 rounded-xl bg-card-warm border border-parchment"
               >
                 <h3
                   id="journal-heading-sky"
-                  className="font-display text-lg font-semibold text-[#2D241E] mb-2"
+                  className="font-display text-lg font-semibold text-espresso mb-2"
                 >
                   Sky, Season &amp; Neighborhood Rhythm
                 </h3>
@@ -778,11 +792,11 @@ export const JournalDrawer: React.FC<JournalDrawerProps> = ({
               {/* Willow Step Cottage & Home Life */}
               <section
                 aria-labelledby="journal-heading-cottage-home"
-                className="p-4 rounded-xl bg-[#F4ECE0] border border-[#E2D4C0]"
+                className="p-4 rounded-xl bg-card-warm border border-parchment"
               >
                 <h3
                   id="journal-heading-cottage-home"
-                  className="font-display text-lg font-semibold text-[#2D241E] mb-2"
+                  className="font-display text-lg font-semibold text-espresso mb-2"
                 >
                   Willow Step Cottage &amp; Satchel
                 </h3>
@@ -828,7 +842,7 @@ export const JournalDrawer: React.FC<JournalDrawerProps> = ({
               <section aria-labelledby="journal-heading-landmarks" className="space-y-3">
                 <h3
                   id="journal-heading-landmarks"
-                  className="font-display text-lg font-semibold text-[#2D241E]"
+                  className="font-display text-lg font-semibold text-espresso"
                 >
                   Neighborhood Places &amp; Landmarks
                 </h3>
@@ -841,22 +855,22 @@ export const JournalDrawer: React.FC<JournalDrawerProps> = ({
                           ? 'bg-[#F7EFE2] border-[#D9BC96]'
                           : lm.statusKind === 'transformed'
                           ? 'bg-[#F3F5EE] border-[#CEDAC8]'
-                          : 'bg-[#FAF5EC] border-[#E2D4C0]'
+                          : 'bg-linen border-parchment'
                       }`}
                     >
                       <div className="flex items-baseline justify-between gap-2">
-                        <h4 className="font-display text-base font-semibold text-[#2D241E]">
+                        <h4 className="font-display text-base font-semibold text-espresso">
                           {lm.name}
                         </h4>
                         <span
                           className={`text-xs font-medium shrink-0 ${
                             lm.statusKind === 'transformed'
                               ? 'text-[#4B6B4F]'
-                              : 'text-[#6A5B50]'
+                              : 'text-espresso-muted'
                           }`}
                         >
                           {lm.isNew ? (
-                            <span className="text-[#B45539] font-semibold">New · </span>
+                            <span className="text-terracotta-deep font-semibold">New · </span>
                           ) : null}
                           {lm.statusLabel}
                         </span>
@@ -873,12 +887,12 @@ export const JournalDrawer: React.FC<JournalDrawerProps> = ({
               <section aria-labelledby="journal-heading-moments" className="space-y-2.5">
                 <h3
                   id="journal-heading-moments"
-                  className="font-display text-lg font-semibold text-[#2D241E]"
+                  className="font-display text-lg font-semibold text-espresso"
                 >
                   Recent Moments You Shaped
                 </h3>
                 {journal.laneMoments.length === 0 ? (
-                  <div className="p-3.5 rounded-xl bg-[#F4ECE0] border border-[#E2D4C0] text-sm text-[#5E5046]">
+                  <div className="p-3.5 rounded-xl bg-card-warm border border-parchment text-sm text-umber">
                     Your footprints along the square, bell gazebo, and Mirror Pond will gather here as you lend a hand.
                   </div>
                 ) : (
@@ -889,16 +903,16 @@ export const JournalDrawer: React.FC<JournalDrawerProps> = ({
                         className={`px-3.5 py-2.5 rounded-xl border flex items-baseline justify-between gap-3 ${
                           ev.isNew
                             ? 'bg-[#F7EFE2] border-[#D9BC96]'
-                            : 'bg-[#F4ECE0] border-[#E2D4C0]'
+                            : 'bg-card-warm border-parchment'
                         }`}
                       >
                         <p className="text-xs sm:text-sm text-[#3D3128] leading-snug">
                           {ev.isNew ? (
-                            <span className="text-[#B45539] font-semibold">New · </span>
+                            <span className="text-terracotta-deep font-semibold">New · </span>
                           ) : null}
                           {ev.summary}
                         </p>
-                        <span className="text-xs text-[#6A5B50] font-mono-nums shrink-0">
+                        <span className="text-xs text-espresso-muted font-mono-nums shrink-0">
                           Day {ev.day}
                         </span>
                       </div>

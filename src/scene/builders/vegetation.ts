@@ -4,6 +4,7 @@ import { MaterialPalette, STORYBOOK_PALETTE } from '../materials';
 import { KoiFishRig, MirrorPondRig } from '../models';
 import { createStorybookPondWaterMaterial } from '../waterShaders';
 import { addStaticContactShadow } from '../contactShadows';
+import { applyAmbientSway } from '../ambientSway';
 
 /**
  * Per-mesh contact shadow disc — the canonical helper. Kept for DYNAMIC discs
@@ -91,16 +92,23 @@ export function buildGroveTreesInstanced(
   crownTopLobe.dispose();
   crownMidLobe.dispose();
 
-  const crownBaseMat = palette.get('grove_crown_base', {
+  // BUILD 04 (VISUAL_IDENTITY §7): the grove gains a shader-driven breeze sway —
+  // a distinct cache key keeps the orchard's JS instance sway authoritative
+  // (orchard trees reuse the ORIGINAL grove_crown_* keys and stay un-hooked),
+  // and the rig exposes these same material instances so the seasonal tint
+  // path follows automatically. Zero draw-call delta, zero per-frame JS.
+  const crownBaseMat = palette.get('grove_crown_base_sway', {
     color: '#FFFFFF',
     roughness: 0.85,
     metalness: 0.0,
   });
-  const crownTopMat = palette.get('grove_crown_top', {
+  const crownTopMat = palette.get('grove_crown_top_sway', {
     color: '#FFFFFF',
     roughness: 0.82,
     metalness: 0.0,
   });
+  applyAmbientSway(crownBaseMat, { key: 'crown_grove_base', maskStart: 1.9, maskEnd: 3.05, amp: 0.042, freq: 1.05 });
+  applyAmbientSway(crownTopMat, { key: 'crown_grove_top', maskStart: 1.9, maskEnd: 2.85, amp: 0.055, freq: 1.05 });
 
   const trunksInst = new THREE.InstancedMesh(trunkWithFork, trunkMat, treeCount);
   const crownsBaseInst = new THREE.InstancedMesh(crownBaseGeo, crownBaseMat, treeCount);

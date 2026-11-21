@@ -344,19 +344,30 @@ export function buildStorybookCharacter(
     const legPivot = new THREE.Group();
     legPivot.position.set(xPos, 0.42, 0);
     const pantR = 0.105 * (archetype.pantScale ?? 1);
-    const pant = new THREE.Mesh(
-      new THREE.CylinderGeometry(pantR, pantR * 0.876, 0.22, 8),
-      trousersMat,
-    );
+    const pantGeo = new THREE.CylinderGeometry(pantR, pantR * 0.876, 0.22, 8);
+    // BUILD 04 pre-bent knee (Doc 04 §8.2.3): the stride reads as a gait, not a
+    // scissor — a gentle forward arc is baked into the pant vertices below the
+    // knee. No new DOF (the hip pivot stays the only joint); the cylinder keeps
+    // its name and parameter contract (geometry.parameters stay readable).
+    const pantPos = pantGeo.attributes.position as THREE.BufferAttribute;
+    for (let vi = 0; vi < pantPos.count; vi++) {
+      const y = pantPos.getY(vi);
+      if (y < 0) {
+        const t = Math.min(1, -y / 0.11);
+        pantPos.setZ(vi, pantPos.getZ(vi) + 0.026 * Math.pow(t, 1.6));
+      }
+    }
+    pantGeo.computeVertexNormals();
+    const pant = new THREE.Mesh(pantGeo, trousersMat);
     pant.position.y = -0.11;
     pant.castShadow = true;
     const bootCapsule = new THREE.CapsuleGeometry(0.095, 0.1, 4, 8);
-    bootCapsule.translate(0, -0.28, 0.03);
+    bootCapsule.translate(0, -0.28, 0.058); // rides the baked knee bend (+0.028)
     const toeGeo = new THREE.SphereGeometry(0.072, 8, 6);
     toeGeo.scale(1.0, 0.78, 1.1);
-    toeGeo.translate(0, -0.3, 0.115);
+    toeGeo.translate(0, -0.3, 0.143); // rides the baked knee bend (+0.028)
     const heelGeo = new THREE.BoxGeometry(0.1, 0.09, 0.09);
-    heelGeo.translate(0, -0.295, -0.065);
+    heelGeo.translate(0, -0.295, -0.065); // heel stays planted (boot bb.min.z contract)
     const boot = new THREE.Mesh(mergeGeometries([bootCapsule, toeGeo, heelGeo])!, bootMat);
     boot.name = 'boot';
     boot.castShadow = true;
@@ -676,10 +687,13 @@ export function buildStorybookCharacter(
     }
     torsoPivot.add(strapButtons);
     // Pass 20: a patched knee on the trousers — the youngest resident plays hard.
+    // BUILD 04 review fix: the pre-bent pant (vertex arc, +0.026 max at the cuff)
+    // pushed the trouser surface outward, so the patch rides forward with it to
+    // stay visibly proud of the cloth instead of sinking into the mesh.
     const kneePatch = new THREE.Mesh(new THREE.CylinderGeometry(0.052, 0.052, 0.016, 7), accentMat);
     kneePatch.name = 'knee_patch';
     kneePatch.rotation.x = Math.PI / 2 - 0.2;
-    kneePatch.position.set(0, -0.17, 0.09);
+    kneePatch.position.set(0, -0.17, 0.11);
     rightLeg.add(kneePatch);
   } else {
     for (let b = 0; b < 3; b++) {
@@ -717,12 +731,22 @@ export function buildStorybookCharacter(
     cuff.position.set(side * 0.07, -0.31, 0);
     cuff.rotation.z = side * 0.18;
 
+    // BUILD 04 two-segment arms (Doc 04 §8.2.2): a clamped elbow pivot under
+    // the sleeve — the wave gains a forearm snap, work/music gain articulation.
+    // The mitten and its anchor ride the elbow (world-space hand position is
+    // unchanged: elbow + hand offsets sum to the historical −0.38 hang), and the
+    // merged palm gains a skin wrist bridge so a bent elbow never shows a gap
+    // (the hand remains exactly ONE merged mesh — draw-call neutral).
+    const elbow = new THREE.Group();
+    elbow.position.set(side * 0.055, -0.305, 0.008);
     const hand = new THREE.Group();
     hand.name = 'hand';
-    hand.position.set(side * 0.09, -0.38, 0.02);
+    hand.position.set(side * 0.035, -0.075, 0.012);
     // Two-lobe mitten (Doc 04 §4: ≈0.095 equiv volume — the "single cheapest
-    // quality win"): palm + knuckle lobe + thumb merged into one geometry so
-    // the fuller hand stays draw-call neutral.
+    // quality win"): wrist bridge + palm + knuckle lobe + thumb merged into one
+    // geometry so the fuller hand stays draw-call neutral.
+    const wristGeo = new THREE.CapsuleGeometry(0.05, 0.055, 4, 6);
+    wristGeo.translate(side * -0.018, 0.042, -0.006);
     const palmGeo = new THREE.SphereGeometry(0.078, 8, 7);
     palmGeo.scale(1.15, 0.8, 1.25);
     const knuckleGeo = new THREE.SphereGeometry(0.062, 8, 6);
@@ -733,7 +757,7 @@ export function buildStorybookCharacter(
     thumbGeo.rotateZ(side * 0.35);
     thumbGeo.translate(side * -0.03, -0.012, 0.062);
     const palm = new THREE.Mesh(
-      mergeGeometries([palmGeo, knuckleGeo, thumbGeo])!,
+      mergeGeometries([wristGeo, palmGeo, knuckleGeo, thumbGeo])!,
       skinMat,
     );
     palm.castShadow = true;
@@ -743,8 +767,9 @@ export function buildStorybookCharacter(
     handAnchor.name = 'hand_anchor';
     handAnchor.position.copy(hand.position);
 
-    armPivot.add(sleeve, cuff, hand, handAnchor);
-    return { armPivot, handAnchor };
+    armPivot.add(sleeve, cuff, elbow);
+    elbow.add(hand, handAnchor);
+    return { armPivot, elbow, handAnchor };
   };
   const leftArmResult = makeArm(-1);
   const rightArmResult = makeArm(1);
@@ -1206,6 +1231,8 @@ export function buildStorybookCharacter(
     rightLeg,
     leftArm,
     rightArm,
+    leftElbow: leftArmResult.elbow,
+    rightElbow: rightArmResult.elbow,
     headGroup,
     leftEyelid,
     rightEyelid,
@@ -1262,6 +1289,8 @@ export function animateCharacterRig(
   let targetRightArmX = 0;
   let targetLeftArmZ = 0.06;
   let targetRightArmZ = -0.06;
+  let targetLeftElbowX = 0;
+  let targetRightElbowX = 0;
   let targetTorsoX = 0;
   let targetTorsoY = 0;
   let targetTorsoZ = bankAngle;
@@ -1422,6 +1451,56 @@ export function animateCharacterRig(
     targetBodyY = Math.sin(elapsed * 1.8 + phaseSeed) * 0.02;
   }
 
+  // BUILD 04 elbow articulation (Doc 04 §8.2.2): per-state forearm bend so arms
+  // articulate instead of pivoting as one rigid piece. Natural bend lives in
+  // negative x (forearm closes forward); the damping below keeps the clay
+  // follow-through, and the final clamp forbids hyperextension.
+  if (animState === 'walk') {
+    targetLeftElbowX = -0.25;
+    targetRightElbowX = -0.25;
+  } else if (animState === 'run') {
+    targetLeftElbowX = -0.38;
+    targetRightElbowX = -0.38;
+  } else if (animState === 'sprint') {
+    targetLeftElbowX = -0.5;
+    targetRightElbowX = -0.5;
+  } else if (animState === 'wave') {
+    // Forearm snap: the waving hand whips from the elbow, not the shoulder.
+    targetRightElbowX = -0.95 + Math.sin(elapsed * 8.5 + phaseSeed) * 0.22;
+  } else if (animState === 'work') {
+    const workBend = Math.sin(elapsed * 3.1 + phaseSeed) * 0.12;
+    targetLeftElbowX = -0.5 + workBend;
+    targetRightElbowX = -0.5 - workBend;
+  } else if (animState === 'sketch_read') {
+    targetLeftElbowX = -0.35;
+    targetRightElbowX = -0.72; // steadies the sketchbook
+  } else if (animState === 'music') {
+    targetLeftElbowX = -0.78; // fret hand wraps the neck
+    targetRightElbowX = -0.3 + Math.sin(elapsed * 3.6 + phaseSeed) * 0.3; // bow wrist
+  } else if (animState === 'interact') {
+    targetRightElbowX = -0.35 + Math.sin(elapsed * 6.0 + phaseSeed) * 0.1;
+  } else if (animState === 'talk') {
+    const gesture = Math.sin(elapsed * 3.4 + phaseSeed);
+    targetLeftElbowX = -0.4 + Math.max(0, gesture) * 0.22;
+    targetRightElbowX = -0.4 + Math.max(0, -gesture) * 0.24;
+  } else if (animState === 'converse') {
+    const gesture = Math.sin(elapsed * 2.8 + phaseSeed);
+    targetLeftElbowX = -0.36 + Math.max(0, gesture) * 0.2;
+    targetRightElbowX = -0.36 + Math.max(0, -gesture) * 0.2;
+  } else if (animState === 'listen') {
+    targetLeftElbowX = -0.18;
+    targetRightElbowX = -0.18;
+  } else if (animState === 'admire') {
+    targetLeftElbowX = -0.25;
+    targetRightElbowX = -0.25;
+  } else if (animState === 'sit') {
+    targetLeftElbowX = -0.5;
+    targetRightElbowX = -0.5;
+  } else if (animState === 'rest') {
+    targetLeftElbowX = -0.4;
+    targetRightElbowX = -0.4;
+  }
+
   // Override arm cradle cleanly whenever carrying a prop across idle/walk/run.
   // Carry variants (Doc 04 §4.4): 'cradle' (two-arm basket/loaf tray), 'side'
   // (one bent arm for book/sketchbook the hand visibly holds) and 'two-hand'
@@ -1435,17 +1514,23 @@ export function animateCharacterRig(
       targetRightArmZ = -0.2;
       targetLeftArmX = 0;
       targetLeftArmZ = 0.06;
+      targetRightElbowX = -0.7; // the book arm's forearm closes on the cover
+      targetLeftElbowX = -0.1;
     } else if (carryPose === 'two-hand') {
       targetLeftArmX = -0.6;
       targetRightArmX = -0.6;
       targetLeftArmZ = 0.2;
       targetRightArmZ = -0.2;
+      targetLeftElbowX = -0.5;
+      targetRightElbowX = -0.5;
       targetTorsoX -= 0.04; // slight lean back under the weight
     } else {
       targetLeftArmX = -0.84;
       targetRightArmX = -0.84;
       targetLeftArmZ = 0.14;
       targetRightArmZ = -0.14;
+      targetLeftElbowX = -0.55;
+      targetRightElbowX = -0.55;
     }
   }
 
@@ -1542,6 +1627,19 @@ export function animateCharacterRig(
   rig.rightArm.rotation.x = THREE.MathUtils.lerp(rig.rightArm.rotation.x, targetRightArmX, armDamp);
   rig.leftArm.rotation.z = THREE.MathUtils.lerp(rig.leftArm.rotation.z, targetLeftArmZ, armDamp);
   rig.rightArm.rotation.z = THREE.MathUtils.lerp(rig.rightArm.rotation.z, targetRightArmZ, armDamp);
+  // Elbows share the arm follow-through; clamped so no pose hyperextends.
+  if (rig.leftElbow && rig.rightElbow) {
+    rig.leftElbow.rotation.x = THREE.MathUtils.lerp(
+      rig.leftElbow.rotation.x,
+      THREE.MathUtils.clamp(targetLeftElbowX, -1.35, 0.2),
+      armDamp,
+    );
+    rig.rightElbow.rotation.x = THREE.MathUtils.lerp(
+      rig.rightElbow.rotation.x,
+      THREE.MathUtils.clamp(targetRightElbowX, -1.35, 0.2),
+      armDamp,
+    );
+  }
   rig.headGroup.rotation.x = THREE.MathUtils.lerp(rig.headGroup.rotation.x, targetHeadX, dampSpeed);
   rig.headGroup.rotation.y = THREE.MathUtils.lerp(rig.headGroup.rotation.y, targetHeadY, dampSpeed);
   rig.headGroup.rotation.z = THREE.MathUtils.lerp(rig.headGroup.rotation.z, targetHeadZ, dampSpeed);
@@ -1614,14 +1712,26 @@ export function animateCharacterRig(
     rig.mouthSmile.visible = !showO;
     rig.mouthO.visible = showO;
     if (showO) {
-      // A little intake-of-breath pulse while the surprise holds
-      const oPulse = 1 + Math.sin(elapsed * 5.5 + phaseSeed) * 0.12;
+      // A little intake-of-breath pulse while the surprise holds; BUILD 04 adds
+      // the talk drive so surprised speech flaps too (Doc 04 §5.1.2).
+      let oPulse = 1 + Math.sin(elapsed * 5.5 + phaseSeed) * 0.12;
+      if (animState === 'talk' || animState === 'converse') {
+        oPulse *= 1 + Math.sin(elapsed * Math.PI * 18 + phaseSeed) * 0.25 * faceAmp;
+      }
       const oScale = THREE.MathUtils.lerp(rig.mouthO.scale.x || 0.01, oPulse, dampSpeed);
       rig.mouthO.scale.setScalar(oScale);
     } else {
       rig.mouthSmile.rotation.z = THREE.MathUtils.lerp(rig.mouthSmile.rotation.z, smileRzT, dampSpeed);
       const mScale = THREE.MathUtils.lerp(rig.mouthSmile.scale.x, smileScaleT, dampSpeed);
       rig.mouthSmile.scale.setScalar(mScale);
+      // BUILD 04 talk mouth-flap (Doc 04 §5.1.2): speech has a face at dialogue
+      // zoom — the smile arc's height oscillates ±25% at ~9 Hz while
+      // talking/conversing, scaled by emotion intensity. Uniform scale restores
+      // automatically: setScalar above re-seeds scale.y every frame.
+      if (animState === 'talk' || animState === 'converse') {
+        const flap = Math.sin(elapsed * Math.PI * 18 + phaseSeed);
+        rig.mouthSmile.scale.y = mScale * (1 + flap * 0.25 * faceAmp);
+      }
     }
   }
 

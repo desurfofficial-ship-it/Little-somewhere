@@ -5,6 +5,30 @@ import {
   addContactShadow,
 } from './vegetation';
 import { addStaticContactShadow } from '../contactShadows';
+import { registerAmbientSwinger } from '../ambientSway';
+
+/**
+ * BUILD 04 AM-3: re-parent a hanging sign assembly under a pivot group placed at
+ * its bracket mount, so the registered swing rotates the board about the ironwork
+ * (the bracket meshes stay outside the pivot — bolted to the wall). Children keep
+ * their geometry; their positions become pivot-relative.
+ */
+const hangToSwingPivot = (
+  parent: THREE.Group,
+  pivot: THREE.Vector3,
+  children: THREE.Mesh[],
+  swing: { ampX: number; ampZ: number; speed: number; phase: number },
+): THREE.Group => {
+  const pivotGroup = new THREE.Group();
+  pivotGroup.position.copy(pivot);
+  for (const m of children) {
+    m.position.sub(pivot);
+    pivotGroup.add(m);
+  }
+  parent.add(pivotGroup);
+  registerAmbientSwinger(pivotGroup, swing);
+  return pivotGroup;
+};
 
 export interface BuildingBuildContext {
   palette: MaterialPalette;
@@ -752,12 +776,22 @@ export function buildStorybookBakery(ctx: BuildingBuildContext): THREE.Group {
   const signBoard = new THREE.Mesh(boxAt(0.56, 0.38, 0.06, 0, 2.5, 2.94, 0, 0, 0), cedarMat);
   signBoard.castShadow = true;
   shopSign.add(signBoard);
+  const signLoaves: THREE.Mesh[] = [];
   for (let i = 0; i < 3; i++) {
     const signLoaf = new THREE.Mesh(new THREE.CapsuleGeometry(0.075, 0.12, 4, 6), loafMat);
     signLoaf.rotation.z = Math.PI / 2;
     signLoaf.position.set(-0.15 + i * 0.15, 2.52, 2.97);
     shopSign.add(signLoaf);
+    signLoaves.push(signLoaf);
   }
+  // BUILD 04 AM-3: the bread board + loaves hang from the bracket arm — a gentle
+  // pendulum sway about the mount (breeze-scaled; the bracket stays rigid).
+  hangToSwingPivot(
+    shopSign,
+    new THREE.Vector3(0, 2.93, 2.94),
+    [signBoard, ...signLoaves],
+    { ampX: 0.026, ampZ: 0.02, speed: 1.25, phase: 0 },
+  );
   group.add(shopSign);
 
   // Chalkboard menu A-frame next to porch steps
@@ -965,10 +999,19 @@ export function buildStorybookBookNook(ctx: BuildingBuildContext): THREE.Group {
     ironMat,
   );
   bladeBracket.add(bladeHangers);
+  const bladeSpines: THREE.Mesh[] = [];
   for (let s = 0; s < 3; s++) {
     const spine = new THREE.Mesh(boxAt(0.34, 0.075, 0.07, 0, 2.66 + s * 0.09, 0.16, 0, 0, (s % 2 === 0 ? 1 : -1) * 0.03), palette.standard(bookColors[(s + 1) % bookColors.length], 0.7, 0.03));
     bladeBracket.add(spine);
+    bladeSpines.push(spine);
   }
+  // BUILD 04 AM-3: the stacked-books blade sign swings from the bracket arm.
+  hangToSwingPivot(
+    bladeBracket,
+    new THREE.Vector3(0, 3.02, 0.16),
+    [bladeBoard, bladeHangers, ...bladeSpines],
+    { ampX: 0.024, ampZ: 0.02, speed: 1.4, phase: 1.7 },
+  );
   group.add(bladeBracket);
 
   // 3. Returns crates stacked on the north lawn (varied rotations)
@@ -1292,10 +1335,19 @@ export function buildStorybookBarnabyWoodshop(ctx: BuildingBuildContext): THREE.
   shingleBracket.add(shingleDisc);
   const pineconeCore = new THREE.Mesh(cylAt(0.055, 0.11, 0.22, -0.36, 2.28, 0, 0, Math.PI / 2, 8), barkMat);
   shingleBracket.add(pineconeCore);
+  const pineconeScales: THREE.Mesh[] = [];
   for (let s = 0; s < 4; s++) {
     const scale = new THREE.Mesh(boxAt(0.02, 0.045, 0.12, -0.375, 2.2 + s * 0.05, 0, 0, 0, 0.5), plankDarkMat);
     shingleBracket.add(scale);
+    pineconeScales.push(scale);
   }
+  // BUILD 04 AM-3: the carved pinecone shingle swings on its hanger.
+  hangToSwingPivot(
+    shingleBracket,
+    new THREE.Vector3(-0.32, 2.56, 0),
+    [shingleHanger, shingleDisc, pineconeCore, ...pineconeScales],
+    { ampX: 0.028, ampZ: 0.018, speed: 1.15, phase: 3.1 },
+  );
   group.add(shingleBracket);
 
   // 4. Wheelbarrow leaning on the west gable, north of the firewood rack

@@ -59,22 +59,22 @@ export const GreenhousePanel: React.FC<GreenhousePanelProps> = ({
 
   return (
     <div
-      className="fixed inset-0 z-40 flex items-center justify-center p-2.5 sm:p-6 bg-[#2D241E]/45 pointer-events-auto"
+      className="fixed inset-0 z-40 flex items-center justify-center p-2.5 sm:p-6 bg-espresso/45 pointer-events-auto"
       onClick={onClose}
     >
       <div
         role="dialog"
         aria-label={title}
         onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-2xl max-h-[85vh] bg-[#FAF5EC] border border-[#D4C4AE] rounded-2xl shadow-[0_20px_56px_rgba(45,36,30,0.28)] flex flex-col overflow-hidden"
+        className="w-full max-w-2xl max-h-[85vh] bg-linen border border-stone-line rounded-2xl shadow-elevation-drawer flex flex-col overflow-hidden"
       >
         {/* Header */}
         <div className="flex items-start justify-between gap-3 px-4 sm:px-5 py-3.5 sm:py-4 border-b border-[#E5D9C7]">
           <div className="min-w-0">
-            <h2 className="font-display text-xl sm:text-2xl font-bold text-[#2D241E] leading-tight">
+            <h2 className="font-display text-xl sm:text-2xl font-bold text-espresso leading-tight">
               {title}
             </h2>
-            <p className="text-xs text-[#6A5B50] mt-0.5 leading-snug">
+            <p className="text-xs text-espresso-muted mt-0.5 leading-snug">
               Sunbeam Greenhouse · Mina's shared growing corner
             </p>
           </div>
@@ -82,7 +82,7 @@ export const GreenhousePanel: React.FC<GreenhousePanelProps> = ({
             type="button"
             onClick={onClose}
             aria-label="Close greenhouse panel"
-            className="min-h-[44px] min-w-[44px] shrink-0 flex items-center justify-center rounded-xl text-[#6A5B50] hover:bg-[#EFE5D5] transition-colors cursor-pointer"
+            className="min-h-[44px] min-w-[44px] shrink-0 flex items-center justify-center rounded-xl text-espresso-muted hover:bg-[#EFE5D5] transition-colors cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
@@ -90,12 +90,12 @@ export const GreenhousePanel: React.FC<GreenhousePanelProps> = ({
 
         {/* Shared plot overview */}
         <div className="px-4 sm:px-5 py-3 border-b border-[#EFE5D6] flex flex-wrap items-center gap-2 text-xs">
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-[#F1E8D9] text-[#4E4036] font-medium">
-            <Sprout className="w-3.5 h-3.5 text-[#5E8062] shrink-0" />
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-linen-deep text-[#4E4036] font-medium">
+            <Sprout className="w-3.5 h-3.5 text-sage shrink-0" />
             <span className="font-mono-nums">{summary.growingPlots}</span> growing
           </span>
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-[#F1E8D9] text-[#4E4036] font-medium">
-            <Scissors className="w-3.5 h-3.5 text-[#C86446] shrink-0" />
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-linen-deep text-[#4E4036] font-medium">
+            <Scissors className="w-3.5 h-3.5 text-terracotta shrink-0" />
             <span className="font-mono-nums">{summary.readyPlots}</span> ready
           </span>
           {summary.thirstyPlots > 0 && (
@@ -104,7 +104,7 @@ export const GreenhousePanel: React.FC<GreenhousePanelProps> = ({
               <span className="font-mono-nums">{summary.thirstyPlots}</span> thirsty
             </span>
           )}
-          <span className="ml-auto text-[#6A5B50]">
+          <span className="ml-auto text-espresso-muted">
             Season: <span className="font-semibold capitalize">{world.season}</span>
             {world.season === 'winter' && ' · pots rest until spring'}
           </span>
@@ -114,17 +114,17 @@ export const GreenhousePanel: React.FC<GreenhousePanelProps> = ({
         <div className="flex-1 overflow-y-auto storybook-scroll p-4 sm:p-5 space-y-3">
           {mode === 'planting' && (
             <>
-              <p className="text-xs sm:text-sm text-[#5E5046] leading-relaxed">
+              <p className="text-xs sm:text-sm text-umber leading-relaxed">
                 Tuck a seed fold into an empty terracotta pot. A freshly sown pot is watered the
                 same evening — after that, water it once a day at the rain barrel and it grows a
                 little every night. A seed always comes back with the harvest.
               </p>
 
               {ownedSeeds.length === 0 ? (
-                <div className="p-5 rounded-xl bg-[#F4ECE0] border border-[#E2D4C0] text-center space-y-2">
+                <div className="p-5 rounded-xl bg-card-warm border border-parchment text-center space-y-2">
                   <Leaf className="w-6 h-6 text-[#8C7D6F] mx-auto" />
-                  <p className="text-sm font-medium text-[#2D241E]">No seed folds in your satchel</p>
-                  <p className="text-xs text-[#5E5046] max-w-md mx-auto leading-relaxed">
+                  <p className="text-sm font-medium text-espresso">No seed folds in your satchel</p>
+                  <p className="text-xs text-umber max-w-md mx-auto leading-relaxed">
                     Read Mina's planting notes on the worktable — she keeps a starter packet of
                     chamomile and thyme seeds beside them. Harvests also return one seed fold for
                     the next sowing.
@@ -138,13 +138,13 @@ export const GreenhousePanel: React.FC<GreenhousePanelProps> = ({
                   return (
                     <article
                       key={crop.id}
-                      className="p-3.5 sm:p-4 rounded-xl bg-[#F4ECE0] border border-[#E2D4C0] space-y-2.5"
+                      className="p-3.5 sm:p-4 rounded-xl bg-card-warm border border-parchment space-y-2.5"
                     >
                       <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0">
-                          <h3 className="font-display text-base font-semibold text-[#2D241E]">
+                          <h3 className="font-display text-base font-semibold text-espresso">
                             {PERSONAL_ITEM_MAP[crop.seedItemId].label}{' '}
-                            <span className="font-mono-nums text-xs text-[#6A5B50] font-normal">
+                            <span className="font-mono-nums text-xs text-espresso-muted font-normal">
                               (×{count})
                             </span>
                           </h3>
@@ -152,7 +152,7 @@ export const GreenhousePanel: React.FC<GreenhousePanelProps> = ({
                         </div>
                       </div>
                       {emptyPlots.length === 0 ? (
-                        <p className="text-xs font-medium text-[#8C5B4D] bg-[#FAF5EC] border border-[#E5D9C7] rounded-lg px-3 py-2">
+                        <p className="text-xs font-medium text-[#8C5B4D] bg-linen border border-[#E5D9C7] rounded-lg px-3 py-2">
                           All four pots are taken — harvest something on the growing shelf first.
                         </p>
                       ) : (
@@ -162,7 +162,7 @@ export const GreenhousePanel: React.FC<GreenhousePanelProps> = ({
                               key={idx}
                               type="button"
                               onClick={() => onPlantSeed(crop.seedItemId, idx)}
-                              className="min-h-[44px] px-3.5 py-2 rounded-xl bg-[#5E8062] hover:bg-[#4F6E53] text-xs sm:text-sm font-semibold text-[#FAF5EC] transition-colors cursor-pointer"
+                              className="min-h-[44px] px-3.5 py-2 rounded-xl bg-sage hover:bg-[#4F6E53] text-xs sm:text-sm font-semibold text-linen transition-colors cursor-pointer"
                             >
                               Sow in Pot {idx + 1}
                             </button>
@@ -179,10 +179,10 @@ export const GreenhousePanel: React.FC<GreenhousePanelProps> = ({
           {mode === 'harvest' && (
             <>
               {summary.readyPlots === 0 ? (
-                <div className="p-5 rounded-xl bg-[#F4ECE0] border border-[#E2D4C0] text-center space-y-2">
+                <div className="p-5 rounded-xl bg-card-warm border border-parchment text-center space-y-2">
                   <Sprout className="w-6 h-6 text-[#8C7D6F] mx-auto" />
-                  <p className="text-sm font-medium text-[#2D241E]">Nothing is ready just yet</p>
-                  <p className="text-xs text-[#5E5046] max-w-md mx-auto leading-relaxed">
+                  <p className="text-sm font-medium text-espresso">Nothing is ready just yet</p>
+                  <p className="text-xs text-umber max-w-md mx-auto leading-relaxed">
                     Keep watering at the rain barrel each day — watered pots grow one bright step
                     every night until they are ready for a gentle harvest.
                   </p>
@@ -198,7 +198,7 @@ export const GreenhousePanel: React.FC<GreenhousePanelProps> = ({
                       className="p-3.5 sm:p-4 rounded-xl bg-[#EEF3EC] border border-[#A7C0A8] flex flex-col sm:flex-row sm:items-center justify-between gap-3"
                     >
                       <div className="min-w-0 space-y-1">
-                        <h3 className="font-display text-base font-semibold text-[#2D241E]">
+                        <h3 className="font-display text-base font-semibold text-espresso">
                           Pot {idx + 1} · {crop.label}
                         </h3>
                         <p className="text-xs text-[#4A3C32] leading-relaxed">{crop.blurb}</p>
@@ -211,7 +211,7 @@ export const GreenhousePanel: React.FC<GreenhousePanelProps> = ({
                       <button
                         type="button"
                         onClick={() => onHarvestPlot(idx)}
-                        className="min-h-[44px] px-4 py-2 rounded-xl bg-[#C86446] hover:bg-[#B45539] text-xs sm:text-sm font-semibold text-[#FAF5EC] transition-colors cursor-pointer whitespace-nowrap shrink-0"
+                        className="min-h-[44px] px-4 py-2 rounded-xl bg-terracotta hover:bg-terracotta-deep text-xs sm:text-sm font-semibold text-linen transition-colors cursor-pointer whitespace-nowrap shrink-0"
                       >
                         Harvest Gently
                       </button>
@@ -222,20 +222,20 @@ export const GreenhousePanel: React.FC<GreenhousePanelProps> = ({
 
               {summary.growingPlots > 0 && (
                 <div className="pt-1 space-y-2">
-                  <h3 className="font-display text-sm font-semibold text-[#2D241E]">Still growing</h3>
+                  <h3 className="font-display text-sm font-semibold text-espresso">Still growing</h3>
                   {gh.plots.map((plot, idx) => {
                     if (!plot.cropId || plot.stage >= 3) return null;
                     const crop = getGreenhouseCrop(plot.cropId);
                     return (
                       <div
                         key={idx}
-                        className="p-3 rounded-xl bg-[#F4ECE0] border border-[#E2D4C0] flex items-center justify-between gap-2 text-xs"
+                        className="p-3 rounded-xl bg-card-warm border border-parchment flex items-center justify-between gap-2 text-xs"
                       >
-                        <span className="text-[#2D241E] font-medium">
+                        <span className="text-espresso font-medium">
                           Pot {idx + 1} · {crop?.label ?? 'Seedling'} — {PLOT_STAGE_LABELS[plot.stage]}
                           {!plot.wateredToday && ' · thirsty today'}
                         </span>
-                        <span className="text-[#6A5B50] font-mono-nums">
+                        <span className="text-espresso-muted font-mono-nums">
                           {plot.nightsGrown}/{crop?.growthNights ?? '?'} nights
                         </span>
                       </div>

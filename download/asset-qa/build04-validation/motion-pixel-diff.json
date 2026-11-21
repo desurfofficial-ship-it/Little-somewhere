@@ -1,0 +1,61 @@
+{
+  "note": "Per-frame pixel deltas for BUILD 04 motion evidence (talk mouth-flap, wave elbow, ambient sway). Frames are 1.5 s apart, same live scene, no re-navigation. ratio > 0.001 proves the scene animated between captures.",
+  "pairs": [
+    {
+      "label": "talk flap f1-f2",
+      "frames": [
+        "v_talk_flap_zoom_desktop.png",
+        "v_talk_flap_zoom_f2_desktop.png"
+      ],
+      "changedPx": 36138,
+      "totalPx": 1296000,
+      "ratio": 0.027884,
+      "animated": true
+    },
+    {
+      "label": "talk flap f2-f3",
+      "frames": [
+        "v_talk_flap_zoom_f2_desktop.png",
+        "v_talk_flap_zoom_f3_desktop.png"
+      ],
+      "changedPx": 37978,
+      "totalPx": 1296000,
+      "ratio": 0.029304,
+      "animated": true
+    },
+    {
+      "label": "wave elbow f1-f2",
+      "frames": [
+        "v_wave_elbow_zoom_desktop.png",
+        "v_wave_elbow_zoom_f2_desktop.png"
+      ],
+      "changedPx": 35954,
+      "totalPx": 1296000,
+      "ratio": 0.027742,
+      "animated": true
+    },
+    {
+      "label": "ambient sway f1-f2",
+      "frames": [
+        "v_plaza_hero_build04_desktop.png",
+        "v_plaza_hero_build04_f2_desktop.png"
+      ],
+      "changedPx": 25816,
+      "totalPx": 1296000,
+      "ratio": 0.01992,
+      "animated": true
+    },
+    {
+      "label": "ambient sway f2-f3",
+      "frames": [
+        "v_plaza_hero_build04_f2_desktop.png",
+        "v_plaza_hero_build04_f3_desktop.png"
+      ],
+      "changedPx": 26381,
+      "totalPx": 1296000,
+      "ratio": 0.020356,
+      "animated": true
+    }
+  ],
+  "allAnimated": true
+}
