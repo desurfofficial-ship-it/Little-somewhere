@@ -220,9 +220,14 @@ export const CANOPY_DRIFT_TARGETS: Record<
   Exclude<SeasonType, 'winter'>,
   { base: string; top: string }
 > = {
-  spring: { base: '#e7f5de', top: '#fff3ce' }, // bud → first-leaf deepening
-  summer: { base: '#ddf2ce', top: '#ffebb8' }, // fuller warm green
-  autumn: { base: '#d89a54', top: '#d07e3e' }, // deeper turn
+  // Capture-verified revision: the first-authored targets sat too close to the
+  // near-white spring/summer anchors to read at gameplay distance (the drift
+  // math was proven by tests but the delta was ~invisible). These are the
+  // strengthened, capture-checked departures — still within the season's value
+  // band, never a palette switch.
+  spring: { base: '#ddf0c8', top: '#ffedb0' }, // bud → first-leaf deepening
+  summer: { base: '#d2eab8', top: '#ffe49e' }, // fuller warm green
+  autumn: { base: '#d08b48', top: '#c86e34' }, // deeper turn
 };
 
 /**

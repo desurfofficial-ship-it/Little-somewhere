@@ -162,10 +162,7 @@ export function buildProgressionPresentation(
     ];
     const makeMotif = (geos: THREE.BufferGeometry[], y: number) => {
       const g = new THREE.Group();
-      for (const geo of geos) {
-        const m = new THREE.Mesh(geo, motifMat);
-        g.add(m);
-      }
+      g.add(new THREE.Mesh(trackGeo(mergeGeometries(geos, false)!), motifMat));
       g.position.set(0, y, 0.012);
       g.visible = false;
       return g;
@@ -184,10 +181,15 @@ export function buildProgressionPresentation(
     ];
     const caddy = new THREE.Mesh(mergeGeometries(caddyGeos, false)!, caddyMat);
     caddy.castShadow = true;
-    const chalkA = new THREE.Mesh(trackGeo(boxAt(0.09, 0.024, 0.024, -0.05, 0.115, 0)), chalkMat);
-    const chalkB = new THREE.Mesh(trackGeo(boxAt(0.07, 0.024, 0.024, 0.06, 0.115, 0.02, 0, 0.4, 0.2)), chalkMat);
+    const chalks = new THREE.Mesh(
+      trackGeo(mergeGeometries(
+        [boxAt(0.09, 0.024, 0.024, -0.05, 0.115, 0), boxAt(0.07, 0.024, 0.024, 0.06, 0.115, 0.02, 0, 0.4, 0.2)],
+        false,
+      )!),
+      chalkMat,
+    );
     const caddyGroup = new THREE.Group();
-    caddyGroup.add(caddy, chalkA, chalkB);
+    caddyGroup.add(caddy, chalks);
     caddyGroup.position.set(-1.2, 0, 0.5); // group-local; world ≈ (3.2, 0, -2.7) —
     // walkable spot beside the board's west post (board obstacle r 0.75 + actor
     // radius 0.48 pushes the ground spot this far out; walkability-tested)
@@ -228,13 +230,13 @@ export function buildProgressionPresentation(
     const bunchTea = new THREE.Group(); // tea_basket: chamomile + rosemary
     const makeBunch = (mats: THREE.Material[], x: number): THREE.Group => {
       const g = new THREE.Group();
+      const stemL = cylinderAt(0.008, 0.008, 0.12, 4, x - 0.1, -0.07, 0, 0, 0, 0.18);
+      const stemR = cylinderAt(0.008, 0.008, 0.12, 4, x + 0.1, -0.07, 0, 0, 0, -0.18);
+      g.add(new THREE.Mesh(trackGeo(mergeGeometries([stemL, stemR], false)!), foliageMat));
       for (let i = 0; i < 2; i++) {
-        const stemGeo = trackGeo(cylinderAt(0.008, 0.008, 0.12, 4, x + (i === 0 ? -0.1 : 0.1), -0.07, 0, 0, 0, (i === 0 ? 1 : -1) * 0.18));
         const headGeo = trackGeo(new THREE.SphereGeometry(0.035, 6, 5));
         headGeo.translate(x + (i === 0 ? -0.12 : 0.12), -0.14, 0);
-        const stem = new THREE.Mesh(stemGeo, foliageMat);
-        const head = new THREE.Mesh(headGeo, mats[i % mats.length]);
-        g.add(stem, head);
+        g.add(new THREE.Mesh(headGeo, mats[i % mats.length]));
       }
       return g;
     };
@@ -352,25 +354,31 @@ export function buildProgressionPresentation(
       }),
     );
     const capMat = brassMat;
-    for (const px of [-0.75, 0.75]) {
-      const hood = new THREE.Mesh(trackGeo(new THREE.ConeGeometry(0.09, 0.08, 6)), capMat);
-      hood.position.set(px, 0.76, 0.05);
-      const glass = new THREE.Mesh(trackGeo(new THREE.CylinderGeometry(0.05, 0.065, 0.1, 6)), sconceGlassMat);
-      glass.position.set(px, 0.68, 0.05);
-      glass.name = 'sconce_glass';
-      sconceGroup.add(hood, glass);
-    }
-    const flameGeo = trackGeo(new THREE.SphereGeometry(0.022, 5, 4));
+    const hoodL = new THREE.ConeGeometry(0.09, 0.08, 6);
+    hoodL.translate(-0.75, 0.76, 0.05);
+    const hoodR = new THREE.ConeGeometry(0.09, 0.08, 6);
+    hoodR.translate(0.75, 0.76, 0.05);
+    sconceGroup.add(new THREE.Mesh(trackGeo(mergeGeometries([hoodL, hoodR], false)!), capMat));
+    const glassL = new THREE.CylinderGeometry(0.05, 0.065, 0.1, 6);
+    glassL.translate(-0.75, 0.68, 0.05);
+    const glassR = new THREE.CylinderGeometry(0.05, 0.065, 0.1, 6);
+    glassR.translate(0.75, 0.68, 0.05);
+    const glassMesh = new THREE.Mesh(trackGeo(mergeGeometries([glassL, glassR], false)!), sconceGlassMat);
+    glassMesh.name = 'sconce_glass';
+    sconceGroup.add(glassMesh);
     const flameMat = trackMat(
       new THREE.MeshBasicMaterial({ color: '#FFD27A', transparent: true, opacity: 0.9 }),
     );
-    sconceFlameA = new THREE.Mesh(flameGeo, flameMat);
-    sconceFlameA.position.set(-0.75, 0.68, 0.05);
-    sconceFlameB = new THREE.Mesh(flameGeo, flameMat);
-    sconceFlameB.position.set(0.75, 0.68, 0.05);
-    sconceFlameA.visible = false;
-    sconceFlameB.visible = false;
-    sconceGroup.add(sconceFlameA, sconceFlameB);
+    const flameL = new THREE.SphereGeometry(0.022, 5, 4);
+    flameL.translate(-0.75, 0.68, 0.05);
+    const flameR = new THREE.SphereGeometry(0.022, 5, 4);
+    flameR.translate(0.75, 0.68, 0.05);
+    const flameMesh = new THREE.Mesh(trackGeo(mergeGeometries([flameL, flameR], false)!), flameMat);
+    flameMesh.name = 'sconce_flames';
+    flameMesh.visible = false;
+    sconceGroup.add(flameMesh);
+    sconceFlameA = flameMesh;
+    sconceFlameB = flameMesh;
     sconceGroup.position.set(2.22, 0, 17.3); // south of the pond_water obstacle box
     // (maxZ 16.65 + actor radius) — flanking the shore approach on the bank
     sconceGroup.userData.contactBatchRoot = true;
@@ -385,18 +393,20 @@ export function buildProgressionPresentation(
   const RIBBON_MAT = trackMat(
     new THREE.MeshStandardMaterial({ color: STORYBOOK_PALETTE.petalMarigold, roughness: 0.72, metalness: 0.0 }),
   );
+  // BUILD 03 perf discipline: the whole knot merges into ONE mesh (1 draw per ribbon).
   const buildRibbon = (): THREE.Group => {
     const g = new THREE.Group();
-    const loopA = new THREE.Mesh(trackGeo(new THREE.TorusGeometry(0.05, 0.018, 5, 10)), RIBBON_MAT);
-    loopA.position.set(-0.045, 0, 0);
-    loopA.rotation.y = 0.6;
-    const loopB = new THREE.Mesh(trackGeo(new THREE.TorusGeometry(0.05, 0.018, 5, 10)), RIBBON_MAT);
-    loopB.position.set(0.045, 0, 0);
-    loopB.rotation.y = -0.6;
-    const knot = new THREE.Mesh(trackGeo(new THREE.SphereGeometry(0.028, 6, 6)), RIBBON_MAT);
-    const tailA = new THREE.Mesh(trackGeo(boxAt(0.024, 0.1, 0.012, -0.02, -0.08, 0, 0, 0, 0.25)), RIBBON_MAT);
-    const tailB = new THREE.Mesh(trackGeo(boxAt(0.024, 0.1, 0.012, 0.03, -0.08, 0, 0, 0, -0.3)), RIBBON_MAT);
-    g.add(loopA, loopB, knot, tailA, tailB);
+    const loopA = new THREE.TorusGeometry(0.05, 0.018, 5, 10);
+    loopA.rotateY(0.6);
+    loopA.translate(-0.045, 0, 0);
+    const loopB = new THREE.TorusGeometry(0.05, 0.018, 5, 10);
+    loopB.rotateY(-0.6);
+    loopB.translate(0.045, 0, 0);
+    const knot = new THREE.SphereGeometry(0.028, 6, 6);
+    const tailA = boxAt(0.024, 0.1, 0.012, -0.02, -0.08, 0, 0, 0, 0.25);
+    const tailB = boxAt(0.024, 0.1, 0.012, 0.03, -0.08, 0, 0, 0, -0.3);
+    const merged = new THREE.Mesh(trackGeo(mergeGeometries([loopA, loopB, knot, tailA, tailB], false)!), RIBBON_MAT);
+    g.add(merged);
     g.visible = false;
     return g;
   };
@@ -418,12 +428,12 @@ export function buildProgressionPresentation(
         break;
       }
       case 'arthur': {
-        // tiny brass gear
-        const wheel = new THREE.Mesh(trackGeo(new THREE.CylinderGeometry(0.045, 0.045, 0.016, 8)), brassMat);
-        wheel.rotation.x = Math.PI / 2;
-        const teeth = new THREE.Mesh(trackGeo(new THREE.TorusGeometry(0.05, 0.01, 4, 8)), brassMat);
-        teeth.rotation.x = Math.PI / 2;
-        g.add(wheel, teeth);
+        // tiny brass gear — wheel + teeth merged (1 draw)
+        const wheel = new THREE.CylinderGeometry(0.045, 0.045, 0.016, 8);
+        wheel.rotateX(Math.PI / 2);
+        const teeth = new THREE.TorusGeometry(0.05, 0.01, 4, 8);
+        teeth.rotateX(Math.PI / 2);
+        g.add(new THREE.Mesh(trackGeo(mergeGeometries([wheel, teeth], false)!), brassMat));
         break;
       }
       case 'mina': {
@@ -437,18 +447,23 @@ export function buildProgressionPresentation(
         break;
       }
       case 'nora': {
-        // ribbon book thong
-        g.add(new THREE.Mesh(trackGeo(boxAt(0.016, 0.14, 0.01, 0, 0, 0)), RIBBON_MAT));
-        g.add(new THREE.Mesh(trackGeo(boxAt(0.045, 0.02, 0.012, 0, 0.05, 0)), RIBBON_MAT));
+        // ribbon book thong — merged (1 draw)
+        g.add(new THREE.Mesh(
+          trackGeo(mergeGeometries([boxAt(0.016, 0.14, 0.01, 0, 0, 0), boxAt(0.045, 0.02, 0.012, 0, 0.05, 0)], false)!),
+          RIBBON_MAT,
+        ));
         break;
       }
       case 'barnaby': {
-        // carved wood bead string
-        for (let i = 0; i < 3; i++) {
-          const bead = new THREE.Mesh(trackGeo(new THREE.SphereGeometry(0.022, 6, 5)), i === 1 ? marigoldMat : cedarWarmHelper());
-          bead.position.set(0, 0.04 - i * 0.045, 0);
-          g.add(bead);
-        }
+        // carved wood bead string — cedar beads merged (1 draw), marigold bead accent
+        const beadA = new THREE.SphereGeometry(0.022, 6, 5);
+        beadA.translate(0, 0.04, 0);
+        const beadC = new THREE.SphereGeometry(0.022, 6, 5);
+        beadC.translate(0, -0.05, 0);
+        g.add(new THREE.Mesh(trackGeo(mergeGeometries([beadA, beadC], false)!), cedarWarmHelper()));
+        const beadB = new THREE.Mesh(trackGeo(new THREE.SphereGeometry(0.022, 6, 5)), marigoldMat);
+        beadB.position.set(0, -0.005, 0);
+        g.add(beadB);
         break;
       }
       case 'rowan': {
@@ -712,17 +727,14 @@ export function buildProgressionPresentation(
       sconceGlassMat.emissiveIntensity = 0;
       sconceGlassMat.emissive.set(SCONCE_AMBER);
       sconceFlameA.visible = false;
-      sconceFlameB.visible = false;
     } else if (mode === 'public_harmony') {
       sconceGlassMat.emissive.set(SCONCE_SOFT);
       sconceGlassMat.emissiveIntensity = 0.55;
       sconceFlameA.visible = true;
-      sconceFlameB.visible = true;
     } else {
       sconceGlassMat.emissive.set(SCONCE_AMBER);
       sconceGlassMat.emissiveIntensity = 0.8;
       sconceFlameA.visible = true;
-      sconceFlameB.visible = true;
     }
   }
 

@@ -213,6 +213,7 @@ declare global {
     /** BUILD 02 QA probe: contact-shadow batching stats (dev-gated with ?perf=1). */
     __LS_SCENE_STATS__?: () => { buckets: number; instancedDiscs: number; looseDiscs: number };
     __LS_CAMERA_SET__?: (z: number) => void;
+    __LS_DRIFT_PROBE__?: () => { groveBase: string; groveTop: string; wildsBase: string | null; progress: number };
     __LS_CAMERA_GET__?: () => number;
   }
 }
@@ -458,6 +459,13 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
       camera.position.set(fx + 19.5 * zz, 18.2 * zz, fz + 19.5 * zz);
     };
     window.__LS_CAMERA_GET__ = () => zoomRef.current;
+    // BUILD 03 QA probe: live canopy-drift verification (dev/QA only, zero per-frame cost).
+    window.__LS_DRIFT_PROBE__ = () => ({
+      groveBase: `#${groveRig.crownBaseMat.color.getHexString()}`,
+      groveTop: `#${groveRig.crownTopMat.color.getHexString()}`,
+      wildsBase: wildsRig ? `#${wildsRig.crownBaseMat.color.getHexString()}` : null,
+      progress: (worldRef.current.day - 1) % 10 / 9,
+    });
     const sceneBuildStart = performance.now();
 
     const renderer = new THREE.WebGLRenderer({
