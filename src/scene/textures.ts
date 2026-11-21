@@ -270,6 +270,50 @@ export function createFabricWeaveTexture(aniso = 4): THREE.CanvasTexture {
 }
 
 /**
+ * Fabric albedo + weave bundle (BUILD 02 Workstream E §8.1 — Doc 04 §6.1
+ * "fabric albedo weave"): upgrades the roughness-only fabric family with a
+ * NEAR-WHITE thread-row albedo overlay so garments/quilts catch light along
+ * the weave at gameplay distance. Deliberately quiet — ±3% thread luminance,
+ * no fibre speckle noise, hue authority stays with the palette color — so the
+ * texture improves perceived quality without ever reading as noise.
+ * The roughness channel is byte-identical to `createFabricWeaveTexture`
+ * (same seed, same drawing order) so the validated weave roughness is kept.
+ */
+export function createFabricAlbedoMaps(aniso = 4): ProceduralMapBundle {
+  const size = 128;
+  const albedo = document.createElement('canvas');
+  albedo.width = size;
+  albedo.height = size;
+  const a = albedo.getContext('2d')!;
+  // Near-white base: the material's color does the talking (SRGB map multiplies).
+  a.fillStyle = '#FCFBF9';
+  a.fillRect(0, 0, size, size);
+  // Alternating thread rows — warp lighter, weft a hair deeper (±3%).
+  for (let i = 0; i < 16; i++) {
+    a.globalAlpha = 0.55;
+    a.fillStyle = i % 2 === 0 ? '#FFFFFF' : '#F1EEE8';
+    a.fillRect(0, (i / 16) * size, size, size / 32);
+    a.fillRect((i / 16) * size, 0, size / 32, size);
+  }
+  // Sparse long fibre strokes (directional, not speckle) for a spun-yarn read.
+  const rand = makeSeededRandom(1663);
+  a.globalAlpha = 0.18;
+  for (let i = 0; i < 48; i++) {
+    const x = rand() * size;
+    const yy = rand() * size;
+    const len = 4 + rand() * 8;
+    a.strokeStyle = rand() > 0.5 ? '#FFFFFF' : '#EDE9E0';
+    a.lineWidth = 0.8;
+    a.beginPath();
+    a.moveTo(x, yy);
+    a.lineTo(x + (rand() > 0.5 ? len : -len), yy + (rand() - 0.5) * 1.5);
+    a.stroke();
+  }
+  a.globalAlpha = 1;
+  return { map: finishColorMap(albedo, aniso), roughnessMap: createFabricWeaveTexture(aniso) };
+}
+
+/**
  * Shared scalar-noise roughness (T1–T3 families without a dedicated map):
  * gentle broad patches so matte surfaces never read as flat plastic.
  */

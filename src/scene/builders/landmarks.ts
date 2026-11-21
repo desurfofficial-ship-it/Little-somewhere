@@ -6,7 +6,10 @@ import {
   createStorybookFountainWaterMaterial,
   createStorybookWaterStreamMaterial,
 } from '../waterShaders';
-import { addContactShadow } from './vegetation';
+import {
+  addContactShadow,
+} from './vegetation';
+import { addStaticContactShadow } from '../contactShadows';
 
 /**
  * Hero Centerpiece Landmark: Old Bell Gazebo at (0, 0, -9.5) (CIRCLE_OBSTACLES r=2.3).
@@ -22,7 +25,7 @@ export function buildStorybookGazebo(
   const group = new THREE.Group();
   group.position.set(0, 0, -9.5);
 
-  addContactShadow(group, shadowTex, 6.6, 6.6, 0.5, 0.02);
+  addStaticContactShadow(group, shadowTex, 6.6, 6.6, 0.5, 0.02);
 
   const stoneMat = palette.standard(STORYBOOK_PALETTE.limestone, 0.9, 0.02, {
     mapSet: 'stone',
@@ -292,7 +295,7 @@ export function buildStorybookFountain(
   const group = new THREE.Group();
   group.position.set(0, 0, 1.5);
 
-  addContactShadow(group, shadowTex, 5.8, 5.8, 0.48, 0.02);
+  addStaticContactShadow(group, shadowTex, 5.8, 5.8, 0.48, 0.02);
 
   const stoneMat = palette.standard(STORYBOOK_PALETTE.limestone, 0.88, 0.02, {
     mapSet: 'stone',
@@ -646,7 +649,7 @@ export function buildStorybookTeaCart(
   const group = new THREE.Group();
   group.position.set(-5.4, 0, -3.2);
 
-  addContactShadow(group, shadowTex, 2.35, 1.75, 0.45, 0.018);
+  addStaticContactShadow(group, shadowTex, 2.35, 1.75, 0.45, 0.018);
 
   // Evident-craft families on the cart (V5 object gate, Doc 03 §8): timber grain
   // on the chassis, weave on the canopy cloth, kettle/cups answer the IBL.
@@ -762,7 +765,7 @@ export function buildStorybookNoticeboard(
   const group = new THREE.Group();
   group.position.set(4.4, 0, -3.2);
 
-  addContactShadow(group, shadowTex, 1.85, 1.25, 0.42, 0.018);
+  addStaticContactShadow(group, shadowTex, 1.85, 1.25, 0.42, 0.018);
 
   const stoneMat = palette.standard(STORYBOOK_PALETTE.limestone, 0.9, 0.02);
   const cedarMat = palette.standard(STORYBOOK_PALETTE.cedarDark, 0.78, 0.04);
@@ -841,7 +844,7 @@ export function buildStorybookBench(
   shadowTex: THREE.Texture,
 ): THREE.Group {
   const group = new THREE.Group();
-  addContactShadow(group, shadowTex, 1.6, 1.02, 0.44, 0.018);
+  addStaticContactShadow(group, shadowTex, 1.6, 1.02, 0.44, 0.018);
 
   const ironMat = palette.standard(STORYBOOK_PALETTE.wroughtIron, 0.38, 0.75, {
     envMapIntensity: 0.5,

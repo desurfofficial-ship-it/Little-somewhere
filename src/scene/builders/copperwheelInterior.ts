@@ -6,7 +6,10 @@ import {
 } from '../../game/copperwheel';
 import { TimePhase, WorldState } from '../../game/types';
 import { MaterialPalette, STORYBOOK_PALETTE } from '../materials';
-import { addContactShadow } from './vegetation';
+import {
+  addContactShadow,
+} from './vegetation';
+import { addStaticContactShadow } from '../contactShadows';
 
 /**
  * Copperwheel Cottage Interior Cutaway Diorama (Milestone 3 Build 9).
@@ -277,7 +280,7 @@ export function buildCopperwheelInterior(
   // ---------------------------------------------------------------------
   const benchGroup = new THREE.Group();
   benchGroup.position.set(-1.58, 0, -1.97);
-  addContactShadow(benchGroup, shadowTex, 3.0, 1.0, 0.5, 0.018);
+  addStaticContactShadow(benchGroup, shadowTex, 3.0, 1.0, 0.5, 0.018);
 
   const benchTop = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(2.56, 0.1, 0.84)), mapleMat);
   benchTop.position.set(0, 0.92, 0);
@@ -463,7 +466,7 @@ export function buildCopperwheelInterior(
   // ---------------------------------------------------------------------
   const bedGroup = new THREE.Group();
   bedGroup.position.set(2.14, 0, -1.68);
-  addContactShadow(bedGroup, shadowTex, 1.7, 1.6, 0.45, 0.018);
+  addStaticContactShadow(bedGroup, shadowTex, 1.7, 1.6, 0.45, 0.018);
 
   const bedFrame = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(1.44, 0.26, 1.36)), walnutMat);
   bedFrame.position.set(0, 0.24, 0);
@@ -530,7 +533,7 @@ export function buildCopperwheelInterior(
   // ---------------------------------------------------------------------
   const shelfGroup = new THREE.Group();
   shelfGroup.position.set(-2.58, 0, 0.28);
-  addContactShadow(shelfGroup, shadowTex, 1.0, 2.4, 0.42, 0.018);
+  addStaticContactShadow(shelfGroup, shadowTex, 1.0, 2.4, 0.42, 0.018);
 
   const shelfBody = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(0.72, 1.86, 2.14)), cedarWarmMat);
   shelfBody.position.set(0, 1.0, 0);
@@ -597,7 +600,7 @@ export function buildCopperwheelInterior(
   // ---------------------------------------------------------------------
   const stoveGroup = new THREE.Group();
   stoveGroup.position.set(2.58, 0, 0.6);
-  addContactShadow(stoveGroup, shadowTex, 1.0, 2.1, 0.45, 0.018);
+  addStaticContactShadow(stoveGroup, shadowTex, 1.0, 2.1, 0.45, 0.018);
 
   const stoveBody = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(0.72, 0.94, 1.5)), ironMat);
   stoveBody.position.set(0, 0.47, 0);
@@ -678,7 +681,7 @@ export function buildCopperwheelInterior(
   const chairGroup = new THREE.Group();
   chairGroup.position.set(-1.38, 0, 1.55);
   chairGroup.rotation.y = 0.5; // angled toward the room / kettle corner
-  addContactShadow(chairGroup, shadowTex, 1.5, 1.4, 0.5, 0.018);
+  addStaticContactShadow(chairGroup, shadowTex, 1.5, 1.4, 0.5, 0.018);
 
   const seatBase = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(0.86, 0.32, 0.8)), quiltMat);
   seatBase.position.set(0, 0.28, 0);
@@ -1005,7 +1008,7 @@ export function buildCopperwheelPorchDressing(
     group.add(signLeg);
   }
 
-  addContactShadow(group, shadowTex, 2.2, 1.2, 0.42, 0.018);
+  addStaticContactShadow(group, shadowTex, 2.2, 1.2, 0.42, 0.018);
 
   group.userData.dispose = () => {
     for (const g of ownedGeos) g.dispose();

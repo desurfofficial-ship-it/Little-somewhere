@@ -1,7 +1,10 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { MaterialPalette, STORYBOOK_PALETTE } from '../materials';
-import { addContactShadow } from './vegetation';
+import {
+  addContactShadow,
+} from './vegetation';
+import { addStaticContactShadow } from '../contactShadows';
 
 /**
  * The Wild Hollows (Build 10) — exterior geography for the world expansion.
@@ -361,7 +364,7 @@ export function buildWildHollows(
   // ------------------------------------------------------------------
   const well = new THREE.Group();
   well.position.set(-21.4, 0, 19.0);
-  addContactShadow(well, shadowTex, 1.9, 1.9, 0.9, 0.02);
+  addStaticContactShadow(well, shadowTex, 1.9, 1.9, 0.9, 0.02);
 
   const wellRing = new THREE.Mesh(own(new THREE.CylinderGeometry(0.72, 0.8, 0.72, 14)), stoneMat);
   wellRing.position.y = 0.36;
@@ -522,7 +525,7 @@ export function buildWildHollows(
   // ------------------------------------------------------------------
   const brooklet = new THREE.Group();
   brooklet.position.set(-11.2, 0, 18.3);
-  addContactShadow(brooklet, shadowTex, 3.4, 1.7, 1.6, 0.015);
+  addStaticContactShadow(brooklet, shadowTex, 3.4, 1.7, 1.6, 0.015);
   // The raw cylinder already lies flat along Y (its height axis); scale gives a
   // thin ellipse in XZ — no rotation needed.
   const bedGeo = own(new THREE.CylinderGeometry(1.55, 1.7, 0.04, 20));
@@ -624,7 +627,7 @@ export function buildWildHollows(
   ] as const) {
     const boulder = new THREE.Group();
     boulder.position.set(bx, 0, bz);
-    addContactShadow(boulder, shadowTex, 1.5 * bs, 1.5 * bs, 0.7 * bs, 0.02);
+    addStaticContactShadow(boulder, shadowTex, 1.5 * bs, 1.5 * bs, 0.7 * bs, 0.02);
     const rock = new THREE.Mesh(own(new THREE.IcosahedronGeometry(0.52 * bs, 1)), stoneMat);
     rock.scale.set(1.2, 0.72, 1.0);
     rock.position.y = 0.42 * bs;
@@ -647,7 +650,7 @@ export function buildWildHollows(
   // Carved lane signpost (world 21.5, 0.8 — obstacle `lane_signpost`)
   const signpost = new THREE.Group();
   signpost.position.set(21.5, 0, 0.8);
-  addContactShadow(signpost, shadowTex, 0.8, 0.8, 0.4, 0.018);
+  addStaticContactShadow(signpost, shadowTex, 0.8, 0.8, 0.4, 0.018);
   const post = new THREE.Mesh(own(new THREE.CylinderGeometry(0.055, 0.07, 1.25, 7)), cedarDarkMat);
   post.position.y = 0.625;
   post.castShadow = castShadows;
@@ -694,7 +697,7 @@ export function buildWildHollows(
   // ------------------------------------------------------------------
   const beeLog = new THREE.Group();
   beeLog.position.set(11.0, 0, -19.7);
-  addContactShadow(beeLog, shadowTex, 2.0, 1.3, 0.9, 0.02);
+  addStaticContactShadow(beeLog, shadowTex, 2.0, 1.3, 0.9, 0.02);
   const logBodyGeo = own(new THREE.CylinderGeometry(0.26, 0.3, 1.5, 10));
   logBodyGeo.rotateZ(Math.PI / 2);
   logBodyGeo.rotateY(0.25);
@@ -745,7 +748,7 @@ export function buildWildHollows(
   // Stone cairn (world 8.2, -19.9 — obstacle `beeline_cairn`)
   const cairn = new THREE.Group();
   cairn.position.set(8.2, 0, -19.9);
-  addContactShadow(cairn, shadowTex, 0.9, 0.9, 0.45, 0.018);
+  addStaticContactShadow(cairn, shadowTex, 0.9, 0.9, 0.45, 0.018);
   const cairnStones: THREE.BufferGeometry[] = [];
   let cy = 0;
   for (let i = 0; i < 4; i++) {

@@ -2,7 +2,14 @@ import * as THREE from 'three';
 import { MaterialPalette, STORYBOOK_PALETTE } from '../materials';
 import { KoiFishRig, MirrorPondRig } from '../models';
 import { createStorybookPondWaterMaterial } from '../waterShaders';
+import { addStaticContactShadow } from '../contactShadows';
 
+/**
+ * Per-mesh contact shadow disc — the canonical helper. Kept for DYNAMIC discs
+ * (characters, carried items, outcome-toggled groups) whose shadows must
+ * follow/hide with their object. Always-visible static discs route through
+ * `addStaticContactShadow` (BUILD 02 instanced batching, Doc 06 §3.4).
+ */
 export function addContactShadow(
   parent: THREE.Object3D,
   shadowTex: THREE.Texture,
@@ -160,7 +167,7 @@ export function buildPerimeterBorder(
         // Low fieldstone wall segment with stepped capstones
         const wall = new THREE.Group();
         wall.position.set(x, 0, zPos);
-        addContactShadow(wall, shadowTex, 4.6, 1.4, 0.32, 0.015);
+        addStaticContactShadow(wall, shadowTex, 4.6, 1.4, 0.32, 0.015);
         const base = new THREE.Mesh(new THREE.BoxGeometry(4.2, 0.42, 0.62), darkStoneMat);
         base.position.y = 0.21;
         base.receiveShadow = true;
@@ -249,7 +256,7 @@ export function buildHollowOakLandmark(
   const group = new THREE.Group();
   group.position.set(-6.2, 0, 15.6);
 
-  addContactShadow(group, shadowTex, 4.6, 4.6, 0.52, 0.022);
+  addStaticContactShadow(group, shadowTex, 4.6, 4.6, 0.52, 0.022);
 
   const barkMat = palette.standard('#64432F', 0.9, 0.01);
   const barkHighlightMat = palette.standard('#7A543C', 0.88, 0.01);
@@ -461,7 +468,7 @@ export function buildMirrorPondAndBridge(
   // Pond center (1.6, 0, 14.0)
   const pondGroup = new THREE.Group();
   pondGroup.position.set(1.6, 0, 14.0);
-  addContactShadow(pondGroup, shadowTex, 9.8, 5.6, 0.34, 0.015);
+  addStaticContactShadow(pondGroup, shadowTex, 9.8, 5.6, 0.34, 0.015);
 
   // Organic curved pond silhouette in (sx, sy), rotated -PI/2 around X => localX = sx, localZ = -sy
   // Spans main pond x:-3.48..+3.58, z:-2.15..+2.15 plus west culvert brook tucked under bridge x:-5.18..-3.48, z:-0.88..+0.88
@@ -783,7 +790,7 @@ export function buildMirrorPondAndBridge(
   // Handcrafted Cedar Footbridge at (-2.9, 0, 14.0) with Stone Culvert Wing Walls & Bridge Post Lantern
   const bridgeGroup = new THREE.Group();
   bridgeGroup.position.set(-2.9, 0, 14.0);
-  addContactShadow(bridgeGroup, shadowTex, 2.5, 5.5, 0.42, 0.018);
+  addStaticContactShadow(bridgeGroup, shadowTex, 2.5, 5.5, 0.42, 0.018);
 
   // Stone bridge abutments & stepped wing walls at North & South approaches
   for (const az of [-2.55, 2.55]) {

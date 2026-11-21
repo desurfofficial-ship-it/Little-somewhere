@@ -1,7 +1,10 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { MaterialPalette, STORYBOOK_PALETTE } from '../materials';
-import { addContactShadow } from './vegetation';
+import {
+  addContactShadow,
+} from './vegetation';
+import { addStaticContactShadow } from '../contactShadows';
 
 export interface BuildingBuildContext {
   palette: MaterialPalette;
@@ -164,7 +167,7 @@ function buildStorybookCottageCore(
   const halfD = depth / 2;
   const roofH = opts.roofHeight ?? 2.1;
 
-  addContactShadow(group, shadowTex, width + 2.4, depth + 2.4, 0.46, 0.018);
+  addStaticContactShadow(group, shadowTex, width + 2.4, depth + 2.4, 0.46, 0.018);
 
   // Evident-craft material families (Doc 06 §2.1): plaster walls carry tooth,
   // timber carries grain, stone carries course mortar — each tier distinct at
@@ -597,11 +600,11 @@ export function buildStorybookBakery(ctx: BuildingBuildContext): THREE.Group {
   // Timber lintel band tying the wing back into the main west wall
   wing.add(new THREE.Mesh(boxAt(0.98, 0.12, 1.86, 0, 2.1, 0, 0, 0, 0), cedarMat));
   group.add(wing);
-  addContactShadow(wing, shadowTex, 1.6, 2.4, 0.42, 0.018);
+  addStaticContactShadow(wing, shadowTex, 1.6, 2.4, 0.42, 0.018);
   // Flour sacks + delivery crate parked between the oven base and the wing door
   const bakeYard = new THREE.Group();
   bakeYard.position.set(-3.35, 0, -2.45);
-  addContactShadow(bakeYard, shadowTex, 1.5, 1.0, 0.4, 0.018);
+  addStaticContactShadow(bakeYard, shadowTex, 1.5, 1.0, 0.4, 0.018);
   const flourSackMat = palette.standard('#F3EBDC', 0.92, 0.0);
   const sackA = new THREE.Mesh(new THREE.SphereGeometry(0.19, 8, 6), flourSackMat);
   sackA.position.set(-0.25, 0.2, 0.05);
@@ -706,6 +709,8 @@ export function buildBakeryCafeTables(
   for (let i = 0; i < 2; i++) {
     const tbl = new THREE.Group();
     tbl.position.set(i * 2.1, 0, 0.4);
+    // Café tables toggle with `bakeryTablesOpen` — disc must hide with the
+    // group, so it stays a per-mesh quad (never batched).
     addContactShadow(tbl, shadowTex, 1.5, 1.5, 0.36, 0.018);
 
     const foot = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.32, 0.08, 8), ironMat);
@@ -815,7 +820,7 @@ export function buildStorybookBookNook(ctx: BuildingBuildContext): THREE.Group {
   //    (z ±0.7) at 0.45 m projection; seat + books + mug read through the glass.
   const bay = new THREE.Group();
   bay.position.set(2.74, 0, -1.45);
-  addContactShadow(bay, shadowTex, 1.9, 1.7, 0.42, 0.018);
+  addStaticContactShadow(bay, shadowTex, 1.9, 1.7, 0.42, 0.018);
   const bayBase = new THREE.Mesh(boxAt(0.84, 0.5, 1.44, 0.22, 0.28, 0, 0, 0, 0), cedarWarmMat);
   bayBase.castShadow = true;
   bay.add(bayBase);
@@ -880,7 +885,7 @@ export function buildStorybookBookNook(ctx: BuildingBuildContext): THREE.Group {
   // 3. Returns crates stacked on the north lawn (varied rotations)
   const returnsCrates = new THREE.Group();
   returnsCrates.position.set(-1.55, 0, -2.8);
-  addContactShadow(returnsCrates, shadowTex, 1.6, 1.1, 0.4, 0.018);
+  addStaticContactShadow(returnsCrates, shadowTex, 1.6, 1.1, 0.4, 0.018);
   const crateA = new THREE.Mesh(boxAt(0.62, 0.4, 0.5, 0, 0.2, 0, 0, 0.12, 0), cedarWarmMat);
   crateA.castShadow = true;
   const crateB = new THREE.Mesh(boxAt(0.52, 0.36, 0.46, 0.22, 0.58, 0.05, 0, -0.3, 0), cedarWarmMat);
@@ -1057,7 +1062,7 @@ export function buildStorybookBarnabyWoodshop(ctx: BuildingBuildContext): THREE.
   //    (board pitch compressed so the deepest tier stays inside the plot)
   const lumberGroup = new THREE.Group();
   lumberGroup.position.set(0.8, 0, 2.6);
-  addContactShadow(lumberGroup, shadowTex, 2.0, 0.85, 0.4, 0.018);
+  addStaticContactShadow(lumberGroup, shadowTex, 2.0, 0.85, 0.4, 0.018);
   const lumberBoards: THREE.BufferGeometry[] = [];
   const lumberEnds: THREE.BufferGeometry[] = [];
   for (let tier = 0; tier < 4; tier++) {
@@ -1083,7 +1088,7 @@ export function buildStorybookBarnabyWoodshop(ctx: BuildingBuildContext): THREE.
   const sawhorse = new THREE.Group();
   sawhorse.position.set(2.35, 0, 2.35);
   sawhorse.rotation.y = -0.35;
-  addContactShadow(sawhorse, shadowTex, 1.5, 1.1, 0.4, 0.018);
+  addStaticContactShadow(sawhorse, shadowTex, 1.5, 1.1, 0.4, 0.018);
   const horseLegs: THREE.BufferGeometry[] = [];
   for (const lx of [-0.55, 0.55]) {
     horseLegs.push(boxAt(0.07, 0.62, 0.07, lx, 0.31, -0.2, 0, 0, 0.24));
@@ -1108,7 +1113,7 @@ export function buildStorybookBarnabyWoodshop(ctx: BuildingBuildContext): THREE.
 
   const chipPile = new THREE.Group();
   chipPile.position.set(-0.7, 0, 2.7);
-  addContactShadow(chipPile, shadowTex, 1.0, 0.9, 0.38, 0.018);
+  addStaticContactShadow(chipPile, shadowTex, 1.0, 0.9, 0.38, 0.018);
   const chips: THREE.BufferGeometry[] = [];
   for (let c = 0; c < 9; c++) {
     const chip = new THREE.DodecahedronGeometry(0.09 + (c % 3) * 0.02, 0);
@@ -1147,7 +1152,7 @@ export function buildStorybookBarnabyWoodshop(ctx: BuildingBuildContext): THREE.
   const barrow = new THREE.Group();
   barrow.position.set(-2.95, 0, -2.35);
   barrow.rotation.y = 0.5;
-  addContactShadow(barrow, shadowTex, 1.2, 0.9, 0.4, 0.018);
+  addStaticContactShadow(barrow, shadowTex, 1.2, 0.9, 0.4, 0.018);
   const barrowTray = new THREE.Mesh(boxAt(0.62, 0.24, 0.42, 0, 0.36, 0, 0, 0, 0), plankMat);
   barrowTray.castShadow = true;
   const barrowLipA = new THREE.Mesh(boxAt(0.66, 0.05, 0.46, 0, 0.49, 0), plankDarkMat);
@@ -1205,7 +1210,7 @@ export function buildStorybookGreenhouse(ctx: BuildingBuildContext): THREE.Group
   const group = new THREE.Group();
   group.position.set(14.3, 0, 1.7);
 
-  addContactShadow(group, shadowTex, 7.2, 6.8, 0.42, 0.018);
+  addStaticContactShadow(group, shadowTex, 7.2, 6.8, 0.42, 0.018);
 
   const stoneMat = palette.standard(STORYBOOK_PALETTE.limestone, 0.88, 0.02);
   const darkStoneMat = palette.standard(STORYBOOK_PALETTE.fieldstoneDark, 0.9, 0.02);
@@ -1482,7 +1487,7 @@ export function buildStorybookGreenhouse(ctx: BuildingBuildContext): THREE.Group
 
   const rainBarrel = new THREE.Group();
   rainBarrel.position.set(-2.72, 0, -2.85);
-  addContactShadow(rainBarrel, shadowTex, 1.0, 1.0, 0.4, 0.018);
+  addStaticContactShadow(rainBarrel, shadowTex, 1.0, 1.0, 0.4, 0.018);
   const rbBody = new THREE.Mesh(new THREE.CylinderGeometry(0.34, 0.3, 0.78, 12), cedarDarkMat);
   rbBody.position.y = 0.39;
   rbBody.castShadow = true;
@@ -1646,7 +1651,7 @@ export function buildStorybookGreenhouse(ctx: BuildingBuildContext): THREE.Group
   // Water barrel (north-east corner, mirrors the interior station)
   const waterBarrel = new THREE.Group();
   waterBarrel.position.set(2.05, 0, -2.18);
-  addContactShadow(waterBarrel, shadowTex, 1.0, 1.0, 0.42, 0.018);
+  addStaticContactShadow(waterBarrel, shadowTex, 1.0, 1.0, 0.42, 0.018);
   const wbBody = new THREE.Mesh(new THREE.CylinderGeometry(0.34, 0.3, 0.78, 12), cedarDarkMat);
   wbBody.position.y = 0.39;
   wbBody.castShadow = true;
@@ -1725,7 +1730,7 @@ export function buildStorybookGreenhouse(ctx: BuildingBuildContext): THREE.Group
   // Staging shelf against the south dwarf wall: seed trays, pots, copper can
   const staging = new THREE.Group();
   staging.position.set(1.0, 0, 3.05);
-  addContactShadow(staging, shadowTex, 2.0, 0.9, 0.4, 0.018);
+  addStaticContactShadow(staging, shadowTex, 2.0, 0.9, 0.4, 0.018);
   const stagingWood: THREE.BufferGeometry[] = [
     boxAt(1.7, 0.07, 0.5, 0, 0.78, 0),
     boxAt(0.08, 0.74, 0.08, -0.75, 0.39, -0.18),
@@ -1759,7 +1764,7 @@ export function buildStorybookGreenhouse(ctx: BuildingBuildContext): THREE.Group
   // not a stray cardboard box)
   const coldFrame = new THREE.Group();
   coldFrame.position.set(3.02, 0, 0.4);
-  addContactShadow(coldFrame, shadowTex, 1.0, 1.8, 0.38, 0.018);
+  addStaticContactShadow(coldFrame, shadowTex, 1.0, 1.8, 0.38, 0.018);
   const cfBase = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.24, 1.3), cedarDarkMat);
   cfBase.position.y = 0.12;
   cfBase.castShadow = true;
@@ -1803,7 +1808,7 @@ export function buildStorybookGreenhouse(ctx: BuildingBuildContext): THREE.Group
   // Tool rack against the north dwarf wall (rake + hoe + hanging copper can)
   const rack = new THREE.Group();
   rack.position.set(2.2, 0, -2.82);
-  addContactShadow(rack, shadowTex, 1.1, 0.7, 0.4, 0.018);
+  addStaticContactShadow(rack, shadowTex, 1.1, 0.7, 0.4, 0.018);
   const rackBoard = new THREE.Mesh(new THREE.BoxGeometry(0.9, 1.05, 0.06), cedarDarkMat);
   rackBoard.position.y = 0.62;
   rackBoard.castShadow = true;

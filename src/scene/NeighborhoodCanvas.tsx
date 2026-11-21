@@ -118,6 +118,7 @@ import {
   buildMirrorPondAndBridge,
   buildPerimeterBorder,
 } from './builders/vegetation';
+import { flushStaticContactShadows, staticContactShadows } from './contactShadows';
 import { buildMeadowDressing } from './builders/botanicalDressing';
 import { buildWildHollows } from './builders/wilds';
 import { buildFernHollowOrchard } from './builders/orchard';
@@ -833,21 +834,27 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
     // Willow Step Cottage Interior Cutaway Diorama (toggles cleanly via interiorRoot)
     const cottageInteriorRig = buildWillowCottageInterior(palette, shadowTex);
     interiorRoot.add(cottageInteriorRig.group);
+    // BUILD 02: each interior rig is a contact-shadow batch boundary — its
+    // static discs batch INSIDE the group so visibility follows the room.
+    cottageInteriorRig.group.userData.contactBatchRoot = true;
 
     // Sunbeam Greenhouse Interior Cutaway Diorama (M3 Build 6 — same cutaway contract)
     const greenhouseInteriorRig = buildSunbeamGreenhouseInterior(palette, shadowTex, { isSoftwareGl });
     greenhouseInteriorRig.group.visible = false;
     interiorRoot.add(greenhouseInteriorRig.group);
+    greenhouseInteriorRig.group.userData.contactBatchRoot = true;
 
     // Hearth & Crumb Bakery Interior Cutaway Diorama (M3 Build 7 — same cutaway contract)
     const bakeryInteriorRig = buildHearthCrumbInterior(palette, shadowTex, { isSoftwareGl });
     bakeryInteriorRig.group.visible = false;
     interiorRoot.add(bakeryInteriorRig.group);
+    bakeryInteriorRig.group.userData.contactBatchRoot = true;
 
     // Linden Book Nook Interior Cutaway Diorama (M3 Build 8 — same cutaway contract)
     const nookInteriorRig = buildLindenBookNookInterior(palette, shadowTex, { isSoftwareGl });
     nookInteriorRig.group.visible = false;
     interiorRoot.add(nookInteriorRig.group);
+    nookInteriorRig.group.userData.contactBatchRoot = true;
 
     // Living Relationships (LR-2): indoor resident rig for hosted Book Nook visits
     const nookOccupantRig = buildStorybookCharacter(
@@ -873,6 +880,7 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
     const copperwheelInteriorRig = buildCopperwheelInterior(palette, shadowTex, { isSoftwareGl });
     copperwheelInteriorRig.group.visible = false;
     interiorRoot.add(copperwheelInteriorRig.group);
+    copperwheelInteriorRig.group.userData.contactBatchRoot = true;
 
     // Exterior Sunbeam Greenhouse doorway on the west glass wall (M3 Build 6).
     // Phase A reconciliation: the leaf now sits IN the west glazing plane
@@ -1180,6 +1188,12 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
 
       carryableRigs[def.id] = { group, shadow, hitProxy };
     }
+
+    // BUILD 02 (Doc 06 §3.4): collapse the ~90 static contact-shadow quads into
+    // per-(subtree, opacity) InstancedMesh buckets — visual output identical,
+    // draw calls drop by the largest un-instanced category. Must run AFTER all
+    // placement above (world matrices are read here, once, at build time).
+    flushStaticContactShadows(scene);
 
     // Input Tracking (WASD + Arrows + Shift Sprint + A* Tap-to-Walk + Interaction)
     const keysDown = new Set<string>();
@@ -2571,6 +2585,7 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
       renderer.domElement.removeEventListener('pointerdown', handlePointerDown);
       renderer.domElement.removeEventListener('wheel', handleWheel);
       envController.dispose();
+      staticContactShadows.dispose();
       cottageInteriorRig.dispose();
       greenhouseInteriorRig.dispose();
       bakeryInteriorRig.dispose();

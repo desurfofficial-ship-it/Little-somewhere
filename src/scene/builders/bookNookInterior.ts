@@ -3,8 +3,8 @@ import { NOOK_INTERACTABLES, NOOK_SEAT_SPOTS, getFeaturedBookForDay } from '../.
 import { TimePhase, WorldState } from '../../game/types';
 import { getSeasonForDay } from '../../game/time';
 import { MaterialPalette, STORYBOOK_PALETTE } from '../materials';
-import { addContactShadow } from './vegetation';
 import { attachPorchSeasonLife, createPorchSeasonLife } from './porchSeasonLife';
+import { addStaticContactShadow } from '../contactShadows';
 
 /**
  * Linden Book Nook Interior Cutaway Diorama (Milestone 3 Build 8).
@@ -326,7 +326,7 @@ export function buildLindenBookNookInterior(
   // ---------------------------------------------------------------------
   const shelfGroup = new THREE.Group();
   shelfGroup.position.set(-0.68, 0, -2.0);
-  addContactShadow(shelfGroup, shadowTex, 3.6, 0.9, 0.42, 0.018);
+  addStaticContactShadow(shelfGroup, shadowTex, 3.6, 0.9, 0.42, 0.018);
 
   const shelfBody = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(3.5, 1.9, 0.62)), cedarWarmMat);
   shelfBody.position.set(0, 1.0, -0.08);
@@ -377,7 +377,7 @@ export function buildLindenBookNookInterior(
   // ---------------------------------------------------------------------
   const deskGroup = new THREE.Group();
   deskGroup.position.set(0.55, 0, 2.02);
-  addContactShadow(deskGroup, shadowTex, 1.9, 0.9, 0.42, 0.018);
+  addStaticContactShadow(deskGroup, shadowTex, 1.9, 0.9, 0.42, 0.018);
 
   const deskTop = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(1.72, 0.08, 0.62)), cedarWarmMat);
   deskTop.position.y = 0.84;
@@ -433,7 +433,7 @@ export function buildLindenBookNookInterior(
   // ---------------------------------------------------------------------
   const teaGroup = new THREE.Group();
   teaGroup.position.set(-2.06, 0, 0.35);
-  addContactShadow(teaGroup, shadowTex, 0.9, 1.9, 0.4, 0.018);
+  addStaticContactShadow(teaGroup, shadowTex, 0.9, 1.9, 0.4, 0.018);
 
   const teaConsole = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(0.68, 0.08, 1.7)), cedarWarmMat);
   teaConsole.position.y = 0.86;
@@ -497,7 +497,7 @@ export function buildLindenBookNookInterior(
   // ---------------------------------------------------------------------
   const chairGroup = new THREE.Group();
   chairGroup.position.set(-0.9, 0, 1.6);
-  addContactShadow(chairGroup, shadowTex, 1.2, 1.2, 0.42, 0.018);
+  addStaticContactShadow(chairGroup, shadowTex, 1.2, 1.2, 0.42, 0.018);
 
   const cushion = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(0.95, 0.32, 0.95)), linenPlumMat);
   cushion.position.y = 0.36;
@@ -1123,7 +1123,7 @@ export function buildLindenBookNookPorchDressing(
 
   attachPorchSeasonLife(group, porchLife);
 
-  addContactShadow(group, shadowTex, 1.6, 2.0, 0.4, 0.018);
+  addStaticContactShadow(group, shadowTex, 1.6, 2.0, 0.4, 0.018);
 
   group.userData.dispose = () => {
     for (const g of ownedGeos) g.dispose();

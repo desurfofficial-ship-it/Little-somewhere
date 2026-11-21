@@ -3,8 +3,8 @@ import { BAKERY_BOUNDS, BAKERY_INTERACTABLES, getBakeForDay } from '../../game/b
 import { TimePhase, WorldState } from '../../game/types';
 import { getSeasonForDay } from '../../game/time';
 import { MaterialPalette, STORYBOOK_PALETTE } from '../materials';
-import { addContactShadow } from './vegetation';
 import { attachPorchSeasonLife, createPorchSeasonLife } from './porchSeasonLife';
+import { addStaticContactShadow } from '../contactShadows';
 
 /**
  * Hearth & Crumb Bakery Interior Cutaway Diorama (Milestone 3 Build 7).
@@ -362,7 +362,7 @@ export function buildHearthCrumbInterior(
   // ---------------------------------------------------------------------
   const ovenGroup = new THREE.Group();
   ovenGroup.position.set(-1.9, 0, -1.95);
-  addContactShadow(ovenGroup, shadowTex, 2.2, 1.0, 0.42, 0.018);
+  addStaticContactShadow(ovenGroup, shadowTex, 2.2, 1.0, 0.42, 0.018);
 
   const ovenBase = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(1.9, 0.62, 0.82)), darkStoneMat);
   ovenBase.position.y = 0.31;
@@ -422,7 +422,7 @@ export function buildHearthCrumbInterior(
   // ---------------------------------------------------------------------
   const counterGroup = new THREE.Group();
   counterGroup.position.set(-2.55, 0, 0.2);
-  addContactShadow(counterGroup, shadowTex, 1.0, 2.4, 0.4, 0.018);
+  addStaticContactShadow(counterGroup, shadowTex, 1.0, 2.4, 0.4, 0.018);
 
   const counterTop = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(0.72, 0.08, 2.0)), cedarWarmMat);
   counterTop.position.y = 0.92;
@@ -503,7 +503,7 @@ export function buildHearthCrumbInterior(
   // ---------------------------------------------------------------------
   const prepGroup = new THREE.Group();
   prepGroup.position.set(1.7, 0, -1.95);
-  addContactShadow(prepGroup, shadowTex, 1.9, 1.0, 0.42, 0.018);
+  addStaticContactShadow(prepGroup, shadowTex, 1.9, 1.0, 0.42, 0.018);
 
   const prepTop = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(1.7, 0.09, 0.76)), cedarWarmMat);
   prepTop.position.y = 0.86;
@@ -587,7 +587,7 @@ export function buildHearthCrumbInterior(
   // ---------------------------------------------------------------------
   const cafeGroup = new THREE.Group();
   cafeGroup.position.set(1.35, 0, 1.45);
-  addContactShadow(cafeGroup, shadowTex, 1.7, 1.7, 0.4, 0.018);
+  addStaticContactShadow(cafeGroup, shadowTex, 1.7, 1.7, 0.4, 0.018);
 
   const tableTop = new THREE.Mesh(trackGeo(new THREE.CylinderGeometry(0.58, 0.6, 0.07, 14)), cedarWarmMat);
   tableTop.position.y = 0.78;
@@ -1257,7 +1257,7 @@ export function buildHearthCrumbPorchDressing(
 
   attachPorchSeasonLife(group, porchLife);
 
-  addContactShadow(group, shadowTex, 2.0, 1.4, 0.4, 0.018);
+  addStaticContactShadow(group, shadowTex, 2.0, 1.4, 0.4, 0.018);
 
   group.userData.dispose = () => {
     for (const g of ownedGeos) g.dispose();

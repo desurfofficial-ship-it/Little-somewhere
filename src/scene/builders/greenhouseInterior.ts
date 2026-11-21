@@ -8,7 +8,10 @@ import {
 import { GreenhouseCropId, TimePhase, WorldState } from '../../game/types';
 import { getSeasonForDay } from '../../game/time';
 import { MaterialPalette, STORYBOOK_PALETTE } from '../materials';
-import { addContactShadow } from './vegetation';
+import {
+  addContactShadow,
+} from './vegetation';
+import { addStaticContactShadow } from '../contactShadows';
 
 /**
  * Sunbeam Greenhouse Interior Cutaway Diorama (Milestone 3 Build 6).
@@ -373,7 +376,7 @@ export function buildSunbeamGreenhouseInterior(
   // ---------------------------------------------------------------------
   const pottingGroup = new THREE.Group();
   pottingGroup.position.set(-1.9, 0, -2.15);
-  addContactShadow(pottingGroup, shadowTex, 2.15, 1.0, 0.42, 0.018);
+  addStaticContactShadow(pottingGroup, shadowTex, 2.15, 1.0, 0.42, 0.018);
 
   const benchTop = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(1.85, 0.09, 0.78)), cedarWarmMat);
   benchTop.position.y = 0.86;
@@ -441,7 +444,7 @@ export function buildSunbeamGreenhouseInterior(
   // ---------------------------------------------------------------------
   const shelfGroup = new THREE.Group();
   shelfGroup.position.set(2.62, 0, 0.05);
-  addContactShadow(shelfGroup, shadowTex, 1.0, 2.7, 0.4, 0.018);
+  addStaticContactShadow(shelfGroup, shadowTex, 1.0, 2.7, 0.4, 0.018);
 
   const shelfLong = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(0.68, 0.07, 2.5)), cedarWarmMat);
   shelfLong.position.y = 0.92;
@@ -604,7 +607,7 @@ export function buildSunbeamGreenhouseInterior(
   // ---------------------------------------------------------------------
   const waterGroup = new THREE.Group();
   waterGroup.position.set(2.05, 0, -2.18);
-  addContactShadow(waterGroup, shadowTex, 1.1, 1.0, 0.42, 0.018);
+  addStaticContactShadow(waterGroup, shadowTex, 1.1, 1.0, 0.42, 0.018);
 
   const barrel = new THREE.Mesh(trackGeo(new THREE.CylinderGeometry(0.34, 0.3, 0.78, 12)), cedarDarkMat);
   barrel.position.y = 0.39;
@@ -648,7 +651,7 @@ export function buildSunbeamGreenhouseInterior(
   // ---------------------------------------------------------------------
   const tableGroup = new THREE.Group();
   tableGroup.position.set(0.1, 0, 2.12);
-  addContactShadow(tableGroup, shadowTex, 2.1, 0.9, 0.42, 0.018);
+  addStaticContactShadow(tableGroup, shadowTex, 2.1, 0.9, 0.42, 0.018);
 
   const tableTop = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(1.95, 0.08, 0.82)), cedarWarmMat);
   tableTop.position.y = 0.8;
@@ -1156,7 +1159,7 @@ export function buildSunbeamGreenhouseDoorway(
     group.add(start);
   }
 
-  addContactShadow(group, shadowTex, 2.4, 1.6, 0.4, 0.018);
+  addStaticContactShadow(group, shadowTex, 2.4, 1.6, 0.4, 0.018);
 
   group.userData.dispose = () => {
     for (const g of ownedGeos) g.dispose();
