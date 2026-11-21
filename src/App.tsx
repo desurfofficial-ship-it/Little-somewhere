@@ -1315,7 +1315,7 @@ export default function App() {
                 <span className="hidden sm:inline">Journal</span>
               </button>
 
-              <div className="flex items-center gap-1 bg-linen/95 border border-stone-line rounded-xl p-0.5 shadow-sm">
+              <div className="hidden sm:flex items-center gap-1 bg-linen/95 border border-stone-line rounded-xl p-0.5 shadow-sm">
                 <button
                   type="button"
                   onClick={() => {

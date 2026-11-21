@@ -142,7 +142,10 @@ shoot() {
 
 meta() {
   local note
-  note=$(python3 -c "import json;m=json.load(open('/tmp/b04_meta.json'));print(json.dumps(m.get('$1',('1.0',''))))")
+  # Frame-triples inherit their parent scenario's zoom/note (review fix #4).
+  local parent_name=$1
+  case "$1" in *_f2|*_f3) parent_name="${1%_f2}"; parent_name="${parent_name%_f3}";; esac
+  note=$(python3 -c "import json;m=json.load(open('/tmp/b04_meta.json'));print(json.dumps(m.get('$parent_name',('1.0',''))))")
   if ! grep -q "\"shot\":\"$1\",\"viewport\":\"$2\"" "$OUT_DIR/metadata.jsonl" 2>/dev/null; then
     printf '{"shot":"%s","viewport":"%s","meta":%s}\n' "$1" "$2" "$note" >> "$OUT_DIR/metadata.jsonl"
   fi
@@ -154,7 +157,14 @@ ui_click() {
 
 run_scenario() { # name viewport zoom[0|0.72] frames[N] uiAction[title|none]
   local name=$1 vp=$2 zoom=$3 frames=${4:-1} ui=${5:-none}
-  if [ -s "$OUT_DIR/${name}_${vp}.png" ]; then return 0; fi
+  # Review fix #5: resumable skip only when base AND every expected frame exist.
+  local complete=1
+  for f in $(seq 1 "$frames"); do
+    local fname=$name
+    [ "$f" -gt 1 ] && fname="${name}_f$f"
+    [ ! -s "$OUT_DIR/${fname}_${vp}.png" ] && complete=0
+  done
+  [ "$complete" = "1" ] && return 0
   agent-browser close > /dev/null 2>&1 || true
   pkill -f "agent-browser" 2>/dev/null || true
   sleep 1

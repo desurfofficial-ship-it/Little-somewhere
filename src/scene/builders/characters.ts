@@ -687,10 +687,13 @@ export function buildStorybookCharacter(
     }
     torsoPivot.add(strapButtons);
     // Pass 20: a patched knee on the trousers — the youngest resident plays hard.
+    // BUILD 04 review fix: the pre-bent pant (vertex arc, +0.026 max at the cuff)
+    // pushed the trouser surface outward, so the patch rides forward with it to
+    // stay visibly proud of the cloth instead of sinking into the mesh.
     const kneePatch = new THREE.Mesh(new THREE.CylinderGeometry(0.052, 0.052, 0.016, 7), accentMat);
     kneePatch.name = 'knee_patch';
     kneePatch.rotation.x = Math.PI / 2 - 0.2;
-    kneePatch.position.set(0, -0.17, 0.09);
+    kneePatch.position.set(0, -0.17, 0.11);
     rightLeg.add(kneePatch);
   } else {
     for (let b = 0; b < 3; b++) {

@@ -1,5 +1,3 @@
-import type { SeasonType } from '../game/types';
-
 /**
  * BUILD 04 bespoke icon family (Doc 03 §9.2 / Doc 08 §7.2): a small, consistent
  * SVG set in the storybook voice — 24-viewBox, 1.8 stroke, round caps and
