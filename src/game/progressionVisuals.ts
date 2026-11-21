@@ -207,8 +207,10 @@ const R = {
   dayOfSeason: 15925248, // ×10
   tokens: 159252480, // ×59049 (3^10 per-resident states)
   echoes: 9404303761920, // ×32 (5 reward residents)
+  season: 300937720614400, // ×4 — season identity (spring day 1 vs summer day 1
+                           // share dayOfSeason 1 but must never share a revision)
 } as const;
-const REVISION_MAX = R.echoes * 32; // ≈ 3.0e14 < 2^53 — safe Number arithmetic.
+const REVISION_MAX = R.season * 4; // ≈ 1.2e15 < 2^53 — safe Number arithmetic.
 
 /**
  * 5.3 drift targets — authored once, cited in the design lock §3.3 (review C1).
@@ -403,9 +405,18 @@ export function composeProgressionVisualState(
     posyStage * R.posyStage +
     (dayOfSeason - 1) * R.dayOfSeason +
     tokenSignature * R.tokens +
-    echoSignature * R.echoes;
+    echoSignature * R.echoes +
+    seasonIdx(season) * R.season;
 
-  return {
+  // BUILD 03 review MEDIUM-3: the revision encapsulates every output bit by
+  // contract, so identical revisions return the SAME frozen state object — the
+  // per-frame callers (environment composer + four interior rigs) allocate zero
+  // shells between edges. The object is frozen; callers only read.
+  if (revision === _lastRevision && _lastState) {
+    return _lastState;
+  }
+
+  const state: ProgressionVisualState = {
     revision,
     storylineProps: {
       zineChalkboard,
@@ -432,8 +443,17 @@ export function composeProgressionVisualState(
     mementoTiers: { bookStackTier, honeyDipper, recipeCardTier },
     housekeeping: { noticeboardGlint },
   };
+  _lastRevision = revision;
+  _lastState = Object.freeze(state);
+  return _lastState;
 }
 
+let _lastRevision = -1;
+let _lastState: ProgressionVisualState | null = null;
+
+function seasonIdx(s: SeasonType): number {
+  return s === 'summer' ? 1 : s === 'autumn' ? 2 : s === 'winter' ? 3 : 0;
+}
 function clampZineCode(v: ZineTheme | null): number {
   return v === 'art_edition' ? 1 : v === 'kitchen_edition' ? 2 : 3;
 }

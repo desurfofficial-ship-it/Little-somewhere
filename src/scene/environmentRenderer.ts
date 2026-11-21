@@ -115,7 +115,6 @@ export interface EnvironmentRendererDeps {
 export class EnvironmentVisualController {
   private lastStaticRevision = -1;
   private lastProgressionRevision = -1;
-  private lastLateWindowStep = -1;
   private lastMailboxUnread: boolean | null = null;
   private lastSeason: SeasonType | null = null;
   private lastGreenhouseStage = -1;
@@ -393,7 +392,6 @@ export class EnvironmentVisualController {
           ? 0.45
           : 0.22;
       const lateStep = composed.timeOfDay.cozyLateNightHint ? 0.2 : 0;
-      this.lastLateWindowStep = lateStep;
       const glow = baseGlow + lateStep;
       for (let i = 0; i < windowMaterials.length; i++) {
         windowMaterials[i].emissiveIntensity = glow;
@@ -754,6 +752,7 @@ export class EnvironmentVisualController {
    * glint can move to the newest visible flyer without touching the cache.
    */
   private glintPinsEnsured = false;
+  private glintPinClones: THREE.MeshStandardMaterial[] = [];
   private applyNoticeboardGlint(flyers: THREE.Mesh[], glint: boolean): void {
     if (!this.glintPinsEnsured) {
       this.glintPinsEnsured = true;
@@ -764,6 +763,7 @@ export class EnvironmentVisualController {
           clone.emissive = new THREE.Color('#F2C26B');
           clone.emissiveIntensity = 0;
           pin.material = clone;
+          this.glintPinClones.push(clone);
         }
       }
     }
@@ -829,6 +829,10 @@ export class EnvironmentVisualController {
   }
 
   dispose(): void {
+    // BUILD 03 review LOW-8: the per-pin glint clones are the one renderer-owned
+    // material set outside the palette cache — dispose them explicitly.
+    for (const clone of this.glintPinClones) clone.dispose();
+    this.glintPinClones.length = 0;
     this.rainMesh.geometry.dispose();
     (this.rainMesh.material as THREE.Material).dispose();
     this.petalMesh.geometry.dispose();

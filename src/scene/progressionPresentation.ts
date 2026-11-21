@@ -98,7 +98,11 @@ function cylinderAt(
 export function buildProgressionPresentation(
   deps: ProgressionPresentationDeps,
 ): ProgressionPresentationRigs {
-  const { palette, shadowTex, isSoftwareGl } = deps;
+  // Review LOW-7: isSoftwareGl is accepted for contract parity with the other
+  // rig builders but intentionally unused — every group here is a small plain
+  // mesh with palette-shared materials (no instancing budgets to scale), and the
+  // contact discs ride the existing batch system. Nothing to branch.
+  const { palette, shadowTex } = deps;
   const group = new THREE.Group();
   group.name = 'progression_presentation';
   const ownedGeos: THREE.BufferGeometry[] = [];
@@ -380,7 +384,9 @@ export function buildProgressionPresentation(
     sconceFlameA = flameMesh;
     sconceFlameB = flameMesh;
     sconceGroup.position.set(2.22, 0, 17.3); // south of the pond_water obstacle box
-    // (maxZ 16.65 + actor radius) — flanking the shore approach on the bank
+    // (maxZ 16.65 + actor radius) — flanking the shore approach on the bank (the
+    // pierGroup-local framing in earlier comments was superseded by this world-space
+    // walkability-verified spot)
     sconceGroup.userData.contactBatchRoot = true;
     addStaticContactShadow(sconceGroup, shadowTex, 1.7, 0.5, 0.4, 0.018);
     group.add(sconceGroup);

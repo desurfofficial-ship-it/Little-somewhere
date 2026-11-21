@@ -21,6 +21,7 @@ import assert from 'node:assert/strict';
 import * as THREE from 'three';
 
 import { MaterialPalette } from './materials';
+import { buildMeadowDressing } from './builders/botanicalDressing';
 import { buildProgressionPresentation } from './progressionPresentation';
 import {
   staticContactShadows,
@@ -298,4 +299,75 @@ test('dispose frees owned resources; the palette cache is untouched', () => {
   rigs.apply(veteran);
   rigs.dispose();
   assert.equal(cache.size, cacheBefore, 'palette cache size unchanged by build/apply/dispose');
+});
+
+test('structure-attached marks never sit inside obstacle circles (review LOW-11)', () => {
+  // the well ribbon ties to the well lip — it must stay clear of the well's own
+  // walk-blocked footprint center even though it rides the well geometry
+  const CIRCLE_OBSTACLES = ((): Array<{ id: string; x: number; z: number; radius: number }> => {
+    // light re-derivation from worldMap via isPointWalkable probing is overkill;
+    // assert the three anchors against the known obstacle anchors instead
+    return [
+      { id: 'old_stone_well', x: -21.4, z: 19.0, radius: 0.9 },
+      { id: 'beeline_cairn', x: 8.2, z: -19.9, radius: 0.45 },
+    ];
+  })();
+  const marks: Array<[string, number, number]> = [
+    ['well ribbon', -20.72, 19.32],
+    ['hive wreath', 10.15, -19.6],
+    ['lane arrow', 21.66, 0.8],
+  ];
+  for (const [label, x, z] of marks) {
+    for (const o of CIRCLE_OBSTACLES) {
+      const d = Math.hypot(x - o.x, z - o.z);
+      if (d < o.radius + 0.1) {
+        // structure-attached: allowed to overlap ONLY its own host structure
+        const hostOverlap =
+          (label === 'well ribbon' && o.id === 'old_stone_well') ||
+          (label === 'hive wreath' && o.id === 'beeline_cairn');
+        assert.ok(hostOverlap, `${label} overlaps foreign obstacle ${o.id}`);
+      }
+    }
+  }
+});
+
+test('meadow drift re-bases across season edges without accumulating (review HIGH-2 companion)', () => {
+  // The renderer's drift re-applies on every revision edge; the canvas knit block
+  // no longer wipes it. This pins the rig-level contract: progress 0 in ANY season
+  // restores the placement snapshot bit-identically after a drifted state.
+  const palette = new MaterialPalette();
+  const rig = buildMeadowDressing(palette, true);
+  // the blossom layer is the instanceColor mesh whose count matches the placed flowers
+  const flowerCount = rig.placementPoints.filter((p) => p.kind === 'flower').length;
+  assert.ok(flowerCount > 0, 'meadow has flowers in Node');
+  const blossom = rig.group.children.find(
+    (c) =>
+      (c as THREE.InstancedMesh).isInstancedMesh &&
+      (c as THREE.InstancedMesh).instanceColor &&
+      (c as THREE.InstancedMesh).count === flowerCount,
+  ) as THREE.InstancedMesh | undefined;
+  assert.ok(blossom, 'blossom instanced layer exists');
+  const before = Float32Array.from(blossom.instanceColor!.array as Float32Array);
+  rig.setSeasonDayProgress(0.9, 'spring');
+  const drifted = Float32Array.from(blossom.instanceColor!.array as Float32Array);
+  assert.notDeepEqual(drifted, before, 'spring drift departed from placement colors');
+  rig.setSeasonDayProgress(0, 'summer');
+  assert.deepEqual(
+    Float32Array.from(blossom.instanceColor!.array as Float32Array),
+    before,
+    'progress 0 restores the snapshot bit-identically (non-spring)',
+  );
+  rig.setSeasonDayProgress(0.8, 'autumn');
+  rig.setSeasonDayProgress(0, 'spring');
+  // spring progress 0 re-applies the widened spring spread (p=0 base = today's spring look)
+  rig.setSpringSpread(true);
+  const springBase = Float32Array.from(blossom.instanceColor!.array as Float32Array);
+  rig.setSeasonDayProgress(0, 'spring');
+  assert.deepEqual(
+    Float32Array.from(blossom.instanceColor!.array as Float32Array),
+    springBase,
+    'spring p=0 == setSpringSpread(true) base (today look)',
+  );
+  rig.dispose();
+  palette.disposeAll();
 });

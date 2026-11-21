@@ -2206,9 +2206,12 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
           applyCharacterWinterTint(residentRigs[rid], world.season);
         }
         // BUILD 02 seasonal surfaces (edge-triggered, zero per-frame cost):
-        // meadow wildflowers widen ±1 hue stop in spring (Doc 05 §5.3) and the
-        // benches grow their wool winter cushions (Doc 05 §3.2).
-        meadowDressing.setSpringSpread(world.season === 'spring');
+        // benches grow their wool winter cushions in winter (Doc 05 §3.2).
+        // BUILD 03 review HIGH-2: the meadow retint here was REMOVED — it ran on
+        // tick 1 (lastKnitSeason boot edge) and wiped the within-season drift that
+        // Frame 0's static block had applied, with no revision change to heal it.
+        // meadowDressing.setSeasonDayProgress re-bases (and handles the spring
+        // spread ±1 hue stop) on EVERY revision edge inside the renderer.
         for (const cushions of benchCushionGroups) {
           cushions.visible = world.season === 'winter';
         }
@@ -2681,6 +2684,7 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
         delete window.__LS_PERF__;
         delete window.__LS_SCENE_STATS__;
       }
+      delete window.__LS_DRIFT_PROBE__;
       cancelAnimationFrame(frameId);
       clearTimeout(frameId);
       resizeObs.disconnect();
