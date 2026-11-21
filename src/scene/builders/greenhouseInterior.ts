@@ -73,21 +73,21 @@ export function buildSunbeamGreenhouseInterior(
   };
 
   // Shared calibrated storybook materials (registry-cached, zero warnings)
-  const darkStoneMat = palette.standard(STORYBOOK_PALETTE.fieldstoneDark, 0.9, 0.02);
-  const limestoneMat = palette.standard(STORYBOOK_PALETTE.limestone, 0.88, 0.02);
-  const creamMat = palette.standard(STORYBOOK_PALETTE.creamTrim, 0.78, 0.02);
-  const cedarDarkMat = palette.standard(STORYBOOK_PALETTE.cedarDark, 0.74, 0.04);
-  const cedarWarmMat = palette.standard(STORYBOOK_PALETTE.cedarWarm, 0.72, 0.04);
-  const doorMat = palette.standard(STORYBOOK_PALETTE.doorCedar, 0.7, 0.04);
-  const sageMat = palette.standard(STORYBOOK_PALETTE.sageShutter, 0.72, 0.02);
+  const darkStoneMat = palette.standard(STORYBOOK_PALETTE.fieldstoneDark, 0.9, 0.02, { mapSet: 'stone' });
+  const limestoneMat = palette.standard(STORYBOOK_PALETTE.limestone, 0.88, 0.02, { mapSet: 'stone' });
+  const creamMat = palette.standard(STORYBOOK_PALETTE.creamTrim, 0.78, 0.02, { mapSet: 'timber-light' });
+  const cedarDarkMat = palette.standard(STORYBOOK_PALETTE.cedarDark, 0.74, 0.04, { mapSet: 'timber-dark' });
+  const cedarWarmMat = palette.standard(STORYBOOK_PALETTE.cedarWarm, 0.72, 0.04, { mapSet: 'timber-dark' });
+  const doorMat = palette.standard(STORYBOOK_PALETTE.doorCedar, 0.7, 0.04, { mapSet: 'timber-dark' });
+  const sageMat = palette.standard(STORYBOOK_PALETTE.sageShutter, 0.72, 0.02, { mapSet: 'timber-dark' });
   const terracottaMat = palette.standard(STORYBOOK_PALETTE.terracottaPot, 0.58, 0.04);
   const ceramicMat = palette.standard(STORYBOOK_PALETTE.ceramicCream, 0.4, 0.04);
   const brassMat = palette.standard(STORYBOOK_PALETTE.agedBrass, 0.25, 0.86);
   const ironMat = palette.standard(STORYBOOK_PALETTE.wroughtIron, 0.45, 0.65);
   const copperMat = palette.standard('#C56B45', 0.28, 0.78);
-  const foliageMat = palette.standard(STORYBOOK_PALETTE.foliageMid, 0.8, 0.0);
-  const foliageDeepMat = palette.standard(STORYBOOK_PALETTE.foliageDeep, 0.82, 0.0);
-  const foliageSunMat = palette.standard(STORYBOOK_PALETTE.foliageSun, 0.78, 0.0);
+  const foliageMat = palette.standard(STORYBOOK_PALETTE.foliageMid, 0.8, 0.0, { mapSet: 'foliage' });
+  const foliageDeepMat = palette.standard(STORYBOOK_PALETTE.foliageDeep, 0.82, 0.0, { mapSet: 'foliage' });
+  const foliageSunMat = palette.standard(STORYBOOK_PALETTE.foliageSun, 0.78, 0.0, { mapSet: 'foliage' });
   const petalCreamMat = palette.standard(STORYBOOK_PALETTE.petalCream, 0.66, 0.0);
   const petalLavenderMat = palette.standard(STORYBOOK_PALETTE.petalLavender, 0.66, 0.0);
   const mossMat = palette.standard(STORYBOOK_PALETTE.moss, 0.84, 0.0);

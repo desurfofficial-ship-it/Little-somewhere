@@ -8,6 +8,7 @@ import {
   addContactShadow,
 } from './vegetation';
 import { addStaticContactShadow } from '../contactShadows';
+import { buildCopperKettle } from './interiorKit';
 
 /**
  * Round-4 Pass 13 helpers: allocation-free memory lookups for the rig's per-frame
@@ -457,14 +458,15 @@ export function buildWillowCottageInterior(
   const counterTop = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(0.78, 0.08, 0.88)), creamMat);
   counterTop.position.set(1.08, 0.88, 0.02);
 
-  // Copper kettle on trivet + 3 pooled rising steam puffs
-  const kettleBody = new THREE.Mesh(trackGeo(new THREE.SphereGeometry(0.17, 12, 10)), copperMat);
-  kettleBody.scale.set(1.0, 0.82, 1.0);
-  kettleBody.position.set(0.06, 0.48, 0.34);
-  const kettleLid = new THREE.Mesh(trackGeo(new THREE.CylinderGeometry(0.06, 0.09, 0.05, 10)), brassMat);
-  kettleLid.position.set(0.06, 0.62, 0.34);
-  const kettleHandle = new THREE.Mesh(trackGeo(new THREE.TorusGeometry(0.14, 0.018, 6, 12, Math.PI)), ironMat);
-  kettleHandle.position.set(0.06, 0.58, 0.34);
+  // Copper kettle on trivet + 3 pooled rising steam puffs.
+  // BUILD 02 (Doc 05 §4.2.3): the hearth kettle joins the shared interior kit
+  // (hearth-sphere style) and its lid graduates to the lathe-crowned crown.
+  const kettle = buildCopperKettle(palette, trackGeo, {
+    style: 'hearth-sphere',
+    bodyMat: copperMat,
+    trimMat: brassMat,
+  });
+  kettle.group.position.set(0.06, 0.48, 0.34);
   hearthGroup.add(
     hearthSlab,
     chimneyBase,
@@ -474,9 +476,7 @@ export function buildWillowCottageInterior(
     embers,
     counterBody,
     counterTop,
-    kettleBody,
-    kettleLid,
-    kettleHandle,
+    kettle.group,
   );
 
   const kettleSteamPuffs: THREE.Mesh[] = [];
@@ -737,10 +737,15 @@ export function buildWillowCottageInterior(
   quilt.position.set(0.24, 0.49, 0);
   const quiltStripe = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(0.36, 0.21, 1.45)), sageMat);
   quiltStripe.position.set(-0.08, 0.495, 0);
-  const pillowA = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(0.36, 0.14, 0.56)), linenMat);
+  // BUILD 02 (Doc 05 §4.2.2): pillows become squashed-sphere forms with tucked
+  // corners (superellipsoid read) — same footprint as the old slabs, cloth
+  // softness at zero runtime cost.
+  const pillowGeo = trackGeo(new THREE.SphereGeometry(0.28, 10, 8));
+  pillowGeo.scale(0.64, 0.25, 1.0);
+  const pillowA = new THREE.Mesh(pillowGeo, linenMat);
   pillowA.position.set(-0.54, 0.6, -0.34);
   pillowA.rotation.z = -0.12;
-  const pillowB = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(0.36, 0.14, 0.56)), linenMat);
+  const pillowB = new THREE.Mesh(pillowGeo, linenMat);
   pillowB.position.set(-0.54, 0.6, 0.34);
   pillowB.rotation.z = -0.12;
   bedGroup.add(bedFrame, headboard, mattress, quilt, quiltStripe, pillowA, pillowB);
