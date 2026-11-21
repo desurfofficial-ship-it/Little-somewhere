@@ -194,6 +194,27 @@ export function completeSharedActivity(
     return { ok: false, world, reason: 'occupant_not_present' };
   }
 
+  // D-04/H-1 completion re-check (build10-lr-recovery doc 05 §4): the enter
+  // reducer owns schedule drift at entry (doc 21 §1.4 Decision A); completion
+  // owns the one remaining unowned window — a host pulled away mid-visit. In
+  // normal play the occupant skip in stepSimulationInPlace keeps the seated
+  // host out of encounter candidacy, so this can only trigger for corrupted or
+  // hand-edited saves that restore occupancy while the host is in an exterior
+  // encounter. The refusal is player-visible, grants nothing, and leaves the
+  // accepted invite + occupancy untouched for the window-end tick expiry (or a
+  // manual exit) to clean up. Static-schedule drift is deliberately NOT
+  // re-checked here: a morning enter (window [540, 719]) may legitimately
+  // complete after the 690 phase boundary with the host visibly seated as the
+  // occupant — refusal there would contradict the on-screen state.
+  if ((world.activeEncounters ?? []).some((enc) => enc.participants.includes(def.hostId))) {
+    return {
+      ok: false,
+      world,
+      reason: 'host_unavailable',
+      toast: `${RESIDENTS[def.hostId].name} had to step out — the shared reading can't finish right now.`,
+    };
+  }
+
   // Idempotency guard (LR2-07 & LR2-07b): pre-seeded or already-unlocked memory blocks writes.
   if (world.memories.some((m) => m.id === def.memoryId)) {
     return { ok: false, world, reason: 'already_completed' };
