@@ -1889,6 +1889,9 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
         }
 
         _npcAnimOpts.emotion = rt.emotion;
+        // Build 01 (Doc 04 §5.2): the sim's emotion intensity (0.55–0.85) now
+        // reaches the rig — face + emotion-pose amplitudes scale, feelings arrive.
+        _npcAnimOpts.emotionIntensity = rt.emotionIntensity;
         _npcAnimOpts.lookYaw = lookYaw;
         _npcAnimOpts.lookPitch = 0;
         // Pass 25: residents get the player's motion feel (bank/lean/squash)
