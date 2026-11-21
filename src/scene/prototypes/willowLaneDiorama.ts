@@ -1344,11 +1344,23 @@ export function buildStorybookJun(
   const makeLeg = (xPos: number) => {
     const legPivot = new THREE.Group();
     legPivot.position.set(xPos, 0.42, 0);
-    const pant = new THREE.Mesh(new THREE.CylinderGeometry(0.105, 0.095, 0.22, 8), trousersMat);
+    // BUILD 04 pre-bent knee (Doc 04 §8.2.3): same baked forward arc as the
+    // shared builder — Jun's stride matches the cast's gait language.
+    const pantGeo = new THREE.CylinderGeometry(0.105, 0.095, 0.22, 8);
+    const pantPos = pantGeo.attributes.position as THREE.BufferAttribute;
+    for (let vi = 0; vi < pantPos.count; vi++) {
+      const y = pantPos.getY(vi);
+      if (y < 0) {
+        const t = Math.min(1, -y / 0.11);
+        pantPos.setZ(vi, pantPos.getZ(vi) + 0.026 * Math.pow(t, 1.6));
+      }
+    }
+    pantGeo.computeVertexNormals();
+    const pant = new THREE.Mesh(pantGeo, trousersMat);
     pant.position.y = -0.11;
     pant.castShadow = true;
     const boot = new THREE.Mesh(new THREE.CapsuleGeometry(0.095, 0.1, 4, 8), bootMat);
-    boot.position.set(0, -0.28, 0.03);
+    boot.position.set(0, -0.28, 0.058); // rides the baked knee bend (+0.028)
     boot.castShadow = true;
     legPivot.add(pant, boot);
     return legPivot;
@@ -1421,8 +1433,15 @@ export function buildStorybookJun(
     cuff.rotation.z = side * 0.18;
     const hand = new THREE.Group();
     hand.name = 'hand';
-    hand.position.set(side * 0.09, -0.39, 0.02);
+    // BUILD 04 two-segment arms (Doc 04 §8.2.2): Jun gains the same clamped
+    // elbow pivot as the shared builder (world-space hand position unchanged).
+    const elbow = new THREE.Group();
+    elbow.position.set(side * 0.055, -0.305, 0.008);
+    hand.position.set(side * 0.035, -0.085, 0.012);
     // Same two-lobe merged mitten as the shared builder (draw-call neutral).
+    // BUILD 04: + skin wrist bridge so the bent elbow never shows a gap.
+    const wristGeo = new THREE.CapsuleGeometry(0.05, 0.055, 4, 6);
+    wristGeo.translate(side * -0.018, 0.042, -0.006);
     const palmGeo = new THREE.SphereGeometry(0.078, 8, 7);
     palmGeo.scale(1.15, 0.8, 1.25);
     const knuckleGeo = new THREE.SphereGeometry(0.062, 8, 6);
@@ -1432,14 +1451,15 @@ export function buildStorybookJun(
     thumbGeo.rotateX(0.5);
     thumbGeo.rotateZ(side * 0.35);
     thumbGeo.translate(side * -0.03, -0.012, 0.062);
-    const palm = new THREE.Mesh(mergeGeometries([palmGeo, knuckleGeo, thumbGeo])!, skinMat);
+    const palm = new THREE.Mesh(mergeGeometries([wristGeo, palmGeo, knuckleGeo, thumbGeo])!, skinMat);
     palm.castShadow = true;
     hand.add(palm);
     const handAnchor = new THREE.Group();
     handAnchor.name = 'hand_anchor';
-    handAnchor.position.set(side * 0.09, -0.39, 0.02);
-    armPivot.add(sleeve, cuff, hand, handAnchor);
-    return { armPivot, handAnchor };
+    handAnchor.position.copy(hand.position);
+    armPivot.add(sleeve, cuff, elbow);
+    elbow.add(hand, handAnchor);
+    return { armPivot, elbow, handAnchor };
   };
   const leftArmResult = makeArm(-1);
   const rightArmResult = makeArm(1);
@@ -1614,6 +1634,8 @@ export function buildStorybookJun(
     rightLeg,
     leftArm,
     rightArm,
+    leftElbow: leftArmResult.elbow,
+    rightElbow: rightArmResult.elbow,
     headGroup,
     leftEyelid,
     rightEyelid,

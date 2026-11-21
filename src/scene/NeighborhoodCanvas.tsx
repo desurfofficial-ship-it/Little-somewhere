@@ -2111,6 +2111,10 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
         _npcAnimOpts.squash = 0;
         _npcAnimOpts.carrying = false;
         _npcAnimOpts.isMoving = false;
+        // BUILD 04 fix: reset the intensity too — the scratch options object is
+        // shared with the resident loop above, and a stale value leaked into the
+        // nook occupant's face amplitudes (audit finding, zero-GC scratch rule).
+        _npcAnimOpts.emotionIntensity = 0.75;
         animateCharacterRig(nookOccupantRig, 'sit', 0, elapsed, dt, 1.3, _npcAnimOpts);
 
         const occCue = getResidentAvailableQuestCue(nookOcc.residentId, world);
