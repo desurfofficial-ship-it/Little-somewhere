@@ -84,7 +84,7 @@ export const COPPERWHEEL_INTERACTABLES: readonly CopperwheelInteractable[] = [
   },
   {
     id: 'cw_bench',
-    name: 'Clockmaker\u2019s Workbench',
+    name: 'Clockmaker’s Workbench',
     x: -1.5,
     z: -1.0,
     focusX: -1.6,
@@ -94,7 +94,7 @@ export const COPPERWHEEL_INTERACTABLES: readonly CopperwheelInteractable[] = [
   },
   {
     id: 'cw_bed',
-    name: 'Arthur\u2019s Nightstand',
+    name: 'Arthur’s Nightstand',
     x: 0.85,
     z: -1.85,
     focusX: 2.75,
@@ -146,45 +146,45 @@ export const COPPERWHEEL_PROJECTS: readonly CopperwheelProjectDef[] = [
     id: 'orchard_pendulum',
     label: 'The Orchard Pendulum',
     blurb:
-      'A long-case pendulum clock half-built of crabwood for the Fern Hollow gate \u2014 Rowan asked for something that keeps orchard time, slow as sap.',
+      'A long-case pendulum clock half-built of crabwood for the Fern Hollow gate — Rowan asked for something that keeps orchard time, slow as sap.',
     fineWork: 'holding the crabwood case steady while the last pendulum link is trued',
     memoryId: 'mem_cw_project_pendulum',
     memoryTitle: 'The Orchard Pendulum',
     memorySummary:
-      'Watched Arthur true the pendulum of a crabwood clock for Fern Hollow\u2019s gate \u2014 orchard time, he called it, slow as sap and twice as sweet.',
+      'Watched Arthur true the pendulum of a crabwood clock for Fern Hollow’s gate — orchard time, he called it, slow as sap and twice as sweet.',
   },
   {
     id: 'music_box_comb',
     label: 'A Music Box Comb',
     blurb:
-      'The brass comb of a beeswax-rubbed cedar music box lies under the loupe \u2014 Barnaby sent it over after one of its teeth went quiet mid-lullaby.',
+      'The brass comb of a beeswax-rubbed cedar music box lies under the loupe — Barnaby sent it over after one of its teeth went quiet mid-lullaby.',
     fineWork: 'damping the bench while each comb tooth is coaxed back into tune',
     memoryId: 'mem_cw_project_comb',
     memoryTitle: 'A Music Box Comb',
     memorySummary:
-      'Helped damp the bench while Arthur coaxed a cedar music box\u2019s comb back into tune \u2014 one quiet tooth at a time, like teaching a cricket to sing again.',
+      'Helped damp the bench while Arthur coaxed a cedar music box’s comb back into tune — one quiet tooth at a time, like teaching a cricket to sing again.',
   },
   {
     id: 'watch_escapement',
     label: 'The Watch Escapement',
     blurb:
-      'A courier\u2019s pocket watch ticks unevenly under the lamp \u2014 the escapement needs a steadier hand than Jun\u2019s routes allow, so it rests here between deliveries.',
+      'A courier’s pocket watch ticks unevenly under the lamp — the escapement needs a steadier hand than Jun’s routes allow, so it rests here between deliveries.',
     fineWork: 'passing the oil pinion at exactly the right breath of the escapement',
     memoryId: 'mem_cw_project_escapement',
     memoryTitle: 'The Watch Escapement',
     memorySummary:
-      'Watched Arthur calm a courier\u2019s pocket watch with one breath of oil on the escapement \u2014 Jun\u2019s routes will run steady again by morning.',
+      'Watched Arthur calm a courier’s pocket watch with one breath of oil on the escapement — Jun’s routes will run steady again by morning.',
   },
   {
     id: 'bench_rest',
     label: 'Bench Resting',
     blurb:
-      'Today the felt is rolled and the tools sleep in their oiled drawer \u2014 only the regulator\u2019s tick and the kettle\u2019s whisper keep the room company.',
+      'Today the felt is rolled and the tools sleep in their oiled drawer — only the regulator’s tick and the kettle’s whisper keep the room company.',
     fineWork: '',
     memoryId: 'mem_cw_project_rest',
     memoryTitle: 'The Bench at Rest',
     memorySummary:
-      'Found Arthur\u2019s workbench rolled and resting, the regulator ticking alone \u2014 even clocks take their sabbath, and so does the clockmaker.',
+      'Found Arthur’s workbench rolled and resting, the regulator ticking alone — even clocks take their sabbath, and so does the clockmaker.',
   },
 ];
 
@@ -339,21 +339,23 @@ export function computeCopperwheelWaypoints(from: Vec2, to: Vec2, actorRadius = 
 
 /**
  * One deep window armchair (indoor seat; visual mesh lives in the rig at the same spot).
+ *
+ * Seat offset note (Build 9 seating polish): the armchair mesh is rotated ~0.5 rad and
+ * has a tall backrest + arms + footstool. Placing seatPos at the geometric group origin
+ * caused the player avatar to clip into the backrest/arms when posture === 'sitting'.
+ * seatPos is therefore nudged ~0.15 units along the chair's local +Z (room-facing)
+ * so the hip lands on the front half of the cushion. approachPos remains outside the
+ * cw_chair obstacle volume and is validated by isCopperwheelInteriorWalkable.
  */
 export const COPPERWHEEL_SEAT_SPOTS = [
   {
     id: 'cw_seat_armchair',
     label: 'Window Armchair',
-    // Chair mesh lives at (-1.38, 0, 1.55) with rotation.y = 0.5. Local +Z is the open
-    // seat direction (footstool at local +0.6, backrest at local -0.34). seatPos is
-    // nudged forward along that axis so the avatar hip sits on the cushion front half
-    // instead of clipping the backrest/arms. facingAngle MUST match the chair yaw
-    // (0.5) \u2014 the sit pose shifts body in character-local +Z, so a mismatched facing
-    // rotates the avatar sideways into the furniture (previous 1.94 rad bug).
-    seatPos: { x: -1.30, z: 1.70 },
-    approachPos: { x: -0.25, z: 1.50 },
-    facingAngle: 0.5,
-    seatHeight: 0.50,
+    // Forward of chair group origin (-1.38, 1.55) along rotation.y = 0.5 local +Z
+    seatPos: { x: -1.33, z: 1.68 },
+    approachPos: { x: -0.25, z: 1.5 },
+    facingAngle: Math.atan2(1.45 - -1.33, 0.6 - 1.68), // Facing north-east across the room toward the kettle corner
+    seatHeight: 0.48,
     zoneId: 'copperwheel_interior',
     indoor: true,
   },
@@ -395,7 +397,7 @@ export function selectBestCopperwheelTarget(world: WorldState): InteractiveTarge
     );
   }
 
-  // Window armchair seat: offered like the cottage stools and caf\u00e9 chair, weighted
+  // Window armchair seat: offered like the cottage stools and café chair, weighted
   // slightly behind props so aiming at the bench/stove is never stolen by the chair.
   for (const seat of COPPERWHEEL_SEAT_SPOTS) {
     const dist = Math.min(

@@ -6,8 +6,6 @@ import {defineConfig} from 'vite';
 
 export default defineConfig(() => {
   return {
-    // Project site on GitHub Pages: https://desurfofficial-ship-it.github.io/Little-somewhere/
-    base: process.env.GITHUB_PAGES === 'true' ? '/Little-somewhere/' : '/',
     plugins: [
       react(),
       tailwindcss(),
