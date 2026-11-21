@@ -102,6 +102,7 @@ import {
   createMeadowTexture,
   createOrchardSignTexture,
   createRoofShingleTexture,
+  createLanternGlowTexture,
 } from './textures';
 import { MaterialPalette, STORYBOOK_PALETTE } from './materials';
 import {
@@ -119,7 +120,7 @@ import {
   buildPerimeterBorder,
 } from './builders/vegetation';
 import { flushStaticContactShadows, staticContactShadows } from './contactShadows';
-import { buildMeadowDressing } from './builders/botanicalDressing';
+import { buildMeadowDressing, buildStructureDressing } from './builders/botanicalDressing';
 import { buildWildHollows } from './builders/wilds';
 import { buildFernHollowOrchard } from './builders/orchard';
 import { buildOrchardAmbientExtras, buildOrchardMicroLife } from './builders/orchardMicroLife';
@@ -563,6 +564,10 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
     // collision-aware seeded placement)
     const meadowDressing = buildMeadowDressing(palette, isSoftwareGl);
     exteriorRoot.add(meadowDressing.group);
+    // BUILD 02 (Doc 05 §3.2 relational dressing): clover/moss tufts settle the
+    // template cottages into their lawns (2 instanced draw calls).
+    const structureDressing = buildStructureDressing(palette);
+    exteriorRoot.add(structureDressing.group);
 
     // Fern Hollow Orchard — Milestone 3 north district landmark (instanced
     // crabapple trees sharing the grove season-tint materials, gate, ladder,
@@ -730,6 +735,12 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
       emissiveIntensity: 0.22,
       roughness: 0.2,
     });
+    // BUILD 02 (Doc 05 §3.2 P3): the shared lantern glass gains the warm
+    // gradient emissive map — plaza lamps + festoons read as pools of light at
+    // dusk. The dusk intensity schedule in environmentRenderer is untouched.
+    lanternMat.emissiveMap = createLanternGlowTexture(4);
+    lanternMat.needsUpdate = true;
+    palette.registerTexture(lanternMat.emissiveMap);
     const lampStoneMat = palette.standard(STORYBOOK_PALETTE.limestone, 0.88, 0.02);
     const lampIronMat = palette.standard(STORYBOOK_PALETTE.wroughtIron, 0.42, 0.72);
     const festoonGroup = new THREE.Group();
@@ -910,6 +921,8 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
     const copperwheelPorchDressing = buildCopperwheelPorchDressing(palette, shadowTex);
     copperwheelPorchDressing.position.set(13.1, 0, -8.72);
     exteriorRoot.add(copperwheelPorchDressing);
+    // BUILD 02: Copperwheel's porch joins the seasons (Doc 05 §2.2 P1).
+    const copperwheelPorchLife = copperwheelPorchDressing.userData.porchSeasonLife as PorchSeasonLife;
 
     // Tap-to-walk destination indicator ring
     const destRing = new THREE.Mesh(
@@ -1142,6 +1155,7 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
     }
 
     // 12. Handcrafted Cedar Benches at SEAT_SPOTS + raycast proxies
+    const benchCushionGroups: THREE.Group[] = [];
     for (const seat of SEAT_SPOTS) {
       const bench = buildStorybookBench(palette, shadowTex);
       bench.position.set(
@@ -1151,6 +1165,10 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
       );
       bench.rotation.y = seat.facingAngle;
       exteriorRoot.add(bench);
+      // BUILD 02 (Doc 05 §3.2): winter wool cushions ship hidden; the season
+      // edge block reveals them.
+      const cushions = bench.userData.winterCushions as THREE.Group | undefined;
+      if (cushions) benchCushionGroups.push(cushions);
 
       const seatHit = new THREE.Mesh(
         new THREE.CylinderGeometry(0.68, 0.68, 1.0, 8),
@@ -1786,6 +1804,7 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
         // skipped entirely while any interior is on screen.
         applyPorchSeason(bakeryPorchLife, world.season);
         applyPorchSeason(nookPorchLife, world.season);
+        applyPorchSeason(copperwheelPorchLife, world.season);
       }
 
       // Pass 7: soft hearth crackle room-tone — started/stopped on state transitions only,
@@ -2112,6 +2131,13 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
         applyCharacterWinterTint(nookOccupantRig, world.season);
         for (const rid of RESIDENT_ORDER) {
           applyCharacterWinterTint(residentRigs[rid], world.season);
+        }
+        // BUILD 02 seasonal surfaces (edge-triggered, zero per-frame cost):
+        // meadow wildflowers widen ±1 hue stop in spring (Doc 05 §5.3) and the
+        // benches grow their wool winter cushions (Doc 05 §3.2).
+        meadowDressing.setSpringSpread(world.season === 'spring');
+        for (const cushions of benchCushionGroups) {
+          cushions.visible = world.season === 'winter';
         }
       }
 
@@ -2599,6 +2625,7 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
       nookOccupantHitMat.dispose();
       copperwheelInteriorRig.dispose();
       meadowDressing.dispose();
+      structureDressing.dispose();
       orchardRig.dispose();
       orchardMicroLifeRig.dispose();
       orchardAmbientExtrasRig.dispose();

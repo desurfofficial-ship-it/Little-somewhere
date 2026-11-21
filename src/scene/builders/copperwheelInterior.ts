@@ -10,6 +10,7 @@ import {
   addContactShadow,
 } from './vegetation';
 import { addStaticContactShadow } from '../contactShadows';
+import { attachPorchSeasonLife, createPorchSeasonLife, PorchSeasonLife } from './porchSeasonLife';
 
 /**
  * Copperwheel Cottage Interior Cutaway Diorama (Milestone 3 Build 9).
@@ -926,7 +927,7 @@ export const COPPERWHEEL_PROJECT_COUNT = 4;
 export function buildCopperwheelPorchDressing(
   palette: MaterialPalette,
   shadowTex: THREE.Texture,
-): THREE.Group {
+): THREE.Group & { porchSeasonLife?: PorchSeasonLife } {
   const group = new THREE.Group();
   const ownedGeos: THREE.BufferGeometry[] = [];
   const ownedMats: THREE.Material[] = [];
@@ -1006,6 +1007,52 @@ export function buildCopperwheelPorchDressing(
     signLeg.position.set(sx, 0.22, 0.3);
     signLeg.castShadow = true;
     group.add(signLeg);
+  }
+
+  // BUILD 02 (Doc 05 §2.2 P1 + §4.3): Copperwheel's porch joins "Doorways of
+  // the Lane" — the last unseasonal porch gains its four season groups, in the
+  // workshop's own voice (clockwork care, evergreen + frost, herb sills).
+  const porchLife = createPorchSeasonLife('copperwheel');
+  {
+    const terracottaMat = palette.standard(STORYBOOK_PALETTE.terracottaPot, 0.44, 0.04, { envMapIntensity: 0.6 });
+    const leafMat = palette.standard(STORYBOOK_PALETTE.foliageMid, 0.85, 0.0);
+    const evergreenMat = palette.standard(STORYBOOK_PALETTE.foliageDeep, 0.86, 0.0);
+    const frostMat = palette.standard('#DCE9EE', 0.84, 0.0);
+    // Spring: a herb pot with fresh buds beside the step (Arthur mends through
+    // the seasons — the sill herbs come back each spring).
+    const springPot = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.08, 0.16, 8), terracottaMat);
+    springPot.position.set(0.42, 0.08, 0.52);
+    porchLife.spring.add(springPot);
+    for (let b = 0; b < 3; b++) {
+      const bud = new THREE.Mesh(new THREE.DodecahedronGeometry(0.045, 0), leafMat);
+      const ba = (b / 3) * Math.PI * 2;
+      bud.position.set(0.42 + Math.cos(ba) * 0.05, 0.2, 0.52 + Math.sin(ba) * 0.04);
+      porchLife.spring.add(bud);
+    }
+    // Summer: a copper watering cup on the crate lid (mending season keeps
+    // the workshop plants watered).
+    const summerCup = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.045, 0.1, 8), palette.standard('#C9794E', 0.34, 0.72));
+    summerCup.position.set(-0.75, 0.55, 0.42);
+    porchLife.summer.add(summerCup);
+    // Autumn: a leaf drift tucked against the sign leg.
+    for (let l = 0; l < 4; l++) {
+      const leaf = new THREE.Mesh(new THREE.SphereGeometry(0.045, 6, 5), palette.standard('#C98442', 0.85, 0.0));
+      leaf.scale.set(1.2, 0.5, 0.9);
+      leaf.position.set(0.72 + (l - 1.5) * 0.06, 0.03, 0.42 + (l % 2) * 0.08);
+      porchLife.autumn.add(leaf);
+    }
+    // Winter: frost-cloth roll on the crate + evergreen sprig on the sign
+    // (Doc 05 §4.3 winter idiom: flannel/pipe-warmth language outdoors).
+    const frostRoll = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.07, 0.34, 8), frostMat);
+    frostRoll.rotation.z = Math.PI / 2;
+    frostRoll.position.set(-0.75, 0.56, 0.15);
+    porchLife.winter.add(frostRoll);
+    const sprig = new THREE.Mesh(new THREE.ConeGeometry(0.05, 0.14, 5), evergreenMat);
+    sprig.position.set(0.72, 0.62, 0.28);
+    sprig.rotation.x = -0.3;
+    porchLife.winter.add(sprig);
+    attachPorchSeasonLife(group, porchLife);
+    group.userData.porchSeasonLife = porchLife;
   }
 
   addStaticContactShadow(group, shadowTex, 2.2, 1.2, 0.42, 0.018);

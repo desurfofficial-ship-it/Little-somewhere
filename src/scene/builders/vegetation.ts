@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { MaterialPalette, STORYBOOK_PALETTE } from '../materials';
 import { KoiFishRig, MirrorPondRig } from '../models';
 import { createStorybookPondWaterMaterial } from '../waterShaders';
@@ -49,7 +50,10 @@ export function buildGroveTreesInstanced(
   const group = new THREE.Group();
   const treeCount = 46;
 
-  // Tapered flared trunk via LatheGeometry
+  // Tapered flared trunk via LatheGeometry — with a forked bough hint merged
+  // into the same geometry (BUILD 02 Doc 05 §5.2: branch fork without a 4th
+  // instanced mesh). The fork reads differently per tree because each instance
+  // carries its own rotation hash.
   const trunkPoints = [
     new THREE.Vector2(0.0, 0.0),
     new THREE.Vector2(0.36, 0.0),
@@ -59,16 +63,33 @@ export function buildGroveTreesInstanced(
     new THREE.Vector2(0.0, 1.8),
   ];
   const trunkGeo = new THREE.LatheGeometry(trunkPoints, 8);
+  const forkGeo = new THREE.CylinderGeometry(0.055, 0.085, 1.05, 6);
+  forkGeo.translate(0, 0.52, 0);
+  forkGeo.rotateZ(0.62);
+  forkGeo.translate(0.12, 1.52, 0);
+  const trunkWithFork = mergeGeometries([trunkGeo, forkGeo])!;
+  trunkGeo.dispose();
+  forkGeo.dispose();
   const trunkMat = palette.standard(STORYBOOK_PALETTE.oakBark, 0.9, 0.01);
 
-  // Lower main canopy cushion + asymmetrical upper canopy lobe
+  // Lower main canopy cushion + asymmetrical upper canopy lobe. BUILD 02
+  // (Doc 05 §5.2): a THIRD crown lobe merges into the top geometry — per-tree
+  // variation comes from the instance rotation hash, so the grove keeps its
+  // 3 draw calls while the 2-lobe stack read breaks at every angle.
   const crownBaseGeo = new THREE.IcosahedronGeometry(1.08, 1);
   crownBaseGeo.scale(1.18, 0.86, 1.12);
   crownBaseGeo.translate(0, 2.28, 0);
 
-  const crownTopGeo = new THREE.IcosahedronGeometry(0.82, 1);
-  crownTopGeo.scale(1.12, 0.84, 1.04);
-  crownTopGeo.translate(0.24, 2.84, -0.14);
+  const crownTopLobe = new THREE.IcosahedronGeometry(0.82, 1);
+  crownTopLobe.scale(1.12, 0.84, 1.04);
+  crownTopLobe.translate(0.24, 2.84, -0.14);
+  const crownMidLobe = new THREE.IcosahedronGeometry(0.62, 1);
+  crownMidLobe.scale(1.05, 0.9, 1.0);
+  crownMidLobe.rotateY(2.1);
+  crownMidLobe.translate(-0.42, 2.62, 0.28);
+  const crownTopGeo = mergeGeometries([crownTopLobe, crownMidLobe])!;
+  crownTopLobe.dispose();
+  crownMidLobe.dispose();
 
   const crownBaseMat = palette.get('grove_crown_base', {
     color: '#FFFFFF',
@@ -81,7 +102,7 @@ export function buildGroveTreesInstanced(
     metalness: 0.0,
   });
 
-  const trunksInst = new THREE.InstancedMesh(trunkGeo, trunkMat, treeCount);
+  const trunksInst = new THREE.InstancedMesh(trunkWithFork, trunkMat, treeCount);
   const crownsBaseInst = new THREE.InstancedMesh(crownBaseGeo, crownBaseMat, treeCount);
   const crownsTopInst = new THREE.InstancedMesh(crownTopGeo, crownTopMat, treeCount);
 

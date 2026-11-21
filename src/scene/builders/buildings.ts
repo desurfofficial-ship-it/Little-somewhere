@@ -89,6 +89,13 @@ interface StorybookCottageBaseOpts {
     loftVents?: boolean;
     /** Three-part tapered fieldstone chimney stack (Willow pattern). */
     taperedChimney?: boolean;
+    /**
+     * BUILD 02 (Doc 05 §2.2 second-roof-element rule): a small ridge dormer on
+     * the north roof slope — the only slope the core never gives windows, so
+     * the massing break never collides with glazing. Willow-dormer pattern,
+     * scaled down; breaks the shared "gable prism" read.
+     */
+    dormer?: boolean;
   };
 }
 
@@ -129,6 +136,12 @@ function addRecessedWindowWithPlanter(
     box.position.set(0, -0.72, 0.18);
     wg.add(box);
 
+    // BUILD 02 (Doc 05 §2.2): the "5 identical dodecahedra" template fingerprint
+    // becomes the Willow 3-bud tuft language (willowLaneDiorama makeFlowerTuft
+    // pattern): squashed leaf lobe + 3 ringed, height-staggered buds per tuft,
+    // tint-rotated per bud. MERGED per material (1 leaf mesh + one mesh per
+    // petal color) so the upgrade removes template sameness while REDUCING the
+    // per-window mesh count 10 → 5.
     const blooms = new THREE.Group();
     blooms.position.set(0, -0.54, 0.2);
     const leafMat = ctx.palette.standard(STORYBOOK_PALETTE.foliageMid, 0.85, 0.0);
@@ -138,17 +151,38 @@ function addRecessedWindowWithPlanter(
       STORYBOOK_PALETTE.petalLavender,
       STORYBOOK_PALETTE.petalCream,
     ];
+    const leafGeos: THREE.BufferGeometry[] = [];
+    const petalGeos = new Map<string, THREE.BufferGeometry[]>();
     for (let i = -2; i <= 2; i++) {
-      const bush = new THREE.Mesh(new THREE.DodecahedronGeometry(0.13, 0), leafMat);
-      bush.position.set(i * 0.21, 0, 0);
-      blooms.add(bush);
-      const petal = new THREE.Mesh(
-        new THREE.DodecahedronGeometry(0.085, 0),
-        ctx.palette.standard(flowerColors[(i + 2) % flowerColors.length], 0.6, 0.02),
-      );
-      petal.position.set(i * 0.21, 0.1, 0.025);
-      blooms.add(petal);
+      const leaf = new THREE.DodecahedronGeometry(0.115, 0);
+      leaf.scale(1.2, 0.8, 1.0);
+      leaf.translate(i * 0.21, 0, 0);
+      leafGeos.push(leaf);
+      for (let b = 0; b < 3; b++) {
+        const a = (b / 3) * Math.PI * 2 + i * 1.3; // deterministic per-tuft rotation
+        const bud = new THREE.DodecahedronGeometry(0.055, 0);
+        bud.translate(
+          i * 0.21 + Math.cos(a) * 0.062,
+          0.1 + (b % 2) * 0.032,
+          0.03 + Math.sin(a) * 0.05,
+        );
+        const colorHex = flowerColors[(i + b + 2) % flowerColors.length];
+        const arr = petalGeos.get(colorHex);
+        if (arr) arr.push(bud);
+        else petalGeos.set(colorHex, [bud]);
+      }
     }
+    const leaves = new THREE.Mesh(mergeGeometries(leafGeos)!, leafMat);
+    leaves.castShadow = true;
+    blooms.add(leaves);
+    for (const [colorHex, geos] of petalGeos) {
+      const petals = new THREE.Mesh(
+        mergeGeometries(geos)!,
+        ctx.palette.standard(colorHex, 0.6, 0.02),
+      );
+      blooms.add(petals);
+    }
+    for (const g of leafGeos) if (g.dispose) g.dispose();
     ctx.flowerGroups.push(blooms);
     wg.add(blooms);
   }
@@ -391,6 +425,53 @@ function buildStorybookCottageCore(
     }
   }
 
+  // BUILD 02 (Doc 05 §2.2): ridge dormer on the north slope — the second-roof-
+  // element massing break. Willow-dormer recipe scaled down: beveled mini gable
+  // roof + cedar-framed vent face, deterministic x offset so it never reads as
+  // stamp-centered. The north slope never carries core windows, so the dormer
+  // can never collide with glazing.
+  if (opts.craft?.dormer) {
+    const roofBaseY = 0.48 + wallHeight;
+    const dormerW = 1.04;
+    const dormerH = 0.72;
+    const dormerD = 0.86;
+    const dormerX = width * 0.14;
+    const slopeRise = (roofH / (halfW + overhang)) * (halfD * 0.36);
+    const dormerBaseY = roofBaseY + slopeRise * 0.62;
+    const dormerZ = -(halfD + dormerD * 0.22);
+    const dormerBody = new THREE.Mesh(
+      new THREE.BoxGeometry(dormerW, dormerH, dormerD),
+      wallMat,
+    );
+    dormerBody.position.set(dormerX, dormerBaseY + dormerH / 2 - 0.12, dormerZ);
+    dormerBody.castShadow = true;
+    group.add(dormerBody);
+    // Mini beveled gable roof over the dormer
+    const dRoofShape = new THREE.Shape();
+    dRoofShape.moveTo(-dormerW / 2 - 0.14, 0);
+    dRoofShape.lineTo(dormerW / 2 + 0.14, 0);
+    dRoofShape.lineTo(0, 0.42);
+    dRoofShape.closePath();
+    const dRoofGeo = new THREE.ExtrudeGeometry(dRoofShape, {
+      depth: dormerD + 0.22,
+      bevelEnabled: true,
+      bevelThickness: 0.04,
+      bevelSize: 0.04,
+      bevelSegments: 1,
+    });
+    dRoofGeo.translate(0, 0, -(dormerD + 0.22) / 2);
+    const dRoof = new THREE.Mesh(dRoofGeo, roofMat);
+    dRoof.position.set(dormerX, dormerBaseY + dormerH - 0.12, dormerZ);
+    dRoof.castShadow = true;
+    group.add(dRoof);
+    // Louvred dormer face (attic truth-telling, matching the loft vents)
+    const dFrame = new THREE.Mesh(new THREE.BoxGeometry(0.44, 0.4, 0.08), creamTrimMat);
+    dFrame.position.set(dormerX, dormerBaseY + dormerH * 0.42, dormerZ - dormerD / 2 - 0.02);
+    const dDark = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.28, 0.09), darkStoneMat);
+    dDark.position.set(dormerX, dormerBaseY + dormerH * 0.42, dormerZ - dormerD / 2 - 0.03);
+    group.add(dFrame, dDark);
+  }
+
   // 5. Chimney Stack + Terracotta Pot (default box stack, or the Phase B
   //    three-part tapered fieldstone stack)
   const [chX, chZ] = opts.chimneyOffset ?? [-halfW * 0.52, -halfD * 0.36];
@@ -583,7 +664,15 @@ export function buildStorybookBakery(ctx: BuildingBuildContext): THREE.Group {
   wingRoofShape.lineTo(0.58, 0);
   wingRoofShape.lineTo(0, 0.72);
   wingRoofShape.closePath();
-  const wingRoofGeo = new THREE.ExtrudeGeometry(wingRoofShape, { depth: 2.1, bevelEnabled: false });
+  // BUILD 02 bevel sweep (Doc 05 §2.2 P3): the bakehouse wing roof gains its
+  // softened edge — visible trim/roof extrusions carry the bevel program.
+  const wingRoofGeo = new THREE.ExtrudeGeometry(wingRoofShape, {
+    depth: 2.1,
+    bevelEnabled: true,
+    bevelThickness: 0.03,
+    bevelSize: 0.03,
+    bevelSegments: 1,
+  });
   wingRoofGeo.translate(0, 0, -1.05);
   const wingRoof = new THREE.Mesh(wingRoofGeo, wingRoofMat);
   wingRoof.position.y = 2.24;
@@ -926,6 +1015,11 @@ export function buildStorybookArthurWorkshop(ctx: BuildingBuildContext): THREE.G
       roofTex: ctx.slateRoofTex,
       roofCacheKey: 'arthur_slate_roof',
       chimneyOffset: [1.8, -1.1],
+      // BUILD 02 (Doc 05 §2.2 P1 — the last template building): the full craft
+      // set lands here at last — sill band, quoins, bargeboards, loft vents and
+      // the tapered chimney join the clockwork identity, and the workshop oriel
+      // below adds the massing break that ends the "cream box + triangle" read.
+      craft: { sillBand: true, quoins: true, bargeboards: true, loftVents: true, taperedChimney: true },
     },
     ctx,
   );
@@ -1007,6 +1101,60 @@ export function buildStorybookArthurWorkshop(ctx: BuildingBuildContext): THREE.G
   ruler.castShadow = true;
   group.add(ruler);
 
+  // BUILD 02 (Doc 05 §2.2): the brass-and-cedar workshop ORIEL — Copperwheel's
+  // second-roof-element massing break (Doc 09 V3). It cantilevers off the west
+  // wall over the workbench side (the interior's bench zone), at upper-wall
+  // height (y 2.5+), so ground obstacles/footprint parity is untouched. Cedar
+  // framing + brass roof cap + warm glass: hand-made mechanical charm per the
+  // Doc 05 §2.4 doctrine — Arthur could have built this.
+  const cedarFrameMat = palette.standard(STORYBOOK_PALETTE.cedarWarm, 0.72, 0.04, {
+    mapSet: 'timber-dark',
+  });
+  const orielGlassMat = new THREE.MeshStandardMaterial({
+    color: '#E6BE7C',
+    emissive: new THREE.Color('#FF9F38'),
+    emissiveIntensity: 0.22,
+    roughness: 0.16,
+    metalness: 0.08,
+    envMapIntensity: 0.9,
+  });
+  ctx.windowMaterials.push(orielGlassMat);
+  const orielW = 1.5; // along z
+  const orielH = 0.78;
+  const orielProtrusion = 0.52;
+  const orielY = 3.02; // upper wall: wall top is 0.5 + 2.62 = 3.12, eaves at 3.1
+  const orielZ = -0.55; // bench side (northwest interior)
+  const orielX = -(6.2 / 2) - orielProtrusion / 2 + 0.06;
+  const orielBody = new THREE.Mesh(
+    new THREE.BoxGeometry(orielProtrusion, orielH, orielW),
+    cedarFrameMat,
+  );
+  orielBody.position.set(orielX, orielY, orielZ);
+  orielBody.castShadow = true;
+  group.add(orielBody);
+  const orielPane = new THREE.Mesh(
+    new THREE.BoxGeometry(orielProtrusion * 0.72, orielH * 0.62, orielW * 0.86),
+    orielGlassMat,
+  );
+  orielPane.position.set(orielX - 0.04, orielY, orielZ);
+  group.add(orielPane);
+  // Brass cap roof (slight slope, beveled edge) + two angled cedar brackets
+  const orielCap = new THREE.Mesh(
+    new THREE.BoxGeometry(orielProtrusion + 0.18, 0.08, orielW + 0.16),
+    brassMat,
+  );
+  orielCap.position.set(orielX, orielY + orielH / 2 + 0.1, orielZ);
+  orielCap.rotation.z = 0.1;
+  orielCap.castShadow = true;
+  group.add(orielCap);
+  for (const bz of [-orielW / 2 + 0.18, orielW / 2 - 0.18]) {
+    const bracket = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.07, 0.09), cedarFrameMat);
+    bracket.position.set(orielX + 0.08, orielY - orielH / 2 - 0.16, orielZ + bz);
+    bracket.rotation.z = -0.62;
+    bracket.castShadow = true;
+    group.add(bracket);
+  }
+
   return group;
 }
 
@@ -1028,7 +1176,9 @@ export function buildStorybookBarnabyWoodshop(ctx: BuildingBuildContext): THREE.
       roofTex: ctx.terracottaRoofTex,
       roofCacheKey: 'barnaby_terracotta_roof',
       chimneyOffset: [1.4, 1.0],
-      craft: { sillBand: true, quoins: true, bargeboards: true, loftVents: true, taperedChimney: true },
+      // BUILD 02 (Doc 05 §2.2): + the ridge dormer — the workbench gable gains
+      // its second roof element, ending the shared gable-prism read.
+      craft: { sillBand: true, quoins: true, bargeboards: true, loftVents: true, taperedChimney: true, dormer: true },
     },
     ctx,
   );
@@ -1537,7 +1687,14 @@ export function buildStorybookGreenhouse(ctx: BuildingBuildContext): THREE.Group
   porchShape.lineTo(0, 0.45);
   porchShape.closePath();
   for (const gx of [-3.5, -2.8]) {
-    const gableGeo = new THREE.ExtrudeGeometry(porchShape, { depth: 0.06, bevelEnabled: false });
+    // BUILD 02 bevel sweep (Doc 05 §2.2 P3): vestibule porch gables soften.
+    const gableGeo = new THREE.ExtrudeGeometry(porchShape, {
+      depth: 0.06,
+      bevelEnabled: true,
+      bevelThickness: 0.02,
+      bevelSize: 0.02,
+      bevelSegments: 1,
+    });
     gableGeo.translate(0, 0, 0);
     const gable = new THREE.Mesh(gableGeo, creamMat);
     gable.rotation.y = Math.PI / 2;

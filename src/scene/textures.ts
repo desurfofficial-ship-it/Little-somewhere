@@ -553,6 +553,38 @@ export function createRoofShingleTexture(baseHex: string, highlightHex: string, 
   return tex;
 }
 
+/**
+ * Lantern-glass warm gradient (BUILD 02 Doc 05 §3.2 P3): a vertical warm
+ * emissive falloff — brightest just below the bulb's mid, easing toward the
+ * rim — so plaza lamp glass and festoon bulbs read as a "pool of light" at
+ * dusk instead of a uniform glow. Rides the SHARED lantern material as an
+ * emissiveMap: the dusk schedule (environmentRenderer) is untouched, zero new
+ * materials/meshes/draw calls.
+ */
+export function createLanternGlowTexture(aniso = 4): THREE.CanvasTexture {
+  const size = 64;
+  const canvas = document.createElement('canvas');
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext('2d')!;
+  const grad = ctx.createLinearGradient(0, 0, 0, size);
+  grad.addColorStop(0.0, '#C8A868'); // top rim: dimmest
+  grad.addColorStop(0.45, '#EED898'); // mid
+  grad.addColorStop(0.78, '#FFF4C8'); // bright pool just below the mid
+  grad.addColorStop(1.0, '#E8CC8A'); // base collar
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, size, size);
+  // Soft horizontal edge falloff so the glass cylinder's seam stays quiet.
+  const side = ctx.createLinearGradient(0, 0, size, 0);
+  side.addColorStop(0.0, 'rgba(0,0,0,0.18)');
+  side.addColorStop(0.25, 'rgba(0,0,0,0)');
+  side.addColorStop(0.75, 'rgba(0,0,0,0)');
+  side.addColorStop(1.0, 'rgba(0,0,0,0.18)');
+  ctx.fillStyle = side;
+  ctx.fillRect(0, 0, size, size);
+  return finishColorMap(canvas, aniso);
+}
+
 export function createContactShadowTexture(): THREE.CanvasTexture {
   const canvas = document.createElement('canvas');
   canvas.width = 128;

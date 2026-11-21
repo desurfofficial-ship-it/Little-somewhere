@@ -69,6 +69,12 @@ export interface MeadowDressingRig {
   group: THREE.Group;
   /** Placement audit points (one per tuft/flower/pebble) for tests & QA. */
   placementPoints: Array<{ x: number; z: number; kind: 'tuft' | 'flower' | 'pebble' }>;
+  /**
+   * BUILD 02 (Doc 05 §5.3): spring wildflower spread — re-tints the SAME
+   * instances with the widened petal palette in spring, restores the standard
+   * palette otherwise. Edge-triggered by the canvas on season change.
+   */
+  setSpringSpread(spring: boolean): void;
   dispose(): void;
 }
 
@@ -302,15 +308,148 @@ export function buildMeadowDressing(
   pebbleInst.computeBoundingSphere();
   group.add(pebbleInst);
 
+  // BUILD 02 (Doc 05 §5.2 P3): spring wildflower spread — in spring only the
+  // petal-tone palette widens ±1 hue stop (two marigold/rose-leaning tones
+  // join the rotation). Deterministic re-tint of the SAME instances (seeded
+  // re-read of the placement order); edge-triggered by the canvas on season
+  // change, so zero per-frame cost.
+  const springTones = [
+    STORYBOOK_PALETTE.petalRose,
+    STORYBOOK_PALETTE.petalMarigold,
+    STORYBOOK_PALETTE.petalLavender,
+    STORYBOOK_PALETTE.petalCream,
+    STORYBOOK_PALETTE.petalCornflower,
+    '#F0A24C', // marigold-leaning warm spread (+1 hue stop)
+    '#E88AB0', // rose-leaning pink spread (−1 hue stop)
+  ];
+  const retintScratch = new THREE.Color();
+  // Snapshot the placement-time colors once — `setSpringSpread(false)` restores
+  // EXACTLY what placement produced (bit-identical), not a re-draw.
+  const originalColors = blossomInst.instanceColor
+    ? Float32Array.from(blossomInst.instanceColor.array as Float32Array)
+    : null;
+  const setSpringSpread = (spring: boolean) => {
+    if (spring) {
+      let r = 9107 >>> 0;
+      const next = () => {
+        r = (r * 1664525 + 1013904223) >>> 0;
+        return r / 4294967296;
+      };
+      for (let i = 0; i < flowersPlaced; i++) {
+        // Mirror the placement-time draw order: one tone draw per placed flower.
+        const tone = springTones[Math.floor(next() * springTones.length)];
+        blossomInst.setColorAt(i, retintScratch.set(tone));
+      }
+    } else if (originalColors) {
+      (blossomInst.instanceColor!.array as Float32Array).set(originalColors);
+    }
+    if (blossomInst.instanceColor) blossomInst.instanceColor.needsUpdate = true;
+  };
+
   return {
     group,
     placementPoints,
+    setSpringSpread,
     dispose() {
       cloverGeo.dispose();
       grassGeo.dispose();
       stemGeo.dispose();
       blossomGeo.dispose();
       pebbleGeo.dispose();
+    },
+  };
+}
+
+/**
+ * BUILD 02 (Doc 05 §3.2 "relational dressing", Doc 03 §7.2): clover and moss
+ * tufts emerging FROM the bases of the four template cottages — the cluster-
+ * anchor law extended to structures, so buildings settle into their lawns
+ * instead of sitting on them. Placement law honored: never on COBBLE_LANE_RECTS
+ * (isOnCobble), never inside walkable paths (isPointWalkable), always just
+ * outside the stone plinth overhang. Two instanced draw calls total.
+ */
+export function buildStructureDressing(palette: MaterialPalette): { group: THREE.Group; dispose(): void } {
+  const group = new THREE.Group();
+  group.name = 'structure_dressing';
+
+  // (center x, center z, halfW + obstacle margin, halfD + obstacle margin) per
+  // cottage. Margins clear the plinth AND the BOX_OBSTACLES approach boxes so
+  // every tuft lands outside blocked volumes (the walkability check below
+  // verifies each spot before placement).
+  const anchors: ReadonlyArray<[number, number, number, number]> = [
+    [-12.4, -10.8, 4.25, 3.75], // Hearth & Crumb bakery
+    [-15.8, -1.0, 3.75, 3.75], // Linden Book Nook
+    [13.1, -11.5, 4.15, 3.85], // Copperwheel Cottage
+    [12.4, 13.0, 3.85, 3.75], // Pinecone Woodshop
+  ];
+
+  const rand = makeSeededRandom(7717);
+  const dummy = new THREE.Object3D();
+  const setColor = new THREE.Color();
+
+  const cloverGeo = new THREE.IcosahedronGeometry(0.11, 0);
+  cloverGeo.scale(1.25, 0.55, 1.0);
+  const cloverMat = palette.get('structure_clover', { color: '#FFFFFF', roughness: 0.85, metalness: 0.0 });
+  const cloverInst = new THREE.InstancedMesh(cloverGeo, cloverMat, 64);
+  const mossGeo = new THREE.IcosahedronGeometry(0.14, 0);
+  mossGeo.scale(1.3, 0.42, 1.1);
+  const mossMat = palette.get('structure_moss', { color: '#FFFFFF', roughness: 0.9, metalness: 0.0 });
+  const mossInst = new THREE.InstancedMesh(mossGeo, mossMat, 48);
+
+  const cloverTones = [STORYBOOK_PALETTE.foliageMid, STORYBOOK_PALETTE.foliageSage, '#5E8062'];
+  const mossTones = [STORYBOOK_PALETTE.moss, '#4C6E3E', STORYBOOK_PALETTE.foliageDeep];
+
+  let cloversPlaced = 0;
+  let mossPlaced = 0;
+  for (const [ax, az, hw, hd] of anchors) {
+    // Two tuft runs along the south edge (+z, sun side) and one per gable end
+    const spots: Array<[number, number]> = [
+      [ax - hw * 0.5, az + hd + 0.22],
+      [ax + hw * 0.25, az + hd + 0.26],
+      [ax + hw + 0.24, az + hd * 0.3],
+      [ax - hw - 0.26, az - hd * 0.25],
+      [ax + hw * 0.6, az - hd - 0.24],
+    ];
+    for (const [sx, sz] of spots) {
+      if (isOnCobble(sx, sz, 0.5)) continue;
+      if (!isPointWalkable(sx, sz, 0.3)) continue;
+      if (cloversPlaced < 64) {
+        dummy.position.set(sx + (rand() - 0.5) * 0.3, 0.035, sz + (rand() - 0.5) * 0.3);
+        dummy.rotation.set(0, rand() * Math.PI * 2, 0);
+        const s = 0.75 + rand() * 0.5;
+        dummy.scale.set(s, s, s);
+        dummy.updateMatrix();
+        cloverInst.setMatrixAt(cloversPlaced, dummy.matrix);
+        cloverInst.setColorAt(cloversPlaced, setColor.set(cloverTones[Math.floor(rand() * cloverTones.length)]));
+        cloversPlaced++;
+      }
+      if (mossPlaced < 48 && rand() > 0.45) {
+        dummy.position.set(sx + (rand() - 0.5) * 0.5, 0.028, sz + (rand() - 0.5) * 0.5);
+        dummy.rotation.set(0, rand() * Math.PI * 2, 0);
+        const s = 0.7 + rand() * 0.5;
+        dummy.scale.set(s, s, s);
+        dummy.updateMatrix();
+        mossInst.setMatrixAt(mossPlaced, dummy.matrix);
+        mossInst.setColorAt(mossPlaced, setColor.set(mossTones[Math.floor(rand() * mossTones.length)]));
+        mossPlaced++;
+      }
+    }
+  }
+  cloverInst.count = cloversPlaced;
+  mossInst.count = mossPlaced;
+  cloverInst.instanceMatrix.needsUpdate = true;
+  mossInst.instanceMatrix.needsUpdate = true;
+  if (cloverInst.instanceColor) cloverInst.instanceColor.needsUpdate = true;
+  if (mossInst.instanceColor) mossInst.instanceColor.needsUpdate = true;
+  cloverInst.computeBoundingSphere();
+  mossInst.computeBoundingSphere();
+  group.add(cloverInst, mossInst);
+
+  return {
+    group,
+    dispose() {
+      cloverGeo.dispose();
+      mossGeo.dispose();
     },
   };
 }
