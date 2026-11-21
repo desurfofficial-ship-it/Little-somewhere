@@ -266,15 +266,25 @@ test('SR-3: an unknown npcRelations pair is dropped with a warning, never fabric
   const res = loadMutated(createFreshWorldState(), (raw) => {
     const rels = raw.npcRelations as Record<string, unknown>;
     rels['zed:clara'] = { affinity: 99, tension: 0, sharedTags: [] };
+    // Canonical-keyed unknown pair ('zed' sorts before 'zombie', so the raw
+    // key IS the canonical key): a fabrication regression cannot hide behind
+    // re-keying here. Integration mutation M4 demonstrated that the original
+    // fixture alone was masked by the canonicalization path.
+    rels['zed:zombie'] = { affinity: -40, tension: 90, sharedTags: [] };
   });
   assert.equal(
     (res.state.npcRelations as Record<string, unknown>)['zed:clara'],
     undefined,
     'unknown pair must not enter runtime state',
   );
+  assert.equal(
+    (res.state.npcRelations as Record<string, unknown>)['zed:zombie'],
+    undefined,
+    'canonical unknown pair must not enter runtime state either',
+  );
   assert.ok(
-    res.warnings.some((w) => w.includes('npcRelations')),
-    `expected an npcRelations warning, got: ${JSON.stringify(res.warnings)}`,
+    res.warnings.some((w) => w.includes('unregistered residents')),
+    `expected an unregistered-pair drop warning, got: ${JSON.stringify(res.warnings)}`,
   );
 });
 
