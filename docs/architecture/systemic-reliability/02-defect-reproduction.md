@@ -27,6 +27,7 @@
 - **Why existing tests miss it:** no adversarial fixture tests the split; existing tests only feed states the simulation produced.
 - **Production gameplay vs tooling:** hand-edited/corrupted saves only (no production writer creates the split) — but the load path is the defensive boundary, so severity P1 by mandate ("invalid runtime state").
 - **Proposed invariant:** `occupancy` XOR-less unit rule: `activeActivity` present ⇔ occupancy present and consistent; enforced identically on save and load.
+- *Disposition (adversarial-review round, doc 09 §1):* the proposed unit-clear was **rejected** against the contract of record (doc 14 §4.3 / doc 16 §3, LR1-15b) — `activeActivity` anchors to the live active invitation, not to occupancy. Shipped rule in doc 06 §3.
 
 ## SR-3 — Unknown `npcRelations` pairs accepted and fabricated as live relation data (new, P1)
 
@@ -63,6 +64,7 @@
 - **Why existing tests miss it:** no upper-bound fixtures.
 - **Production gameplay vs tooling:** hand-edited saves only.
 - **Proposed invariant:** every numeric persisted field has a domain (type, range, cross-field relations); violations clamp or drop-with-warning, never silently pass.
+- *Disposition (adversarial-review round, doc 09 §3-2):* the invitation temporal-sanity subset is implemented and tested (window clamp, `expiresDay` re-pin, `offeredDay ≤ world.day`, `endsMinute ≥ startedMinute`). The generic counter-ceiling half was **rejected as a mis-declared target**: `day` / `familiarity` / `bellRungCount` are legitimately unbounded in production (their writers accumulate), so boundary clamps would corrupt legitimate long saves; ceilings are enforced exactly where production has them (affinity −50..100, reliability 0..100, tension 0..100, `dailyAffinityGained` 0..20). Accept-behavior pinned by test AR-4.
 
 ## SR-6 — Invitation window minutes range-unvalidated (register F-SAVE-1, P3)
 

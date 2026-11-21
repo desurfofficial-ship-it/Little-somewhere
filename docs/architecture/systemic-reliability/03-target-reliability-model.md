@@ -12,7 +12,7 @@
 
 | # | Rule | Invariant |
 |---|---|---|
-| J-1 | Every persisted collection is capped. New rule: `JOURNAL_MEMORY_CAP = 96` rows, enforced in `sanitizeMemories` (the single choke point every save and load already flows through) — newest-first deterministic slice. | No persisted collection grows without bound; all states, including hand-edited, converge on the cap at first save. |
+| J-1 | Every persisted collection is capped. New rule: `JOURNAL_MEMORY_CAP = 96` rows, enforced in `sanitizeMemories` (the single choke point every save and load already flows through) — an order-preserving deterministic head slice (the head is the newest rows in production order; for a non-conforming payload the head is whatever the payload's order is, and the warning says "first rows kept"). | No persisted collection grows without bound; all states, including hand-edited, converge on the cap at first save. |
 | J-2 | Cap headroom must exceed the production content ceiling (≈58 static `mem_*` ids today) so trimming is never visible to production gameplay; dedup guards that key on row presence cannot change behavior for states the simulation produces. | Trim = structural bound, zero player-visible change today. |
 | J-3 | Journal/memory ordering is newest-first, preserved exactly through serialize→load (verified round-trip). Timestamps/ids derive from world clock, never wall clock. | Deterministic ordering and ids. |
 | J-4 | Read-key cache (`journal.readKeys`) is trimmed to its write-path cap (240) on load as well. | Write-path caps are load-path invariants. |
@@ -37,16 +37,16 @@
 | Invitation window minutes | ⊆ [360, 1290], `start ≤ end` | clamp with warning |
 | Invitation `expiresDay` | `=== offeredDay`, `1 ≤ offeredDay ≤ day` | set `expiresDay = offeredDay`; archive if past-expired per strict predicate |
 | Invitation `offeredDay` | `≥ 1`, `≤ world.day` | archive/drop with warning |
-| Occupancy + `activeActivity` | one unit: present together, consistent (same invitation/activity, interior matches `playerLocation`) | clear unit + warning |
+| Occupancy + `activeActivity` | contract of record (doc 14 §4.3 / LR1-15b): `activeActivity` anchors to the LIVE ACTIVE INVITATION; occupancy requires a live accepted invitation + matching interior/station/invitation id | orphan `activeActivity` cleared + warning; inconsistent or unanchorable occupancy cleared + warning (AR-1/AR-1b closed the silent outer drop); occupancy missing its slice RESTORED deterministically from the accepted invitation + warning (SR-2b) |
 | `npcRelations` keys | both halves registered residents | drop pair + warning |
 | Storyline keys | registry storylines | drop + warning |
 | Occupancy `stationId` | registered station | clear field + warning |
-| `facing` | recognized direction enum | reset to default + warning |
-| Counters (`day`, `bellRungCount`, `familiarity`, …) | finite, floor **and ceiling** (familiarity ≤ 100; day plausibility bounds) | clamp + warning |
+| Occupancy `facing` | finite number (a numeric angle in production — not an enum; the audit's enum framing was corrected in the review round) | reject/normalize + warning when non-finite |
+| Counters (`day`, `bellRungCount`, `familiarity`, …) | finite + floor; **ceilings only where production writers have them**: affinity −50..100, reliability 0..100, tension 0..100, `dailyAffinityGained` 0..20. `day` / `familiarity` / `bellRungCount` are legitimately unbounded by design (rejected generic ceilings — doc 02 §SR-5 disposition, AR-4 pin) | clamp/normalize + warning where the domain exists; accept unchanged (no invented warning) where the counter is unbounded-by-design |
 | Encounter `endsMinute` | `≥ startedMinute` | normalize or drop + warning |
 | Collection ids | unique per collection (`worldEvents`, `activeEncounters`, `invitations.history`, `memories`) | keep-first dedup + warning |
 | Journal entry ids | non-empty, production-shaped | drop entry + warning |
-| Schema version | integer ∈ [1, 11] | unknown/future/negative → reject to fresh + warning |
+| Schema version | integer ∈ [1, 11] | unknown (non-integer/negative) → reject to fresh + warning; **future (> 11) → conservative degraded load + tombstone backup, never rewritten** + warning (SR-9e) |
 
 **Round-trip guarantees (verified baseline, to be protected by regression tests):** `serialize(load(serialize(x)))` byte-stable across repeated cycles; `sanitize` idempotent; no progressive drift or accumulation; semantic equality = deep equality under the game's own normalization-aware comparator.
 
@@ -70,7 +70,7 @@ No `Math.random` / `Date.now` / `performance.now` in the `src/game/` tick graph;
 3. Numeric domains hold (finite, floors, ceilings, cross-field).
 4. Occupancy/`activeActivity` unit coherence.
 5. Invitation lifecycle transitions valid per the strict predicate (never accepted-without-offer, never expired-then-accepted).
-6. Journal/memories ordering + unique entry ids.
+6. Journal/memory ids unique + rows domain-valid (ordering is enforced by construction at the single newest-first append path and verified by the save/reload round-trip tests; the harness asserts uniqueness + day-validity + byte-stable replay, not append-order monotonicity — doc 08 §3).
 7. No unbounded growth where a bounded policy exists (caps engage exactly).
 8. Deterministic replay: twin runs byte-identical; save/load cycles drift-free.
 9. No unexpected mutation of retained inputs on the pure path.
@@ -84,7 +84,7 @@ Supported older saves remain loadable (sequential migrations); new saves round-t
 ## 7. Error handling policy
 
 - The load boundary **never throws** for malformed content (verified: 0 throws across 32 adversarial fixtures) — it classifies: accept / normalize+warn / repair+warn / drop-record+warn / reject-to-fresh+warn.
-- All repair/normalization/drop decisions emit exactly one classified warning; per-step migration warnings are merged into the load result; production surfaces them on console (no gameplay UI dependency).
+- All repair/normalization/drop decisions emit exactly one classified warning; per-step migration warnings are merged into the load result (AR-3 closed the v1/v3 paths); production surfaces them on console (no gameplay UI dependency) — **identically on the save path** (`serializeWorldState` takes a warnings sink and otherwise console.warns repairs; healthy saves are silent — AR-5).
 - Warning text reflects the actual path taken (no stale "v7" copy).
 
 ## 8. Performance expectations

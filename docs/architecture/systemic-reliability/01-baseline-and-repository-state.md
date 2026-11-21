@@ -91,7 +91,7 @@ F-UX-1, F-SIM-1, F-SAVE-1, F-SAVE-2, F-SAVE-3, F-ENTER-1, F-WORLD-1, F-ASSET-1, 
 | F-ASSET-1 | Present (pre-existing main-only asset work) | out of scope per register |
 | F-DOC-1 | Historical record | preserved as written, per register |
 
-**New findings beyond the register** (full detail in doc 02): SR-2 (sanitizer can mint an occupancy-cleared / `activeActivity`-surviving split), SR-3 (unknown `npcRelations` pairs fabricated as live relation data), SR-4 (unknown storyline keys fabricated as stage-12/active progress), SR-5 (no counter ceilings / temporal sanity), SR-6 (duplicate ids un-deduped in three collections), SR-7 (silent normalization / observability gaps), SR-8 (per-save sanitize cost is a full state rebuild), SR-9 (per-tick O(n) `memories` scan on the discovery-grant path), SR-10 (journal read-keys not re-trimmed on load), SR-11 (journal view rebuild cost while closed).
+**New findings beyond the register** (full detail in doc 02 — numbering aligned to doc 02's canonical catalog during the adversarial-review round, doc 09): SR-2 (sanitizer can mint an occupancy-cleared / `activeActivity`-surviving split), SR-3 (unknown `npcRelations` pairs fabricated as live relation data), SR-4 (unknown storyline keys fabricated as stage-12/active progress), SR-5 (no temporal sanity on invitation day fields / windows; generic counter ceilings rejected with production evidence in the review round), SR-6 (invitation window minutes range-unvalidated — register F-SAVE-1), SR-7 (occupancy misc. fields under-validated — register F-SAVE-2 remainder), SR-8 (duplicate ids un-deduped in three collections), SR-9 (silent normalization / observability gaps), SR-10 (pure `stepSimulation` residents aliasing — register F-SIM-1), SR-11 (journal/UI freshness — register F-UX-1), SR-12 (per-tick O(n) `memories` scan on the discovery-grant path), SR-13 (journal read-keys not re-trimmed on load), SR-14 (journal view rebuild cost while closed). The "per-save sanitize cost is a full state rebuild" observation was measured and bounded rather than tracked as a defect (doc 05 §5).
 
 ## 7. Performance baseline (Agent A benchmarks; Node v24.22.3; 3 independent runs; 30 samples / 10 warmups; real serializer + real append functions)
 
@@ -107,7 +107,7 @@ F-UX-1, F-SIM-1, F-SAVE-1, F-SAVE-2, F-SAVE-3, F-ENTER-1, F-WORLD-1, F-ASSET-1, 
 | 6,400 | ~5–6 ms | ~4 ms | ~1.35 MB | 67–70 ms per 10 saves |
 | 12,800 | ~12 ms | ~9 ms | ~2.7 MB | — |
 
-Scaling model: fixed + linear, fitted **0.92–0.97 µs/row** serialize; payload **+212.1 B/row** (R² = 1.0000 for payload). Raw `JSON.stringify` at 800 rows = 0.61 ms vs 0.88 ms full save path (sanitize rebuild overhead, SR-8). Steady tick cost 5–7 µs and size-independent; the only size-sensitive tick work is the discovery-grant scan (~8.5 ns/row, SR-9). Saves never run in the frame loop; at the historical 800-row point a save ≈ 4.5–5.3 % of one frame *if it did*. Compaction to a 96-row cap restores the n=100 profile exactly (serialize 0.17–0.26 ms, payload ≈39 KB).
+Scaling model: fixed + linear, fitted **0.92–0.97 µs/row** serialize; payload **+212.1 B/row** (R² = 1.0000 for payload). Raw `JSON.stringify` at 800 rows = 0.61 ms vs 0.88 ms full save path (sanitize rebuild overhead — measured, bounded; see doc 05 §5). Steady tick cost 5–7 µs and size-independent; the only size-sensitive tick work is the discovery-grant scan (~8.5 ns/row, SR-12). Saves never run in the frame loop; at the historical 800-row point a save ≈ 4.5–5.3 % of one frame *if it did*. Compaction to a 96-row cap restores the n=100 profile exactly (serialize 0.17–0.26 ms, payload ≈39 KB).
 
 ## 8. Long-run stress baseline (Agent D harness; ~29,500 ticks across 8 scenarios, real production pathways)
 
@@ -127,8 +127,8 @@ Scaling model: fixed + linear, fitted **0.92–0.97 µs/row** serialize; payload
 
 | Class | Items |
 |---|---|
-| Serious (correctness of the persistence boundary) | SR-2, SR-3, SR-4 (sanitizer can mint/admit state the simulation itself would never produce); SR-5, SR-6 (hardening of the same boundary) |
-| Systemic (long-run scaling) | SR-1 (`memories` uncapped), SR-8 (per-save sanitize rebuild), SR-9 (per-tick scan) — today content-bounded, structurally unbounded |
-| Purity (test-only today) | SR-12 (F-SIM-1 residents aliasing) + latent shared-slice inventory |
-| UX freshness / non-blocking | SR-13 (F-UX-1), SR-14 (observability gaps), SR-10, SR-11 |
+| Serious (correctness of the persistence boundary) | SR-2, SR-3, SR-4 (sanitizer can mint/admit state the simulation itself would never produce); SR-5, SR-6, SR-7, SR-8, SR-9 (hardening of the same boundary) |
+| Systemic (long-run scaling) | SR-1 (`memories` uncapped), SR-12 (per-tick scan) — today content-bounded, structurally unbounded; per-save sanitize rebuild measured and bounded (doc 05 §5) |
+| Purity (test-only today) | SR-10 (F-SIM-1 residents aliasing) + latent shared-slice inventory |
+| UX freshness / non-blocking | SR-11 (F-UX-1), SR-13 (read-keys), SR-14 (closed-panel cost) |
 | No code change | F-WORLD-1, F-ASSET-1, F-DOC-1, F-PRED-1 (backstop verified; strict unification already landed) |
