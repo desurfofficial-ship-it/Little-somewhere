@@ -514,10 +514,23 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
     // V6 carrier (Doc 09): cobble albedo stays the identity texture; the stone-course
     // roughness map makes mortar read rougher than stone faces (Doc 03 §5.1 T1),
     // and the controller deepens the winter value band (Doc 03 §2.2).
+    const cobbleStoneRough = palette.mapBundle('stone')?.roughnessMap;
+    let cobbleRoughMap: THREE.Texture | null = null;
+    if (cobbleStoneRough) {
+      // The cobble albedo repeats 4x4 (40 courses/tile); the stone-course
+      // roughness family tiles 5x5 per repeat — clone at matching repeat so
+      // mortar roughness lines up with the visible mortar lines (review fix).
+      cobbleRoughMap = cobbleStoneRough.clone();
+      cobbleRoughMap.wrapS = THREE.RepeatWrapping;
+      cobbleRoughMap.wrapT = THREE.RepeatWrapping;
+      cobbleRoughMap.repeat.set(4, 4);
+      cobbleRoughMap.needsUpdate = true;
+      palette.registerTexture(cobbleRoughMap);
+    }
     const cobbleMat = new THREE.MeshStandardMaterial({
       color: '#FFFFFF',
       map: cobbleTex,
-      roughnessMap: palette.mapBundle('stone')?.roughnessMap ?? null,
+      roughnessMap: cobbleRoughMap,
       roughness: 0.86,
       metalness: 0.02,
     });
@@ -2545,6 +2558,10 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
 
     return () => {
       disposed = true;
+      perfProbe.disposeOverlay();
+      if (window.__LS_PERF__ === perfProbe) {
+        delete window.__LS_PERF__;
+      }
       cancelAnimationFrame(frameId);
       clearTimeout(frameId);
       resizeObs.disconnect();

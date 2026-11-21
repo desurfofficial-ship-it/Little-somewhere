@@ -147,10 +147,17 @@ export class PerfProbe {
   shouldUpdateOverlay(): boolean {
     if (!this.enabled) return false;
     this.framesSinceOverlay++;
-    return this.framesSinceOverlay >= OVERLAY_INTERVAL_FRAMES;
+    if (this.framesSinceOverlay < OVERLAY_INTERVAL_FRAMES) return false;
+    this.framesSinceOverlay = 0;
+    return true;
   }
 
-  /** Aggregate the frame-time ring into the measurement snapshot. */
+  /**
+   * Aggregate the frame-time ring into the measurement snapshot.
+   * NOTE: the returned object is the probe's live internal snapshot — read it
+   * immediately (the capture harness serializes it to JSON on the spot). Call
+   * `reset()` between scenarios to drop stale statistics.
+   */
   summary(): PerfSnapshot {
     const s = this.snapshot;
     s.frames = this.ringCount;
@@ -182,6 +189,7 @@ export class PerfProbe {
     this.spikes33 = 0;
     this.spikes16 = 0;
     this.framesSinceGpuSample = GPU_SAMPLE_INTERVAL - 1;
+    this.framesSinceOverlay = 0;
     this.snapshot = { ...EMPTY_SNAPSHOT, sceneBuildMs: this.sceneBuildMs };
   }
 

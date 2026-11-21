@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { ResidentAppearance, SeasonType } from '../../game/types';
 import { CharacterRig } from '../models';
 import { MaterialPalette, STORYBOOK_PALETTE } from '../materials';
@@ -1406,14 +1407,19 @@ export function buildStorybookJun(
     const hand = new THREE.Group();
     hand.name = 'hand';
     hand.position.set(side * 0.09, -0.39, 0.02);
-    const palm = new THREE.Mesh(new THREE.SphereGeometry(0.075, 8, 7), skinMat);
-    palm.scale.set(1.15, 0.78, 1.25);
+    // Same two-lobe merged mitten as the shared builder (draw-call neutral).
+    const palmGeo = new THREE.SphereGeometry(0.078, 8, 7);
+    palmGeo.scale(1.15, 0.8, 1.25);
+    const knuckleGeo = new THREE.SphereGeometry(0.062, 8, 6);
+    knuckleGeo.scale(1.1, 0.7, 1.05);
+    knuckleGeo.translate(0, 0.014, 0.05);
+    const thumbGeo = new THREE.CapsuleGeometry(0.028, 0.032, 4, 6);
+    thumbGeo.rotateX(0.5);
+    thumbGeo.rotateZ(side * 0.35);
+    thumbGeo.translate(side * -0.03, -0.012, 0.062);
+    const palm = new THREE.Mesh(mergeGeometries([palmGeo, knuckleGeo, thumbGeo])!, skinMat);
     palm.castShadow = true;
-    const thumb = new THREE.Mesh(new THREE.CapsuleGeometry(0.028, 0.032, 4, 6), skinMat);
-    thumb.position.set(side * -0.028, -0.012, 0.062);
-    thumb.rotation.x = 0.5;
-    thumb.rotation.z = side * 0.35;
-    hand.add(palm, thumb);
+    hand.add(palm);
     const handAnchor = new THREE.Group();
     handAnchor.name = 'hand_anchor';
     handAnchor.position.set(side * 0.09, -0.39, 0.02);
@@ -1600,6 +1606,7 @@ export function buildStorybookJun(
     rightBrow,
     carrySocket,
     handAnchor: rightArmResult.handAnchor,
+    carryPose: 'cradle',
     ringMesh,
     questPip,
     mouthSmile: junMouthSmile,

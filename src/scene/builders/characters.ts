@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import {
   CharacterEmotion,
   NpcAnimationState,
@@ -279,7 +280,9 @@ export function buildStorybookCharacter(
   const leatherMat = palette.standard('#7C4F32', 0.68, 0.06);
 
   // 1. Articulated Legs (hip pivot at y = 0.42) — boots gain toe-cap massing
-  // and a heel block (Doc 04 §4.3) for grounded, chunky stances.
+  // and a heel block (Doc 04 §4.3) for grounded, chunky stances. The three
+  // boot parts merge into ONE geometry so the visual upgrade stays
+  // draw-call neutral (review finding: Phase 2 must not grow mesh count).
   const makeLeg = (xPos: number) => {
     const legPivot = new THREE.Group();
     legPivot.position.set(xPos, 0.42, 0);
@@ -290,16 +293,17 @@ export function buildStorybookCharacter(
     );
     pant.position.y = -0.11;
     pant.castShadow = true;
-    const boot = new THREE.Mesh(new THREE.CapsuleGeometry(0.095, 0.1, 4, 8), bootMat);
-    boot.position.set(0, -0.28, 0.03);
+    const bootCapsule = new THREE.CapsuleGeometry(0.095, 0.1, 4, 8);
+    bootCapsule.translate(0, -0.28, 0.03);
+    const toeGeo = new THREE.SphereGeometry(0.072, 8, 6);
+    toeGeo.scale(1.0, 0.78, 1.1);
+    toeGeo.translate(0, -0.3, 0.115);
+    const heelGeo = new THREE.BoxGeometry(0.1, 0.09, 0.09);
+    heelGeo.translate(0, -0.295, -0.065);
+    const boot = new THREE.Mesh(mergeGeometries([bootCapsule, toeGeo, heelGeo])!, bootMat);
+    boot.name = 'boot';
     boot.castShadow = true;
-    const toeCap = new THREE.Mesh(new THREE.SphereGeometry(0.072, 8, 6), bootMat);
-    toeCap.scale.set(1.0, 0.78, 1.1);
-    toeCap.position.set(0, -0.3, 0.115);
-    toeCap.castShadow = true;
-    const heel = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.09, 0.09), bootMat);
-    heel.position.set(0, -0.295, -0.065);
-    legPivot.add(pant, boot, toeCap, heel);
+    legPivot.add(pant, boot);
     return legPivot;
   };
   const leftLeg = makeLeg(-0.13);
@@ -576,14 +580,24 @@ export function buildStorybookCharacter(
     const hand = new THREE.Group();
     hand.name = 'hand';
     hand.position.set(side * 0.09, -0.38, 0.02);
-    const palm = new THREE.Mesh(new THREE.SphereGeometry(0.075, 8, 7), skinMat);
-    palm.scale.set(1.15, 0.78, 1.25);
+    // Two-lobe mitten (Doc 04 §4: ≈0.095 equiv volume — the "single cheapest
+    // quality win"): palm + knuckle lobe + thumb merged into one geometry so
+    // the fuller hand stays draw-call neutral.
+    const palmGeo = new THREE.SphereGeometry(0.078, 8, 7);
+    palmGeo.scale(1.15, 0.8, 1.25);
+    const knuckleGeo = new THREE.SphereGeometry(0.062, 8, 6);
+    knuckleGeo.scale(1.1, 0.7, 1.05);
+    knuckleGeo.translate(0, 0.014, 0.05);
+    const thumbGeo = new THREE.CapsuleGeometry(0.028, 0.032, 4, 6);
+    thumbGeo.rotateX(0.5);
+    thumbGeo.rotateZ(side * 0.35);
+    thumbGeo.translate(side * -0.03, -0.012, 0.062);
+    const palm = new THREE.Mesh(
+      mergeGeometries([palmGeo, knuckleGeo, thumbGeo])!,
+      skinMat,
+    );
     palm.castShadow = true;
-    const thumb = new THREE.Mesh(new THREE.CapsuleGeometry(0.028, 0.032, 4, 6), skinMat);
-    thumb.position.set(side * -0.028, -0.012, 0.062);
-    thumb.rotation.x = 0.5;
-    thumb.rotation.z = side * 0.35;
-    hand.add(palm, thumb);
+    hand.add(palm);
 
     const handAnchor = new THREE.Group();
     handAnchor.name = 'hand_anchor';
@@ -638,8 +652,8 @@ export function buildStorybookCharacter(
     headGroup.add(eye, catchlight);
 
     const eyelid = new THREE.Mesh(lidGeo, skinMat);
-    eyelid.position.set(sx * 0.12, 0.056, 0.272);
-    eyelid.scale.y = 0.2;
+    eyelid.position.set(sx * 0.12, 0.07, 0.272);
+    eyelid.scale.set(1.0, 0.2, 0.55); // z-flattened lens cap — stays behind the bangs
     headGroup.add(eyelid);
 
     const brow = new THREE.Mesh(browGeo, hairMat);
@@ -1030,6 +1044,10 @@ export function buildStorybookCharacter(
     rightBrow,
     carrySocket,
     handAnchor: rightArmResult.handAnchor,
+    carryPose:
+      appearance.propType === 'book' || appearance.propType === 'sketchbook'
+        ? 'side'
+        : 'cradle',
     postureLeanX: archetype.postureLeanX,
     ringMesh,
     questPip,
@@ -1065,7 +1083,7 @@ export function animateCharacterRig(
   // Build 01 (Doc 04 §5.2): emotion intensity plumbing. 0.75 is the historical
   // default → amplitude multiplier exactly 1.0, so every existing pose and
   // test expectation is preserved when the option is absent.
-  const emotionIntensity = opts?.emotionIntensity ?? 0.75;
+  const emotionIntensity = THREE.MathUtils.clamp(opts?.emotionIntensity ?? 0.75, 0.55, 0.9);
   const faceAmp = emotionIntensity / 0.75;
   const poseAmp = 0.6 + 0.4 * (emotionIntensity / 0.75);
 
@@ -1235,12 +1253,21 @@ export function animateCharacterRig(
     targetBodyY = Math.sin(elapsed * 1.8 + phaseSeed) * 0.02;
   }
 
-  // Override arm cradle cleanly whenever carrying a prop across idle/walk/run
+  // Override arm cradle cleanly whenever carrying a prop across idle/walk/run.
+  // Carry variants (Doc 04 §4.4): 'cradle' (two-arm basket/loaf tray) vs 'side'
+  // (one bent arm for book/sketchbook the hand visibly holds).
   if (carrying && animState !== 'sit' && animState !== 'wave') {
-    targetLeftArmX = -0.84;
-    targetRightArmX = -0.84;
-    targetLeftArmZ = 0.14;
-    targetRightArmZ = -0.14;
+    if (rig.carryPose === 'side') {
+      targetRightArmX = -0.66;
+      targetRightArmZ = -0.2;
+      targetLeftArmX = 0;
+      targetLeftArmZ = 0.06;
+    } else {
+      targetLeftArmX = -0.84;
+      targetRightArmX = -0.84;
+      targetLeftArmZ = 0.14;
+      targetRightArmZ = -0.14;
+    }
   }
 
   // Player polish: lean into launch acceleration, keep the gaze level
@@ -1305,11 +1332,12 @@ export function animateCharacterRig(
   }
 
   // Deterministic natural blink cycle (~every 4.3s) — unconditional, so the
-  // rhythm is identical for every intensity level.
+  // rhythm is identical for every intensity level. The lens cap fully covers
+  // the r-0.052 eye without poking past the brow (review fix: blink overshoot).
   const blinkPhase = (elapsed + phaseSeed * 1.7) % 4.3;
   if (blinkPhase > 4.14) {
-    eyelidScaleY = 1.5;
-    eyelidPosY = 0.03;
+    eyelidScaleY = 1.05;
+    eyelidPosY = 0.018;
   }
 
   // Baked archetype posture (Hearth-Round's welcoming lean) — added before

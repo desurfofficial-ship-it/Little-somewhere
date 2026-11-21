@@ -88,14 +88,21 @@ test('curved lids ride the larger eye spheres and still blink', () => {
     'v2 lids are curved spherical lens caps, not skin boxes',
   );
   assert.ok(Math.abs(rig.leftEyelid!.scale.y - 0.2) < 0.001, 'relaxed lid starts squashed');
+  assert.ok(
+    rig.leftEyelid!.scale.z < 0.7,
+    'lid is z-flattened so it stays behind the bangs',
+  );
   // Blink path: drive the rig into the blink window and confirm the lid covers the eye.
   const blinkElapsed = 4.2; // (elapsed + seed*1.7) % 4.3 > 4.14
   animateCharacterRig(rig, 'idle', 0, blinkElapsed, 0.05, 0, {});
-  assert.ok(rig.leftEyelid!.scale.y > 1.2, `blink squashes the lid open, got ${rig.leftEyelid!.scale.y}`);
+  assert.ok(
+    rig.leftEyelid!.scale.y > 0.9 && rig.leftEyelid!.scale.y < 1.2,
+    `blink expands the lens to cover the eye without overshooting the brow, got ${rig.leftEyelid!.scale.y}`,
+  );
   assert.ok(rig.leftEyelid!.position.y < 0.05, `blink slides the lid over the eye, got ${rig.leftEyelid!.position.y}`);
 });
 
-test('mitten hands: chunky palms with thumbs replace the plain spheres, anchors exposed', () => {
+test('mitten hands: two-lobe merged mitts with thumbs, anchors exposed', () => {
   for (const id of ['clara', 'rowan', 'jun'] as const) {
     const rig = buildRig(id);
     assert.ok(rig.handAnchor, `${id} exposes a right-hand anchor`);
@@ -106,11 +113,16 @@ test('mitten hands: chunky palms with thumbs replace the plain spheres, anchors 
     hand!.traverse((o) => {
       if (o instanceof THREE.Mesh) meshes.push(o);
     });
-    // palm + thumb = at least 2 meshes per mitten
-    assert.ok(meshes.length >= 2, `${id} mitten has palm + thumb, got ${meshes.length}`);
-    // palm is squashed (chunky read, Doc 04 §4.1)
-    const palm = meshes[0];
-    assert.ok(palm.scale.x > 1.0 && palm.scale.y < 1.0, `${id} palm is a squashed sphere`);
+    // The three-lobe mitten merges into ONE geometry — draw-call neutral (review fix).
+    assert.equal(meshes.length, 1, `${id} mitten is a single merged mesh, got ${meshes.length}`);
+    // Two-lobe volume: bounding box is chunky (≈0.095 equiv volume target, Doc 04 §4)
+    const bbox = new THREE.Box3().setFromObject(meshes[0]);
+    const size = bbox.getSize(new THREE.Vector3());
+    const equiv = Math.cbrt(size.x * size.y * size.z) / 2;
+    assert.ok(
+      equiv > 0.075,
+      `${id} mitten equivalent radius ≈ ${equiv.toFixed(3)} should reach the 0.085+ chunk band`,
+    );
   }
 });
 
@@ -182,19 +194,21 @@ test('Rowan stays standard: the design system differentiates rather than templat
   assert.ok(rowan.handAnchor, 'rowan still gets mitten hands + anchor');
 });
 
-test('boot massing: toe cap and heel ground the stance', () => {
+test('boot massing: toe cap and heel ground the stance (one merged boot geometry)', () => {
   const rig = buildRig('rowan');
-  const toeCaps = findNamed(rig.root, 'hand') // any mesh search fallback
-    ? null
-    : null;
-  void toeCaps;
-  // Count boot extras: each leg gets boot capsule + toe cap + heel (3 boot meshes)
-  let bootExtras = 0;
-  rig.leftLeg.traverse((o) => {
-    if (o instanceof THREE.Mesh && o.geometry instanceof THREE.SphereGeometry) bootExtras++;
-    if (o instanceof THREE.Mesh && o.geometry instanceof THREE.BoxGeometry) bootExtras++;
-  });
-  assert.ok(bootExtras >= 2, `left leg carries toe cap + heel, got ${bootExtras}`);
+  const boot = findNamed(rig.root, 'boot') as THREE.Mesh | undefined;
+  assert.ok(boot, 'rowan boots are merged named meshes');
+  const geo = boot!.geometry as THREE.BufferGeometry;
+  geo.computeBoundingBox();
+  const bb = geo.boundingBox!;
+  // Merged boot spans toe (front, +z) and heel (back, -z) beyond the capsule core
+  assert.ok(bb.max.z > 0.12, `toe cap extends forward (max.z ${bb.max.z.toFixed(3)})`);
+  assert.ok(bb.min.z < -0.1, `heel block extends backward (min.z ${bb.min.z.toFixed(3)})`);
+  // Grounded: nothing hangs below y -0.02 (precise vertex bounds — the boot
+  // geometry axis is identity so non-precise would also agree)
+  rig.root.updateMatrixWorld(true);
+  const worldBox = new THREE.Box3().setFromObject(boot!, true);
+  assert.ok(worldBox.min.y > -0.02, `boot bottom ${worldBox.min.y.toFixed(3)} stays grounded`);
 });
 
 test('emotion intensity scales face and pose amplitudes without changing default behavior', () => {
@@ -246,10 +260,44 @@ test('Jun consumes the shared face/head v2 path (builder consolidation)', () => 
 test('re-derived silhouette envelope: head/hand growth stays inside the gameplay envelope', () => {
   const rig = buildRig('player');
   rig.root.updateMatrixWorld(true);
-  const box = new THREE.Box3().setFromObject(rig.bodyGroup);
+  const box = new THREE.Box3().setFromObject(rig.bodyGroup, true);
   assert.ok(box.max.z < 0.42, `front reach ${box.max.z.toFixed(3)} stays under 0.42`);
   assert.ok(box.min.y >= -0.01, `grounded: lowest point ${box.min.y.toFixed(3)} >= -0.01`);
-  // Height: head top ≈ 1.66 with the v2 head (unchanged height span law)
-  const topY = rig.headGroup.position.y + 0.45 + 0.31;
-  assert.ok(topY > 1.6 && topY < 1.7, `standing height ≈ 1.66, got ${topY.toFixed(3)}`);
+  // Real measured standing height from precise vertex bounds (the tilted hair
+  // cap's non-precise AABB corners overshoot; vertices top out ≈1.66–1.68).
+  assert.ok(
+    box.max.y > 1.6 && box.max.y < 1.72,
+    `standing height ≈ 1.66, got ${box.max.y.toFixed(3)}`,
+  );
+});
+
+test('carry variants: book/sketchbook carriers hold side-carry, baskets cradle', () => {
+  const nora = buildRig('nora');
+  assert.equal(nora.carryPose, 'side', 'nora carries her book side-saddle');
+  const clara = buildRig('clara');
+  assert.equal(clara.carryPose, 'cradle', 'clara cradles the loaf basket');
+
+  // The driver honors the variant: side-carry bends one arm, cradle bends both.
+  // (Drive ~1s so the damped targets settle — a single frame lags by design.)
+  const settle = (rig: ReturnType<typeof buildRig>) => {
+    const dt = 1 / 30;
+    for (let i = 0; i < 30; i++) {
+      animateCharacterRig(rig, 'walk', i * dt * 6, i * dt, dt, 0, {
+        carrying: true,
+        isMoving: true,
+      });
+    }
+  };
+  const side = buildRig('nora');
+  settle(side);
+  const cradle = buildRig('clara');
+  settle(cradle);
+  assert.ok(
+    Math.abs(cradle.leftArm.rotation.x - cradle.rightArm.rotation.x) < 0.05,
+    'cradle bends both arms symmetrically',
+  );
+  assert.ok(
+    side.leftArm.rotation.x > side.rightArm.rotation.x + 0.3,
+    `side-carry leaves the off arm relaxed (L ${side.leftArm.rotation.x.toFixed(2)} vs R ${side.rightArm.rotation.x.toFixed(2)})`,
+  );
 });

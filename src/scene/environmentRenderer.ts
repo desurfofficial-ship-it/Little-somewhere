@@ -54,7 +54,7 @@ const _rimWork = new THREE.Color();
 // Winter cobble value recalibration (Doc 03 §2.2): the winter phase's wash
 // toward cream is counteracted by DEEPENING the cobble value band (cool, not
 // re-saturated). Other seasons keep the neutral identity tint.
-const _cobbleWinter = new THREE.Color('#D9DEE4');
+const _cobbleWinter = new THREE.Color('#C9CFD8');
 const _cobbleNeutral = new THREE.Color('#FFFFFF');
 
 const _seasonTint = new THREE.Color();

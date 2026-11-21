@@ -16,8 +16,9 @@
 #
 # The harness NEVER overwrites another set: output goes to the set directory it
 # is given, so baseline images are preserved for side-by-side comparison (brief
-# Part 2.2). Metadata (viewport, zoom, phase, season, GL renderer string, perf
-# summary, console state) is recorded per shot in metadata.jsonl.
+# Part 2.2). metadata.jsonl records per-shot the scenario constants (viewport,
+# zoom, phase, season); GL renderer + measured perf summary live in the
+# dedicated perf_plaza_hero evidence row (see the perf pass below).
 set -u
 cd /home/z/my-project/little-somewhere
 
@@ -34,7 +35,8 @@ PORT=4179
 mkdir -p "$OUT_DIR" && rm -f "$OUT_DIR"/metadata.jsonl  # resumable: existing pngs are preserved
 mkdir -p /tmp/qa_shots && rm -f /tmp/qa_shots/b01_*.png
 
-setsid nohup npx vite preview --port=$PORT --host=0.0.0.0 > /tmp/vite_preview_b01.log 2>&1 < /dev/null &
+setsid nohup npx vite preview --port=$PORT --host=127.0.0.1 > /tmp/vite_preview_b01.log 2>&1 < /dev/null &
+VITE_PID=$!
 for i in $(seq 1 40); do curl -s -o /dev/null "http://localhost:$PORT/" && break; sleep 0.5; done
 echo "server ready on $PORT"
 
@@ -55,7 +57,7 @@ def inject_js(save):
       'location.reload(); "injected";'
     )
 
-def pin(save, rid, x, z, facing, anim, until=880):
+def pin(save, rid, x, z, facing, anim, until=1290):  # hold to day end — pins must survive golden(1080)/dusk(1230)
     rt = dict(save['npcRuntime'])
     entry = dict(rt[rid])
     entry.update({
@@ -163,7 +165,7 @@ entry.update({
   'position': {'x': 2.2, 'z': -1.6}, 'targetPos': {'x': 2.4, 'z': 1.8},
   'waypoints': [{'x': 2.4, 'z': 1.8}], 'currentSpeed': 1.4,
   'facing': 0.14, 'targetFacing': 0.14, 'animState': 'walk',
-  'activityUntilMinute': 880, 'goalCommittedUntilMinute': 880,
+  'activityUntilMinute': 1290, 'goalCommittedUntilMinute': 1290,
 })
 rt['rowan'] = entry; s['npcRuntime'] = rt
 add('rowan_walk_stride_a', place(s, {'x': 3.4, 'z': 0.4}, 0.14))
@@ -268,6 +270,13 @@ run_scenario() { # name zoom(shots) viewports extra-evals
       clara_dialogue)
         agent-browser eval "$ZOOM_IN_072" > /dev/null; sleep 2
         agent-browser eval "$KEY_E" > /dev/null; sleep 3
+        # Assert the dialogue sheet really rendered before shooting (review fix:
+        # never record an evidence frame that is actually a pause modal).
+        SHEET=$(agent-browser eval "document.body.textContent.includes('Clara') && !document.body.textContent.includes('Resting') ? 'open' : 'retry'" 2>/dev/null | tr -d '"')
+        if [ "$SHEET" != "open" ]; then
+          sleep 2; agent-browser eval "$KEY_ESC" > /dev/null; sleep 1.5
+          agent-browser eval "$KEY_E" > /dev/null; sleep 3
+        fi
         shoot "$name" "$v" && meta "$name" "$v"
         agent-browser eval "$KEY_ESC" > /dev/null; sleep 2
         shoot "${name}_closed" "$v" && meta "${name}_closed" "$v"
@@ -308,6 +317,8 @@ sleep 6
 agent-browser eval -b "$(cat /tmp/b01_plaza_hero.b64)" > /dev/null
 sleep 1
 wait_playing || true
+agent-browser eval "window.__LS_PERF__ && window.__LS_PERF__.reset(); 'warmup-start'" > /dev/null
+sleep 8  # warm-up: program compilation + texture uploads settle out of the window
 agent-browser eval "window.__LS_PERF__ && window.__LS_PERF__.reset(); 'perf-reset'" > /dev/null
 sleep 20  # ~20s of real plaza gameplay for a stable frame-time window
 PERF_SUMMARY=$(agent-browser eval "JSON.stringify(window.__LS_PERF__ ? window.__LS_PERF__.summary() : null)" 2>/dev/null | tail -1)
@@ -335,7 +346,7 @@ agent-browser console | tail -6
 echo "=== PAGE ERRORS ==="
 agent-browser errors | tail -8
 
-pkill -f "vite preview" 2>/dev/null
+kill "$VITE_PID" 2>/dev/null
 agent-browser close > /dev/null 2>&1
 echo "done → $OUT_DIR"
 ls "$OUT_DIR" | head -50
