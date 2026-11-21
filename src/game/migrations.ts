@@ -57,6 +57,7 @@ import {
   createInitialNpcRelations,
   createInitialPlayerRelations,
   getHeartLevel,
+  getNpcPairKey,
 } from './relationships';
 import {
   DURABLE_MEMORY_TTL_DAYS,
@@ -76,6 +77,7 @@ import {
   recordNpcMemoryInPlace,
 } from './memories';
 import {
+  DAY_END_MINUTE,
   DAY_START_MINUTE,
   DEFAULT_START_MINUTE,
   SEASON_ORDER,
@@ -134,6 +136,21 @@ import {
 
 export const CURRENT_SCHEMA_VERSION = 11;
 export const DEFAULT_SIM_SEED = 18042;
+
+/**
+ * Bounded-retention cap for the user-facing journal-memory projection
+ * (systemic-reliability doc 03 §1 J-1/J-2).
+ *
+ * `world.memories` is a projection, not authoritative simulation state; every
+ * other persisted collection is capped at append time, and this was the only
+ * uncapped one (register F-SAVE-3 / SR-1). The headroom is deliberately
+ * generous: the production content ceiling is ≈58 static `mem_*` ids, so the
+ * cap can never trim a state the simulation itself produces — it only bounds
+ * hand-edited or future-content states, deterministically (newest-first
+ * slice at the sanitize choke point every save and load already flows
+ * through). No schema bump: old saves converge at the next save.
+ */
+export const JOURNAL_MEMORY_CAP = 96;
 
 export interface MigrationResult {
   state: WorldState;
@@ -289,7 +306,13 @@ export function createDefaultWorldState(): WorldState {
 export function detectSchemaVersion(raw: unknown): number | null {
   if (!isRecord(raw)) return null;
   if (typeof raw.schemaVersion === 'number' && Number.isFinite(raw.schemaVersion)) {
-    return Math.floor(raw.schemaVersion);
+    // The field exists, so the version claim is authoritative: an integer in
+    // [1, ∞) is a real schema version (values above CURRENT_SCHEMA_VERSION
+    // are handled by the migration chain's conservative path); garbage values
+    // (negative, fractional) are NOT guessed into the legacy heuristic —
+    // they are rejected as unrecognized (SR-9b).
+    const v = Math.floor(raw.schemaVersion);
+    return v >= 1 && v === raw.schemaVersion ? v : null;
   }
   // Legacy v1 saves had no schemaVersion field, but carried day + residents + flags
   if (typeof raw.day === 'number' && isRecord(raw.residents) && isRecord(raw.flags)) {
@@ -357,14 +380,21 @@ function sanitizeResidents(rawResidents: unknown, warnings: string[]): Record<Re
   return out;
 }
 
-function sanitizeMemories(rawMemories: unknown): JournalMemory[] {
+function sanitizeMemories(rawMemories: unknown, warnings?: string[]): JournalMemory[] {
   const fallback = createStarterMemories();
   if (!Array.isArray(rawMemories)) return fallback;
   const out: JournalMemory[] = [];
   const seenIds = new Set<string>();
+  let droppedRows = 0;
   for (const item of rawMemories) {
     if (!isRecord(item)) continue;
-    if (typeof item.id !== 'string' || typeof item.title !== 'string' || typeof item.summary !== 'string') {
+    if (
+      typeof item.id !== 'string' ||
+      item.id.trim().length === 0 ||
+      typeof item.title !== 'string' ||
+      typeof item.summary !== 'string'
+    ) {
+      droppedRows++;
       continue;
     }
     if (seenIds.has(item.id)) continue;
@@ -386,6 +416,16 @@ function sanitizeMemories(rawMemories: unknown): JournalMemory[] {
       summary: item.summary,
       ...(resId ? { residentId: resId } : {}),
     });
+  }
+  if (out.length > JOURNAL_MEMORY_CAP) {
+    const dropped = out.length - JOURNAL_MEMORY_CAP;
+    out.length = JOURNAL_MEMORY_CAP;
+    warnings?.push(
+      `world.memories trimmed to JOURNAL_MEMORY_CAP on load (${dropped} rows dropped, newest kept)`,
+    );
+  }
+  if (droppedRows > 0) {
+    warnings?.push(`journal memory rows with empty or malformed ids dropped on load (${droppedRows})`);
   }
   return out.length > 0 ? out : fallback;
 }
@@ -602,20 +642,37 @@ function sanitizePlayerRelations(
 function sanitizeNpcRelations(
   raw: unknown,
   reconciled: boolean,
+  warnings?: string[],
 ): Record<string, NpcNpcRelation> {
   const defaults = createInitialNpcRelations(reconciled);
   if (!isRecord(raw)) return defaults;
 
   const out: Record<string, NpcNpcRelation> = { ...defaults };
-  const allKeys = new Set([...Object.keys(defaults), ...Object.keys(raw)]);
-  for (const key of allKeys) {
-    const entry = raw[key];
+  // Reference-resolution rule (doc 03 §2 / SR-3): a persisted relation pair
+  // must resolve to two REGISTERED residents. Pairs the baseline registry
+  // does not seed are still legitimate — the tick engine creates them through
+  // autonomous socialization (applyNpcSocialRelationInPlace / stampNpcGossip
+  // InPlace) — so they are accepted. Pairs naming unregistered ids are
+  // impossible for the simulation to produce and are dropped with a warning.
+  // Non-canonical key spellings are re-keyed deterministically (the production
+  // writer getNpcPairKey canonicalizes lexicographically).
+  const residentSet = new Set<string>(RESIDENT_ORDER);
+  let droppedUnknownPairs = 0;
+  let normalizedNonCanonical = 0;
+  for (const [rawKey, entry] of Object.entries(raw)) {
     if (!isRecord(entry)) continue;
-    const parts = key.split(':');
+    const parts = rawKey.split(':');
     if (parts.length !== 2 || !parts[0] || !parts[1] || parts[0] === parts[1]) continue;
+    if (!residentSet.has(parts[0]) || !residentSet.has(parts[1])) {
+      droppedUnknownPairs++;
+      continue;
+    }
+    const key = getNpcPairKey(parts[0] as ResidentId, parts[1] as ResidentId);
+    if (key !== rawKey) normalizedNonCanonical++;
     const def = defaults[key];
-    const fallbackAffinity = def ? def.affinity : 24;
-    const fallbackTension = def ? def.tension : 0;
+    const isArthurPair = parts[0] === 'arthur' || parts[1] === 'arthur';
+    const fallbackAffinity = def ? def.affinity : isArthurPair ? 10 : 24;
+    const fallbackTension = def ? def.tension : isArthurPair ? 10 : 0;
     const fallbackTags = def ? def.sharedTags : [];
     const affinity = Math.max(-50, Math.min(100, Math.round(asFiniteNumber(entry.affinity, fallbackAffinity))));
     const tension = Math.max(0, Math.min(100, Math.round(asFiniteNumber(entry.tension, fallbackTension))));
@@ -623,7 +680,7 @@ function sanitizeNpcRelations(
       ? entry.sharedTags.filter((t): t is string => typeof t === 'string').slice(-6)
       : fallbackTags;
     const sanitizedRel: NpcNpcRelation = {
-      pair: def ? def.pair : (key as NpcNpcRelation['pair']),
+      pair: key as NpcNpcRelation['pair'],
       affinity: key === 'arthur:clara' && reconciled ? Math.max(55, affinity) : affinity,
       tension: key === 'arthur:clara' && reconciled ? Math.min(5, tension) : tension,
       sharedTags,
@@ -651,17 +708,30 @@ function sanitizeNpcRelations(
     }
     out[key] = sanitizedRel;
   }
+  if (droppedUnknownPairs > 0) {
+    warnings?.push(`npcRelations pairs naming unregistered residents dropped on load (${droppedUnknownPairs})`);
+  }
+  if (normalizedNonCanonical > 0) {
+    warnings?.push(`non-canonical npcRelations pair keys normalized on load (${normalizedNonCanonical})`);
+  }
   return out;
 }
 
-function sanitizeWorldEvents(raw: unknown): WorldEventRecord[] {
+function sanitizeWorldEvents(raw: unknown, warnings?: string[]): WorldEventRecord[] {
   if (!Array.isArray(raw)) return [];
   const out: WorldEventRecord[] = [];
+  const seenIds = new Set<string>();
+  let droppedDuplicates = 0;
   for (const item of raw) {
     if (!isRecord(item)) continue;
     if (typeof item.id !== 'string' || typeof item.summary !== 'string' || typeof item.summaryTag !== 'string') {
       continue;
     }
+    if (seenIds.has(item.id)) {
+      droppedDuplicates++;
+      continue;
+    }
+    seenIds.add(item.id);
     const kind =
       item.kind === 'story_flag' ||
       item.kind === 'npc_social' ||
@@ -692,12 +762,18 @@ function sanitizeWorldEvents(raw: unknown): WorldEventRecord[] {
     });
     if (out.length >= MAX_WORLD_EVENTS) break;
   }
+  if (droppedDuplicates > 0) {
+    warnings?.push(`duplicate worldEvents ids dropped on load (${droppedDuplicates})`);
+  }
   return out;
 }
 
-function sanitizeActiveEncounters(raw: unknown): ActiveSocialEncounter[] {
+function sanitizeActiveEncounters(raw: unknown, warnings?: string[]): ActiveSocialEncounter[] {
   if (!Array.isArray(raw)) return [];
   const out: ActiveSocialEncounter[] = [];
+  const seenIds = new Set<string>();
+  let droppedDuplicates = 0;
+  let droppedBackwards = 0;
   for (const item of raw) {
     if (!isRecord(item)) continue;
     if (
@@ -739,15 +815,34 @@ function sanitizeActiveEncounters(raw: unknown): ActiveSocialEncounter[] {
     }
     if (!validSpots) continue;
 
+    const startedMinute = clampMinuteOfDay(asFiniteNumber(item.startedMinute, DEFAULT_START_MINUTE));
+    const endsMinute = clampMinuteOfDay(asFiniteNumber(item.endsMinute, DEFAULT_START_MINUTE + 15));
+    if (endsMinute < startedMinute) {
+      // Temporal sanity (doc 03 §2): an encounter cannot end before it starts.
+      droppedBackwards++;
+      continue;
+    }
+    if (seenIds.has(item.id)) {
+      droppedDuplicates++;
+      continue;
+    }
+    seenIds.add(item.id);
+
     out.push({
       id: item.id,
       participants,
       topicTag: typeof item.topicTag === 'string' ? item.topicTag : 'neighbor_chat',
       summary: typeof item.summary === 'string' ? item.summary : 'Sharing a quiet chat in the lane',
       spots,
-      startedMinute: clampMinuteOfDay(asFiniteNumber(item.startedMinute, DEFAULT_START_MINUTE)),
-      endsMinute: clampMinuteOfDay(asFiniteNumber(item.endsMinute, DEFAULT_START_MINUTE + 15)),
+      startedMinute,
+      endsMinute,
     });
+  }
+  if (droppedDuplicates > 0) {
+    warnings?.push(`duplicate activeEncounters ids dropped on load (${droppedDuplicates})`);
+  }
+  if (droppedBackwards > 0) {
+    warnings?.push(`activeEncounters with endsMinute before startedMinute dropped on load (${droppedBackwards})`);
   }
   return out;
 }
@@ -1178,9 +1273,9 @@ export function sanitizeWorldState(candidate: unknown, externalWarnings: string[
     warnings,
   );
   const playerRelations = sanitizePlayerRelations(candidate.playerRelations, residents);
-  const npcRelations = sanitizeNpcRelations(candidate.npcRelations, flags.claraArthurReconciled);
-  const activeEncounters = sanitizeActiveEncounters(candidate.activeEncounters);
-  const worldEvents = sanitizeWorldEvents(candidate.worldEvents);
+  const npcRelations = sanitizeNpcRelations(candidate.npcRelations, flags.claraArthurReconciled, warnings);
+  const activeEncounters = sanitizeActiveEncounters(candidate.activeEncounters, warnings);
+  const worldEvents = sanitizeWorldEvents(candidate.worldEvents, warnings);
   const npcActivityHistory = sanitizeNpcActivityHistory(candidate.npcActivityHistory);
   const { worldProps, playerHeldItem } = sanitizeWorldProps(
     candidate.worldProps,
@@ -1203,10 +1298,18 @@ export function sanitizeWorldState(candidate: unknown, externalWarnings: string[
   );
 
   const derivedSeason = getSeasonForDay(day).season;
-  const season =
-    typeof candidate.season === 'string' && VALID_SEASONS.has(candidate.season as SeasonType)
-      ? derivedSeason
-      : derivedSeason;
+  // Season is derived from the day (day-based season clock). A saved season
+  // that disagrees is re-derived; make the normalization observable (SR-9).
+  if (
+    typeof candidate.season === 'string' &&
+    VALID_SEASONS.has(candidate.season as SeasonType) &&
+    candidate.season !== derivedSeason
+  ) {
+    warnings.push(
+      `saved season '${String(candidate.season)}' re-derived from day ${day} as '${derivedSeason}'`,
+    );
+  }
+  const season = derivedSeason;
 
   const weather =
     typeof candidate.weather === 'string' && VALID_WEATHERS.has(candidate.weather as WeatherType)
@@ -1237,8 +1340,11 @@ export function sanitizeWorldState(candidate: unknown, externalWarnings: string[
         inventory[key as PersonalItemId] = Math.min(MAX_ITEM_STACK, Math.floor(val));
       }
     }
-  } else if (candidate.inventory === undefined) {
+  } else if (candidate.inventory === undefined || candidate.inventory === null) {
+    // Stable default: a missing OR null inventory gets the starter kit
+    // (null previously yielded an empty inventory — asymmetry, SR-9c).
     Object.assign(inventory, createStarterInventory());
+    warnings.push('inventory missing or null; restored starter kit');
   }
 
   const discoveredSet = new Set<PersonalItemId>();
@@ -1351,7 +1457,7 @@ export function sanitizeWorldState(candidate: unknown, externalWarnings: string[
     sideFlags,
     storylines,
     flags,
-    memories: sanitizeMemories(candidate.memories),
+    memories: sanitizeMemories(candidate.memories, warnings),
     npcMemories,
     mailboxUnread: asBoolean(candidate.mailboxUnread, true),
     dailyLettersRead,
@@ -1412,14 +1518,31 @@ function sanitizeLivingRelationships(
         typeof a.expiresDay === 'number' && Number.isFinite(a.expiresDay) && a.expiresDay >= 1
           ? Math.floor(a.expiresDay)
           : null;
-      const windowStartMinute =
+      // Window domain (doc 03 §2 / SR-6): production windows are written by
+      // computeOfferWindow within [360, DAY_END_MINUTE]; out-of-domain values
+      // from hand-edited saves are clamped into that domain, never accepted.
+      const rawWindowStart =
         typeof a.windowStartMinute === 'number' && Number.isFinite(a.windowStartMinute)
           ? a.windowStartMinute
           : null;
-      const windowEndMinute =
+      const rawWindowEnd =
         typeof a.windowEndMinute === 'number' && Number.isFinite(a.windowEndMinute)
           ? a.windowEndMinute
           : null;
+      const windowStartMinute =
+        rawWindowStart !== null
+          ? Math.max(360, Math.min(DAY_END_MINUTE, Math.floor(rawWindowStart)))
+          : null;
+      const windowEndMinute =
+        rawWindowEnd !== null
+          ? Math.max(360, Math.min(DAY_END_MINUTE, Math.floor(rawWindowEnd)))
+          : null;
+      if (
+        (rawWindowStart !== null && rawWindowStart !== windowStartMinute) ||
+        (rawWindowEnd !== null && rawWindowEnd !== windowEndMinute)
+      ) {
+        warnings.push('invitation window minutes clamped to the daily offer domain on load');
+      }
 
       if (
         id &&
@@ -1431,15 +1554,23 @@ function sanitizeLivingRelationships(
         windowStartMinute !== null &&
         windowEndMinute !== null &&
         windowStartMinute <= windowEndMinute &&
+        offeredDay <= day &&
         SHARED_ACTIVITIES[activityId].hostId === hostId
       ) {
+        // expiresDay invariant (SR-5): the production writer (offerInvitation)
+        // always sets expiresDay === offeredDay; re-pin mismatches so a
+        // hand-edited "immortal" invite decays like every other offer.
+        const pinnedExpiresDay = offeredDay;
+        if (pinnedExpiresDay !== expiresDay) {
+          warnings.push('invitation expiresDay re-pinned to offeredDay on load');
+        }
         active = {
           id,
           status,
           hostId,
           activityId,
           offeredDay,
-          expiresDay,
+          expiresDay: pinnedExpiresDay,
           windowStartMinute,
           windowEndMinute,
         };
@@ -1485,10 +1616,24 @@ function sanitizeLivingRelationships(
       });
     }
   }
+  const dedupedHistory: InvitationHistoryEntry[] = [];
+  const seenInvitationIds = new Set<string>();
+  let droppedHistoryDuplicates = 0;
+  for (const entry of history) {
+    if (seenInvitationIds.has(entry.invitationId)) {
+      droppedHistoryDuplicates++;
+      continue;
+    }
+    seenInvitationIds.add(entry.invitationId);
+    dedupedHistory.push(entry);
+  }
+  if (droppedHistoryDuplicates > 0) {
+    warnings.push(`duplicate invitation history rows dropped on load (${droppedHistoryDuplicates})`);
+  }
   const cappedHistory =
-    history.length > INVITATION_HISTORY_CAP
-      ? history.slice(history.length - INVITATION_HISTORY_CAP)
-      : history;
+    dedupedHistory.length > INVITATION_HISTORY_CAP
+      ? dedupedHistory.slice(dedupedHistory.length - INVITATION_HISTORY_CAP)
+      : dedupedHistory;
 
   const lastOfferDayByHost: Partial<Record<ResidentId, number>> = {};
   if (isRecord(rawInv.lastOfferDayByHost)) {
@@ -1535,6 +1680,10 @@ function sanitizeLivingRelationships(
         invitationId: active.id,
       };
     }
+  } else if (!active && isRecord(candidate.activeActivity)) {
+    // Make the doc 14 §4.3 orphan rule observable (SR-9): an activeActivity
+    // with no live active invitation is cleared, warned, every time.
+    warnings.push('orphan activeActivity cleared on load (no live active invitation — doc 14 §4.3)');
   }
 
   // Load invariant step 3: occupancy requires interior location matching playerLocation,
@@ -1553,7 +1702,7 @@ function sanitizeLivingRelationships(
       occ.residentId === active.hostId &&
       occ.location === playerLocation &&
       typeof occ.stationId === 'string' &&
-      occ.stationId.length > 0 &&
+      occ.stationId === SHARED_ACTIVITIES[active.activityId].stationId &&
       occ.invitationId === active.id &&
       occPos &&
       typeof occPos.x === 'number' &&
@@ -1574,6 +1723,21 @@ function sanitizeLivingRelationships(
     } else {
       warnings.push('inconsistent interior occupancy cleared on load');
     }
+  }
+
+  // Load invariant step 4 (SR-2b): an occupancy without its activeActivity
+  // slice is completed exactly the way the production writer would have
+  // written it. The OPPOSITE direction (activeActivity without occupancy)
+  // is deliberately NOT cleared here: doc 14 §4.3 / doc 16 §3 (LR1-15b)
+  // anchor activeActivity to the LIVE ACTIVE INVITATION, not to occupancy —
+  // a mid-visit activeActivity must survive load (the recovery contract of
+  // record). Step 2 above already enforces the invitation anchor.
+  if (occupancy && !activeActivity && active && active.status === 'accepted') {
+    activeActivity = {
+      activityId: active.activityId,
+      invitationId: active.id,
+    };
+    warnings.push('activeActivity restored from accepted invitation occupancy on load');
   }
 
   const rawTeach = isRecord(candidate.teaching) ? candidate.teaching : {};

@@ -16,6 +16,7 @@ import { enterNookAction } from './actions';
 import { loadJournalReadKeys, JOURNAL_READ_STORAGE_KEY } from './journal';
 import { getSeasonForDay } from './time';
 import { createStarterInventory } from './inventory';
+import { PLAYER_SPAWN, isPointWalkable } from './worldMap';
 import type { WorldState } from './types';
 
 // The target cap for the journal-memory projection (doc 03 §1 J-1: headroom
@@ -59,6 +60,37 @@ function journalMemoryRows(count: number, idPrefix: string): Array<Record<string
     title: `Row ${i}`,
     summary: `Synthetic journal row ${i}`,
   }));
+}
+
+function encounterSpots(): Array<{ x: number; z: number }> {
+  // Encounter spots must be genuinely walkable or the sanitizer's walkability
+  // gate drops the encounter before dedup ever applies.
+  const spots: Array<{ x: number; z: number }> = [];
+  outer: for (let dx = -4; dx <= 4; dx++) {
+    for (let dz = -4; dz <= 4; dz++) {
+      const x = PLAYER_SPAWN.x + dx * 0.5;
+      const z = PLAYER_SPAWN.z + dz * 0.5;
+      if (isPointWalkable(x, z, 0.35)) {
+        spots.push({ x, z });
+        if (spots.length === 2) break outer;
+      }
+    }
+  }
+  assert.equal(spots.length, 2, 'fixture requires two walkable spots near spawn');
+  return spots;
+}
+
+function validEncounter(id: string, overrides: Record<string, unknown> = {}): Record<string, unknown> {
+  return {
+    id,
+    participants: ['clara', 'arthur'],
+    topicTag: 'neighbor_chat',
+    summary: 'Sharing a quiet chat in the lane',
+    spots: encounterSpots(),
+    startedMinute: 480,
+    endsMinute: 495,
+    ...overrides,
+  };
 }
 
 function withMockLocalStorage(fn: (store: Map<string, string>) => void): void {
@@ -163,19 +195,32 @@ test('F-SAVE-2: an immortal expiresDay is re-pinned to offeredDay with a warning
 // Occupancy / activeActivity unit rule (SR-2)
 // ---------------------------------------------------------------------------
 
-test('SR-2a: activeActivity without occupancy is cleared as a unit with a warning', () => {
+test('SR-2a: activeActivity survives load without occupancy (contract of record: doc 14 §4.3 / LR1-15b)', () => {
+  // The recovery contract anchors activeActivity to the LIVE ACTIVE INVITATION,
+  // not to occupancy: a mid-visit activeActivity must survive load. The
+  // sanitizer-recommended unit-clear from the adversarial audit was REJECTED
+  // against this documented decision (adversarial loop, doc 09).
   const res = loadMutated(worldWithAcceptedLiveInvitation(), (raw) => {
     raw.occupancy = null;
   });
   assert.equal(res.state.occupancy, null, 'occupancy stays cleared');
-  assert.equal(
+  const active = res.state.invitations.active;
+  assert.ok(active);
+  assert.deepEqual(
     res.state.activeActivity,
-    null,
-    'activeActivity must not survive without its occupancy unit',
+    { activityId: active.activityId, invitationId: active.id },
+    'invitation-anchored activeActivity survives load (doc 16 §3)',
   );
+});
+
+test('SR-2c: activeActivity without ANY live invitation is still cleared (the actual orphan rule)', () => {
+  const res = loadMutated(worldWithAcceptedLiveInvitation(), (raw) => {
+    raw.invitations = { active: null, history: [], lastOfferDayByHost: {} };
+  });
+  assert.equal(res.state.activeActivity, null, 'orphan activeActivity is cleared');
   assert.ok(
-    res.warnings.some((w) => w.includes('activeActivity')),
-    `expected a unit-clear warning, got: ${JSON.stringify(res.warnings)}`,
+    res.warnings.some((w) => w.includes('activeActivity') || w.includes('archived')),
+    `expected a warning for the orphan slice, got: ${JSON.stringify(res.warnings)}`,
   );
 });
 
@@ -197,13 +242,19 @@ test('SR-2b: occupancy without activeActivity derives the unit deterministically
   );
 });
 
-test('SR-7: an occupancy stationId that does not resolve to the activity station clears the unit', () => {
+test('SR-7: an occupancy stationId that does not resolve to the activity station clears the occupancy only', () => {
   const res = loadMutated(worldWithAcceptedLiveInvitation(), (raw) => {
     const occ = raw.occupancy as Record<string, unknown>;
     occ.stationId = 'bogus_station_id';
   });
   assert.equal(res.state.occupancy, null, 'bogus station must not survive');
-  assert.equal(res.state.activeActivity, null, 'unit rule clears activeActivity with it');
+  const active = res.state.invitations.active;
+  assert.ok(active);
+  assert.deepEqual(
+    res.state.activeActivity,
+    { activityId: active.activityId, invitationId: active.id },
+    'invitation-anchored activeActivity is unaffected (doc 14 §4.3)',
+  );
   assert.ok(res.warnings.length > 0, 'expected a warning for the cleared occupancy');
 });
 
@@ -289,18 +340,7 @@ test('SR-8a: duplicate worldEvents ids are deduped keep-first with a warning', (
 
 test('SR-8b: duplicate activeEncounters ids are deduped keep-first with a warning', () => {
   const res = loadMutated(createFreshWorldState(), (raw) => {
-    const encounter = {
-      id: 'enc_dup_test',
-      participants: ['clara', 'arthur'],
-      topicTag: 'neighbor_chat',
-      summary: 'Sharing a quiet chat in the lane',
-      spots: [
-        { x: 10, z: 10 },
-        { x: 11, z: 10 },
-      ],
-      startedMinute: 480,
-      endsMinute: 495,
-    };
+    const encounter = validEncounter('enc_dup_test');
     raw.activeEncounters = [encounter, { ...encounter, summary: 'Copy' }];
   });
   assert.equal(res.state.activeEncounters.length, 1, 'duplicate ids must collapse');
@@ -333,18 +373,7 @@ test('SR-8c: duplicate invitation history rows collapse keep-first with a warnin
 test('SR-9a: an encounter ending before it starts is dropped with a warning', () => {
   const res = loadMutated(createFreshWorldState(), (raw) => {
     raw.activeEncounters = [
-      {
-        id: 'enc_backwards',
-        participants: ['clara', 'arthur'],
-        topicTag: 'neighbor_chat',
-        summary: 'Time-traveling chat',
-        spots: [
-          { x: 10, z: 10 },
-          { x: 11, z: 10 },
-        ],
-        startedMinute: 900,
-        endsMinute: 600,
-      },
+      validEncounter('enc_backwards', { startedMinute: 900, endsMinute: 600, summary: 'Time-traveling chat' }),
     ];
   });
   assert.equal(res.state.activeEncounters.length, 0, 'backwards encounter must not load');
