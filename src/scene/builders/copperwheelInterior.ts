@@ -6,6 +6,7 @@ import {
 } from '../../game/copperwheel';
 import { TimePhase, WorldState } from '../../game/types';
 import { getSeasonForDay } from '../../game/time';
+import { composeProgressionVisualState } from '../../game/progressionVisuals';
 import { MaterialPalette, STORYBOOK_PALETTE } from '../materials';
 import {
   addContactShadow,
@@ -301,6 +302,21 @@ export function buildCopperwheelInterior(
   benchTop.position.set(0, 0.92, 0);
   benchTop.castShadow = true;
   benchGroup.add(benchTop);
+
+  // BUILD 03 5.2c — keepsake echo: Arthur's brass_pocket_bell rests on the bench's
+  // east end once the gift was granted (neighborGiftsReceived). Derived; zero save
+  // impact; clear of the day-cycle bench project group at the bench center.
+  const bellEcho = new THREE.Group();
+  bellEcho.position.set(1.05, 0.97, 0.08);
+  bellEcho.visible = false;
+  const bellBody = new THREE.Mesh(trackGeo(new THREE.SphereGeometry(0.045, 8, 7, 0, Math.PI * 2, 0, Math.PI * 0.6)), brassMat);
+  bellBody.rotation.x = Math.PI;
+  const bellCord = new THREE.Mesh(trackGeo(new THREE.CylinderGeometry(0.006, 0.006, 0.05, 4)), ironMat);
+  bellCord.position.y = 0.055;
+  const bellClapper = new THREE.Mesh(trackGeo(new THREE.SphereGeometry(0.012, 5, 4)), brassMat);
+  bellClapper.position.y = -0.008;
+  bellEcho.add(bellBody, bellCord, bellClapper);
+  benchGroup.add(bellEcho);
   const benchFrontApron = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(2.56, 0.14, 0.1)), mapleEdgeMat);
   benchFrontApron.position.set(0, 0.82, 0.4);
   benchGroup.add(benchFrontApron);
@@ -933,6 +949,10 @@ export function buildCopperwheelInterior(
   }
 
   function update(world: WorldState, phase: TimePhase, elapsed: number): void {
+    // BUILD 03 5.2c — keepsake echo toggle (single derivation source)
+    bellEcho.visible = composeProgressionVisualState(world).keepsakeEchoes.some(
+      (e) => e.residentId === 'arthur',
+    );
     const cws = world.copperwheelState;
     const checkedToday = (cws?.benchCheckedDay ?? 0) === world.day;
     const teaPouredToday = (cws?.teaSharedDay ?? 0) === world.day;

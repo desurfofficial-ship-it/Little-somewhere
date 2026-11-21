@@ -1,4 +1,6 @@
 import { computeEnvironmentState } from './narrative';
+import { composeProgressionVisualState } from './progressionVisuals';
+import type { ProgressionVisualState } from './progressionVisuals';
 import { hashSeed, mulberry32 } from './rng';
 import { DAY_END_MINUTE, DAY_START_MINUTE, getSeasonForDay, getTimePhase } from './time';
 import {
@@ -50,6 +52,13 @@ export interface ComposedEnvironmentState {
   season: SeasonState;
   playerChanges: EnvironmentalState;
   npcTouches: NpcEnvironmentTouches;
+  /**
+   * BUILD 03 — additive derived progression signals (Doc 07 Phase 5; pure,
+   * schema-free). Carries its own revision integer so the renderer's static
+   * block can gate on both (design lock §2.2; deviation A1 — the existing
+   * staticFlagsMask bit budget is untouched).
+   */
+  progression: ProgressionVisualState;
 }
 
 const SEASON_VISUAL_PALETTES: Record<
@@ -127,7 +136,18 @@ export function composeEnvironmentState(
     WorldState,
     'day' | 'minuteOfDay' | 'simSeed' | 'season' | 'weather' | 'flags' | 'worldEvents'
   > &
-    Partial<Pick<WorldState, 'sideFlags'>>,
+    Partial<
+      Pick<
+        WorldState,
+        | 'sideFlags'
+        | 'storylines'
+        | 'playerRelations'
+        | 'neighborGiftsReceived'
+        | 'greenhouseState'
+        | 'bakeryState'
+        | 'nookState'
+      >
+    >,
 ): ComposedEnvironmentState {
   const phase = getTimePhase(world.minuteOfDay);
   const clampedMin = Math.max(DAY_START_MINUTE, Math.min(DAY_END_MINUTE, world.minuteOfDay));
@@ -270,5 +290,9 @@ export function composeEnvironmentState(
       noticeboardFlyerCount,
       arthurEarlyPorchLamp,
     },
+    // BUILD 03: pure additive derivation (playerChanges.noticeboardUpdated feeds 5.6a
+    // so the glint shares the existing signal without duplicating its logic).
+    // Passed as an argument, not via spread — no per-frame allocation.
+    progression: composeProgressionVisualState(world, playerChanges.noticeboardUpdated),
   };
 }

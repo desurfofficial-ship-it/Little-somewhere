@@ -125,6 +125,7 @@ import { buildWildHollows } from './builders/wilds';
 import { buildFernHollowOrchard } from './builders/orchard';
 import { buildOrchardAmbientExtras, buildOrchardMicroLife } from './builders/orchardMicroLife';
 import { buildAllReactiveRigs } from './builders/reactiveProps';
+import { buildProgressionPresentation } from './progressionPresentation';
 import { buildWillowCottageInterior } from './builders/cottageInterior';
 import {
   buildSunbeamGreenhouseDoorway,
@@ -844,6 +845,16 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
     festoonGroup.visible = false;
     exteriorRoot.add(festoonGroup);
 
+    // BUILD 03 (Doc 07 §5): progression presentation rigs — all storyline props,
+    // tokens, echoes, and exploration marks, pre-built hidden and toggled by the
+    // derived state inside the renderer's revision-gated static block. Mounted
+    // BEFORE flushStaticContactShadows so their static contact discs batch.
+    function buildAndMountProgressionRigs() {
+      const rigs = buildProgressionPresentation({ palette, shadowTex, isSoftwareGl });
+      exteriorRoot.add(rigs.group);
+      return rigs;
+    }
+
     // Reactive micro-props & pooled ambient life (environment hooks + micro-life)
     function buildAndMountReactiveRigs() {
       const rigs = buildAllReactiveRigs(palette, isSoftwareGl);
@@ -861,6 +872,8 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
       );
       return rigs;
     }
+
+    const progressionRigs = buildAndMountProgressionRigs();
 
     const envController = new EnvironmentVisualController({
       scene,
@@ -887,6 +900,8 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
       bellSwingVelRef,
       isSoftwareGl,
       reactiveRigs: buildAndMountReactiveRigs(),
+      progressionRigs,
+      meadowDressing: meadowDressing,
       orchardRig,
       orchardMicroLife: orchardMicroLifeRig,
       orchardAmbientExtras: orchardAmbientExtrasRig,
@@ -2667,6 +2682,7 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
       renderer.domElement.removeEventListener('pointerdown', handlePointerDown);
       renderer.domElement.removeEventListener('wheel', handleWheel);
       envController.dispose();
+      progressionRigs.dispose();
       staticContactShadows.dispose();
       cottageInteriorRig.dispose();
       greenhouseInteriorRig.dispose();

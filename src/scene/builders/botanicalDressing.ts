@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { MaterialPalette, STORYBOOK_PALETTE } from '../materials';
+import type { SeasonType } from '../../game/types';
 import { isPointWalkable } from '../../game/worldMap';
 
 /**
@@ -75,6 +76,15 @@ export interface MeadowDressingRig {
    * palette otherwise. Edge-triggered by the canvas on season change.
    */
   setSpringSpread(spring: boolean): void;
+  /**
+   * BUILD 03 5.3b — within-season drift (design lock rev 2 §3.3, review C1).
+   * Progress 0 restores the placement-time colors bit-identically (same snapshot
+   * mechanism as setSpringSpread(false)), so day 1 of any season renders exactly
+   * today's look; higher progress lerps the blossom instance colors toward the
+   * season's late keyframe. Winter never drifts (the derivation clamps progress
+   * to 0). Day-edge calls only (revision-gated) — never per-frame.
+   */
+  setSeasonDayProgress(progress: number, season: SeasonType): void;
   dispose(): void;
 }
 
@@ -94,6 +104,17 @@ interface DressingBudget {
  * - Deterministic seed => identical layout on every boot.
  * - 5 draw calls total (2 instanced tuft layers, 2 flower layers, 1 pebble layer).
  */
+/**
+ * BUILD 03 5.3b — season late-meadow keyframes (authored once; cited in the
+ * design lock §3.3). Progress departs FROM the placement colors toward these.
+ */
+const SEASON_LATE_MEADOW: Record<Exclude<SeasonType, 'winter'>, string> = {
+  spring: '#f2b25c', // late-spring gold
+  summer: '#e8c878', // dry-grass gold
+  autumn: '#d89a54', // deep amber
+};
+const _seasonDriftTarget = new THREE.Color();
+
 export function buildMeadowDressing(
   palette: MaterialPalette,
   isSoftwareGl: boolean,
@@ -350,6 +371,22 @@ export function buildMeadowDressing(
     group,
     placementPoints,
     setSpringSpread,
+    setSeasonDayProgress(progress: number, season: SeasonType) {
+      // Step 1 — rebuild the p=0 base into the buffer (bit-identical restore):
+      // spring uses the widened spread palette, every other season the snapshot.
+      setSpringSpread(season === 'spring');
+      if (progress <= 0 || season === 'winter' || !blossomInst.instanceColor) return;
+      // Step 2 — drift: lerp every blossom color toward the season's late keyframe.
+      const target = _seasonDriftTarget.set(SEASON_LATE_MEADOW[season]);
+      const arr = blossomInst.instanceColor.array as Float32Array;
+      for (let i = 0; i < flowersPlaced; i++) {
+        const o = i * 3;
+        arr[o] += (target.r - arr[o]) * progress;
+        arr[o + 1] += (target.g - arr[o + 1]) * progress;
+        arr[o + 2] += (target.b - arr[o + 2]) * progress;
+      }
+      blossomInst.instanceColor.needsUpdate = true;
+    },
     dispose() {
       cloverGeo.dispose();
       grassGeo.dispose();

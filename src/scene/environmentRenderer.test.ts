@@ -92,7 +92,11 @@ test('EnvironmentVisualController applies non-default season, weather, lighting,
   const base = createFreshWorldState();
   const autumnDuskWorld = {
     ...base,
-    day: 24,
+    // BUILD 03 5.3 within-season drift: day 21 = autumn dayOfSeason 1, the parity
+    // anchor (dayOfSeason 1 renders the byte-equal season hex; days 2+ drift toward
+    // CANOPY_DRIFT_TARGETS). Day 24 previously used here would now legitimately
+    // drift — see environmentRendererProgression.test.ts.
+    day: 21,
     season: 'autumn' as const,
     weather: 'light_rain' as const,
     minuteOfDay: 1180,

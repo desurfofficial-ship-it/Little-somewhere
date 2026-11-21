@@ -13,6 +13,9 @@ import { WildsRig } from './builders/wilds';
 import { ReactiveVisualRigs } from './builders/reactiveProps';
 import { getWaterShaderUniforms } from './waterShaders';
 import { computeChimneySmokeStrength } from '../game/cottage';
+import { CANOPY_DRIFT_TARGETS } from '../game/progressionVisuals';
+import type { ProgressionPresentationRigs } from './progressionPresentation';
+import type { MeadowDressingRig } from './builders/botanicalDressing';
 
 // Pre-allocated scratch helpers (zero per-frame heap allocations)
 const _skyMorning = new THREE.Color('#DCEBF2');
@@ -103,10 +106,16 @@ export interface EnvironmentRendererDeps {
   orchardAmbientExtras?: OrchardAmbientExtrasRig;
   /** Optional Wild Hollows rig (Build 10) for seasonal crown/knoll tints. */
   wildsRig?: WildsRig;
+  /** BUILD 03: progression presentation rigs (Doc 07 §5 props; revision-gated toggles). */
+  progressionRigs?: ProgressionPresentationRigs;
+  /** BUILD 03: meadow dressing rig for the within-season drift (5.3b instance re-tint). */
+  meadowDressing?: MeadowDressingRig;
 }
 
 export class EnvironmentVisualController {
   private lastStaticRevision = -1;
+  private lastProgressionRevision = -1;
+  private lastLateWindowStep = -1;
   private lastMailboxUnread: boolean | null = null;
   private lastSeason: SeasonType | null = null;
   private lastGreenhouseStage = -1;
@@ -243,10 +252,19 @@ export class EnvironmentVisualController {
     // 2. Dirty-Flagged Static Props, Planters, Gazebo, Bakery & Noticeboard Flyers
     if (
       composed.revision !== this.lastStaticRevision ||
+      composed.progression.revision !== this.lastProgressionRevision ||
       world.mailboxUnread !== this.lastMailboxUnread
     ) {
       this.lastStaticRevision = composed.revision;
+      this.lastProgressionRevision = composed.progression.revision;
       this.lastMailboxUnread = world.mailboxUnread;
+
+      // BUILD 03 (Doc 07 §5): progression prop toggles run FIRST inside the static
+      // block; the drift re-application below therefore always lands AFTER the
+      // season block (section 1) wrote the anchor colors on season-change frames —
+      // ordering pinned by environmentRenderer.test.ts.
+      this.deps.progressionRigs?.apply(composed.progression);
+      this.applySeasonDrift(composed);
 
       const env = composed.playerChanges;
       for (let i = 0; i < flowerGroups.length; i++) {
@@ -278,18 +296,12 @@ export class EnvironmentVisualController {
         flyers[i].visible = i < composed.npcTouches.noticeboardFlyerCount;
       }
 
+      // BUILD 03 5.6a — noticeboard glint (deviation A5): the newest visible flyer's
+      // brass pin carries a subtle warm emissive while the board has news. Per-pin
+      // cloned materials are ensured once (the shared brassMat has no emissive).
+      this.applyNoticeboardGlint(flyers, composed.progression.housekeeping.noticeboardGlint);
+
       const phase = composed.timeOfDay.phase;
-      const windowGlow =
-        phase === 'dusk'
-          ? 2.1
-          : phase === 'golden'
-          ? 0.9
-          : composed.weather.effective === 'light_rain'
-          ? 0.45
-          : 0.22;
-      for (let i = 0; i < windowMaterials.length; i++) {
-        windowMaterials[i].emissiveIntensity = windowGlow;
-      }
       lanternMat.emissiveIntensity =
         phase === 'dusk' ? 2.15 : composed.timeOfDay.lanternScheduleActive ? 0.95 : 0.15;
       const protoGlow =
@@ -362,6 +374,29 @@ export class EnvironmentVisualController {
         for (let i = 0; i < willowWindows.length; i++) {
           willowWindows[i].emissiveIntensity = willowGlow;
         }
+      }
+    }
+
+    // 2.7 BUILD 03 5.6b — neighborhood window glow now tracks the clock per-frame
+    // (the write was revision-gated, but phase is not a revision bit, so golden->dusk
+    // could previously lag until the next revision event) and gains the
+    // cozyLateNightHint warm step at 21:00+ (Doc 07 §5.6). windowMaterials ONLY —
+    // willowWindowMaterials stay exclusively owned by the hearth-truth section above.
+    {
+      const phase = composed.timeOfDay.phase;
+      const baseGlow =
+        phase === 'dusk'
+          ? 2.1
+          : phase === 'golden'
+          ? 0.9
+          : composed.weather.effective === 'light_rain'
+          ? 0.45
+          : 0.22;
+      const lateStep = composed.timeOfDay.cozyLateNightHint ? 0.2 : 0;
+      this.lastLateWindowStep = lateStep;
+      const glow = baseGlow + lateStep;
+      for (let i = 0; i < windowMaterials.length; i++) {
+        windowMaterials[i].emissiveIntensity = glow;
       }
     }
 
@@ -711,6 +746,86 @@ export class EnvironmentVisualController {
     // Convert world XZ into pondGroup-local XZ (pond centered at 1.6, 0, 14.0)
     this.pondSplashPos.set(worldX - 1.6, 0, worldZ - 14.0);
     this.pondSplashAge = 0;
+  }
+
+  /**
+   * BUILD 03 5.6a — per-pin glint materials (ensured once). The pins originally
+   * share one brass material with no emissive; each pin gets its own clone so the
+   * glint can move to the newest visible flyer without touching the cache.
+   */
+  private glintPinsEnsured = false;
+  private applyNoticeboardGlint(flyers: THREE.Mesh[], glint: boolean): void {
+    if (!this.glintPinsEnsured) {
+      this.glintPinsEnsured = true;
+      for (const flyer of flyers) {
+        const pin = flyer.children[0] as THREE.Mesh | undefined;
+        if (pin && pin.material instanceof THREE.MeshStandardMaterial) {
+          const clone = pin.material.clone();
+          clone.emissive = new THREE.Color('#F2C26B');
+          clone.emissiveIntensity = 0;
+          pin.material = clone;
+        }
+      }
+    }
+    let newest = -1;
+    for (let i = 0; i < flyers.length; i++) {
+      if (flyers[i].visible) newest = i;
+    }
+    for (let i = 0; i < flyers.length; i++) {
+      const pin = flyers[i].children[0] as THREE.Mesh | undefined;
+      if (pin && pin.material instanceof THREE.MeshStandardMaterial) {
+        pin.material.emissiveIntensity = glint && i === newest ? 0.9 : 0;
+      }
+    }
+  }
+
+  /**
+   * BUILD 03 5.3 — within-season drift (design lock rev 2 §3.3, review C1/M1):
+   * dayOfSeason 1 is byte-equal to the season anchor (what the season block wrote);
+   * drift departs from it toward the authored targets as the season ages. Grove AND
+   * wilds crowns drift together. Runs in the revision-gated static block AFTER the
+   * season block wrote the anchor colors (section order guarantees this), so the
+   * operation is idempotent on every daily revision change.
+   */
+  private _driftBase = new THREE.Color();
+  private _driftTarget = new THREE.Color();
+  private _driftWildsTarget = new THREE.Color();
+  private applySeasonDrift(composed: ComposedEnvironmentState): void {
+    const drift = composed.progression.seasonDrift;
+    const progress = drift.canopyProgress;
+    const grove = this.deps.groveRig;
+    this._driftBase.set(composed.season.groveBaseTintHex);
+    grove.crownBaseMat.color.copy(this._driftBase);
+    this._driftTarget.set(composed.season.groveTopTintHex);
+    grove.crownTopMat.color.copy(this._driftTarget);
+    if (progress > 0 && drift.season !== 'winter') {
+      const target = CANOPY_DRIFT_TARGETS[drift.season];
+      grove.crownBaseMat.color.lerp(this._driftTarget.set(target.base), progress);
+      grove.crownTopMat.color.lerp(this._driftBase.set(target.top), progress);
+    }
+    const wilds = this.deps.wildsRig;
+    if (wilds) {
+      this._driftBase.set(composed.season.meadowTintHex);
+      wilds.moundMat.color.copy(wilds.baseColors.mound).multiply(this._driftBase);
+      this._driftTarget.set(composed.season.groveBaseTintHex);
+      wilds.crownBaseMat.color.copy(wilds.baseColors.crownBase).multiply(this._driftTarget);
+      this._driftBase.set(composed.season.groveTopTintHex);
+      wilds.crownTopMat.color.copy(wilds.baseColors.crownTop).multiply(this._driftBase);
+      if (progress > 0 && drift.season !== 'winter') {
+        const target = CANOPY_DRIFT_TARGETS[drift.season];
+        this._driftWildsTarget.set(target.base);
+        wilds.crownBaseMat.color.lerp(
+          this._driftBase.copy(wilds.baseColors.crownBase).multiply(this._driftWildsTarget),
+          progress,
+        );
+        this._driftWildsTarget.set(target.top);
+        wilds.crownTopMat.color.lerp(
+          this._driftBase.copy(wilds.baseColors.crownTop).multiply(this._driftWildsTarget),
+          progress,
+        );
+      }
+    }
+    this.deps.meadowDressing?.setSeasonDayProgress(drift.meadowProgress, drift.season);
   }
 
   dispose(): void {

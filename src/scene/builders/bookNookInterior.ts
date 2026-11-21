@@ -6,6 +6,7 @@ import { MaterialPalette, STORYBOOK_PALETTE } from '../materials';
 import { attachPorchSeasonLife, createPorchSeasonLife } from './porchSeasonLife';
 import { addStaticContactShadow } from '../contactShadows';
 import { buildCopperKettle } from './interiorKit';
+import { composeProgressionVisualState } from '../../game/progressionVisuals';
 
 /**
  * Linden Book Nook Interior Cutaway Diorama (Milestone 3 Build 8).
@@ -469,6 +470,18 @@ export function buildLindenBookNookInterior(
   honeyPot.position.set(-0.02, 0.95, 0.0);
   teaGroup.add(honeyPot);
 
+  // BUILD 03 5.2c — keepsake echo: Pip's willow_zine_copy rests on the nook counter
+  // once the zine arc's gift was actually granted (neighborGiftsReceived — the story
+  // true place: "Issue #1 on the Counter"). Derived; zero save impact.
+  const zineEcho = new THREE.Group();
+  zineEcho.position.set(0.12, 0.9, 0.68);
+  zineEcho.rotation.y = -0.3;
+  zineEcho.visible = false;
+  const zineEchoBody = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(0.13, 0.024, 0.17)), linenMat);
+  const zineEchoStitch = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(0.012, 0.008, 0.15)), linenPlumMat);
+  zineEcho.add(zineEchoBody, zineEchoStitch);
+  teaGroup.add(zineEcho);
+
   // Tea steam group (pooled puffs above the kettle spout)
   const teaSteamGroup = new THREE.Group();
   const steamPuffGeo = trackGeo(new THREE.SphereGeometry(0.06, 7, 6));
@@ -819,6 +832,10 @@ export function buildLindenBookNookInterior(
   // ---------------------------------------------------------------------
   function update(world: WorldState, phase: TimePhase, elapsed: number): void {
     const nk = world.nookState;
+    // BUILD 03 5.2c — keepsake echo toggle (single derivation source)
+    zineEcho.visible = composeProgressionVisualState(world).keepsakeEchoes.some(
+      (e) => e.residentId === 'pip',
+    );
     const browsedToday = (nk?.shelfBrowsedDay ?? 0) === world.day;
     const teaPouredToday = (nk?.teaSharedDay ?? 0) === world.day;
     const featured = getFeaturedBookForDay(world.day);
