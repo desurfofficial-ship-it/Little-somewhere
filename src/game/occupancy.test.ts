@@ -231,7 +231,51 @@ test('LR2-04: exiting Nook clears occupancy while keeping accepted live invitati
   assert.equal(reEntered.occupancy?.residentId, 'nora', 're-entering while live restores host');
 });
 
-test('LR2-04b: entering before window opens then advancing clock does not spawn Nora retroactively', () => {
+test('LR2-04b (doc 21 §2.4 Decision B, re-anchored): player already inside when the invite is created — advancing time never spawns Nora retroactively; fresh enter while live does', () => {
+  // Re-anchored staging per doc 21 §2.4 (option A): every step below is a
+  // production-reachable path — offer while the player is already inside the
+  // Nook, accepted invite live at creation (anchored window start = offer
+  // minute), clock advanced inside the window via production paths. The
+  // invariant under test is unchanged: occupancy is set ONLY by a fresh
+  // door-enter reducer run; time passing while the player stays inside must
+  // never spawn the host retroactively.
+  const base = stageFriendlyMorningWorld();
+  const morningStart = { ...base, minuteOfDay: 495 };
+  const insideEarly = enterNookAction(morningStart).nextWorld;
+  assert.equal(insideEarly.playerLocation, 'nook_interior', 'player entered with no invite');
+  assert.equal(insideEarly.occupancy, null, 'no occupant without an invite');
+
+  const offered = offerInvitation(insideEarly, 'nora', 'share_featured_reading');
+  assert.equal(offered.ok, true, 'offer succeeds while the player is inside');
+  const active = offered.world.invitations.active!;
+  assert.ok(
+    active.windowStartMinute <= morningStart.minuteOfDay,
+    'anchoring policy: window start ≤ offer minute, so the invite is live at creation',
+  );
+  const accepted = acceptInvitation(offered.world);
+  assert.equal(accepted.ok, true);
+
+  // Advance across the canonical window start (600) via BOTH production paths —
+  // occupancy stays empty at every step while the player remains inside.
+  const advanced = advanceClockAndReconcile(accepted.world, 90).world; // 495 -> 585
+  stepSimulationInPlace(advanced, 0.2, { clockRateMinutesPerSec: 10 }); // 585 -> 587
+  const advanced2 = advanceClockAndReconcile(advanced, 20).world; // 587 -> 607 (past 600)
+  assert.ok(advanced2.invitations.active, 'invite stays live inside its window');
+  assert.equal(advanced2.occupancy, null, 'never spawns Nora retroactively while player stays inside');
+
+  // Exit and re-enter inside the open window -> Nora now sits inside
+  const exited = exitNookAction(advanced2).nextWorld;
+  const reEntered = enterNookAction(exited).nextWorld;
+  assert.equal(reEntered.occupancy?.residentId, 'nora', 'fresh entry during open window spawns Nora');
+  assert.equal(reEntered.occupancy?.invitationId, advanced2.invitations.active?.id, 'occupant linked to the live invite');
+});
+
+test('LR2-04b-bis (doc 21 §2.5 adversarial companion, strict-predicate pin): a hand-staged pre-window invite survives only until the first reconcile, then archives exactly once', () => {
+  // Optional companion staging (doc 21 §2.5 option B): hand-staged future
+  // windowStartMinute guards the reducers against corrupted/hand-edited state.
+  // Under the unified strict predicate (D-03 decision, build10-lr-recovery doc
+  // 05 §3) the FIRST reconciling path — tick or +2h — expires it exactly once;
+  // it can never reach a retroactive occupant spawn.
   const base = stageFriendlyMorningWorld();
   const offered = offerInvitation(base, 'nora', 'share_featured_reading');
   const accepted = acceptInvitation(offered.world);
@@ -253,15 +297,19 @@ test('LR2-04b: entering before window opens then advancing clock does not spawn 
   assert.equal(insideEarly.playerLocation, 'nook_interior');
   assert.equal(insideEarly.occupancy, null, 'no occupant before window opens');
 
-  // Advance clock across window start via +2h path AND sim tick — still no retroactive spawn
+  // The first reconciling production path archives the non-live invite.
   const advanced = advanceClockAndReconcile(insideEarly, 80).world; // 500 -> 580
-  stepSimulationInPlace(advanced, 0.2, { clockRateMinutesPerSec: 10 });
-  assert.equal(advanced.occupancy, null, 'never spawns Nora retroactively while player stays inside');
+  assert.equal(advanced.invitations.active, null, 'pre-window invite expired by the strict reconcile');
+  const expiredRows = advanced.invitations.history.filter((h) => h.outcome === 'expired');
+  assert.equal(expiredRows.length, 1, 'archived exactly once');
+  assert.equal(expiredRows[0]?.invitationId, active.id);
+  assert.equal(advanced.occupancy, null, 'no retroactive spawn');
 
-  // Exit and re-enter inside the open window -> Nora now sits inside
-  const exited = exitNookAction(advanced).nextWorld;
-  const reEntered = enterNookAction(exited).nextWorld;
-  assert.equal(reEntered.occupancy?.residentId, 'nora', 'fresh entry during open window spawns Nora');
+  // The gating state stays coherent after the archive: the 2-day per-host
+  // spacing cooldown (doc 14 §2.3 gate 3) blocks a same-day re-offer.
+  const reOfferSameDay = offerInvitation({ ...advanced, minuteOfDay: 620 }, 'nora', 'share_featured_reading');
+  assert.equal(reOfferSameDay.ok, false, 'same-day re-offer is spacing-blocked by design');
+  assert.equal(reOfferSameDay.reason, 'spacing_cooldown');
 });
 
 test('LR2-15 & LR2-16: load restores valid mid-visit triple and clears non-live occupant cleanly', () => {

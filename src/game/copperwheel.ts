@@ -337,14 +337,24 @@ export function computeCopperwheelWaypoints(from: Vec2, to: Vec2, actorRadius = 
   return bestPair ?? [to];
 }
 
-/** One deep window armchair (indoor seat; visual mesh lives in the rig at the same spot). */
+/**
+ * One deep window armchair (indoor seat; visual mesh lives in the rig at the same spot).
+ *
+ * Seat offset note (Build 9 seating polish): the armchair mesh is rotated ~0.5 rad and
+ * has a tall backrest + arms + footstool. Placing seatPos at the geometric group origin
+ * caused the player avatar to clip into the backrest/arms when posture === 'sitting'.
+ * seatPos is therefore nudged ~0.15 units along the chair's local +Z (room-facing)
+ * so the hip lands on the front half of the cushion. approachPos remains outside the
+ * cw_chair obstacle volume and is validated by isCopperwheelInteriorWalkable.
+ */
 export const COPPERWHEEL_SEAT_SPOTS = [
   {
     id: 'cw_seat_armchair',
     label: 'Window Armchair',
-    seatPos: { x: -1.4, z: 1.55 },
+    // Forward of chair group origin (-1.38, 1.55) along rotation.y = 0.5 local +Z
+    seatPos: { x: -1.33, z: 1.68 },
     approachPos: { x: -0.25, z: 1.5 },
-    facingAngle: Math.atan2(1.45 - -1.4, 0.6 - 1.55), // Facing north-east across the room toward the kettle corner
+    facingAngle: Math.atan2(1.45 - -1.33, 0.6 - 1.68), // Facing north-east across the room toward the kettle corner
     seatHeight: 0.48,
     zoneId: 'copperwheel_interior',
     indoor: true,

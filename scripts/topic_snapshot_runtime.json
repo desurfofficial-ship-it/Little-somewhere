@@ -1,5 +1,5 @@
 {
- "count": 81,
+ "count": 85,
  "topics": [
   {
    "index": 0,
@@ -1245,6 +1245,70 @@
      "explored_bee_line"
     ],
     "notSeenToday": true
+   }
+  },
+  {
+   "index": 81,
+   "id": "inv_nora_indoor_reading",
+   "residentId": "nora",
+   "category": "invitation",
+   "priority": 40,
+   "historyScope": null,
+   "condition": {
+    "requiresActiveInvitation": {
+     "hostId": "nora",
+     "activityId": "share_featured_reading",
+     "status": "accepted",
+     "requireLive": true,
+     "requireIndoors": true
+    }
+   }
+  },
+  {
+   "index": 82,
+   "id": "inv_nora_pending_offer",
+   "residentId": "nora",
+   "category": "invitation",
+   "priority": 10,
+   "historyScope": null,
+   "condition": {
+    "requiresActiveInvitation": {
+     "hostId": "nora",
+     "activityId": "share_featured_reading",
+     "status": "offered",
+     "requireLive": true
+    }
+   }
+  },
+  {
+   "index": 83,
+   "id": "inv_nora_offer_reading",
+   "residentId": "nora",
+   "category": "invitation",
+   "priority": 8,
+   "historyScope": null,
+   "condition": {
+    "requiresMet": true,
+    "requiresInvitationEligible": {
+     "hostId": "nora",
+     "activityId": "share_featured_reading"
+    }
+   }
+  },
+  {
+   "index": 84,
+   "id": "inv_nora_accepted_reminder",
+   "residentId": "nora",
+   "category": "invitation",
+   "priority": 6,
+   "historyScope": null,
+   "condition": {
+    "requiresActiveInvitation": {
+     "hostId": "nora",
+     "activityId": "share_featured_reading",
+     "status": "accepted",
+     "requireLive": true
+    }
    }
   }
  ]

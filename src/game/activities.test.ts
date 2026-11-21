@@ -289,3 +289,75 @@ test('LR2-13: host-only firsthand NPC memory is not shared via gossip to low-aff
     'low-affinity neighbor does not receive Nora memory',
   );
 });
+
+// ============================================================================
+// D-04/H-1 — completion-time host-availability re-check
+// (build10-lr-recovery doc 05 §4; audit doc 16 D-04; doc 21 §1.4 Decision A)
+// ============================================================================
+
+test('H-1: completing the shared reading while the host has drifted into an encounter is refused visibly and grants nothing', () => {
+  const staged = stageLiveNookReadingVisit();
+  const memoriesBefore = staged.memories.length;
+  const noraMemBefore = staged.npcMemories.nora.length;
+  const relBefore = staged.playerRelations.nora;
+  const eventsBefore = (staged.worldEvents ?? []).length;
+
+  // Corrupted-save style drift: occupancy says Nora is seated, but an exterior
+  // encounter claims her. Unreachable through normal play (the occupant skip
+  // in stepSimulationInPlace keeps the seated host out of encounter
+  // candidacy) — exactly the hand-edited state the sanitizer gap could restore.
+  const drifted: WorldState = {
+    ...staged,
+    activeEncounters: [
+      {
+        id: 'enc_nora_drift',
+        participants: ['nora', 'clara'],
+        topicTag: 'book_chat',
+        summary: 'Nora & Clara: Morning books',
+        spots: [
+          { x: 0, z: 0 },
+          { x: 1, z: 0 },
+        ],
+        startedMinute: 540,
+        endsMinute: 560,
+      },
+    ],
+  };
+
+  const res = completeSharedActivity(drifted, 'share_featured_reading');
+  assert.equal(res.ok, false, 'completion refused while the host is away');
+  assert.equal(res.reason, 'host_unavailable');
+  assert.ok(
+    typeof res.toast === 'string' && res.toast.includes('Nora'),
+    'refusal carries a player-visible line naming the host',
+  );
+  assert.equal(res.world, drifted, 'refusal returns the world untouched');
+
+  // No rewards leaked: journal, host NPC memory, affinity, world events.
+  const snap = completeSharedActivity(drifted, 'share_featured_reading');
+  assert.equal(snap.ok, false, 'refusal is stable, not state-dependent');
+  assert.equal(drifted.memories.length, memoriesBefore, 'no journal memory granted');
+  assert.equal(drifted.npcMemories.nora.length, noraMemBefore, 'no host NPC memory granted');
+  assert.equal(drifted.playerRelations.nora, relBefore, 'no affinity/reliability change');
+  assert.equal((drifted.worldEvents ?? []).length, eventsBefore, 'no world event appended');
+  assert.ok(drifted.occupancy, 'occupancy left for the window-end expiry or manual exit');
+  assert.equal(drifted.invitations.active?.status, 'accepted', 'invite left accepted (live)');
+});
+
+test('H-1 companion pin: a morning-entered visit completing after the 690 phase boundary still completes (static-schedule drift is owned by the enter backstop, not completion)', () => {
+  const staged = stageLiveNookReadingVisit();
+  // Mid-visit clock advance inside the accepted window [540, 719]: the
+  // occupant skip keeps Nora physically seated, so completing after the
+  // morning→afternoon boundary (690) must NOT be refused.
+  const advanced: WorldState = { ...staged, minuteOfDay: 700 };
+
+  const res = completeSharedActivity(advanced, 'share_featured_reading');
+  assert.equal(res.ok, true, 'completion succeeds with the host visibly present as occupant');
+  assert.equal(
+    res.world.memories.some((m) => m.id === 'mem_lr_nora_featured_reading'),
+    true,
+    'completion memory unlocked',
+  );
+  assert.equal(res.world.invitations.active, null, 'invite archived as completed');
+  assert.equal(res.world.occupancy, null, 'occupancy cleared');
+});
