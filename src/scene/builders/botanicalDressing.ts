@@ -3,6 +3,7 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { MaterialPalette, STORYBOOK_PALETTE } from '../materials';
 import type { SeasonType } from '../../game/types';
 import { isPointWalkable } from '../../game/worldMap';
+import { applyAmbientSway } from '../ambientSway';
 
 /**
  * Meadow dressing shared placement data.
@@ -215,6 +216,10 @@ export function buildMeadowDressing(
     roughness: 0.88,
     metalness: 0.0,
   });
+  // BUILD 04 (VISUAL_IDENTITY §7): meadow tufts answer the breeze — a per-vertex
+  // lean oscillation (shader-driven, draw-call neutral) keyed off the instance
+  // transform so no two tufts sway in step.
+  applyAmbientSway(grassMat, { key: 'tuft_grass', maskStart: 0.05, maskEnd: 0.3, amp: 0.02, freq: 2.4 });
   const grassInst = new THREE.InstancedMesh(grassGeo, grassMat, budget.tufts);
   const grassTones = ['#5E8B4C', '#6D9C58', '#527C41', '#79A465'];
   let grassPlaced = 0;
@@ -245,6 +250,7 @@ export function buildMeadowDressing(
     roughness: 0.85,
     metalness: 0.0,
   });
+  applyAmbientSway(stemMat, { key: 'tuft_stem', maskStart: 0.04, maskEnd: 0.22, amp: 0.014, freq: 2.4 });
   const stemInst = new THREE.InstancedMesh(stemGeo, stemMat, budget.flowers);
   const blossomGeo = new THREE.DodecahedronGeometry(0.075, 0);
   blossomGeo.scale(1.0, 0.78, 1.0);
@@ -254,6 +260,7 @@ export function buildMeadowDressing(
     roughness: 0.62,
     metalness: 0.02,
   });
+  applyAmbientSway(blossomMat, { key: 'tuft_blossom', maskStart: 0.12, maskEnd: 0.3, amp: 0.018, freq: 2.4 });
   const blossomInst = new THREE.InstancedMesh(blossomGeo, blossomMat, budget.flowers);
   const petalTones = [
     STORYBOOK_PALETTE.petalRose,

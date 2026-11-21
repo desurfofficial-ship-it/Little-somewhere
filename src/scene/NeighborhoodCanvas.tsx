@@ -1773,6 +1773,7 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
         isIndoors ? world.exteriorPlayerPos : world.playerPos,
         elapsed,
         dt,
+        isIndoors, // BUILD 04 AM-5: skip invisible exterior ambient work
       );
 
       if (isIndoors) {

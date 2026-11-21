@@ -5,6 +5,7 @@ import {
   addContactShadow,
 } from './vegetation';
 import { addStaticContactShadow } from '../contactShadows';
+import { applyAmbientSway } from '../ambientSway';
 
 /**
  * The Wild Hollows (Build 10) — exterior geography for the world expansion.
@@ -116,6 +117,10 @@ export function buildWildHollows(
     roughness: 0.82,
     metalness: 0.0,
   });
+  // BUILD 04 (VISUAL_IDENTITY §7): birch crowns join the shared breeze sway —
+  // shader-driven, draw-call neutral, per-instance phase from instanceMatrix.
+  applyAmbientSway(crownBaseMat, { key: 'crown_wilds_base', maskStart: 1.5, maskEnd: 3.0, amp: 0.04, freq: 1.1 });
+  applyAmbientSway(crownTopMat, { key: 'crown_wilds_top', maskStart: 1.5, maskEnd: 2.9, amp: 0.05, freq: 1.1 });
 
   // ------------------------------------------------------------------
   // 1. Foxglove Rise — terraced knoll + stair + lookout deck (SE)
