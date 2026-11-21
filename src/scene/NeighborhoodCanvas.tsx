@@ -220,6 +220,7 @@ const _playerAnimOpts: CharacterAnimationOptions = {
   bankAngle: 0,
   carrying: false,
   isMoving: false,
+  carryPose: undefined,
 };
 const _npcAnimOpts: CharacterAnimationOptions = {
   emotion: 'relaxed',
@@ -2457,6 +2458,10 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
       _playerAnimOpts.lookPitch = playerLookPitch;
       _playerAnimOpts.bankAngle = playerMotion.bankAngle;
       _playerAnimOpts.carrying = Boolean(world.playerHeldItem);
+      // BUILD 02 (Doc 04 §4.4): the heavy water pail carries two-hand — both
+      // mitts forward with a slight lean back; everything else keeps the rig's
+      // build-time pose.
+      _playerAnimOpts.carryPose = world.playerHeldItem === 'water_pail' ? 'two-hand' : undefined;
       _playerAnimOpts.isMoving = playerMotion.speed > 0.25;
       _playerAnimOpts.accelLean = playerMotion.accelAmount;
       _playerAnimOpts.squash =

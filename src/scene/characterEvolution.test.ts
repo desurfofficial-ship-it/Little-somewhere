@@ -301,3 +301,155 @@ test('carry variants: book/sketchbook carriers hold side-carry, baskets cradle',
     `side-carry leaves the off arm relaxed (L ${side.leftArm.rotation.x.toFixed(2)} vs R ${side.rightArm.rotation.x.toFixed(2)})`,
   );
 });
+
+// ---------------------------------------------------------------------------
+// BUILD 02 Stage 2 — full-cast roll-out contracts (Doc 04 §3.2, §5.3, §6.1)
+// ---------------------------------------------------------------------------
+
+test('BUILD 02 cast roll-out: barrel/slender/bean massings reach the gated residents', () => {
+  // Barnaby = Barrel: broad chest, spread shoulders, sturdy limbs, smaller relative head.
+  const barnaby = buildRig('barnaby');
+  const bChest = barnaby.torsoPivot!.children.find(
+    (o): o is THREE.Mesh =>
+      o instanceof THREE.Mesh && o.geometry instanceof THREE.CylinderGeometry && o.position.y === 0.42,
+  );
+  assert.ok(bChest, 'barnaby chest found');
+  const bChestGeo = bChest!.geometry as THREE.CylinderGeometry;
+  assert.ok(Math.abs(bChestGeo.parameters.radiusTop - 0.295) < 0.001, 'barrel chest top 0.295');
+  assert.ok(Math.abs(bChestGeo.parameters.radiusBottom - 0.275) < 0.001, 'barrel chest bottom 0.275');
+  assert.ok(
+    Math.abs(barnaby.leftArm.position.x - -0.324) < 0.001,
+    `barrel shoulders spread to ±0.324, got ${barnaby.leftArm.position.x}`,
+  );
+  const bHead = barnaby.headGroup.children.find(
+    (o): o is THREE.Mesh => o instanceof THREE.Mesh && o.geometry instanceof THREE.SphereGeometry,
+  )!;
+  assert.ok(Math.abs((bHead.geometry as THREE.SphereGeometry).parameters.radius - 0.2976) < 0.001,
+    'barrel head radius ×0.96');
+
+  // Arthur & Sora = Slender: narrowed chest, gentled skirt flare, lighter sleeves.
+  for (const id of ['arthur', 'sora'] as const) {
+    const rig = buildRig(id);
+    const chest = rig.torsoPivot!.children.find(
+      (o): o is THREE.Mesh =>
+        o instanceof THREE.Mesh && o.geometry instanceof THREE.CylinderGeometry && o.position.y === 0.42,
+    )!;
+    const geo = chest.geometry as THREE.CylinderGeometry;
+    assert.ok(Math.abs(geo.parameters.radiusTop - 0.235) < 0.001, `${id} slender chest top 0.235`);
+  }
+  const sora = buildRig('sora');
+  const sSkirt = sora.torsoPivot!.children.find(
+    (o): o is THREE.Mesh => o instanceof THREE.Mesh && o.geometry instanceof THREE.CylinderGeometry,
+  )!;
+  assert.ok(Math.abs((sSkirt.geometry as THREE.CylinderGeometry).parameters.radiusBottom - 0.315) < 0.001,
+    'sora slender skirt flare 0.315');
+
+  // Pip = Bean: bigger head, lighter limbs — a child reads as a child from any angle.
+  const pip = buildRig('pip');
+  const pHead = pip.headGroup.children.find(
+    (o): o is THREE.Mesh => o instanceof THREE.Mesh && o.geometry instanceof THREE.SphereGeometry,
+  )!;
+  assert.ok(Math.abs((pHead.geometry as THREE.SphereGeometry).parameters.radius - 0.3255) < 0.001,
+    'bean head radius ×1.05');
+  const pant = pip.leftLeg.children.find(
+    (o): o is THREE.Mesh => o instanceof THREE.Mesh && o.geometry instanceof THREE.CylinderGeometry,
+  )!;
+  assert.ok(Math.abs((pant.geometry as THREE.CylinderGeometry).parameters.radiusTop - 0.0945) < 0.001,
+    'bean pant radius ×0.9');
+});
+
+test('facial identity accents: elders gain brow mass + stronger nose, the child gains bigger eyes', () => {
+  const clara = buildRig('clara');
+  const claraBrow = clara.leftBrow!;
+  assert.equal(claraBrow.scale.x, 1, 'clara keeps the neutral v2 brow');
+
+  const barnaby = buildRig('barnaby');
+  assert.ok(barnaby.leftBrow!.scale.y > 1.3, 'barnaby brow mass up (elder smith)');
+  const bNose = barnaby.headGroup.children.find(
+    (o): o is THREE.Mesh =>
+      o instanceof THREE.Mesh &&
+      o.geometry instanceof THREE.SphereGeometry &&
+      Math.abs(o.position.z - 0.283 * 0.96) < 0.01,
+  )!;
+  assert.ok(
+    Math.abs((bNose.geometry as THREE.SphereGeometry).parameters.radius - 0.0572) < 0.001,
+    'barnaby nose ×1.1',
+  );
+
+  const rowan = buildRig('rowan');
+  assert.ok(rowan.leftBrow!.scale.y > 1.2 && rowan.leftBrow!.scale.y < 1.3, 'rowan brow mass up');
+
+  const pip = buildRig('pip');
+  const pEye = pip.headGroup.children.find(
+    (o): o is THREE.Mesh =>
+      o instanceof THREE.Mesh &&
+      o.geometry instanceof THREE.SphereGeometry &&
+      Math.abs(Math.abs(o.position.x) - 0.12) < 0.01, // eye spread ±0.120 (blush sits wider)
+  )!;
+  assert.ok(
+    Math.abs((pEye.geometry as THREE.SphereGeometry).parameters.radius - 0.0572) < 0.001,
+    'pip eyes ×1.1 (Doc 04 §5.3)',
+  );
+  assert.ok(pip.leftBrow!.scale.y < 0.8, 'pip brows thin out');
+});
+
+test('two-tone garment panels: every resident carries a named shade panel (Doc 04 §6.1)', () => {
+  const expected: Array<[ResidentId | 'player', string]> = [
+    ['player', 'coat_placket_strip'],
+    ['clara', 'apron_waistband'],
+    ['clara', 'apron_bib_trim'],
+    ['mina', 'apron_waistband'],
+    ['barnaby', 'apron_bib_band'],
+    ['arthur', 'waistcoat_panel'],
+    ['sora', 'shawl_trim_band'],
+    ['nora', 'shawl_trim_band'],
+    ['toby', 'coat_yoke_strip'],
+    ['rowan', 'coat_shoulder_yoke'],
+    ['pip', 'bib_strap_buttons'],
+    ['jun', 'courier_yoke_band'],
+  ];
+  for (const [id, name] of expected) {
+    const rig = buildRig(id);
+    const panel = findNamed(rig.root, name);
+    assert.ok(panel, `${id} carries "${name}"`);
+    assert.ok(panel.visible, `${id}'s "${name}" is visible`);
+  }
+  // The panel is genuinely two-tone: clara's waistband differs from her shirt color.
+  const clara = buildRig('clara');
+  const band = findNamed(clara.root, 'apron_waistband') as THREE.Mesh;
+  const bandMat = band.material as THREE.MeshStandardMaterial;
+  assert.notEqual(bandMat.color.getHexString(), 'faf4e8', 'waistband is shaded, not the flat shirt color');
+});
+
+test('two-hand carry variant: driver bends both arms forward with a lean back', () => {
+  const settle = (rig: ReturnType<typeof buildRig>, opts?: Record<string, unknown>) => {
+    const dt = 1 / 30;
+    for (let i = 0; i < 40; i++) {
+      animateCharacterRig(rig, 'walk', i * dt * 6, i * dt, dt, 0, {
+        carrying: true,
+        isMoving: true,
+        ...opts,
+      } as Parameters<typeof animateCharacterRig>[6]);
+    }
+  };
+  const cradle = buildRig('clara');
+  settle(cradle);
+  const twoHand = buildRig('clara');
+  settle(twoHand, { carryPose: 'two-hand' });
+  assert.ok(
+    Math.abs(twoHand.leftArm.rotation.x - twoHand.rightArm.rotation.x) < 0.05,
+    'two-hand bends both arms symmetrically',
+  );
+  assert.ok(
+    Math.abs(twoHand.leftArm.rotation.x - -0.6) < 0.1,
+    `two-hand arms reach forward (got ${twoHand.leftArm.rotation.x.toFixed(2)})`,
+  );
+  assert.ok(
+    Math.abs(cradle.leftArm.rotation.x) > Math.abs(twoHand.leftArm.rotation.x) + 0.1,
+    'two-hand holds higher than the cradle (pail rides the hands, not the chest)',
+  );
+  assert.ok(
+    twoHand.torsoPivot!.rotation.x < cradle.torsoPivot!.rotation.x,
+    'two-hand leans slightly back under the weight',
+  );
+});

@@ -162,7 +162,10 @@ test('pip is a child: freckles sit on the cheeks and the knee patch rides the sw
   assert.ok(dots.length >= 6, `pip has a scattered freckle cluster, got ${dots.length}`);
   for (const dot of dots) {
     const r = dot.position.length();
-    assert.ok(r > 0.24 && r < 0.32, `freckle sits on the face surface, got ${r.toFixed(3)}`);
+    // BUILD 02 delta (Bean archetype, Doc 04 §3.1): freckles re-seat on Pip's
+    // ×1.05 head — 0.307 × 1.05 = 0.322, still inside the 0.3255 face surface.
+    // The old 0.32 bound was derived for the standard 0.310 head.
+    assert.ok(r > 0.24 && r < 0.33, `freckle sits on the face surface, got ${r.toFixed(3)}`);
   }
 
   const patch = findNamed(rig.root, 'knee_patch')!;

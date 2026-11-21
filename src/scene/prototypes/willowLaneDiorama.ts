@@ -3,7 +3,7 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { ResidentAppearance, SeasonType } from '../../game/types';
 import { CharacterRig } from '../models';
 import { MaterialPalette, STORYBOOK_PALETTE } from '../materials';
-import { buildWinterKnitCollar } from '../builders/characters';
+import { buildWinterKnitCollar, shadeHex } from '../builders/characters';
 import { addStaticContactShadow } from '../contactShadows';
 
 export interface WillowCottageRig {
@@ -1379,7 +1379,16 @@ export function buildStorybookJun(
     torsoPivot.add(btn);
   }
 
-  // Knit Amber Scarf Wrap + Tail (tail hangs from a pivot so it sways with stride — Pass 20)
+  // Two-tone panel (BUILD 02, Doc 04 §6.1): a lighter shoulder yoke behind the
+  // scarf — the courier's coat reads route-worn, and his front/back read
+  // separates at the isometric 3/4 view like the rest of the cast.
+  const junYoke = new THREE.Mesh(
+    new THREE.BoxGeometry(0.35, 0.06, 0.02),
+    palette.standard(shadeHex(appearance.coatColor, 0.12), 0.78, 0.02, { mapSet: 'fabric' }),
+  );
+  junYoke.name = 'courier_yoke_band';
+  junYoke.position.set(0, 0.562, 0.248);
+  torsoPivot.add(junYoke);
   const scarfCollar = new THREE.Mesh(new THREE.TorusGeometry(0.21, 0.065, 8, 14), scarfMat);
   scarfCollar.rotation.x = Math.PI / 2;
   scarfCollar.position.y = 0.6;
