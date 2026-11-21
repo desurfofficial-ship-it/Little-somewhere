@@ -5,7 +5,11 @@ import path from 'path';
 import {defineConfig} from 'vite';
 
 export default defineConfig(() => {
+  // GitHub Pages project site: https://desurfofficial-ship-it.github.io/Little-somewhere/
+  // GITHUB_PAGES is set by the deploy workflow. Local `npm run dev` keeps base '/'.
+  const pages = process.env.GITHUB_PAGES === 'true';
   return {
+    base: pages ? '/Little-somewhere/' : '/',
     plugins: [
       react(),
       tailwindcss(),
