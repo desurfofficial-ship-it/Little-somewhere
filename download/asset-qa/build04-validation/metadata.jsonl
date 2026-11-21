@@ -1,0 +1,15 @@
+{"shot":"v_plaza_hero_build04","viewport":"desktop","meta":["1.0", "BUILD 04 golden hero (veteran, ambient sway + sign swing live)"]}
+{"shot":"v_plaza_hero_build04_f2","viewport":"desktop","meta":["1.0", ""]}
+{"shot":"v_plaza_hero_build04_f3","viewport":"desktop","meta":["1.0", ""]}
+{"shot":"v_cast_walk_plaza","viewport":"desktop","meta":["1.0", "morning routines: stride gait, elbows, pre-bent legs live"]}
+{"shot":"v_talk_flap_zoom","viewport":"desktop","meta":["0.72", "clara pinned talk at dialogue zoom \u2014 mouth-flap frame 1"]}
+{"shot":"v_talk_flap_zoom_f2","viewport":"desktop","meta":["1.0", ""]}
+{"shot":"v_talk_flap_zoom_f3","viewport":"desktop","meta":["1.0", ""]}
+{"shot":"v_wave_elbow_zoom","viewport":"desktop","meta":["0.72", "clara pinned wave at dialogue zoom \u2014 elbow snap frame 1"]}
+{"shot":"v_wave_elbow_zoom_f2","viewport":"desktop","meta":["1.0", ""]}
+{"shot":"v_dusk_lanterns_build04","viewport":"desktop","meta":["1.0", "dusk pier sconces \u2014 lantern breathe + festoon (AM-4)"]}
+{"shot":"perf_plaza_hero_build04","viewport":"1440x900","zoom":"1.0","note":"20s BUILD 04 veteran golden-hour gameplay (same framing as baseline-perf.jsonl)","gl":"ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)","pageErrors":0,"perf":"{\"frames\":21,\"avgFps\":1.0088781275227732,\"p50Ms\":993.9000244140625,\"p95Ms\":1009.2000122070312,\"maxMs\":1032.5,\"spikesOver33\":21,\"spikesOver16\":21,\"drawCalls\":2305,\"triangles\":153119,\"geometries\":2196,\"textures\":22,\"programs\":40,\"sceneBuildMs\":1321.3999999910593}"}
+{"shot":"ui_satchel_thumbnails","viewport":"desktop","meta":["1.0", "satchel drawer open \u2014 25-item canvas thumbnails + bespoke cozy icons"]}
+{"shot":"v_plaza_hero_build04","viewport":"mobile","meta":["1.0", "BUILD 04 golden hero (veteran, ambient sway + sign swing live)"]}
+{"shot":"ui_satchel_thumbnails","viewport":"mobile","meta":["1.0", "satchel drawer open \u2014 25-item canvas thumbnails + bespoke cozy icons"]}
+{"shot":"ui_journal_portraits","viewport":"desktop","meta":["1.0", "journal People tab \u2014 procedural knit portraits (7.4)"]}
