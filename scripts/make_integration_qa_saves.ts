@@ -77,7 +77,7 @@ for (const t of DIALOGUE_TOPICS) {
     };
   }
   for (const k of cond.sideFlagsFalse ?? []) mina.sideFlags[k] = true;
-  for (const k of cond.flagsFalse ?? []) (mina.flags as Record<string, boolean>)[k] = true;
+  for (const k of cond.flagsFalse ?? []) (mina.flags as unknown as Record<string, boolean>)[k] = true;
 }
 delete mina.lastTopicByResident.mina;
 writeFileSync(join(outDir, 'mina.json'), serializeWorldState(mina));
