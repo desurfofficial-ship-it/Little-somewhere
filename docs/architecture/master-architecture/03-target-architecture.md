@@ -159,10 +159,11 @@ These are load-bearing single-context surfaces. Splitting them breaks standing i
 
 ## 6. Decision register
 
-Every compromise of a standing invariant must be recorded here with: date, decision, rationale, owning decision-maker, expiry/review date. **Empty as of this recording** — no invariant has been compromised.
+Every compromise of a standing invariant must be recorded here with: date, decision, rationale, owning decision-maker, expiry/review date.
 
 | Date | Decision | Rationale | Owner | Review |
 | :--- | :--- | :--- | :--- | :--- |
+| 2026-11-22 | LR-3 Clara invitation is owned by the LR team; design is underway on `origin/docs/lr3-{design,discovery,reconciliation}` (PR #13 open, not on `main`); no other team may implement, branch, or propose a competing version. Investigations of *approaches* to LR-3 sub-problems are permitted only with LR-team acknowledgment and must route findings back to the owner. | Directive §8 (strict scope control). The design branches exist on the remote with 9 design docs; PR #13 is "merge-ready, awaiting owner authorization." Owner confirmed by the central coordinator. | LR team (confirmed by central coordinator) | on LR-3 merge to `main` |
 
 ---
 
@@ -179,6 +180,30 @@ The plan is only as safe as the harness that proves each step preserved behavior
 7. **Tag-on-merge** — every merge to main gets `git tag build-<N>-<sha>`. (Phase A2, implemented.)
 
 The harness is the real "architecture" — the code structure follows from what the harness can prove safe.
+
+---
+
+## 8. Implementation proposal protocol (directive §3)
+
+Every change touching >1 owning team (doc 04 §1) or any shared file (doc 04 §2) must be preceded by a proposal filed as a PR (or a doc on the branch) containing these 11 sections. The proposal must be reviewed by the **lead** (owning team per doc 04 §1) and one **neighbor** team (whose contract surface is touched per doc 06 §7) before implementation begins. The architect breaks ties and records invariant compromises in §6 above.
+
+**Trigger ("substantial feature"):** any of (a) touches a WorldState v11 field owner boundary (doc 06 §1); (b) crosses a subsystem boundary in doc 04 §1; (c) adds/changes a public contract in doc 06's shared-contracts registry; (d) designated substantial by the lead. Bug fixes and in-owner refactors are exempt.
+
+**The 11-field template:**
+
+1. **Existing-system investigation** — `file:line` citations against `main`; reference doc 01 §/W# (verified architecture / weakness), doc 05 DAG edges, doc 06 contract fields touched. Evidence required, not assertion.
+2. **Problem definition** — player-facing or architectural problem; tie to a doc 02 weakness (W#) or directive section where applicable.
+3. **Proposed solution** — concise design statement; which Phase step (§2) it advances.
+4. **Alternatives considered** — ≥2 alternatives, each evaluated on the directive §2 axes: elegance, correctness, extensibility, runtime cost, integration complexity, maintainability, compatibility, testing difficulty. Reference §5 / doc 02 §"Rejected remediations" where applicable.
+5. **Architecture & interfaces** — which doc 04 subsystem(s), which doc 06 contract(s) added/mutated, which doc 05 edges change; include proposed WorldState v11 field→owner assignment if state changes.
+6. **Files affected** — concrete paths; flag any in another team's doc 04 ownership cell (requires their sign-off).
+7. **Dependencies** — upstream doc 05 predecessors; downstream dependents; schema-bump required? (doc 07 §2); cross-team register entry (doc 07 §6).
+8. **Risks** — blast radius per doc 02 format; standing invariants (doc 00) potentially affected; data-loss/state-inconsistency edge cases; persistence migration concerns.
+9. **Acceptance criteria** — measurable, testable predicates; tie to §3 guard-tests where applicable; byte-identical save replay if persistence-touching.
+10. **Testing plan** — unit / integration / persistence / browser-gameplay per directive §6; which `scripts/make_*_save.ts` fixtures, screenshot diff baselines, `perfProbe` assertions.
+11. **Integration requirements** — doc 08 CI gates that will run; doc 07 branch + WORKLOG + guard-test-first obligations; adversarial-reviewer assignment (doc 08 §2); documentation updates required (doc 01/03/06 if architecture moves).
+
+**Status:** the proposal and its review verdict are recorded with the 6-state vocabulary (doc 07 §6). A proposal is `Proposed` until lead+neighbor sign off, then the implementation may move to `In progress`.
 
 ---
 
