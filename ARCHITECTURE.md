@@ -2,6 +2,8 @@
 
 **LITTLE SOMEWHERE** is structured as a cleanly decoupled three-layer TypeScript + React + Three.js application.
 
+> **Architectural governance:** the standing ownership, contract, dependency-graph, parallel-development, and integration-gate documentation lives in [`docs/architecture/master-architecture/`](docs/architecture/master-architecture/00-index.md) (recorded 2026-11-22 atop `origin/main` @ `a80a220`). This file remains the authoritative source for system mechanics (layers, camera math, reactivity pipeline, file map); the master-architecture directory governs how multiple teams evolve those mechanics in parallel.
+
 ---
 
 ## 1. High-Level System Diagram
