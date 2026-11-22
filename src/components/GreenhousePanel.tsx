@@ -2,7 +2,9 @@ import React, { useMemo } from 'react';
 import { Droplets, Leaf, Scissors, Sprout, X } from 'lucide-react';
 import {
   GREENHOUSE_CROPS,
+  describeCareStreak,
   getGreenhouseCrop,
+  isLushStreak,
   summarizeGreenhousePlots,
 } from '../game/greenhouse';
 import { PERSONAL_ITEM_MAP } from '../game/inventory';
@@ -112,6 +114,13 @@ export const GreenhousePanel: React.FC<GreenhousePanelProps> = ({
 
         {/* Body */}
         <div className="flex-1 overflow-y-auto storybook-scroll p-4 sm:p-5 space-y-3">
+          {/* Everyday Gameplay GA-2 — rain-day hint: the rain chain waters for you. */}
+          {world.weather === 'light_rain' && (
+            <p className="text-xs sm:text-sm font-medium text-[#3E5A44] bg-[#EAF0EA] border border-[#A7C0A8] rounded-lg px-3.5 py-2.5">
+              Rain today — the rain chain is carrying the watering for you.
+            </p>
+          )}
+
           {mode === 'planting' && (
             <>
               <p className="text-xs sm:text-sm text-umber leading-relaxed">
@@ -226,18 +235,32 @@ export const GreenhousePanel: React.FC<GreenhousePanelProps> = ({
                   {gh.plots.map((plot, idx) => {
                     if (!plot.cropId || plot.stage >= 3) return null;
                     const crop = getGreenhouseCrop(plot.cropId);
+                    const lushStreak = isLushStreak(plot.waterStreak);
                     return (
                       <div
                         key={idx}
-                        className="p-3 rounded-xl bg-card-warm border border-parchment flex items-center justify-between gap-2 text-xs"
+                        className="p-3 rounded-xl bg-card-warm border border-parchment space-y-1 text-xs"
                       >
-                        <span className="text-espresso font-medium">
-                          Pot {idx + 1} · {crop?.label ?? 'Seedling'} — {PLOT_STAGE_LABELS[plot.stage]}
-                          {!plot.wateredToday && ' · thirsty today'}
-                        </span>
-                        <span className="text-espresso-muted font-mono-nums">
-                          {plot.nightsGrown}/{crop?.growthNights ?? '?'} nights
-                        </span>
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-espresso font-medium">
+                            Pot {idx + 1} · {crop?.label ?? 'Seedling'} — {PLOT_STAGE_LABELS[plot.stage]}
+                            {!plot.wateredToday && ' · thirsty today'}
+                          </span>
+                          <span className="text-espresso-muted font-mono-nums shrink-0">
+                            {plot.nightsGrown}/{crop?.growthNights ?? '?'} nights
+                          </span>
+                        </div>
+                        {/* Everyday Gameplay GA-2 — per-plot care streak line
+                           (sage when the lush streak has ripened, muted otherwise). */}
+                        <p
+                          className={`leading-snug ${
+                            lushStreak
+                              ? 'text-sage font-semibold'
+                              : 'text-espresso-muted'
+                          }`}
+                        >
+                          {describeCareStreak(plot.waterStreak)}
+                        </p>
                       </div>
                     );
                   })}

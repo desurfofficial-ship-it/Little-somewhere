@@ -1,4 +1,4 @@
-import { SeasonType, TimePhase } from './types';
+import { SeasonType, TimePhase, WorldState } from './types';
 
 export const DAY_START_MINUTE = 360; // 6:00 AM
 export const NEXT_DAY_WAKE_MINUTE = 480; // 8:00 AM
@@ -49,3 +49,35 @@ export function getSeasonForDay(day: number): {
     year,
   };
 }
+
+// Everyday Gameplay GA-0 — canonical minute-spend and day-stamp helpers.
+// These replace the scattered `Math.min(DAY_END_MINUTE, minuteOfDay + N)` literals
+// so every everyday activity spends time through one clamp (and can tell the
+// player, gently, when the evening slipped away).
+
+export interface MinuteSpendResult {
+  nextWorld: WorldState;
+  /** The clamped minute-of-day after spending. */
+  minuteOfDay: number;
+  /** True when the requested spend reached past day's end and was gently clamped. */
+  eveningSlippedAway: boolean;
+}
+
+export function spendMinutes(world: WorldState, minutes: number): MinuteSpendResult {
+  const safeMinutes = Number.isFinite(minutes) && minutes > 0 ? minutes : 0;
+  const requested = world.minuteOfDay + safeMinutes;
+  const clamped = clampMinuteOfDay(requested);
+  return {
+    nextWorld: { ...world, minuteOfDay: clamped },
+    minuteOfDay: clamped,
+    eveningSlippedAway: safeMinutes > 0 && clamped < requested,
+  };
+}
+
+/** True when a `*Day` day-stamp refers to today (the once-per-day gating idiom). */
+export function isDoneToday(stamp: number, day: number): boolean {
+  return Number.isFinite(stamp) && Number.isFinite(day) && stamp === day;
+}
+
+/** Player-legible note appended to activity prose when a spend was clamped at day's end. */
+export const EVENING_SLIPPED_NOTE = 'The evening slipped away faster than expected.';

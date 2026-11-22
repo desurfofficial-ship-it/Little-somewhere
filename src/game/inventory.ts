@@ -566,3 +566,57 @@ export function getOwnedKeepsakeItems(
   }
   return out;
 }
+
+// Everyday Gameplay GA-0 — the single honest grant path.
+// `addItemToInventory` silently clamps at MAX_ITEM_STACK; every historical call site
+// ignored the returned `added`, so toasts and chips could promise items the satchel
+// never received. `applyItemGrants` composes multi-item grants, reports the TRUE
+// gained counts, and lists the ids that did not fit.
+
+export interface ItemGrant {
+  itemId: PersonalItemId;
+  amount: number;
+}
+
+export interface AppliedItemGrants {
+  inventory: Partial<Record<PersonalItemId, number>>;
+  discoveredItemIds: PersonalItemId[];
+  /** Chips that may be shown to the player — only items that actually entered the satchel. */
+  gainedItems: Array<{ itemId: PersonalItemId; count: number }>;
+  /** Item ids requested but (partly) refused because the stack was already at cap. */
+  overflowIds: PersonalItemId[];
+}
+
+export function applyItemGrants(
+  inventory: Partial<Record<PersonalItemId, number>> | undefined,
+  discoveredItemIds: readonly PersonalItemId[] | undefined,
+  grants: readonly ItemGrant[],
+): AppliedItemGrants {
+  let nextInv: Partial<Record<PersonalItemId, number>> = { ...(inventory ?? {}) };
+  let nextDiscovered: PersonalItemId[] = [...(discoveredItemIds ?? [])];
+  const gainedItems: Array<{ itemId: PersonalItemId; count: number }> = [];
+  const overflowIds: PersonalItemId[] = [];
+
+  // Merge duplicate item ids first so a multi-source grant reports one honest total.
+  const totals = new Map<PersonalItemId, number>();
+  for (const grant of grants ?? []) {
+    if (!VALID_PERSONAL_ITEM_IDS.has(grant.itemId)) continue;
+    const amount = Number.isFinite(grant.amount) && grant.amount > 0 ? Math.floor(grant.amount) : 0;
+    if (amount <= 0) continue;
+    totals.set(grant.itemId, (totals.get(grant.itemId) ?? 0) + amount);
+  }
+
+  for (const [itemId, amount] of totals) {
+    const res = addItemToInventory(nextInv, nextDiscovered, itemId, amount);
+    nextInv = res.inventory;
+    nextDiscovered = res.discoveredItemIds;
+    if (res.added > 0) {
+      gainedItems.push({ itemId, count: res.added });
+    }
+    if (res.added < amount) {
+      overflowIds.push(itemId);
+    }
+  }
+
+  return { inventory: nextInv, discoveredItemIds: nextDiscovered, gainedItems, overflowIds };
+}

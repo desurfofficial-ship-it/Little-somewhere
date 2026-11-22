@@ -14,6 +14,23 @@ All notable changes to **LITTLE SOMEWHERE** are documented in this file.
 
 ### Performance & compatibility
 - Zero per-frame allocations added to `tick()`; zero new meshes/materials/draw calls; WorldState stays v11 (no migration); every pre-existing test contract unmodified — suite 595/595, `tsc` 0 errors.
+## [0.11.0] — 2026-11-22
+
+### Added — Everyday Gameplay Systems (Community Projects, Greenhouse Care Depth, Practice Profile)
+- **WorldState v12 (additive)** — `communityProjects` contribution shelves + per-plot greenhouse `waterStreak`; clean v11 migration, sanitizer whitelists, save-revision fingerprints, simulation clone isolation.
+- **Community Projects** — three registry-driven neighborhood endeavors (Marigold Garland for the Plaza, Orchard Lantern Preparations, Mirror Pond Mosaic) with any-of item goals, no deadlines and no expiry: contribute everyday items at the plaza noticeboard, nearby residents notice and remember (tag `shared_community` rides the SF-4 dialogue echo), completion saves a journal memory, one `player_help` world event, neighbor gratitude (+4/+1, cap-exempt), and a permanent `sideFlags` reward the World team renders visibly in town.
+- **Greenhouse care depth** — consecutive-watered-night streaks reward attentive tending with a deterministic lush harvest (+1 yield); rain days let the rain chain carry the watering for free; Mina's one-time lavender seed sachet unblocks the fourth crop; care lines + rain hints in the panel.
+- **Everyday Practice Profile** — derive-only eight-practice participation summary (gardening, kitchen, reading, tea & tables, mending, wilds, friendship, community) with cozy tier titles ('Quiet Soil' → 'Keeper of the Beds'), a touched-today line, and a derived keeper title, surfaced in the Pocket Journal alongside a Community Shelves card.
+- **Community Contribution Shelf panel** — noticeboard-driven sheet with honest disabled states, progress bars, contribute-one/contribute-all buttons, and completed banners.
+
+### Fixed — everyday honesty & coherence
+- **Phantom item gains eliminated** — every grant path now reports only what truly entered the satchel (`applyItemGrants`; stack-cap overflow no longer claims items the player never received).
+- **Brewing agrees with the story** — brewing chamomile tea at the hearth now sets `flags.brewedChamomileTea` (previously the bell-quest gate was dialogue-only).
+- **`lavender_seeds` is obtainable** — the greenhouse's fourth crop was previously unreachable in legitimate play.
+- **Named minute spends** — everyday activity time costs route through one clamp with a gentle 'the evening slipped away' note.
+
+### Tests
+- 30 new tests (community ×14, greenhouse care ×8, practice profile ×8) + literal repairs; totals now **625/625 passing**, `tsc` 0 errors, layer-boundary green, production build green.
 
 ## [0.9.0] — 2026-11-20
 

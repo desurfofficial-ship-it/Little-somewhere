@@ -1268,7 +1268,7 @@ test('Milestone 3 Build 6: Mina greenhouse topics gate on the shared-corner side
     greenhouseState: {
       ...plantedWorld.greenhouseState,
       plots: plantedWorld.greenhouseState.plots.map((p, i) =>
-        i === 0 ? { cropId: 'thyme', plantedDay: 1, nightsGrown: 3, stage: 3, wateredToday: false } : p,
+        i === 0 ? { cropId: 'thyme', plantedDay: 1, nightsGrown: 3, stage: 3, wateredToday: false, waterStreak: 0 } : p,
       ),
     },
   };
@@ -1280,7 +1280,7 @@ test('Milestone 3 Build 6: Mina greenhouse topics gate on the shared-corner side
     greenhouseState: {
       ...plantedWorld.greenhouseState,
       plots: plantedWorld.greenhouseState.plots.map((p, i) =>
-        i === 0 ? { cropId: 'chamomile', plantedDay: 1, nightsGrown: 1, stage: 1, wateredToday: false } : p,
+        i === 0 ? { cropId: 'chamomile', plantedDay: 1, nightsGrown: 1, stage: 1, wateredToday: false, waterStreak: 0 } : p,
       ),
     },
   };

@@ -1153,6 +1153,13 @@ export function stepSimulation(
       : null,
     teaching: world.teaching ? { known: [...world.teaching.known] } : world.teaching,
     activeActivity: world.activeActivity ? { ...world.activeActivity } : null,
+    // Everyday Gameplay GA-1 — Community Projects (WorldState v12)
+    communityProjects: Object.fromEntries(
+      Object.entries(world.communityProjects ?? {}).map(([projectId, progress]) => [
+        projectId,
+        { contributed: { ...(progress.contributed ?? {}) }, completedDay: progress.completedDay },
+      ]),
+    ),
   };
   stepSimulationInPlace(next, dtSeconds, options);
   return next;

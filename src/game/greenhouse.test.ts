@@ -14,10 +14,13 @@ import {
   computeGreenhouseWaypoints,
   createInitialGreenhousePlot,
   createInitialGreenhouseState,
+  describeCareStreak,
   describeGreenhouseStage,
   getGreenhouseCrop,
   getGreenhouseCropBySeed,
   isGreenhouseInteriorWalkable,
+  isLushStreak,
+  LUSH_WATER_STREAK_MIN,
   resolveGreenhouseInteriorMovement,
   selectBestGreenhouseTarget,
   stageForNights,
@@ -120,7 +123,7 @@ test('stageForNights and nightly growth advance watered pots, stall unwatered on
 
   // Watered thyme pot advances one stage per night until ready
   const state = createInitialGreenhouseState();
-  state.plots[0] = { cropId: 'thyme', plantedDay: 1, nightsGrown: 0, stage: 0, wateredToday: true };
+  state.plots[0] = { cropId: 'thyme', plantedDay: 1, nightsGrown: 0, stage: 0, wateredToday: true, waterStreak: 0 };
   advanceGreenhouseNightlyGrowthInPlace(state, 'spring');
   assert.equal(state.plots[0].stage, 1);
   assert.equal(state.plots[0].nightsGrown, 1);
@@ -139,12 +142,12 @@ test('stageForNights and nightly growth advance watered pots, stall unwatered on
   assert.equal(state.plots[0].stage, 3);
   assert.equal(state.plots[0].nightsGrown, 3);
 
-  state.plots[1] = { cropId: 'chamomile', plantedDay: 1, nightsGrown: 0, stage: 0, wateredToday: false };
+  state.plots[1] = { cropId: 'chamomile', plantedDay: 1, nightsGrown: 0, stage: 0, wateredToday: false, waterStreak: 0 };
   advanceGreenhouseNightlyGrowthInPlace(state, 'spring');
   assert.equal(state.plots[1].stage, 0, 'Unwatered pot waits without dying');
 
   // Winter dormancy freezes growth for watered pots
-  state.plots[2] = { cropId: 'lavender', plantedDay: 2, nightsGrown: 0, stage: 0, wateredToday: true };
+  state.plots[2] = { cropId: 'lavender', plantedDay: 2, nightsGrown: 0, stage: 0, wateredToday: true, waterStreak: 0 };
   advanceGreenhouseNightlyGrowthInPlace(state, 'winter');
   assert.equal(state.plots[2].stage, 0, 'Winter freezes all growth');
   assert.equal(state.plots[2].wateredToday, false);
@@ -228,8 +231,8 @@ test('sowing rejects occupied plots, missing seeds, and exterior attempts withou
 test('watering fills only thirsty growing pots, costs minutes once, and idles when done', () => {
   const base = freshInsideGreenhouse();
   const gh = createInitialGreenhouseState();
-  gh.plots[0] = { cropId: 'chamomile', plantedDay: 1, nightsGrown: 0, stage: 0, wateredToday: false };
-  gh.plots[1] = { cropId: 'lavender', plantedDay: 1, nightsGrown: 1, stage: 1, wateredToday: false };
+  gh.plots[0] = { cropId: 'chamomile', plantedDay: 1, nightsGrown: 0, stage: 0, wateredToday: false, waterStreak: 0 };
+  gh.plots[1] = { cropId: 'lavender', plantedDay: 1, nightsGrown: 1, stage: 1, wateredToday: false, waterStreak: 0 };
   const world = { ...base, greenhouseState: gh };
 
   const res = waterGreenhousePlotsAction(world);
@@ -250,7 +253,7 @@ test('watering fills only thirsty growing pots, costs minutes once, and idles wh
   // Ready pots never consume watering time
   const readyBase = freshInsideGreenhouse();
   const readyGh = createInitialGreenhouseState();
-  readyGh.plots[0] = { cropId: 'thyme', plantedDay: 1, nightsGrown: 3, stage: 3, wateredToday: false };
+  readyGh.plots[0] = { cropId: 'thyme', plantedDay: 1, nightsGrown: 3, stage: 3, wateredToday: false, waterStreak: 0 };
   const readyWorld = { ...readyBase, greenhouseState: readyGh };
   const readyRes = waterGreenhousePlotsAction(readyWorld);
   assert.equal(readyRes.nextWorld, readyWorld);
@@ -259,7 +262,7 @@ test('watering fills only thirsty growing pots, costs minutes once, and idles wh
 test('harvesting a ready pot yields the crop plus a returned seed and resets the pot', () => {
   const base = freshInsideGreenhouse();
   const gh = createInitialGreenhouseState();
-  gh.plots[2] = { cropId: 'lavender', plantedDay: 1, nightsGrown: 2, stage: 3, wateredToday: false };
+  gh.plots[2] = { cropId: 'lavender', plantedDay: 1, nightsGrown: 2, stage: 3, wateredToday: false, waterStreak: 0 };
   gh.totalPlanted = 1;
   const world = { ...base, greenhouseState: gh, minuteOfDay: 700 };
 
@@ -355,7 +358,7 @@ test('the exterior greenhouse door prop routes through interactWithProp with an 
 test('greenhouse station cards summarize plots and route to the correct panels', () => {
   const base = freshInsideGreenhouse();
   const gh = createInitialGreenhouseState();
-  gh.plots[0] = { cropId: 'chamomile', plantedDay: 1, nightsGrown: 0, stage: 0, wateredToday: true };
+  gh.plots[0] = { cropId: 'chamomile', plantedDay: 1, nightsGrown: 0, stage: 0, wateredToday: true, waterStreak: 0 };
 
   const potting = interactWithGreenhouseProp(base, 'greenhouse_potting');
   assert.equal(potting.actionType, 'greenhouse_planting_panel');
@@ -365,7 +368,7 @@ test('greenhouse station cards summarize plots and route to the correct panels',
   assert.ok(shelfGrowing.body.includes('Pot 1'));
 
   const ghReady = createInitialGreenhouseState();
-  ghReady.plots[0] = { cropId: 'thyme', plantedDay: 1, nightsGrown: 3, stage: 3, wateredToday: false };
+  ghReady.plots[0] = { cropId: 'thyme', plantedDay: 1, nightsGrown: 3, stage: 3, wateredToday: false, waterStreak: 0 };
   const shelfReady = interactWithGreenhouseProp({ ...base, greenhouseState: ghReady }, 'greenhouse_shelf');
   assert.equal(shelfReady.actionType, 'greenhouse_harvest_panel');
 
@@ -375,8 +378,8 @@ test('greenhouse station cards summarize plots and route to the correct panels',
 
 test('summarizeGreenhousePlots, describeGreenhouseStage, and crop lookups stay registry-derived', () => {
   const gh = createInitialGreenhouseState();
-  gh.plots[0] = { cropId: 'chamomile', plantedDay: 1, nightsGrown: 0, stage: 0, wateredToday: false };
-  gh.plots[1] = { cropId: 'thyme', plantedDay: 1, nightsGrown: 3, stage: 3, wateredToday: false };
+  gh.plots[0] = { cropId: 'chamomile', plantedDay: 1, nightsGrown: 0, stage: 0, wateredToday: false, waterStreak: 0 };
+  gh.plots[1] = { cropId: 'thyme', plantedDay: 1, nightsGrown: 3, stage: 3, wateredToday: false, waterStreak: 0 };
   const summary = summarizeGreenhousePlots(gh);
   assert.equal(summary.emptyPlots, 2);
   assert.equal(summary.growingPlots, 1);
@@ -455,7 +458,7 @@ test('computeWorldSaveRevision responds to greenhouse growth changes and seriali
     greenhouseState: {
       ...base.greenhouseState,
       plots: base.greenhouseState.plots.map((p, i) =>
-        i === 0 ? { cropId: 'chamomile' as const, plantedDay: 1, nightsGrown: 2, stage: 3 as const, wateredToday: true } : p,
+        i === 0 ? { cropId: 'chamomile' as const, plantedDay: 1, nightsGrown: 2, stage: 3 as const, wateredToday: true, waterStreak: 0 } : p,
       ),
     },
   };
@@ -469,4 +472,168 @@ test('computeWorldSaveRevision responds to greenhouse growth changes and seriali
   assert.equal(round.state.greenhouseState.plots[0].stage, 3);
   assert.equal(round.state.greenhouseState.plots[0].nightsGrown, 2);
   assert.equal(round.state.greenhouseState.plots[0].wateredToday, true);
+});
+
+// ---------------------------------------------------------------------------
+// GA-2 care streaks (GD-xx)
+// ---------------------------------------------------------------------------
+
+test('GD-01: isLushStreak gates lush harvests at three consecutive watered nights', () => {
+  assert.equal(LUSH_WATER_STREAK_MIN, 3, 'The lush threshold stays pinned at three nights');
+  assert.equal(isLushStreak(0), false);
+  assert.equal(isLushStreak(1), false);
+  assert.equal(isLushStreak(2), false, 'One day less than three never yields lush');
+  assert.equal(isLushStreak(3), true);
+  assert.equal(isLushStreak(4), true);
+  assert.equal(isLushStreak(-1), false);
+  // Garbage stays garbage: NaN and non-finite values never count as care
+  assert.equal(isLushStreak(Number.NaN), false);
+  assert.equal(isLushStreak(Number.POSITIVE_INFINITY), false);
+  assert.equal(isLushStreak('3' as unknown as number), false);
+});
+
+test('GD-02: a watered night grows the pot and extends its care streak together', () => {
+  const state = createInitialGreenhouseState();
+  const plot = createInitialGreenhousePlot();
+  plot.cropId = 'thyme';
+  plot.plantedDay = 1;
+  plot.wateredToday = true;
+  state.plots[0] = plot;
+
+  advanceGreenhouseNightlyGrowthInPlace(state, 'spring');
+  assert.equal(state.plots[0].nightsGrown, 1);
+  assert.equal(state.plots[0].stage, 1);
+  assert.equal(state.plots[0].waterStreak, 1);
+
+  state.plots[0].wateredToday = true;
+  advanceGreenhouseNightlyGrowthInPlace(state, 'summer');
+  assert.equal(state.plots[0].nightsGrown, 2);
+  assert.equal(state.plots[0].stage, 2);
+  assert.equal(state.plots[0].waterStreak, 2);
+  assert.equal(state.plots[0].wateredToday, false, 'Watering resets each night');
+});
+
+test('GD-03: a missed night resets the care streak but the pot keeps its grown nights', () => {
+  const state = createInitialGreenhouseState();
+  const plot = createInitialGreenhousePlot();
+  plot.cropId = 'thyme';
+  plot.plantedDay = 1;
+  plot.wateredToday = true;
+  state.plots[0] = plot;
+
+  advanceGreenhouseNightlyGrowthInPlace(state, 'spring');
+  assert.equal(state.plots[0].waterStreak, 1);
+  assert.equal(state.plots[0].nightsGrown, 1);
+
+  // Missed night: the streak forgets, the growth does not — nothing dies
+  advanceGreenhouseNightlyGrowthInPlace(state, 'spring');
+  assert.equal(state.plots[0].waterStreak, 0);
+  assert.equal(state.plots[0].nightsGrown, 1, 'nightsGrown never regresses');
+  assert.equal(state.plots[0].stage, 1, 'Unwatered pot waits without dying');
+  assert.equal(state.plots[0].wateredToday, false);
+});
+
+test('GD-04: a winter night rests the pot, freezing growth and resetting its streak', () => {
+  const state = createInitialGreenhouseState();
+  const plot = createInitialGreenhousePlot();
+  plot.cropId = 'lavender';
+  plot.plantedDay = 2;
+  plot.wateredToday = true;
+  plot.waterStreak = 2;
+  state.plots[0] = plot;
+
+  advanceGreenhouseNightlyGrowthInPlace(state, 'winter');
+  assert.equal(state.plots[0].stage, 0, 'Winter freezes all growth');
+  assert.equal(state.plots[0].nightsGrown, 0);
+  assert.equal(state.plots[0].waterStreak, 0, 'Winter rest starts a fresh streak');
+  assert.equal(state.plots[0].wateredToday, false);
+
+  // Even a ripening pot forgets its streak through winter
+  const readyPlot = createInitialGreenhousePlot();
+  readyPlot.cropId = 'foxglove';
+  readyPlot.nightsGrown = 3;
+  readyPlot.stage = 3;
+  readyPlot.waterStreak = 5;
+  state.plots[1] = readyPlot;
+  advanceGreenhouseNightlyGrowthInPlace(state, 'winter');
+  assert.equal(state.plots[1].stage, 3, 'Ready pots keep their stage through winter');
+  assert.equal(state.plots[1].waterStreak, 0, 'But winter still resets the streak');
+});
+
+test('GD-05: a ready pot keeps its streak across a non-winter night', () => {
+  const state = createInitialGreenhouseState();
+  const plot = createInitialGreenhousePlot();
+  plot.cropId = 'thyme';
+  plot.plantedDay = 1;
+  plot.nightsGrown = 3;
+  plot.stage = 3;
+  plot.wateredToday = true;
+  plot.waterStreak = 4;
+  state.plots[0] = plot;
+
+  advanceGreenhouseNightlyGrowthInPlace(state, 'spring');
+  assert.equal(state.plots[0].stage, 3);
+  assert.equal(state.plots[0].nightsGrown, 3);
+  assert.equal(state.plots[0].waterStreak, 4, 'A lazy final day does not erase the care');
+  assert.equal(state.plots[0].wateredToday, false);
+
+  // The kept streak still ripens into a lush harvest
+  assert.equal(isLushStreak(state.plots[0].waterStreak), true);
+});
+
+test('GD-06: fresh plots start with a zero care streak', () => {
+  const plot = createInitialGreenhousePlot();
+  assert.equal(plot.waterStreak, 0);
+  assert.ok(Number.isFinite(plot.waterStreak), 'Fresh streaks are plain finite numbers');
+
+  const state = createInitialGreenhouseState();
+  assert.equal(state.plots.length, GREENHOUSE_PLOT_COUNT);
+  assert.ok(state.plots.every((p) => p.waterStreak === 0), 'Every fresh pot starts with zero care streak');
+});
+
+test('GD-07: describeCareStreak renders warm streak prose', () => {
+  assert.equal(describeCareStreak(0), 'the pot waits patiently for the next gentle watering');
+  assert.equal(describeCareStreak(1), 'one night of steady care so far');
+  assert.equal(describeCareStreak(2), 'two nights of steady care — one more brings a lush harvest');
+  assert.equal(describeCareStreak(3), '3 nights of steady care — a lush harvest is ripening');
+  assert.equal(describeCareStreak(5), '5 nights of steady care — a lush harvest is ripening');
+  assert.equal(describeCareStreak(12), '12 nights of steady care — a lush harvest is ripening');
+});
+
+test('GD-08: legacy plots rebuilt through createInitialGreenhousePlot advance a night without NaN streaks', () => {
+  // Legacy v11 save shape: plots carried no waterStreak field at all.
+  const legacyPlots = [
+    { cropId: 'thyme' as const, plantedDay: 1, nightsGrown: 1, stage: 1 as const, wateredToday: true },
+    { cropId: null, plantedDay: 0, nightsGrown: 0, stage: 0 as const, wateredToday: false },
+    { cropId: 'chamomile' as const, plantedDay: 2, nightsGrown: 2, stage: 3 as const, wateredToday: false },
+    { cropId: 'lavender' as const, plantedDay: 1, nightsGrown: 0, stage: 0 as const, wateredToday: true },
+  ];
+
+  // Sanitizer-style repair: rebuild every legacy plot on a fresh plot (backfilled
+  // waterStreak 0) and copy over the legacy fields before advancing a night.
+  const state = createInitialGreenhouseState();
+  state.plots = legacyPlots.map((legacy) => {
+    const plot = createInitialGreenhousePlot();
+    plot.cropId = legacy.cropId;
+    plot.plantedDay = legacy.plantedDay;
+    plot.nightsGrown = legacy.nightsGrown;
+    plot.stage = legacy.stage;
+    plot.wateredToday = legacy.wateredToday;
+    return plot;
+  });
+
+  advanceGreenhouseNightlyGrowthInPlace(state, 'spring');
+
+  for (const plot of state.plots) {
+    assert.ok(Number.isFinite(plot.waterStreak), `waterStreak must stay finite, got ${plot.waterStreak}`);
+    assert.ok(!Number.isNaN(plot.waterStreak), 'waterStreak must never be NaN after a night advance');
+    assert.ok(plot.waterStreak >= 0, 'Care streaks never go negative');
+  }
+
+  // The repaired plots behave exactly like well-formed ones
+  assert.equal(state.plots[0].waterStreak, 1, 'Watered growing pot starts a fresh streak');
+  assert.equal(state.plots[0].stage, 2, 'Legacy pot resumes growing from its rebuilt state');
+  assert.equal(state.plots[1].waterStreak, 0, 'Empty pots are skipped');
+  assert.equal(state.plots[2].waterStreak, 0, 'Ready pot keeps its backfilled streak');
+  assert.equal(state.plots[3].waterStreak, 1, 'Watered sown pot starts a fresh streak');
 });

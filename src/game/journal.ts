@@ -34,6 +34,12 @@ import {
   projectStorylineForJournal,
 } from './storylines';
 import {
+  EverydayPracticeId,
+  deriveEverydayPracticeProfile,
+  formatTouchedTodayLine,
+} from './everyday';
+import { getCommunityProjectsView } from './community';
+import {
   EnvironmentalState,
   JournalMemory,
   NpcMemoryEntry,
@@ -169,6 +175,49 @@ export interface JournalHomeSummary {
   homeRitualCount: number;
 }
 
+/**
+ * Everyday Gameplay GA-3 — one row of the 'Daily Practices' journal card:
+ * a practice's label, its lifetime count (derived from existing persisted
+ * counters), and its current cozy tier title.
+ */
+export interface JournalPracticeLine {
+  id: EverydayPracticeId;
+  label: string;
+  count: number;
+  tierLabel: string;
+}
+
+/**
+ * Everyday Gameplay GA-3 — the 'Daily Practices' card, built derive-only from
+ * `deriveEverydayPracticeProfile` (zero new persisted state, never throws).
+ * `keeperTitle` headlines the card; `touchedTodayLine` closes it with the
+ * gentle "worth returning to tomorrow" note.
+ */
+export interface JournalPracticeCard {
+  keeperTitle: string;
+  practices: JournalPracticeLine[];
+  touchedToday: EverydayPracticeId[];
+  touchedTodayLine: string;
+}
+
+/**
+ * Everyday Gameplay GA-1 — the community contribution shelves card, built
+ * derive-only from `getCommunityProjectsView` (no new persisted state).
+ */
+export interface JournalCommunityLine {
+  projectId: string;
+  title: string;
+  venueLabel: string;
+  contributed: number;
+  goal: number;
+  completed: boolean;
+}
+
+export interface JournalCommunityCard {
+  lines: JournalCommunityLine[];
+  headline: string;
+}
+
 export interface JournalActiveInvitation {
   id: string;
   hostId: ResidentId;
@@ -198,6 +247,9 @@ export interface PocketJournalView {
   landmarks: JournalDiscoveryLandmark[];
   laneMoments: JournalLaneMoment[];
   homeSummary: JournalHomeSummary;
+  /** Everyday Gameplay GA-3 — derive-only participation & discovery summary card. */
+  dailyPractices: JournalPracticeCard;
+  communityProjects: JournalCommunityCard;
   noticeboardFlyerCount: number;
   greenhouseStage: number;
   plantersBloomed: number;
@@ -1193,6 +1245,39 @@ export function buildPocketJournalView(
     homeRitualCount: world.memories.filter((m) => m.id.startsWith('mem_teatable_')).length,
   };
 
+  // Everyday Gameplay GA-3 — 'Daily Practices' card (derive-only; no state, no caps touched).
+  const practiceProfile = deriveEverydayPracticeProfile(world);
+  const dailyPractices: JournalPracticeCard = {
+    keeperTitle: practiceProfile.keeperTitle,
+    practices: practiceProfile.practices.map((practice) => ({
+      id: practice.id,
+      label: practice.label,
+      count: practice.count,
+      tierLabel: practice.tierLabel,
+    })),
+    touchedToday: practiceProfile.touchedToday,
+    touchedTodayLine: formatTouchedTodayLine(practiceProfile.touchedToday),
+  };
+
+  // Everyday Gameplay GA-1 — community contribution shelves card (derive-only).
+  const communityViews = getCommunityProjectsView(world);
+  const anyCommunityProgress = communityViews.some(
+    (v) => v.completed || v.totalContributed > 0,
+  );
+  const communityProjects: JournalCommunityCard = {
+    headline: anyCommunityProgress
+      ? `The neighborhood shelves — ${communityViews.filter((v) => v.completed).length} of ${communityViews.length} finished`
+      : 'The noticeboard lists open community shelves',
+    lines: communityViews.map((v) => ({
+      projectId: v.id,
+      title: v.title,
+      venueLabel: v.venueLabel,
+      contributed: v.totalContributed,
+      goal: v.totalGoal,
+      completed: v.completed,
+    })),
+  };
+
   const activeInvRaw = world.invitations?.active;
   const activeInvitation: JournalActiveInvitation | null =
     activeInvRaw && isInvitationLive(activeInvRaw, world.day, world.minuteOfDay)
@@ -1231,6 +1316,8 @@ export function buildPocketJournalView(
     landmarks,
     laneMoments,
     homeSummary,
+    dailyPractices,
+    communityProjects,
     noticeboardFlyerCount: composed.npcTouches.noticeboardFlyerCount,
     greenhouseStage: composed.npcTouches.minaGreenhouseStage,
     plantersBloomed: composed.playerChanges.plantersBloomed,

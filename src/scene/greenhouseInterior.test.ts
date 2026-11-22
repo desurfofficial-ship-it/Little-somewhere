@@ -96,10 +96,10 @@ test('greenhouse growth stages drive pot visuals: sprout, leafy, per-crop blooms
     greenhouseState: {
       ...base.greenhouseState,
       plots: [
-        { cropId: 'chamomile' as const, plantedDay: 1, nightsGrown: 2, stage: 3 as const, wateredToday: true },
-        { cropId: 'lavender' as const, plantedDay: 1, nightsGrown: 1, stage: 1 as const, wateredToday: false },
-        { cropId: 'thyme' as const, plantedDay: 1, nightsGrown: 2, stage: 2 as const, wateredToday: true },
-        { cropId: null, plantedDay: 0, nightsGrown: 0, stage: 0 as const, wateredToday: false },
+        { cropId: 'chamomile' as const, plantedDay: 1, nightsGrown: 2, stage: 3 as const, wateredToday: true, waterStreak: 0 },
+        { cropId: 'lavender' as const, plantedDay: 1, nightsGrown: 1, stage: 1 as const, wateredToday: false, waterStreak: 0 },
+        { cropId: 'thyme' as const, plantedDay: 1, nightsGrown: 2, stage: 2 as const, wateredToday: true, waterStreak: 0 },
+        { cropId: null, plantedDay: 0, nightsGrown: 0, stage: 0 as const, wateredToday: false, waterStreak: 0 },
       ],
     },
   };

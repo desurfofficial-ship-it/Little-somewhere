@@ -133,8 +133,12 @@ import {
   createInitialCopperwheelState,
   isCopperwheelInteriorWalkable,
 } from './copperwheel';
+import {
+  createInitialCommunityProjectsState,
+  sanitizeCommunityProjectsState,
+} from './community';
 
-export const CURRENT_SCHEMA_VERSION = 11;
+export const CURRENT_SCHEMA_VERSION = 12;
 export const DEFAULT_SIM_SEED = 18042;
 
 /**
@@ -300,6 +304,8 @@ export function createDefaultWorldState(): WorldState {
     occupancy: null,
     teaching: createInitialTeachingState(),
     activeActivity: null,
+    // Everyday Gameplay GA-1 — Community Projects (WorldState v12)
+    communityProjects: createInitialCommunityProjectsState(),
   };
 }
 
@@ -1526,6 +1532,7 @@ export function sanitizeWorldState(candidate: unknown, externalWarnings: string[
     occupancy,
     teaching,
     activeActivity,
+    communityProjects: sanitizeCommunityProjectsState(candidate.communityProjects, warnings),
   };
 }
 
@@ -1959,6 +1966,8 @@ function sanitizeGreenhouseState(raw: unknown, warnings: string[]): GreenhouseSt
       nightsGrown: Math.max(nightsGrown, stage === 3 ? 1 : 0),
       stage,
       wateredToday: asBoolean(entry.wateredToday, false),
+      // GA-2 care streak — backfilled to 0 for pre-v12 saves (missing a day just waits).
+      waterStreak: Math.max(0, Math.floor(asFiniteNumber(entry.waterStreak, 0))),
     });
   }
   if (rawPlots.length !== GREENHOUSE_PLOT_COUNT) {
@@ -2409,6 +2418,19 @@ export function migrateV10ToV11(v10Raw: Record<string, unknown>): Record<string,
   };
 }
 
+/**
+ * Pure sequential v11 -> v12 save upgrader adding Everyday Gameplay slices:
+ * the community contribution shelves (GA-1) and per-plot greenhouse care
+ * streaks (GA-2, backfilled to 0 — a fresh streak is a patient streak).
+ */
+export function migrateV11ToV12(v11Raw: Record<string, unknown>): Record<string, unknown> {
+  return {
+    ...v11Raw,
+    schemaVersion: 12,
+    communityProjects: v11Raw.communityProjects ?? createInitialCommunityProjectsState(),
+  };
+}
+
 export function migrateWorldState(raw: unknown): MigrationResult {
   const warnings: string[] = [];
   const detected = detectSchemaVersion(raw);
@@ -2472,6 +2494,11 @@ export function migrateWorldState(raw: unknown): MigrationResult {
   if (version === 10) {
     working = migrateV10ToV11(working);
     version = 11;
+  }
+
+  if (version === 11) {
+    working = migrateV11ToV12(working);
+    version = 12;
   }
 
   if (version > CURRENT_SCHEMA_VERSION) {
