@@ -191,7 +191,10 @@ export const SEAT_SPOTS: readonly SeatSpot[] = [
     id: 'seat_sorrel_hollow',
     label: 'Sorrel Hollow Garden Bench',
     seatPos: { x: -19.7, z: 17.55 },
-    approachPos: { x: -18.75, z: 17.55 },
+    // Overhaul C-3: approach widened +0.15 — the old −18.75 left a 0.05
+    // margin against the r 0.42 bench collider; any collider bump would have
+    // re-trapped sitters (regression-locked at ≥0.2 in seating.test.ts).
+    approachPos: { x: -18.6, z: 17.55 },
     facingAngle: Math.PI / 2,
     seatHeight: 0.36,
     zoneId: 'orchard',

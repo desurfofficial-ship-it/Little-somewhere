@@ -422,7 +422,9 @@ test('the window armchair sip ritual works inside Copperwheel (Build 9 cross-int
     playerSeatId: 'cw_seat_armchair',
     inventory: { chamomile_pear_tea: 1 },
   };
-  assert.equal(sipBeverageAtTableAction(outdoorSeated).ok, false);
+  // Overhaul C-5: outdoor bench sipping is now supported (was hard-gated to
+  // indoor seats before the overhaul).
+  assert.equal(sipBeverageAtTableAction(outdoorSeated).ok, true);
 });
 
 test('seated indoor sitting persists through serialize + migrate (Build 9 sanitizer seat fix)', () => {

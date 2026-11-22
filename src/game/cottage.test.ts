@@ -380,14 +380,22 @@ test('tea-table sip ritual consumes a drink, spends minutes, and writes one firs
     1,
   );
 
-  // Rejection paths: standing up, sitting outdoors, and having no drink
+  // Rejection paths: standing up and having no drink; outdoors now sips (C-5)
   const standingWorld = togglePlayerSitAction(world, undefined).nextWorld;
   assert.equal(sipBeverageAtTableAction(standingWorld).ok, false);
   const outdoorSeated = togglePlayerSitAction(
-    { ...standingWorld, playerLocation: 'exterior' as const },
+    {
+      ...standingWorld,
+      playerLocation: 'exterior' as const,
+      // Overhaul G-3: stage beside the plaza bench like the real walk-then-sit
+      // flow (the reducer no longer accepts cross-map teleport-sits).
+      playerPos: { x: 4.35, z: 3.0 },
+    },
     'seat_east_plaza',
   ).nextWorld;
-  assert.equal(sipBeverageAtTableAction(outdoorSeated).ok, false);
+  // Overhaul C-5: outdoor bench sipping is now supported — a seated player
+  // with a brewed drink can sip anywhere.
+  assert.equal(sipBeverageAtTableAction(outdoorSeated).ok, true);
   const emptySatchel = togglePlayerSitAction(
     { ...standingWorld, inventory: {} },
     'cottage_seat_table_east',

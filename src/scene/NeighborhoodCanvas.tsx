@@ -132,6 +132,7 @@ import {
 import { flushStaticContactShadows, staticContactShadows } from './contactShadows';
 import { buildMeadowDressing, buildStructureDressing } from './builders/botanicalDressing';
 import { buildWildHollows } from './builders/wilds';
+import { disposeAmbientMotion } from './ambientSway';
 import { buildFernHollowOrchard } from './builders/orchard';
 import { buildOrchardAmbientExtras, buildOrchardMicroLife } from './builders/orchardMicroLife';
 import { buildAllReactiveRigs } from './builders/reactiveProps';
@@ -1692,7 +1693,7 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
         return {
           kind: 'walk',
           dest: walkableDest,
-          waypoints: computeWaypointPath(pPos, walkableDest, 0.48),
+          waypoints: computeWaypointPath(pPos, walkableDest, 0.48) ?? [{ x: walkableDest.x, z: walkableDest.z }],
           pending: targetObj,
         };
       }
@@ -1723,7 +1724,7 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
         return {
           kind: 'walk',
           dest: walkableDest,
-          waypoints: computeWaypointPath(worldRef.current.playerPos, walkableDest, 0.48),
+          waypoints: computeWaypointPath(worldRef.current.playerPos, walkableDest, 0.48) ?? [{ x: walkableDest.x, z: walkableDest.z }],
           pending: null,
         };
       }
@@ -2187,7 +2188,8 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
         const rt = world.npcRuntime[id];
         const seat = rt.posture === 'sitting' ? getSeatById(rt.reservedSeatId) : undefined;
         const npcGroundY = seat
-          ? computeSitGroundY(seat.seatHeight, RESIDENTS[id].appearance.heightScale)
+          ? computeSitGroundY(seat.seatHeight, RESIDENTS[id].appearance.heightScale) +
+            getGroundHeightAt(seat.seatPos.x, seat.seatPos.z)
           : getGroundHeightAt(rt.position.x, rt.position.z);
         rig.root.position.set(rt.position.x, npcGroundY, rt.position.z);
         rig.root.rotation.y = rt.facing;
@@ -2528,7 +2530,7 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
             const livePos = world.npcRuntime[pendingTargetAfterWalk.id as ResidentId]?.position;
             if (livePos && distance2D(tapWalkDest, livePos) > 0.9) {
               tapWalkDest = { ...livePos };
-              tapWalkWaypoints = computeWaypointPath(world.playerPos, tapWalkDest, 0.48);
+              tapWalkWaypoints = computeWaypointPath(world.playerPos, tapWalkDest, 0.48) ?? tapWalkWaypoints;
             }
           }
 
@@ -2899,6 +2901,10 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
       renderer.domElement.removeEventListener('pointercancel', handlePointerCancel);
       renderer.domElement.removeEventListener('wheel', handleWheel);
       disposeOcclusion(occlusion);
+      // Overhaul G-16: module-level ambient registries must clear on teardown
+      // or every remount (StrictMode double-mount, error-boundary recovery)
+      // leaked entries holding disposed materials, driven forever.
+      disposeAmbientMotion();
       envController.dispose();
       progressionRigs.dispose();
       staticContactShadows.dispose();

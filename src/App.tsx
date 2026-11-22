@@ -171,6 +171,8 @@ export default function App() {
   const joystickVectorRef = useRef<ScreenVec2>({ x: 0, y: 0 });
   const zoomRef = useRef<number>(1.0);
   const lastSavedStampRef = useRef<string>(getSaveStamp(initialLoaded));
+  // Overhaul G-13: autosave failure surfaces once per session, not every 5 s.
+  const saveFailureToastedRef = useRef(false);
 
   const [screenState, setScreenState] = useState<GameScreenState>(
     initialAutostart ? 'playing' : 'title',
@@ -1009,7 +1011,11 @@ export default function App() {
       }
 
       if (e.code === 'KeyM') {
-        handleToggleMute();
+        // Overhaul G-14: mute follows the same modal gating as every other
+        // gameplay shortcut instead of leaking through dialogue/panels.
+        if (screenState === 'playing' && !dialogueSession && !propCard) {
+          handleToggleMute();
+        }
         return;
       }
 
@@ -1115,7 +1121,17 @@ export default function App() {
       const stamp = getSaveStamp(current);
       if (stamp !== lastSavedStampRef.current) {
         lastSavedStampRef.current = stamp;
-        saveWorldState(current);
+        const saveRes = saveWorldState(current);
+        // Overhaul G-13: autosave failures are no longer swallowed — surface
+        // them once so a silent no-persistence session cannot go unnoticed.
+        if (!saveRes.ok && !saveFailureToastedRef.current) {
+          saveFailureToastedRef.current = true;
+          showToast(
+            saveRes.error === 'future-schema save preserved; autosave skipped'
+              ? 'A newer save was preserved — autosave paused for this session'
+              : 'Autosave could not write — progress may not persist',
+          );
+        }
       }
     };
 

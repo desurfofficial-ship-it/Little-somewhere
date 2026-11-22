@@ -215,7 +215,7 @@ export function findNearestNavNode(pos: Vec2, actorRadius = 0.38): NavNode {
  * Computes a deterministic walkable waypoint path using A* over NAV_NODES,
  * with a zero-overhead line-of-sight fast path and collinear smoothing.
  */
-export function computeWaypointPath(from: Vec2, to: Vec2, actorRadius = 0.38): Vec2[] {
+export function computeWaypointPath(from: Vec2, to: Vec2, actorRadius = 0.38): Vec2[] | null {
   if (distance2D(from, to) <= 0.15) {
     return [{ x: to.x, z: to.z }];
   }
@@ -301,7 +301,10 @@ export function computeWaypointPath(from: Vec2, to: Vec2, actorRadius = 0.38): V
     }
   }
 
-  return [{ x: to.x, z: to.z }];
+  // Overhaul G-8: an unreachable goal no longer fabricates a direct-line
+  // waypoint (residents beelined into walls before the watchdog bailed) —
+  // return null and let callers fall back to an idle.
+  return null;
 }
 
 /**

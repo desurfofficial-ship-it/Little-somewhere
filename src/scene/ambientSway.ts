@@ -131,3 +131,14 @@ export function updateAmbientMotion(elapsed: number, wind: number, winter: numbe
 export function ambientMotionRegistrySize(): { sway: number; swingers: number } {
   return { sway: swayRegistry.length, swingers: swingerRegistry.length };
 }
+
+/**
+ * Overhaul G-16: clear the module-level registries on canvas teardown.
+ * Without this, every NeighborhoodCanvas remount (StrictMode double-mount,
+ * error-boundary recovery) appended new entries holding disposed materials,
+ * which updateAmbientMotion then drove forever — a leak that grew per mount.
+ */
+export function disposeAmbientMotion(): void {
+  swayRegistry.length = 0;
+  swingerRegistry.length = 0;
+}

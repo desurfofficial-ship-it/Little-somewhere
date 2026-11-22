@@ -114,7 +114,7 @@ test('orchard bench seat, approach and landmark zone are player-ready', () => {
   assert.ok(zone.radius >= 6);
 
   // Full A* reachability from the plaza to the orchard bench, every leg LOS-clear
-  const path = computeWaypointPath({ x: 3.6, z: 1.5 }, seat.approachPos, 0.42);
+  const path = computeWaypointPath({ x: 3.6, z: 1.5 }, seat.approachPos, 0.42)!;
   assert.ok(path.length >= 1);
   let cursor = { x: 3.6, z: 1.5 };
   for (const wp of path) {
