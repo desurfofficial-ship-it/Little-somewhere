@@ -1,0 +1,4 @@
+{"shot":"seating_foxglove_deck_seated","viewport":"1440x900","zoom":"1.0","meta":["1.0", "C-1 fix: seated on Foxglove Rise deck rests on deck ground Y"],"pageErrors":0}
+{"shot":"seating_foxglove_deck_standup","viewport":"1440x900","zoom":"1.0","meta":["1.0", "C-2 fix: stand-up lands at approach, never null fallback"],"pageErrors":0}
+{"shot":"seating_east_plaza_sip","viewport":"1440x900","zoom":"1.0","meta":["1.0", "outdoor bench sipping enabled \u2014 sipable tea in satchel"],"pageErrors":0}
+{"shot":"seating_foxglove_deck_seated_close","viewport":"1440x900","zoom":"0.55","meta":["0.55", "C-1 fix close: seated hips rest on deck ground Y \u2014 no sink into the deck mesh"],"pageErrors":0}

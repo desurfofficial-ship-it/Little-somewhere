@@ -1,6 +1,6 @@
 # LITTLE SOMEWHERE — World-Quality Overhaul: Executive Summary
 
-Status: **APPROVED 2026-11-22 — implementation in progress** on branch `feat/world-quality-overhaul`
+Status: **IMPLEMENTED & EVIDENCE-COMPLETE 2026-11-22** on branch `feat/world-quality-overhaul` (8/8 phases + Doc 06 §4 evidence campaign; see `07-evidence-campaign-record.md`)
 Date: 2026-11-22 · Base: `feat/visual-identity-evolution-build-04` @ `9653b76` · Baseline: tsc clean, 489 pre-overhaul tests (re-established after sandbox object loss; +8 fountain tests = 497 green), production build passes, 2304 draw calls (veteran, SwiftShader)
 
 ## The six problems, in one line each
