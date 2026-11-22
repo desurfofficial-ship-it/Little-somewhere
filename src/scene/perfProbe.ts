@@ -52,6 +52,10 @@ export interface PerfSnapshot {
   programs: number;
   /** One-time scene assembly cost in ms (rigs, materials, textures). */
   sceneBuildMs: number;
+  /** One-time device telemetry: actual framebuffer depth precision in bits (flicker investigation R7 — closes the 16-bit fork with field data). */
+  depthBits: number;
+  /** One-time device telemetry: max texture anisotropy the device reports. */
+  maxAnisotropy: number;
 }
 
 const RING_SIZE = 600;
@@ -72,6 +76,8 @@ const EMPTY_SNAPSHOT: PerfSnapshot = {
   textures: 0,
   programs: 0,
   sceneBuildMs: 0,
+  depthBits: 0,
+  maxAnisotropy: 0,
 };
 
 export class PerfProbe {
@@ -120,6 +126,19 @@ export class PerfProbe {
   noteSceneBuild(ms: number): void {
     if (!this.enabled) return;
     this.sceneBuildMs = ms;
+  }
+
+  /**
+   * One-time device capability telemetry (FLICKER FIX D1 — investigation R7):
+   * the actual framebuffer depth precision and anisotropy ceiling of the device.
+   * The 24-bit depth assumption is mathematically exonerated in the lab, but
+   * legacy-WebKit 16-bit edge cases can only be closed with field data.
+   */
+  noteDeviceCapabilities(renderer: THREE.WebGLRenderer): void {
+    if (!this.enabled) return;
+    const gl = renderer.getContext();
+    this.snapshot.depthBits = (gl.getParameter(gl.DEPTH_BITS) as number) ?? 0;
+    this.snapshot.maxAnisotropy = renderer.capabilities.getMaxAnisotropy();
   }
 
   /** Pull renderer.info statistics (call at most every GPU_SAMPLE_INTERVAL frames). */

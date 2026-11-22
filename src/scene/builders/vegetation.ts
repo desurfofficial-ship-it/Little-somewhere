@@ -570,6 +570,8 @@ export function buildMirrorPondAndBridge(
   waterMesh.rotation.x = -Math.PI / 2;
   waterMesh.position.y = 0.105;
   waterMesh.receiveShadow = true;
+  // FLICKER FIX T1 (investigation R5): deterministic transparent water layer.
+  waterMesh.renderOrder = 2;
   pondGroup.add(waterMesh);
 
   // Natural fieldstone coping boulders & moss tufts hugging the curved shoreline (strictly inside pond_water bounds)

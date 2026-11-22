@@ -139,3 +139,25 @@ test('QA-FINAL C-1/C-2: clones inherit shader state and live-sync env mutations'
   assert.ok(Math.abs(clone.opacity - OCCLUSION_FADED_OPACITY) < 0.01);
   disposeOcclusion(registry);
 });
+
+test('FLICKER FIX T1: faded shells carry renderOrder 3, un-faded shells return to 0', () => {
+  const shared = new THREE.MeshStandardMaterial({ color: '#A89E8E' });
+  const root = new THREE.Group();
+  const wall = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), shared);
+  root.add(wall);
+  const registry = createOcclusionRegistry();
+  const record = registerOccluder(registry, root, 'shell');
+  assert.ok(record);
+  assert.equal(wall.renderOrder, 0, 'registered shell starts at default order');
+
+  // Fade fully: the shell blends in the deterministic faded layer.
+  record.target = OCCLUSION_FADED_OPACITY;
+  for (let i = 0; i < 60; i++) updateOcclusionFades(registry, 1 / 30);
+  assert.equal(wall.renderOrder, 3, 'faded shell pinned above water/disc layers');
+
+  // Un-fade: order returns to default so the opaque pass stays front-to-back.
+  record.target = 1;
+  for (let i = 0; i < 90; i++) updateOcclusionFades(registry, 1 / 30);
+  assert.equal(wall.renderOrder, 0, 'un-faded shell restored to default order');
+  disposeOcclusion(registry);
+});

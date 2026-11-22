@@ -23,8 +23,10 @@ test('flush collapses same-opacity discs into one InstancedMesh with identical t
   a.position.set(2, 0.5, -3);
   a.rotation.y = 0.7;
   root.add(a);
+  // Off the cobble network (FLICKER FIX G3 lifts buried discs; parity is asserted on
+  // discs above their ground contract — the burial lift has its own test below).
   const b = new THREE.Group();
-  b.position.set(-5, 0, 8);
+  b.position.set(-5, 0, 12.5);
   root.add(b);
 
   batch.add(a, tex, 1.6, 1.02, 0.44, 0.018);
@@ -152,4 +154,81 @@ test('flush without registrations is a no-op that never creates empty buckets', 
   assert.equal(batch.batchCount, 0);
   assert.equal(root.children.length, 0);
   assert.equal(batch.isFlushed, false, 'empty flush does not claim flushed state');
+});
+
+test('FLICKER FIX G3: discs buried under the cobble contract are lifted to the surface at flush', () => {
+  const batch = new ContactShadowBatch();
+  const tex = makeTex();
+  const root = new THREE.Group();
+  // (-5, 8) is on the south-promenade slab (top 0.05): a disc mounted at the legacy
+  // "logical ground" 0.02 was permanently depth-occluded before the fix.
+  batch.add(root, tex, 6.2, 6.2, 0.44, 0.02);
+  const liftedWorldY = 0.02; // authored y before flush
+  batch.flush(root);
+  assert.equal(batch.batchCount, 1);
+  const inst = root.children.find(
+    (c) => (c as THREE.InstancedMesh).isInstancedMesh,
+  ) as THREE.InstancedMesh;
+  assert.ok(inst, 'bucket exists');
+  const m = new THREE.Matrix4();
+  inst.getMatrixAt(0, m);
+  const pos = new THREE.Vector3();
+  const quat = new THREE.Quaternion();
+  const scl = new THREE.Vector3();
+  m.decompose(pos, quat, scl);
+  // The disc straddles nothing here — world == local (root at origin).
+  assert.ok(
+    Math.abs(pos.y - (0.05 + 0.012)) < 1e-5,
+    `buried disc lifted to ground+clearance, got y=${pos.y} (authored ${liftedWorldY})`,
+  );
+  // Scale/rotation parity is untouched by the lift.
+  assert.ok(Math.abs(scl.x - 6.2) < 1e-5 && Math.abs(scl.y - 6.2) < 1e-5);
+  batch.dispose();
+});
+
+test('FLICKER FIX G3: discs already at/above their surface keep their authored placement', () => {
+  const batch = new ContactShadowBatch();
+  const tex = makeTex();
+  const root = new THREE.Group();
+  // Meadow disc off the network (15, 12): ground contract 0 < authored 0.018 →
+  // the rescue rule must NOT touch it.
+  const parent = new THREE.Group();
+  parent.position.set(15, 0, 12);
+  root.add(parent);
+  batch.add(parent, tex, 1.2, 1.2, 0.4, 0.018);
+  batch.flush(root);
+  const inst = root.children.find(
+    (c) => (c as THREE.InstancedMesh).isInstancedMesh,
+  ) as THREE.InstancedMesh;
+  const m = new THREE.Matrix4();
+  inst.getMatrixAt(0, m);
+  const pos = new THREE.Vector3();
+  m.decompose(pos, new THREE.Quaternion(), new THREE.Vector3());
+  assert.ok(Math.abs(pos.y - 0.018) < 1e-5, `meadow disc untouched, got y=${pos.y}`);
+  batch.dispose();
+});
+
+test('FLICKER FIX G3/T1 scoping: interior-boundary discs keep authored y and default renderOrder', () => {
+  const batch = new ContactShadowBatch();
+  const tex = makeTex();
+  const root = new THREE.Group();
+  // An interior rig boundary: the cottage interior deck top is y≈0.01 and its XZ sits
+  // INSIDE the plaza rect — the cobble rescue must not apply to subtree-bounded discs.
+  const interior = new THREE.Group();
+  interior.userData.contactBatchRoot = true; // marks the visibility subtree boundary
+  interior.position.set(0, 0, 0); // interior rigs live at scene origin
+  root.add(interior);
+  batch.add(interior, tex, 1.4, 1.4, 0.35, 0.018); // authored 0.018 above deck 0.01
+  batch.flush(root);
+  const inst = interior.children.find(
+    (c) => (c as THREE.InstancedMesh).isInstancedMesh,
+  ) as THREE.InstancedMesh;
+  assert.ok(inst, 'interior bucket parented inside its subtree');
+  const m = new THREE.Matrix4();
+  inst.getMatrixAt(0, m);
+  const pos = new THREE.Vector3();
+  m.decompose(pos, new THREE.Quaternion(), new THREE.Vector3());
+  assert.ok(Math.abs(pos.y - 0.018) < 1e-5, `interior disc keeps authored y, got ${pos.y}`);
+  assert.equal(inst.renderOrder, 0, 'interior buckets keep distance sorting (no T1 pin)');
+  batch.dispose();
 });

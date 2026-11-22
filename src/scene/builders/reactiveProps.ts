@@ -364,6 +364,9 @@ export function buildPuddleRig(palette: MaterialPalette): PuddleRig {
   mesh.computeBoundingSphere();
   mesh.visible = false;
   mesh.frustumCulled = false;
+  // FLICKER FIX T1 (investigation R5): ground-adjacent decal layer — deterministic
+  // blend order vs water (2) and occlusion shells (3).
+  mesh.renderOrder = 1;
   return {
     mesh,
     dispose() {

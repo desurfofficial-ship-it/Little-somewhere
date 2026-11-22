@@ -227,7 +227,10 @@ test('player movement supports analog walk, run, sprint speeds, inertia, turn ba
 test('bridge ground elevation and sliding obstacle collision behave cleanly', () => {
   const bridgeHeight = getGroundHeightAt(-2.9, 14.0);
   assert.ok(bridgeHeight > 0.35, `Expected bridge arch > 0.35, got ${bridgeHeight}`);
-  assert.equal(getGroundHeightAt(0, 0), 0);
+  // FLICKER FIX G2 (docs/visual-quality/mobile-floor-flickering-investigation.md R3):
+  // plaza center is ON the cobble slab network — the logical contract now returns the
+  // authored slab height (0.05) instead of the old buried-props value 0.
+  assert.equal(getGroundHeightAt(0, 0), 0.05);
 
   const bridgeStep = stepPlayerMovement({
     pos: { x: -2.9, z: 13.8 },

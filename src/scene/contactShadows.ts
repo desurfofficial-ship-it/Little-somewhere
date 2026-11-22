@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { getCobbleSurfaceHeight } from '../game/groundSurfaces';
 
 /**
  * Static contact-shadow instancing (Doc 06 §3.4 — BUILD 02 Workstream E, item 8.3).
@@ -119,6 +120,23 @@ export class ContactShadowBatch {
       const quat = new THREE.Quaternion();
       const scl = new THREE.Vector3();
       mesh.matrixWorld.decompose(pos, quat, scl);
+      // FLICKER FIX G3 (investigation R3): builders mount static discs at "logical
+      // ground", which used to return 0 on the cobble network while the rendered slab
+      // top sits at 0.05 — every plaza-side disc (fountain, tea cart, noticeboard,
+      // plaza lamps) was permanently depth-occluded, and discs straddling a strip edge
+      // showed a camera-dependent burial silhouette ("small debris flickers").
+      // Any disc that ended up BELOW the shared ground contract is lifted to the
+      // surface + the shared decal clearance; discs already at/above their surface
+      // (meadow, pond family) are untouched, preserving authored placement.
+      // EXTERIOR ONLY (adversarial review finding 1): interior rigs live at scene
+      // origin — inside the plaza rect — but their ground is the interior floor deck,
+      // not the cobble slab; lifting their discs floated them ~5 cm above the floor.
+      if (boundary === null) {
+        const groundY = getCobbleSurfaceHeight(pos.x, pos.z);
+        if (pos.y < groundY - 1e-6) {
+          pos.y = groundY + 0.012;
+        }
+      }
       const geo = mesh.geometry as THREE.PlaneGeometry;
       const params = geo.parameters as { width: number; height: number };
       // The instance matrix pre-multiplies the unit disc by (width, depth, 1)
@@ -140,14 +158,14 @@ export class ContactShadowBatch {
     // Bucket key: visibility subtree + exact opacity (one material per key).
     const buckets = new Map<
       string,
-      { root: THREE.Object3D; opacity: number; matrices: THREE.Matrix4[] }
+      { root: THREE.Object3D; opacity: number; matrices: THREE.Matrix4[]; exterior: boolean }
     >();
     for (const d of this.records) {
       const root = d.boundary ?? defaultRoot;
       const key = `${root.uuid}:${d.opacity.toFixed(3)}`;
       let bucket = buckets.get(key);
       if (!bucket) {
-        bucket = { root, opacity: d.opacity, matrices: [] };
+        bucket = { root, opacity: d.opacity, matrices: [], exterior: d.boundary === null };
         buckets.set(key, bucket);
       }
       bucket.matrices.push(d.matrix);
@@ -168,6 +186,14 @@ export class ContactShadowBatch {
       }
       inst.instanceMatrix.needsUpdate = true;
       inst.frustumCulled = false; // buckets span the whole diorama; never pop per-frame
+      // FLICKER FIX T1 (investigation R5): pin the ground-adjacent EXTERIOR decal layer
+      // so blend order against water/faded shells never depends on camera-relative
+      // sorting of bucket origins (instanced buckets sort at their parent origin in
+      // three r187). INTERIOR buckets keep distance sorting — they must layer against
+      // interior glass/steam at their own depth (adversarial review finding 2).
+      if (bucket.exterior) {
+        inst.renderOrder = 1;
+      }
       bucket.root.add(inst);
       this.batches.push(inst);
     }

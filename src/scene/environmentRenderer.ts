@@ -13,6 +13,7 @@ import { WildsRig } from './builders/wilds';
 import { ReactiveVisualRigs } from './builders/reactiveProps';
 import { getWaterShaderUniforms } from './waterShaders';
 import { updateAmbientMotion } from './ambientSway';
+import { snapDirectionalLightToShadowTexels } from './shadowStability';
 import { computeChimneySmokeStrength } from '../game/cottage';
 import { CANOPY_DRIFT_TARGETS } from '../game/progressionVisuals';
 import type { ProgressionPresentationRigs } from './progressionPresentation';
@@ -472,8 +473,16 @@ export class EnvironmentVisualController {
     // R-01: lengthened azimuth sweep + lower raking elevation so golden hour casts
     // long shadows and dusk settles into genuine twilight (was 0.5..2.4 / flat 26-height arc)
     const sunAngle = THREE.MathUtils.lerp(0.42, 2.6, tNorm);
-    const sunHeight = Math.max(8, 24 - Math.abs(tNorm - 0.44) * 30);
+    // FLICKER FIX S2b (investigation R2, peripheral): floor 8→10 keeps far-district
+    // casters (Sorrel Hollow) in front of the shadow camera's near plane at the lowest
+    // dusk sun instead of losing all their shadows late in the day.
+    const sunHeight = Math.max(10, 24 - Math.abs(tNorm - 0.44) * 30);
     sunLight.position.set(Math.cos(sunAngle) * 26, sunHeight, 16);
+    // FLICKER FIX S2a (investigation R2): the sun moves every frame; without snapping,
+    // the shadow map's texel grid swims continuously and every shadow edge re-dithers
+    // per frame. Snapping the light onto its own shadow-map texel grid keeps the grid
+    // translationally stationary while the arc rotates (slow, smoothed by PCF radius).
+    snapDirectionalLightToShadowTexels(sunLight);
 
     // BUILD 04 AM-5: the exterior ambient sections (4-6) skip their per-frame
     // work while the player is indoors — the exterior root is hidden, so pond

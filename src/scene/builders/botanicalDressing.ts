@@ -3,30 +3,24 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { MaterialPalette, STORYBOOK_PALETTE } from '../materials';
 import type { SeasonType } from '../../game/types';
 import { isPointWalkable } from '../../game/worldMap';
+import { COBBLE_RECTS } from '../../game/groundSurfaces';
 import { applyAmbientSway } from '../ambientSway';
 
 /**
  * Meadow dressing shared placement data.
  *
- * Mirrors the cobblestone strips laid down in `NeighborhoodCanvas.tsx`
- * (`addCobbleStrip(x, z, w, l)`) so botanical clusters never sprout in the
- * middle of a walkable lane. Keep both lists in sync when lanes change.
+ * FLICKER FIX G2: the lane rectangles are now OWNED by src/game/groundSurfaces.ts
+ * (COBBLE_RECTS) — the same table drives the unified cobble mesh, getGroundHeightAt
+ * and this exclusion check, so the old "keep both lists in sync" duplication (which
+ * silently drifted once already in this file's history) is gone. The exported shape
+ * {x, z, w, l} is derived, preserving this module's public contract for its tests.
  */
 export const COBBLE_LANE_RECTS: ReadonlyArray<{
   x: number;
   z: number;
   w: number;
   l: number;
-}> = [
-  { x: 0, z: 0, w: 12.5, l: 13.5 }, // Central plaza
-  { x: -9, z: 10, w: 11, l: 3.6 }, // Home lane
-  { x: -10, z: -1, w: 3.8, l: 22 }, // West lane
-  { x: 8.3, z: -1, w: 4.2, l: 23 }, // East lane
-  { x: 8.3, z: 11.6, w: 4.0, l: 2.6 }, // East lane extension
-  { x: 0, z: 7.2, w: 22, l: 3.2 }, // South promenade
-  { x: -2.9, z: 10.1, w: 2.3, l: 3.0 }, // Bridge approach
-  { x: 0, z: -6.5, w: 22, l: 3.2 }, // North promenade
-];
+}> = COBBLE_RECTS.map((r) => ({ x: r.x, z: r.z, w: r.halfW * 2, l: r.halfL * 2 }));
 
 function isOnCobble(x: number, z: number, padding: number): boolean {
   for (const r of COBBLE_LANE_RECTS) {

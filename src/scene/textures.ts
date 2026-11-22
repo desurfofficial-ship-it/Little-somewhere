@@ -415,7 +415,10 @@ export function createMeadowTexture(maxAnisotropy: number): THREE.CanvasTexture 
   tex.wrapS = THREE.RepeatWrapping;
   tex.wrapT = THREE.RepeatWrapping;
   tex.repeat.set(9, 9);
-  tex.anisotropy = maxAnisotropy;
+  // FLICKER FIX T2 (investigation R6): the diorama's worst ground footprint elongation
+  // (~5:1 at glancing angles) needs aniso ≈8; 16 is redundant bandwidth on mobile
+  // TBDR GPUs, and raw device max can even be 0 (extension absent) — cap it.
+  tex.anisotropy = Math.min(8, maxAnisotropy);
   return tex;
 }
 
@@ -513,7 +516,9 @@ export function createCobblestoneTexture(maxAnisotropy: number): THREE.CanvasTex
   tex.wrapS = THREE.RepeatWrapping;
   tex.wrapT = THREE.RepeatWrapping;
   tex.repeat.set(4, 4);
-  tex.anisotropy = maxAnisotropy;
+  // FLICKER FIX T2 (investigation R6): aniso 8 covers the plaza's worst-case glancing
+  // footprint; uncapped max wastes TBDR bandwidth and can be 0 on some devices.
+  tex.anisotropy = Math.min(8, maxAnisotropy);
   return tex;
 }
 

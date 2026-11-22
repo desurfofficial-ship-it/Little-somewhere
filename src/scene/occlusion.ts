@@ -222,6 +222,10 @@ export function updateOcclusionFades(registry: OcclusionRegistry, dt: number): v
         mat.transparent = faded;
         mat.depthWrite = !faded;
       }
+      // FLICKER FIX T1 (investigation R5) + adversarial review finding 5: the faded-
+      // shell layer applies ONLY while actually faded — opaque shells return to the
+      // default order so the opaque front-to-back pass is not degraded.
+      for (const mesh of record.meshes) mesh.renderOrder = faded ? 3 : 0;
     }
   }
 }

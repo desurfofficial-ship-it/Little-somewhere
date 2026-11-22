@@ -99,7 +99,7 @@ export interface PlayerMotionRuntime {
   skidAmount: number;
 }
 
-export function createInitialPlayerMotion(pos: Vec2): PlayerMotionRuntime {
+export function createInitialPlayerMotion(pos: Vec2, location?: PlayerLocation): PlayerMotionRuntime {
   return {
     vx: 0,
     vz: 0,
@@ -109,7 +109,10 @@ export function createInitialPlayerMotion(pos: Vec2): PlayerMotionRuntime {
     bankAngle: 0,
     walkPhase: 0,
     animState: 'idle',
-    groundY: getGroundHeightAt(pos.x, pos.z),
+    // FLICKER FIX G2 + adversarial review finding 4: interiors render their own floor
+    // plane — the exterior cobble contract must not lift the mount-time ground height
+    // (a save taken indoors would otherwise pop the avatar 5 cm on frame one).
+    groundY: isInteriorLocation(location) ? 0 : getGroundHeightAt(pos.x, pos.z),
     footstepPending: false,
     wasAirOrStepApex: false,
     accelAmount: 0,
@@ -119,6 +122,22 @@ export function createInitialPlayerMotion(pos: Vec2): PlayerMotionRuntime {
 
 export function computeSitGroundY(seatHeight: number, heightScale = 1.0): number {
   return seatHeight - 0.33 * heightScale;
+}
+
+/**
+ * Interior locations render their own floor plane — the exterior cobble-slab ground
+ * contract (getGroundHeightAt → groundSurfaces) must not apply to them.
+ * (FLICKER FIX G2: indoor seat XZ values can overlap the cobble rectangles without
+ * the slab height being real there.)
+ */
+export function isInteriorLocation(location?: PlayerLocation): boolean {
+  return (
+    location === 'cottage_interior' ||
+    location === 'greenhouse_interior' ||
+    location === 'bakery_interior' ||
+    location === 'nook_interior' ||
+    location === 'copperwheel_interior'
+  );
 }
 
 export function wrapAngleDelta(current: number, target: number): number {
@@ -227,8 +246,13 @@ export function stepPlayerMovement(input: StepPlayerMovementInput): StepPlayerMo
         // Overhaul C-1: seated ground Y must include the terrain under the seat
         // (Foxglove Rise's 0.62 deck previously sank seated avatars ~0.59 into
         // it — the offset alone assumed flat world ground).
+        // FLICKER FIX G2: interiors use their own floor plane — the cobble slab
+        // contract must not leak into indoor sit heights (indoor seat XZ values can
+        // legitimately overlap the network rectangles, but the rendered ground there
+        // is the interior floor, matching the isInterior branch below).
         groundY: seat
-          ? computeSitGroundY(seat.seatHeight, 1.0) + getGroundHeightAt(seat.seatPos.x, seat.seatPos.z)
+          ? computeSitGroundY(seat.seatHeight, 1.0) +
+            (isInteriorLocation(input.location) ? 0 : getGroundHeightAt(seat.seatPos.x, seat.seatPos.z))
           : 0,
         footstepPending: false,
         accelAmount: 0,
@@ -257,12 +281,7 @@ export function stepPlayerMovement(input: StepPlayerMovementInput): StepPlayerMo
   }
 
   const activeLocomotionInput = hasMoveInput && !input.interactionActive;
-  const isInterior =
-    input.location === 'cottage_interior' ||
-    input.location === 'greenhouse_interior' ||
-    input.location === 'bakery_interior' ||
-    input.location === 'nook_interior' ||
-    input.location === 'copperwheel_interior';
+  const isInterior = isInteriorLocation(input.location);
   // Carrying items trims top sprint pace slightly for cozy physical believability;
   // the small cottage room also caps sprinting so approach points never get overshot.
   const rawDesiredSpeed = resolveDesiredSpeed(

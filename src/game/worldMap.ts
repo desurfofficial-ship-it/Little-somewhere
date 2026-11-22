@@ -5,6 +5,7 @@ import {
   Vec2,
   WorldPropPlacement,
 } from './types';
+import { getCobbleSurfaceHeight } from './groundSurfaces';
 
 export interface BoxObstacle {
   id: string;
@@ -468,6 +469,11 @@ export function distance2D(a: Vec2, b: Vec2): number {
 /**
  * Returns the physical surface Y elevation at world-space (x, z) so walkers climb smoothly
  * across Mirror Pond's cambered cedar footbridge instead of clipping through its planks.
+ *
+ * FLICKER FIX G2: also returns the authored cobble slab height (0.05, edge-ramped) via
+ * src/game/groundSurfaces.ts — the rendered network and the logical contract now share
+ * one source of truth (characters, contact discs, rings and dust no longer sink 5 cm
+ * under the plaza; see docs/visual-quality/mobile-floor-flickering-investigation.md R3).
  */
 export function getGroundHeightAt(x: number, z: number): number {
   // Mirror Pond Cedar Footbridge at x = -2.9, deck width 1.86 (-3.83..-1.97), z = 11.45..16.55
@@ -489,7 +495,7 @@ export function getGroundHeightAt(x: number, z: number): number {
   if (x >= 20.8 && x <= 22.0 && z >= 16.7 && z < 18.0) {
     return 0.62 * ((z - 16.7) / 1.3);
   }
-  return 0;
+  return getCobbleSurfaceHeight(x, z);
 }
 
 export function isPointWalkable(x: number, z: number, actorRadius = 0.48): boolean {

@@ -51,6 +51,7 @@ import {
 import {
   computeSitGroundY,
   createInitialPlayerMotion,
+  isInteriorLocation,
   PLAYER_SPRINT_SPEED,
   selectBestInteractiveTarget,
   stepPlayerMovement,
@@ -137,6 +138,7 @@ import { disposeAmbientMotion } from './ambientSway';
 import { buildFernHollowOrchard } from './builders/orchard';
 import { buildOrchardAmbientExtras, buildOrchardMicroLife } from './builders/orchardMicroLife';
 import { buildAllReactiveRigs } from './builders/reactiveProps';
+import { buildCobbleNetworkGeometry } from './builders/cobbleNetwork';
 import { buildProgressionPresentation } from './progressionPresentation';
 import { buildWillowCottageInterior } from './builders/cottageInterior';
 import {
@@ -488,7 +490,17 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
     renderer.toneMappingExposure = 0.98;
     renderer.setPixelRatio(isSoftwareGl ? 1 : Math.min(window.devicePixelRatio, 2));
     renderer.shadowMap.enabled = !isSoftwareGl;
-    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    // FLICKER FIX S1 (investigation R2): three r187 silently maps PCFSoftShadowMap to an
+    // UNFILTERED single-tap BASIC lookup (the constant is deprecated and missing from the
+    // r187 shadowMapTypeDefines map) — every shadow edge rendered as a hard 1-texel
+    // stairstep. PCFShadowMap restores the intended 5-tap Vogel-disk filtered path;
+    // the radius below softens edges to the authored storybook look (5 shadow-map
+    // fetches per receiving fragment, negligible on mobile GPUs; software-GL path
+    // keeps shadows off entirely).
+    renderer.shadowMap.type = THREE.PCFShadowMap;
+    // FLICKER FIX D1: capture real device depth/aniso telemetry once (field data
+    // closes the legacy-WebKit 16-bit fork — investigation R7).
+    perfProbe.noteDeviceCapabilities(renderer);
     renderer.setSize(container.clientWidth || window.innerWidth, container.clientHeight || window.innerHeight);
     renderer.domElement.style.display = 'block';
     renderer.domElement.style.width = '100%';
@@ -544,7 +556,9 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
     sunLight.shadow.mapSize.width = 1024;
     sunLight.shadow.mapSize.height = 1024;
     sunLight.shadow.camera.near = 4;
-    sunLight.shadow.camera.far = 85;
+    // FLICKER FIX S2b (investigation R2, peripheral): far 85→95 keeps far-district
+    // casters (Sorrel Hollow) inside the shadow depth range at the lowest sun angles.
+    sunLight.shadow.camera.far = 95;
     const d = 28;
     sunLight.shadow.camera.left = -d;
     sunLight.shadow.camera.right = d;
@@ -552,6 +566,8 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
     sunLight.shadow.camera.bottom = -d;
     sunLight.shadow.bias = -0.0005;
     sunLight.shadow.normalBias = 0.025;
+    // FLICKER FIX S1: soft filtered shadow edge (see the shadowMap.type note above).
+    sunLight.shadow.radius = 2.5;
     scene.add(sunLight);
 
     const rimLight = new THREE.DirectionalLight('#C8DCF2', 0.45);
@@ -605,7 +621,11 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
       cobbleRoughMap = cobbleStoneRough.clone();
       cobbleRoughMap.wrapS = THREE.RepeatWrapping;
       cobbleRoughMap.wrapT = THREE.RepeatWrapping;
-      cobbleRoughMap.repeat.set(4, 4);
+      // FLICKER FIX T2 (investigation R6): the stone-course map has 5 courses per tile
+      // and the albedo 10 — matching the visible 40-course layout (repeat 8,8 on a
+      // 4×4-albedo tiling) re-aligns mortar roughness with the visible mortar lines
+      // (the old 4×4 clone put 20 roughness courses over 40 albedo courses).
+      cobbleRoughMap.repeat.set(8, 8);
       cobbleRoughMap.needsUpdate = true;
       palette.registerTexture(cobbleRoughMap);
     }
@@ -617,21 +637,20 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
       metalness: 0.02,
     });
 
-    const addCobbleStrip = (x: number, z: number, w: number, l: number) => {
-      const m = new THREE.Mesh(new THREE.BoxGeometry(w, 0.06, l), cobbleMat);
-      m.position.set(x, 0.02, z);
-      m.receiveShadow = true;
-      exteriorRoot.add(m);
-    };
-    // Central Plaza + cross lanes + bridge & woodshop spurs
-    addCobbleStrip(0, 0, 12.5, 13.5);
-    addCobbleStrip(-9, 10, 11, 3.6); // Home lane
-    addCobbleStrip(-10, -1, 3.8, 22); // West lane (Book Nook -> Bakery -> Home)
-    addCobbleStrip(8.3, -1, 4.2, 23); // East lane (Workshop -> Greenhouse -> Woodshop)
-    addCobbleStrip(8.3, 11.6, 4.0, 2.6); // East lane extension to Pinecone Woodshop
-    addCobbleStrip(0, 7.2, 22, 3.2); // South promenade above pond
-    addCobbleStrip(-2.9, 10.1, 2.3, 3.0); // Bridge approach walk
-    addCobbleStrip(0, -6.5, 22, 3.2); // North promenade by gazebo
+    // FLICKER FIX G1 (investigation R1): the plaza/lane network used to be EIGHT
+    // overlapping BoxGeometry slabs whose tops all sat at exactly y=0.05 — ≈98 m² of
+    // exactly-coplanar opaque surfaces (12 pairs, 4 triple zones) rasterizing 2-3
+    // fragments per pixel with different per-strip UVs: the reported cobble flicker.
+    // The unified surface below is built from the same authored rectangles (now owned
+    // by src/game/groundSurfaces.ts, which also drives getGroundHeightAt) as ONE
+    // exact rectangle union: a single fragment per pixel, skirts only at the true
+    // network boundary, and world-aligned UVs that preserve the plaza's authored
+    // stone density across every lane. The destRing/contact discs ride the same
+    // contract, so decals and characters sit on the true slab top everywhere.
+    const cobbleNetwork = new THREE.Mesh(buildCobbleNetworkGeometry().geometry, cobbleMat);
+    cobbleNetwork.receiveShadow = true;
+    cobbleNetwork.name = 'cobble_walk_network';
+    exteriorRoot.add(cobbleNetwork);
 
     // Natural perimeter stone/cedar border, rolling distant hills & multi-lobe instanced grove
     exteriorRoot.add(buildPerimeterBorder(palette, shadowTex));
@@ -1050,7 +1069,10 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
       }),
     );
     destRing.rotation.x = -Math.PI / 2;
-    destRing.position.y = 0.05;
+    // FLICKER FIX G2 (investigation R4): the ring used to sit at logical-ground + 0.05,
+    // i.e. EXACTLY the cobble slab top on every strip (per-pixel z-fight on every plaza
+    // tap). It now rides the true surface with the shared decal clearance.
+    destRing.position.y = 0.012;
     destRing.visible = false;
     scene.add(destRing);
 
@@ -1168,7 +1190,11 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
     );
     playerRig.root.position.set(
       worldRef.current.playerPos.x,
-      getGroundHeightAt(worldRef.current.playerPos.x, worldRef.current.playerPos.z),
+      // FLICKER FIX G2 + adversarial review finding 4: interiors ride their own floor
+      // plane (0) — the exterior cobble contract applies outdoors only.
+      isInteriorLocation(worldRef.current.playerLocation)
+        ? 0
+        : getGroundHeightAt(worldRef.current.playerPos.x, worldRef.current.playerPos.z),
       worldRef.current.playerPos.z,
     );
     playerRig.root.rotation.y = worldRef.current.playerFacing;
@@ -1973,12 +1999,9 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
       // Five-layer environment composition & dirty-flagged GPU/scene visual controller
       const composed = composeEnvironmentState(world);
       const curLoc = world.playerLocation ?? 'exterior';
-      const isIndoors =
-        curLoc === 'cottage_interior' ||
-        curLoc === 'greenhouse_interior' ||
-        curLoc === 'bakery_interior' ||
-        curLoc === 'nook_interior' ||
-        curLoc === 'copperwheel_interior';
+      // FLICKER FIX G2 dedupe (adversarial review finding 7): single interior predicate
+      // shared with playerController — no second list to drift.
+      const isIndoors = isInteriorLocation(curLoc);
       envController.update(
         composed,
         world,
@@ -2833,7 +2856,7 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
         destRing.visible = true;
         destRing.position.set(
           tapWalkDest.x,
-          getGroundHeightAt(tapWalkDest.x, tapWalkDest.z) + 0.05,
+          getGroundHeightAt(tapWalkDest.x, tapWalkDest.z) + 0.012,
           tapWalkDest.z,
         );
         const pulse = 1 + Math.sin(elapsed * 6) * 0.12;

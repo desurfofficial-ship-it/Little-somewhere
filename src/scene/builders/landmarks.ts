@@ -693,6 +693,11 @@ export function buildStorybookFountain(
   const waterMesh = new THREE.Mesh(new THREE.CircleGeometry(2.2, 32), waterMat);
   waterMesh.rotation.x = -Math.PI / 2;
   waterMesh.position.y = STORYBOOK_FOUNTAIN_SPEC.waterY;
+  // FLICKER FIX T1 (investigation R5/E-H5): deterministic transparent order — water
+  // layer 2, its above-surface decal children (splash rings / foam / cascades) layer 3,
+  // so far-side rings no longer veil under the depth-writing water disc when the
+  // camera-relative sort flips sides during orbit.
+  waterMesh.renderOrder = 2;
 
   const lowerBowlWater = new THREE.Mesh(new THREE.CircleGeometry(0.94, 24), waterMat);
   lowerBowlWater.position.z = 0.88; // world y 1.50 inside the lower bowl
@@ -730,6 +735,7 @@ export function buildStorybookFountain(
     const ring = new THREE.Mesh(new THREE.RingGeometry(0.22, 0.28, 22), rMat);
     ring.position.set(rx, -rz, 0.014);
     ring.userData.phaseOffset = i * 0.23;
+    ring.renderOrder = 3; // above the water layer (T1)
     waterMesh.add(ring);
     splashRings.push(ring);
 
@@ -738,6 +744,7 @@ export function buildStorybookFountain(
     }
   }
   const collarsMerged = mergeIntoMesh(collarGeos, foamCollarMat, 'fountain_foam_collars', false);
+  collarsMerged.renderOrder = 3; // above the water layer (T1)
   waterMesh.add(collarsMerged);
 
   waterMesh.visible = false;
@@ -791,6 +798,7 @@ export function buildStorybookFountain(
   }
   const streamsMerged = mergeIntoMesh(streamGeos, streamMat, 'fountain_streams_merged', false);
   streamsMerged.userData.streamCount = streamGeos.length;
+  streamsMerged.renderOrder = 3; // above the water layer (T1)
   cascadeGroup.add(streamsMerged);
   cascadeGroup.visible = false;
   group.add(cascadeGroup);
