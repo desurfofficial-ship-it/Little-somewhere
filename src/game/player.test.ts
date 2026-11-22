@@ -267,6 +267,9 @@ test('sitting and standing on benches respects NPC occupancy and movement stand-
   const world = createFreshWorldState();
   const seat = getSeatById('seat_east_plaza');
   assert.ok(seat);
+  // Overhaul G-3: the sit reducer validates range, so the fixture stages the
+  // player beside the bench like the real game's walk-then-sit flow.
+  world.playerPos = { x: seat.approachPos.x, z: seat.approachPos.z };
 
   const satRes = togglePlayerSitAction(world, 'seat_east_plaza');
   assert.equal(satRes.sat, true);
@@ -363,8 +366,11 @@ test('carryable props support pickup, walkable drop, and resident delivery with 
 test('selectBestInteractiveTarget prioritizes facing resident, excludes occupied seats, and surfaces Stand Up when sitting', () => {
   const base = createFreshWorldState();
   const seat = SEAT_SPOTS[0];
+  // Overhaul G-3: stage beside the seat for the range-validated sit reducer.
+  base.playerPos = { x: seat.approachPos.x, z: seat.approachPos.z };
 
-  // 1. Sitting overrides with Stand Up
+  // 1. Sitting overrides with Stand Up (no drink in the satchel — with one,
+  // the C-5 sip target takes precedence).
   const sittingWorld = togglePlayerSitAction(base, seat.id).nextWorld;
   const sitTarget = selectBestInteractiveTarget(sittingWorld, RESIDENTS);
   assert.ok(sitTarget);
@@ -476,7 +482,7 @@ test('diagonal player movement normalizes speed, Alt modifier enforces walk spee
   // Tap-to-walk across Mirror Pond produces unobstructed A* waypoints
   const start = { x: -4.2, z: 14.2 };
   const acrossPond = { x: 7.4, z: 11.4 };
-  const route = computeWaypointPath(start, acrossPond, 0.48);
+  const route = computeWaypointPath(start, acrossPond, 0.48)!;
   assert.ok(route.length >= 2);
   let prev = start;
   for (const wp of route) {

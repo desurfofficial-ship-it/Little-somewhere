@@ -283,22 +283,64 @@ export function buildStorybookGazebo(
 }
 
 /**
- * Mossy Stone Fountain at (0, 0, 1.5) (CIRCLE_OBSTACLES r=2.35).
- * Full storybook centerpiece featuring:
- * - Two-step octagonal limestone apron, 8 carved buttress pilasters, and brass spring valve wheel
- * - LatheGeometry carved double-moulded basin wall & bullnose coping with corner moss tufts
- * - Weathered dry floor with autumn clog leaves/twigs before repair vs submerged lucky coins & river pebbles after
- * - Scalloped upper catch-bowl with 4 brass overflow weirs, 4 cardinal lion-spout jets, & top pineapple finial plume
- * - Custom onBeforeCompile water ripple shaders, TubeGeometry curved stream arcs, 5 splash ripple rings & 20 droplets
+/**
+ * Hero Centerpiece Landmark: Circular Two-Tier Plaza Fountain at (0, 0, 1.5)
+ * (CIRCLE_OBSTACLES 'fountain_basin' r=2.46, true basin center (0, 1.5)).
+ * WORLD-QUALITY OVERHAUL rebuild (Doc 04 §5) matching the approved reference:
+ * a fully circular two-tier cream-stone fountain —
+ * - Circular 32-seg limestone apron (fieldstoneDark base step + limestoneCurb cap)
+ *   ringed by 10 partially-sunk rounded moss/grey stones (Dodecahedron, squashed)
+ * - LatheGeometry carved basin (outer r 2.44, rim seat y 0.84, floor y 0.50, 32-seg)
+ *   capped by a thick bullnose limestoneCurb coping torus (r 2.21 tube 0.19, 16×48)
+ * - LatheGeometry pedestal: foot r 0.62 → column → wide lower bowl r 1.15 (y 1.56)
+ *   → stem → upper tier r 0.72 (y 2.26) → bronze+brass pineapple crown finial (tip y 2.86)
+ * - 6 tilted agedBrass spouts on the upper-tier rim + 6 bronze overflow weir lips
+ * - PALE-BLUE onBeforeCompile water (#BFE3EF family): basin disc (r 2.20, y 0.62) +
+ *   lower-bowl disc (r 0.94, y 1.50) + upper-tier disc (r 0.65, y 2.20) sharing one
+ *   material, 5 animated splash ripple rings + merged foam collars
+ * - 14 CatmullRom stream tubes MERGED into one mesh (6 jets upper→lower bowl,
+ *   6 weir arcs lower bowl→basin landing at r ≈ 1.22, 2 crown plumes from the finial)
+ * - 28 ballistic droplets (8 'crown' + 20 'basin' kinds — envRenderer contract)
+ * - Narrative states kept: dry clog debris (leaves/twig) before repair, submerged
+ *   lucky coins & river pebbles after, Barnaby's brass spring valve handwheel
+ * - Static masonry is MERGED per material (BufferGeometryUtils.mergeGeometries):
+ *   structured flowing scene = 25 draw calls (28 contract-required droplet sprites extra)
  */
+export const STORYBOOK_FOUNTAIN_SPEC = {
+  anchor: { x: 0, z: 1.5 },
+  apronOuterRadius: 2.6,
+  basinOuterRadius: 2.44,
+  copingRadius: 2.21,
+  copingTube: 0.19,
+  copingOuterRadius: 2.4,
+  rimSeatY: 0.84,
+  waterY: 0.62,
+  basinFloorY: 0.5,
+  lowerBowlRimRadius: 1.15,
+  lowerBowlRimY: 1.56,
+  upperTierRimRadius: 0.72,
+  upperTierRimY: 2.26,
+  finialTipY: 2.86,
+  weirLandingRadius: 1.22,
+  waterColorHex: '#BFE3EF',
+  dropletCount: 28,
+  crownDroplets: 8,
+  basinDroplets: 20,
+  spoutCount: 6,
+  weirCount: 6,
+  plumeCount: 2,
+  stoneRingCount: 10,
+  masonryMeshBudget: 6,
+} as const;
+
 export function buildStorybookFountain(
   palette: MaterialPalette,
   shadowTex: THREE.Texture,
 ): FountainRig {
   const group = new THREE.Group();
-  group.position.set(0, 0, 1.5);
+  group.position.set(STORYBOOK_FOUNTAIN_SPEC.anchor.x, 0, STORYBOOK_FOUNTAIN_SPEC.anchor.z);
 
-  addStaticContactShadow(group, shadowTex, 5.8, 5.8, 0.48, 0.02);
+  addStaticContactShadow(group, shadowTex, 6.2, 6.2, 0.48, 0.02);
 
   const stoneMat = palette.standard(STORYBOOK_PALETTE.limestone, 0.88, 0.02, {
     mapSet: 'stone',
@@ -315,228 +357,353 @@ export function buildStorybookFountain(
     envMapIntensity: 0.35,
     groundGradient: 2.6,
   });
-  const mossMat = palette.standard(STORYBOOK_PALETTE.moss, 0.88, 0.0);
+  const mossWaterlineMat = palette.standard('#4C6E3E', 0.9, 0.0);
+  const mossCopingMat = palette.standard(STORYBOOK_PALETTE.foliageSage, 0.86, 0.0);
+  const stoneGreyMat = palette.standard('#8E8B84', 0.92, 0.0, { mapSet: 'stone' });
+  const stoneMossMat = palette.standard(STORYBOOK_PALETTE.moss, 0.92, 0.0);
   const bronzeMat = palette.standard('#8E7043', 0.28, 0.82, { envMapIntensity: 0.85 });
   const brassMat = palette.standard(STORYBOOK_PALETTE.agedBrass, 0.24, 0.86, {
     envMapIntensity: 1.0,
   });
-  const copperMat = palette.standard('#C9794E', 0.28, 0.82);
   const basinBedMat = palette.standard('#8E8475', 0.93, 0.0);
   const leafDryMat = palette.standard('#B86D3B', 0.86, 0.0);
   const twigMat = palette.standard(STORYBOOK_PALETTE.oakBark, 0.9, 0.0);
 
-  // 1. Two-tier stepped octagonal stone plinth (staying within r <= 2.35 obstacle)
-  const apronLower = new THREE.Mesh(new THREE.CylinderGeometry(2.44, 2.52, 0.09, 8), darkStoneMat);
-  apronLower.position.y = 0.045;
-  apronLower.receiveShadow = true;
-  const apronUpper = new THREE.Mesh(new THREE.CylinderGeometry(2.30, 2.38, 0.09, 8), curbMat);
-  apronUpper.position.y = 0.13;
-  apronUpper.receiveShadow = true;
-  group.add(apronLower, apronUpper);
-
-  // 2. Hollow carved double-moulded stone basin wall (recessed floor y=0.50, inner r=1.90, outer r=2.26)
-  const basinProfile = [
-    new THREE.Vector2(0.0, 0.14),
-    new THREE.Vector2(2.28, 0.14),
-    new THREE.Vector2(2.28, 0.24),
-    new THREE.Vector2(2.14, 0.30),
-    new THREE.Vector2(2.15, 0.62),
-    new THREE.Vector2(2.24, 0.68),
-    new THREE.Vector2(2.20, 0.74),
-    new THREE.Vector2(1.90, 0.74),
-    new THREE.Vector2(1.88, 0.50),
-    new THREE.Vector2(0.0, 0.50),
-  ];
-  const outerWall = new THREE.Mesh(new THREE.LatheGeometry(basinProfile, 24), stoneMat);
-  outerWall.position.y = 0;
-  outerWall.castShadow = true;
-  outerWall.receiveShadow = true;
-  group.add(outerWall);
-
-  // 8 carved radial buttress corbels & bullnose coping ring
-  for (let i = 0; i < 8; i++) {
-    const a = (i / 8) * Math.PI * 2 + Math.PI / 8;
-    const pilaster = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.56, 0.22), curbMat);
-    pilaster.position.set(Math.cos(a) * 2.16, 0.44, Math.sin(a) * 2.16);
-    pilaster.rotation.y = -a + Math.PI / 2;
-    pilaster.castShadow = true;
-    pilaster.receiveShadow = true;
-    group.add(pilaster);
+  // ---------------------------------------------------------------- helpers
+  // Transform-baking for per-material merged static geometry (same pattern as
+  // the tea-cart valance: build parts, bake transforms, mergeGeometries, dispose).
+  const scratch = new THREE.Object3D();
+  function baked(
+    geo: THREE.BufferGeometry,
+    pos: [number, number, number],
+    rot?: [number, number, number],
+    scale?: [number, number, number],
+  ): THREE.BufferGeometry {
+    scratch.position.set(pos[0], pos[1], pos[2]);
+    scratch.rotation.set(rot?.[0] ?? 0, rot?.[1] ?? 0, rot?.[2] ?? 0);
+    scratch.scale.set(scale?.[0] ?? 1, scale?.[1] ?? 1, scale?.[2] ?? 1);
+    scratch.updateMatrix();
+    geo.applyMatrix4(scratch.matrix);
+    return geo;
+  }
+  function mergeIntoMesh(
+    geos: THREE.BufferGeometry[],
+    mat: THREE.Material,
+    name: string,
+    shadows = true,
+  ): THREE.Mesh {
+    const merged = mergeGeometries(geos)!;
+    for (const g of geos) g.dispose();
+    const mesh = new THREE.Mesh(merged, mat);
+    mesh.name = name;
+    mesh.castShadow = shadows;
+    mesh.receiveShadow = shadows;
+    return mesh;
   }
 
-  const coping = new THREE.Mesh(new THREE.TorusGeometry(2.06, 0.18, 10, 28), stoneMat);
+  // 1. Circular two-step limestone apron (32-seg, fully round per reference).
+  //    apronLower stays a standalone CylinderGeometry mesh: the clearance test
+  //    measures its footprint against player boots at the walkable rim (2.95).
+  const apronLower = new THREE.Mesh(
+    new THREE.CylinderGeometry(2.52, STORYBOOK_FOUNTAIN_SPEC.apronOuterRadius, 0.09, 32),
+    darkStoneMat,
+  );
+  apronLower.position.y = 0.045;
+  apronLower.receiveShadow = true;
+  apronLower.castShadow = true;
+  const apronUpper = new THREE.Mesh(new THREE.CylinderGeometry(2.42, 2.5, 0.09, 32), curbMat);
+  apronUpper.position.y = 0.135;
+  apronUpper.receiveShadow = true;
+  apronUpper.castShadow = true;
+  group.add(apronLower, apronUpper);
+
+  // 2. Carved stone basin (LatheGeometry 32-seg, standalone for the wall/clearance
+  //    contracts): outer wall r 2.44 up to rim seat y 0.84, inner waterline r 2.235,
+  //    weathered floor at y 0.50.
+  const basinProfile = [
+    new THREE.Vector2(0.0, 0.16),
+    new THREE.Vector2(2.44, 0.16),
+    new THREE.Vector2(2.44, 0.26),
+    new THREE.Vector2(2.35, 0.33),
+    new THREE.Vector2(2.37, 0.6),
+    new THREE.Vector2(2.41, 0.72),
+    new THREE.Vector2(2.38, 0.82),
+    new THREE.Vector2(2.25, 0.84),
+    new THREE.Vector2(2.23, 0.7),
+    new THREE.Vector2(2.24, 0.58),
+    new THREE.Vector2(2.21, 0.5),
+    new THREE.Vector2(0.0, 0.5),
+  ];
+  const basinLathe = new THREE.Mesh(
+    new THREE.LatheGeometry(basinProfile, 32),
+    stoneMat,
+  );
+  basinLathe.name = 'fountain_basin_lathe';
+  basinLathe.castShadow = true;
+  basinLathe.receiveShadow = true;
+  group.add(basinLathe);
+
+  // 3. Thick bullnose coping torus capping the rim (standalone TorusGeometry mesh
+  //    for the same clearance contract). Outer reach 2.40 keeps 0.015 of margin to
+  //    the measured player body reach (2.465) at the walkable rim.
+  const coping = new THREE.Mesh(
+    new THREE.TorusGeometry(
+      STORYBOOK_FOUNTAIN_SPEC.copingRadius,
+      STORYBOOK_FOUNTAIN_SPEC.copingTube,
+      16,
+      48,
+    ),
+    curbMat,
+  );
   coping.rotation.x = Math.PI / 2;
-  coping.position.y = 0.73;
+  coping.position.y = 0.79;
   coping.castShadow = true;
   coping.receiveShadow = true;
   group.add(coping);
 
-  // 3. Dry weathered basin floor + clog debris (visible only before repair)
-  const dryFloor = new THREE.Mesh(new THREE.CircleGeometry(1.90, 24), basinBedMat);
+  // 4. Sculpted pedestal (LatheGeometry 32-seg): foot r 0.62 -> column -> wide
+  //    lower bowl (rim r 1.15 @ world y 1.56) -> stem -> upper tier (rim r 0.72 @
+  //    world y 2.26) -> centre stub under the crown finial. Origin on basin floor.
+  const pedestalProfile = [
+    new THREE.Vector2(0.0, 0.0),
+    new THREE.Vector2(0.62, 0.0),
+    new THREE.Vector2(0.55, 0.14),
+    new THREE.Vector2(0.3, 0.26),
+    new THREE.Vector2(0.27, 0.7),
+    new THREE.Vector2(0.46, 0.84),
+    new THREE.Vector2(0.55, 0.92),
+    new THREE.Vector2(1.02, 1.0),
+    new THREE.Vector2(1.15, 1.06),
+    new THREE.Vector2(1.06, 1.08),
+    new THREE.Vector2(0.95, 1.0),
+    new THREE.Vector2(0.88, 0.94),
+    new THREE.Vector2(0.36, 0.96),
+    new THREE.Vector2(0.32, 1.06),
+    new THREE.Vector2(0.28, 1.42),
+    new THREE.Vector2(0.5, 1.56),
+    new THREE.Vector2(0.68, 1.7),
+    new THREE.Vector2(0.72, 1.76),
+    new THREE.Vector2(0.68, 1.78),
+    new THREE.Vector2(0.66, 1.72),
+    new THREE.Vector2(0.6, 1.66),
+    new THREE.Vector2(0.3, 1.7),
+    new THREE.Vector2(0.14, 1.86),
+    new THREE.Vector2(0.0, 1.94),
+  ];
+  const pedestal = new THREE.Mesh(new THREE.LatheGeometry(pedestalProfile, 32), stoneMat);
+  pedestal.name = 'fountain_pedestal_lathe';
+  pedestal.position.y = STORYBOOK_FOUNTAIN_SPEC.basinFloorY;
+  pedestal.castShadow = true;
+  pedestal.receiveShadow = true;
+  group.add(pedestal);
+
+  // 5. Brass spring valve handwheel on the pedestal foot (Barnaby's repair nod)
+  const valveStem = baked(
+    new THREE.CylinderGeometry(0.035, 0.035, 0.14, 6),
+    [-0.39, 0.74, 0.39],
+    [Math.PI / 4, 0, Math.PI / 4],
+  );
+  const valveWheel = baked(
+    new THREE.TorusGeometry(0.095, 0.02, 6, 12),
+    [-0.45, 0.74, 0.45],
+    [0, Math.PI / 4, 0],
+  );
+
+  // 6. Bronze pineapple/lotus crown finial (tip sphere at y 2.86 — the crown
+  //    droplets' animation anchor in environmentRenderer).
+  const finialBase = baked(new THREE.CylinderGeometry(0.16, 0.22, 0.16, 10), [0, 2.48, 0]);
+  const finial = baked(new THREE.ConeGeometry(0.15, 0.36, 10), [0, 2.68, 0]);
+  const finialTip = baked(new THREE.SphereGeometry(0.065, 8, 8), [0, 2.86, 0]);
+
+  // 7. 6 tilted brass spouts on the upper-tier rim (30° offsets) + 6 bronze weir
+  //    lips on the lower-bowl rim (60° grid). All merged per material.
+  const brassParts: THREE.BufferGeometry[] = [valveWheel, finial, finialTip];
+  const bronzeParts: THREE.BufferGeometry[] = [valveStem, finialBase];
+  for (let i = 0; i < STORYBOOK_FOUNTAIN_SPEC.spoutCount; i++) {
+    const a = (i / STORYBOOK_FOUNTAIN_SPEC.spoutCount) * Math.PI * 2 + Math.PI / 6;
+    const ca = Math.cos(a);
+    const sa = Math.sin(a);
+    brassParts.push(
+      baked(new THREE.CylinderGeometry(0.042, 0.068, 0.26, 8), [ca * 0.62, 2.34, sa * 0.62], [
+        sa * 1.05,
+        0,
+        -ca * 1.05,
+      ]),
+    );
+    brassParts.push(
+      baked(new THREE.TorusGeometry(0.052, 0.015, 6, 10), [ca * 0.72, 2.3, sa * 0.72], [
+        0,
+        -a + Math.PI / 2,
+        0,
+      ]),
+    );
+    bronzeParts.push(baked(new THREE.SphereGeometry(0.075, 8, 8), [ca * 0.56, 2.32, sa * 0.56]));
+  }
+  for (let i = 0; i < STORYBOOK_FOUNTAIN_SPEC.weirCount; i++) {
+    const a = (i / STORYBOOK_FOUNTAIN_SPEC.weirCount) * Math.PI * 2;
+    bronzeParts.push(
+      baked(new THREE.BoxGeometry(0.16, 0.075, 0.18), [Math.cos(a) * 1.12, 1.58, Math.sin(a) * 1.12], [
+        0,
+        -a + Math.PI / 2,
+        0,
+      ]),
+    );
+  }
+  const brassMerged = mergeIntoMesh(brassParts, brassMat, 'fountain_brass_merged');
+  const bronzeMerged = mergeIntoMesh(bronzeParts, bronzeMat, 'fountain_bronze_merged');
+  group.add(brassMerged, bronzeMerged);
+
+  // 8. Weathered dry basin floor (visible until repair; hidden under the water disc)
+  const dryFloor = new THREE.Mesh(new THREE.CircleGeometry(2.19, 32), basinBedMat);
   dryFloor.rotation.x = -Math.PI / 2;
-  dryFloor.position.y = 0.525;
+  dryFloor.position.y = 0.505;
   dryFloor.receiveShadow = true;
   group.add(dryFloor);
 
+  // 9. Autumn clog debris (dry state only) — leaves merged into one mesh + twig
   const clogDebrisGroup = new THREE.Group();
   const leafSpecs: Array<[number, number, number]> = [
-    [0.62, 0.54, 0.35],
-    [-0.75, 0.54, 0.42],
-    [0.24, 0.54, -0.82],
-    [-0.45, 0.54, -0.58],
-    [0.88, 0.54, -0.34],
-    [-1.12, 0.54, 0.18],
-    [0.12, 0.54, 1.05],
-    [-0.18, 1.98, 0.38], // clogged leaf in upper bowl
-    [0.28, 1.98, -0.26],
+    [0.62, 0.515, 0.35],
+    [-0.75, 0.515, 0.42],
+    [0.24, 0.515, -0.82],
+    [-0.45, 0.515, -0.58],
+    [0.88, 0.515, -0.34],
+    [-1.12, 0.515, 0.18],
+    [0.12, 0.515, 1.05],
+    [-0.3, 2.18, 0.34], // clogged leaf in the upper tier
+    [0.22, 2.18, -0.26],
+    [0.62, 1.46, 0.4], // leaf riding the lower bowl
   ];
+  const leafGeos: THREE.BufferGeometry[] = [];
   for (let i = 0; i < leafSpecs.length; i++) {
     const [lx, ly, lz] = leafSpecs[i];
-    const leaf = new THREE.Mesh(new THREE.DodecahedronGeometry(0.11, 0), leafDryMat);
-    leaf.scale.set(1.4, 0.24, 0.9);
-    leaf.position.set(lx, ly, lz);
-    leaf.rotation.y = i * 1.1;
-    clogDebrisGroup.add(leaf);
+    leafGeos.push(
+      baked(new THREE.DodecahedronGeometry(0.11, 0), [lx, ly, lz], [0, i * 1.1, 0], [1.4, 0.24, 0.9]),
+    );
   }
+  const leavesMerged = mergeIntoMesh(leafGeos, leafDryMat, 'fountain_clog_leaves');
+  clogDebrisGroup.add(leavesMerged);
   const twig = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.035, 0.65, 5), twigMat);
-  twig.position.set(-0.55, 0.54, 0.48);
+  twig.position.set(-0.55, 0.53, 0.48);
   twig.rotation.z = Math.PI / 2;
   twig.rotation.y = 0.65;
   clogDebrisGroup.add(twig);
   group.add(clogDebrisGroup);
 
-  // Submerged copper & brass wishing coins + river pebbles (revealed once repaired!)
+  // 10. Submerged copper & brass wishing coins + river pebbles (revealed once repaired)
   const submergedCoinsGroup = new THREE.Group();
   const glintCopperMat = palette.standard('#DF894F', 0.18, 0.88);
   const glintGoldMat = palette.standard('#F2C258', 0.18, 0.9);
   const pebbleSpots: Array<[number, number, number]> = [
-    [0.72, 0.54, 0.55],
-    [-0.95, 0.54, -0.45],
-    [0.32, 0.54, -1.08],
-    [-0.42, 0.54, 0.92],
-    [1.18, 0.54, -0.25],
-    [0.54, 0.54, 1.24],
-    [-0.78, 0.54, 1.15],
-    [1.26, 0.54, 0.72],
+    [0.72, 0.515, 0.55],
+    [-0.95, 0.515, -0.45],
+    [0.32, 0.515, -1.08],
+    [-0.42, 0.515, 0.92],
+    [1.18, 0.515, -0.25],
   ];
-  for (let i = 0; i < pebbleSpots.length; i++) {
-    const [px, py, pz] = pebbleSpots[i];
-    if (i < 5) {
-      const pebble = new THREE.Mesh(new THREE.SphereGeometry(0.08, 7, 5), curbMat);
-      pebble.scale.set(1.25, 0.5, 1.0);
-      pebble.position.set(px, py, pz);
-      submergedCoinsGroup.add(pebble);
-    }
-
-    const coin = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.068, 0.068, 0.022, 10),
-      i % 2 === 0 ? glintCopperMat : glintGoldMat,
-    );
-    coin.position.set(px * 0.84, py + 0.012, pz * 0.84);
-    submergedCoinsGroup.add(coin);
+  const pebbleGeos: THREE.BufferGeometry[] = [];
+  for (const [px, py, pz] of pebbleSpots) {
+    pebbleGeos.push(baked(new THREE.SphereGeometry(0.08, 7, 5), [px, py, pz], undefined, [1.25, 0.5, 1.0]));
   }
+  submergedCoinsGroup.add(mergeIntoMesh(pebbleGeos, curbMat, 'fountain_pebbles_merged'));
+  const coinSpots: Array<[number, number]> = [
+    [0.6, 0.46],
+    [-0.8, -0.38],
+    [0.27, -0.91],
+    [-0.35, 0.77],
+    [0.99, -0.21],
+    [0.45, 1.04],
+    [-0.66, 0.97],
+    [1.06, 0.6],
+  ];
+  const copperGeos: THREE.BufferGeometry[] = [];
+  const goldGeos: THREE.BufferGeometry[] = [];
+  for (let i = 0; i < coinSpots.length; i++) {
+    const [px, pz] = coinSpots[i];
+    (i % 2 === 0 ? copperGeos : goldGeos).push(
+      baked(new THREE.CylinderGeometry(0.068, 0.068, 0.022, 10), [px, 0.527, pz]),
+    );
+  }
+  submergedCoinsGroup.add(mergeIntoMesh(copperGeos, glintCopperMat, 'fountain_coins_copper'));
+  submergedCoinsGroup.add(mergeIntoMesh(goldGeos, glintGoldMat, 'fountain_coins_gold'));
   submergedCoinsGroup.visible = false;
   group.add(submergedCoinsGroup);
 
-  // Moss cushions hugging basin base & coping rim
-  const mossSpots: Array<[number, number, number, number]> = [
-    [2.12, 0.19, 0.65, 1.0],
-    [-1.95, 0.19, -0.95, 0.9],
-    [0.55, 0.19, -2.14, 0.85],
-    [-1.45, 0.19, 1.62, 0.8],
-    [-1.2, 0.83, 1.68, 0.62],
-    [1.65, 0.83, -1.25, 0.58],
-    [0.4, 0.83, 2.02, 0.52],
+  // 11. Moss cushions hugging the apron/basin seam & the coping rim (merged per tone)
+  const mossSpots: Array<[number, number, number, number, boolean]> = [
+    [2.34, 0.2, 0.72, 1.0, false],
+    [-2.16, 0.2, -1.06, 0.9, false],
+    [0.61, 0.2, -2.38, 0.85, false],
+    [-1.62, 0.2, 1.8, 0.8, false],
+    [-1.34, 0.99, 1.86, 0.62, true],
+    [1.86, 0.99, -1.4, 0.58, true],
+    [0.45, 0.99, 2.24, 0.52, true],
   ];
-  // BUILD 02 (Doc 05 §3.2 P3): moss gradient on the basin stones — procedural
-  // tint, not geometry. Waterline tufts read deep and damp; coping tufts catch
-  // sun in a lighter sage. Deterministic by height, same mesh count.
-  const mossWaterlineMat = palette.standard('#4C6E3E', 0.9, 0.0);
-  const mossCopingMat = palette.standard(STORYBOOK_PALETTE.foliageSage, 0.86, 0.0);
-  for (const [mx, my, mz, ms] of mossSpots) {
-    const tone = my > 0.5 ? mossCopingMat : mossWaterlineMat;
-    const tuft = new THREE.Mesh(new THREE.DodecahedronGeometry(0.24 * ms, 0), tone);
-    tuft.scale.set(1.3, 0.55, 1.1);
-    tuft.position.set(mx, my, mz);
-    group.add(tuft);
+  const mossWaterlineGeos: THREE.BufferGeometry[] = [];
+  const mossCopingGeos: THREE.BufferGeometry[] = [];
+  for (const [mx, my, mz, ms, onRim] of mossSpots) {
+    const geo = baked(
+      new THREE.DodecahedronGeometry(0.24 * ms, 0),
+      [mx, my, mz],
+      undefined,
+      [1.3, 0.55, 1.1],
+    );
+    (onRim ? mossCopingGeos : mossWaterlineGeos).push(geo);
   }
+  const mossWaterline = mergeIntoMesh(mossWaterlineGeos, mossWaterlineMat, 'fountain_moss_waterline');
+  const mossCoping = mergeIntoMesh(mossCopingGeos, mossCopingMat, 'fountain_moss_coping');
+  group.add(mossWaterline, mossCoping);
 
-  // 4. Fluted sculpted center column + scalloped upper catch-bowl + top lotus cup (LatheGeometry)
-  const colPoints = [
-    new THREE.Vector2(0.0, 0.0),
-    new THREE.Vector2(0.68, 0.0),
-    new THREE.Vector2(0.60, 0.24),
-    new THREE.Vector2(0.36, 0.44),
-    new THREE.Vector2(0.31, 1.15),
-    new THREE.Vector2(0.48, 1.32),
-    new THREE.Vector2(1.04, 1.54),
-    new THREE.Vector2(1.08, 1.70),
-    new THREE.Vector2(0.88, 1.72),
-    new THREE.Vector2(0.66, 1.60),
-    new THREE.Vector2(0.29, 1.58),
-    new THREE.Vector2(0.24, 1.98),
-    new THREE.Vector2(0.38, 2.06),
-    new THREE.Vector2(0.34, 2.12),
-    new THREE.Vector2(0.0, 2.10),
+  // 12. Rounded decorative stone ring around the apron (reference: small green/grey
+  //     stones, partially sunk). 10 squashed dodecas at r ≈ 2.84, angles jittered
+  //     off the 4 cardinal approach axes.
+  const stoneSpecs: Array<[number, number, number, boolean]> = [
+    [0.31, 2.82, 0.18, false],
+    [0.94, 2.84, 0.16, true],
+    [1.52, 2.79, 0.17, false],
+    [2.2, 2.83, 0.15, true],
+    [2.78, 2.8, 0.18, false],
+    [3.4, 2.84, 0.16, true],
+    [3.94, 2.8, 0.18, false],
+    [4.52, 2.83, 0.15, true],
+    [5.1, 2.8, 0.18, false],
+    [5.68, 2.84, 0.16, true],
   ];
-  const fountainCore = new THREE.Mesh(new THREE.LatheGeometry(colPoints, 18), stoneMat);
-  fountainCore.position.y = 0.36;
-  fountainCore.castShadow = true;
-  fountainCore.receiveShadow = true;
-  group.add(fountainCore);
-
-  // Brass spring valve handwheel on south-west pedestal collar (nod to Barnaby's repair!)
-  const valveStem = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.035, 0.14, 6), bronzeMat);
-  valveStem.position.set(-0.34, 0.85, 0.34);
-  valveStem.rotation.z = Math.PI / 4;
-  valveStem.rotation.x = Math.PI / 4;
-  const valveWheel = new THREE.Mesh(new THREE.TorusGeometry(0.095, 0.02, 6, 12), brassMat);
-  valveWheel.position.set(-0.4, 0.85, 0.4);
-  valveWheel.rotation.y = Math.PI / 4;
-  group.add(valveStem, valveWheel);
-
-  // Bronze pineapple/lotus crown finial + 4 cardinal sculpted lion-head spouts + 4 upper bowl weirs
-  const finialBase = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.22, 0.16, 10), bronzeMat);
-  finialBase.position.y = 2.48;
-  const finial = new THREE.Mesh(new THREE.ConeGeometry(0.15, 0.36, 10), brassMat);
-  finial.position.y = 2.70;
-  finial.castShadow = true;
-  const finialTip = new THREE.Mesh(new THREE.SphereGeometry(0.065, 8, 8), brassMat);
-  finialTip.position.y = 2.86;
-  group.add(finialBase, finial, finialTip);
-
-  for (let i = 0; i < 4; i++) {
-    const a = (i / 4) * Math.PI * 2;
-    const boss = new THREE.Mesh(new THREE.SphereGeometry(0.105, 8, 8), bronzeMat);
-    boss.position.set(Math.cos(a) * 0.34, 1.50, Math.sin(a) * 0.34);
-    const spout = new THREE.Mesh(new THREE.CylinderGeometry(0.052, 0.082, 0.28, 8), brassMat);
-    spout.position.set(Math.cos(a) * 0.45, 1.47, Math.sin(a) * 0.45);
-    spout.rotation.z = -Math.cos(a) * 1.15;
-    spout.rotation.x = Math.sin(a) * 1.15;
-    const collar = new THREE.Mesh(new THREE.TorusGeometry(0.056, 0.016, 6, 10), brassMat);
-    collar.position.set(Math.cos(a) * 0.54, 1.43, Math.sin(a) * 0.54);
-    collar.rotation.y = -a + Math.PI / 2;
-
-    // Upper bowl overflow weir lip at 45-degree diagonals
-    const wa = a + Math.PI / 4;
-    const weir = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.07, 0.16), bronzeMat);
-    weir.position.set(Math.cos(wa) * 0.99, 2.04, Math.sin(wa) * 0.99);
-    weir.rotation.y = -wa + Math.PI / 2;
-
-    group.add(boss, spout, collar, weir);
+  const stoneGreyGeos: THREE.BufferGeometry[] = [];
+  const stoneMossGeos: THREE.BufferGeometry[] = [];
+  for (const [a, r, size, mossy] of stoneSpecs) {
+    const geo = baked(
+      new THREE.DodecahedronGeometry(size, 0),
+      [Math.cos(a) * r, 0.02, Math.sin(a) * r],
+      [0, a * 1.7, 0],
+      [1.15, 0.5, 0.9],
+    );
+    (mossy ? stoneMossGeos : stoneGreyGeos).push(geo);
   }
+  const stonesGrey = mergeIntoMesh(stoneGreyGeos, stoneGreyMat, 'fountain_stone_ring_grey');
+  const stonesMoss = mergeIntoMesh(stoneMossGeos, stoneMossMat, 'fountain_stone_ring_moss');
+  stonesGrey.userData.stoneRingCount = stoneGreyGeos.length;
+  stonesMoss.userData.stoneRingCount = stoneMossGeos.length;
+  group.add(stonesGrey, stonesMoss);
 
-  // 5. Animated Shader Water Pools (lower basin + upper catch-bowl)
+  // 13. Animated pale-blue shader water: basin disc (rig contract mesh) + lower-bowl
+  //     & upper-tier discs as children sharing the material (old child pattern kept:
+  //     local +z of the rotated parent maps to world +y).
   const waterMat = createStorybookFountainWaterMaterial();
-  const waterMesh = new THREE.Mesh(new THREE.CircleGeometry(1.92, 28), waterMat);
+  const waterMesh = new THREE.Mesh(new THREE.CircleGeometry(2.2, 32), waterMat);
   waterMesh.rotation.x = -Math.PI / 2;
-  waterMesh.position.y = 0.655;
+  waterMesh.position.y = STORYBOOK_FOUNTAIN_SPEC.waterY;
 
-  const upperBowlWater = new THREE.Mesh(new THREE.CircleGeometry(0.84, 20), waterMat);
-  upperBowlWater.position.z = 1.385; // World y = 0.655 + 1.385 = 2.04 inside upper catch-bowl
-  waterMesh.add(upperBowlWater);
+  const lowerBowlWater = new THREE.Mesh(new THREE.CircleGeometry(0.94, 24), waterMat);
+  lowerBowlWater.position.z = 0.88; // world y 1.50 inside the lower bowl
+  waterMesh.add(lowerBowlWater);
 
-  // Expanding concentric splash ripple rings + aerated foam collars on lower water surface
+  const upperTierWater = new THREE.Mesh(new THREE.CircleGeometry(0.65, 20), waterMat);
+  upperTierWater.position.z = 1.58; // world y 2.20 inside the upper tier
+  waterMesh.add(upperTierWater);
+
+  // Expanding concentric splash ripple rings + merged aerated foam collars on the
+  // lower water surface (rings keep per-ring materials: opacity animates per ring).
   const splashRings: THREE.Mesh[] = [];
   const foamCollarMat = new THREE.MeshBasicMaterial({
     color: '#F2FCFE',
@@ -551,6 +718,7 @@ export function buildStorybookFountain(
     [0, 1.2],
     [0, -1.2],
   ];
+  const collarGeos: THREE.BufferGeometry[] = [];
   for (let i = 0; i < ringLocations.length; i++) {
     const [rx, rz] = ringLocations[i];
     const rMat = new THREE.MeshBasicMaterial({
@@ -566,68 +734,78 @@ export function buildStorybookFountain(
     splashRings.push(ring);
 
     if (i > 0) {
-      const collar = new THREE.Mesh(new THREE.RingGeometry(0.05, 0.13, 14), foamCollarMat);
-      collar.position.set(rx, -rz, 0.012);
-      waterMesh.add(collar);
+      collarGeos.push(baked(new THREE.RingGeometry(0.05, 0.13, 14), [rx, -rz, 0.012]));
     }
   }
+  const collarsMerged = mergeIntoMesh(collarGeos, foamCollarMat, 'fountain_foam_collars', false);
+  waterMesh.add(collarsMerged);
 
   waterMesh.visible = false;
   group.add(waterMesh);
 
-  // 6. Sculpted Cascading Water Jets & Finial Crown Plume (visible when flowing)
+  // 14. Cascading streams — 6 spout jets (upper tier -> lower bowl), 6 weir arcs
+  //     (lower bowl -> basin, landing at r ≈ 1.22 to match the shader splash
+  //     centers / droplet splash ring / wish-ripple metrics at r ≈ 1.2) and 2 crown
+  //     plumes off the finial tip — ALL MERGED into one stream mesh.
   const cascadeGroup = new THREE.Group();
   const streamMat = createStorybookWaterStreamMaterial();
+  const streamGeos: THREE.BufferGeometry[] = [];
 
-  // 4 cardinal spout parabolic water arcs
-  for (let i = 0; i < 4; i++) {
-    const a = (i / 4) * Math.PI * 2;
+  for (let i = 0; i < STORYBOOK_FOUNTAIN_SPEC.spoutCount; i++) {
+    const a = (i / STORYBOOK_FOUNTAIN_SPEC.spoutCount) * Math.PI * 2 + Math.PI / 6;
     const cx = Math.cos(a);
     const sz = Math.sin(a);
+    // Upper-tier spout jet arcing down into the lower bowl (water y 1.50)
     const jetCurve = new THREE.CatmullRomCurve3([
-      new THREE.Vector3(cx * 0.55, 1.43, sz * 0.55),
-      new THREE.Vector3(cx * 0.88, 1.36, sz * 0.88),
-      new THREE.Vector3(cx * 1.12, 1.06, sz * 1.12),
-      new THREE.Vector3(cx * 1.20, 0.64, sz * 1.20),
+      new THREE.Vector3(cx * 0.8, 2.18, sz * 0.8),
+      new THREE.Vector3(cx * 0.92, 1.96, sz * 0.92),
+      new THREE.Vector3(cx * 0.9, 1.72, sz * 0.9),
+      new THREE.Vector3(cx * 0.85, 1.52, sz * 0.85),
     ]);
-    const jetMesh = new THREE.Mesh(new THREE.TubeGeometry(jetCurve, 14, 0.042, 6, false), streamMat);
-    cascadeGroup.add(jetMesh);
-
-    // 4 upper-bowl overflow weir spill ribbons
-    const wa = a + Math.PI / 4;
-    const wcx = Math.cos(wa);
-    const wsz = Math.sin(wa);
-    const weirCurve = new THREE.CatmullRomCurve3([
-      new THREE.Vector3(wcx * 0.98, 2.04, wsz * 0.98),
-      new THREE.Vector3(wcx * 1.12, 1.72, wsz * 1.12),
-      new THREE.Vector3(wcx * 1.14, 1.18, wsz * 1.14),
-      new THREE.Vector3(wcx * 1.12, 0.64, wsz * 1.12),
-    ]);
-    const weirStream = new THREE.Mesh(new THREE.TubeGeometry(weirCurve, 12, 0.032, 5, false), streamMat);
-    cascadeGroup.add(weirStream);
-
-    // Top crown plume arching out of pineapple finial into upper catch-bowl
-    const plumeCurve = new THREE.CatmullRomCurve3([
-      new THREE.Vector3(cx * 0.04, 2.86, sz * 0.04),
-      new THREE.Vector3(cx * 0.24, 3.16, sz * 0.24),
-      new THREE.Vector3(cx * 0.48, 2.74, sz * 0.48),
-      new THREE.Vector3(cx * 0.58, 2.02, sz * 0.58),
-    ]);
-    const plumeStream = new THREE.Mesh(new THREE.TubeGeometry(plumeCurve, 12, 0.026, 5, false), streamMat);
-    cascadeGroup.add(plumeStream);
+    streamGeos.push(new THREE.TubeGeometry(jetCurve, 12, 0.04, 6, false));
   }
-
+  for (let i = 0; i < STORYBOOK_FOUNTAIN_SPEC.weirCount; i++) {
+    const a = (i / STORYBOOK_FOUNTAIN_SPEC.weirCount) * Math.PI * 2;
+    const wcx = Math.cos(a);
+    const wsz = Math.sin(a);
+    // Lower-bowl overflow weir ribbon falling into the basin (water y 0.62)
+    const weirCurve = new THREE.CatmullRomCurve3([
+      new THREE.Vector3(wcx * 1.14, 1.56, wsz * 1.14),
+      new THREE.Vector3(wcx * 1.26, 1.36, wsz * 1.26),
+      new THREE.Vector3(wcx * 1.32, 1.04, wsz * 1.32),
+      new THREE.Vector3(wcx * STORYBOOK_FOUNTAIN_SPEC.weirLandingRadius, 0.66, wsz * STORYBOOK_FOUNTAIN_SPEC.weirLandingRadius),
+    ]);
+    streamGeos.push(new THREE.TubeGeometry(weirCurve, 12, 0.034, 5, false));
+  }
+  for (const pa of [Math.PI / 4, Math.PI / 4 + Math.PI]) {
+    const pcx = Math.cos(pa);
+    const psz = Math.sin(pa);
+    // Crown plume arching out of the finial tip (y 2.86) into the upper tier
+    const plumeCurve = new THREE.CatmullRomCurve3([
+      new THREE.Vector3(pcx * 0.04, 2.86, psz * 0.04),
+      new THREE.Vector3(pcx * 0.26, 3.08, psz * 0.26),
+      new THREE.Vector3(pcx * 0.46, 2.72, psz * 0.46),
+      new THREE.Vector3(pcx * 0.56, 2.24, psz * 0.56),
+    ]);
+    streamGeos.push(new THREE.TubeGeometry(plumeCurve, 12, 0.026, 5, false));
+  }
+  const streamsMerged = mergeIntoMesh(streamGeos, streamMat, 'fountain_streams_merged', false);
+  streamsMerged.userData.streamCount = streamGeos.length;
+  cascadeGroup.add(streamsMerged);
   cascadeGroup.visible = false;
   group.add(cascadeGroup);
 
-  // 7. 20 Pooled Ballistic Splash & Crown Spray Droplets
+  // 15. 28 pooled ballistic splash & crown spray droplets — kind layout is the
+  //     envRenderer contract: children 0-7 'crown' (finial spray), 8+ 'basin'
+  //     (weir-landing splash at r ≈ 1.2). One shared geometry + material.
   const spoutParticles = new THREE.Group();
   const dropMat = palette.standard('#D7F4FA', 0.1, 0.08);
   const dropGeo = new THREE.SphereGeometry(0.068, 6, 6);
-  for (let i = 0; i < 20; i++) {
+  const { dropletCount, crownDroplets } = STORYBOOK_FOUNTAIN_SPEC;
+  for (let i = 0; i < dropletCount; i++) {
     const drop = new THREE.Mesh(dropGeo, dropMat);
-    drop.userData.phase = i / 20;
-    drop.userData.kind = i < 8 ? 'crown' : 'basin';
+    drop.userData.phase = i / dropletCount;
+    drop.userData.kind = i < crownDroplets ? 'crown' : 'basin';
     spoutParticles.add(drop);
   }
   spoutParticles.visible = false;
@@ -906,6 +1084,16 @@ export function buildStorybookNoticeboard(
  * Handcrafted Plaza & Pond Cedar Bench pivoted at y = 0, facing +Z.
  * Seat surface rests cleanly at y = 0.36 to match SEAT_SPOTS[].seatHeight, with
  * deepened seat slats and recessed backrest (-0.29..-0.32) so seated characters never clip the backrest.
+ *
+ * FURN-1 bench v2: the straight iron legs are replaced by curved warm-cedar
+ * hardwood side frames (one rounded silhouette per side: front leg, seat rail
+ * and the splayed rear stile), the crowned slats widen with a softer crown, a
+ * slim mint seat pad + sage arm pads sit on the wood in ALL seasons, the
+ * backrest gains radiused capsule slats under a rounded top rail, and brass
+ * bolts dress the joints. Static sub-meshes merge per material (tea-cart
+ * pattern): 11 draw calls per bench by default (contact shadow included,
+ * winter cushions hidden). The seat contract (seatTopY 0.365 /
+ * backrestFrontZ -0.262 / winterCushions group) is regression-locked.
  */
 export function buildStorybookBench(
   palette: MaterialPalette,
@@ -914,9 +1102,6 @@ export function buildStorybookBench(
   const group = new THREE.Group();
   addStaticContactShadow(group, shadowTex, 1.6, 1.02, 0.44, 0.018);
 
-  const ironMat = palette.standard(STORYBOOK_PALETTE.wroughtIron, 0.38, 0.75, {
-    envMapIntensity: 0.5,
-  });
   const cedarMat = palette.standard(STORYBOOK_PALETTE.cedarWarm, 0.78, 0.03, {
     mapSet: 'timber-dark',
     groundGradient: 0.7,
@@ -925,67 +1110,115 @@ export function buildStorybookBench(
     mapSet: 'timber-dark',
     groundGradient: 0.7,
   });
+  const cedarHoneyMat = palette.standard(STORYBOOK_PALETTE.cedarHoney, 0.74, 0.04, {
+    mapSet: 'timber-dark',
+    groundGradient: 0.7,
+  });
   const brassMat = palette.standard(STORYBOOK_PALETTE.agedBrass, 0.24, 0.85, {
     envMapIntensity: 1.0,
   });
+  const mintPadMat = palette.standard(STORYBOOK_PALETTE.upholsteryMint, 0.88, 0.0, { mapSet: 'fabric' });
+  const sagePadMat = palette.standard(STORYBOOK_PALETTE.upholsterySage, 0.88, 0.0, { mapSet: 'fabric' });
 
-  // Two scrolled iron leg frames (front legs at z=+0.22, recessed tilted backrest stiles at z=-0.27)
+  // 1. Curved cedar side frames — front leg, seat rail and the splayed rear
+  //    stile read as ONE rounded hardwood silhouette per side (shape space:
+  //    x = world z, y = world y; extrusion depth = frame thickness). Both
+  //    sides + the low center stretcher merge into a single honey-cedar mesh.
+  const frameShape = new THREE.Shape();
+  frameShape.moveTo(0.26, 0); // front foot, flat bottom
+  frameShape.quadraticCurveTo(0.262, 0.08, 0.235, 0.16); // rounded toe, curved leg face
+  frameShape.quadraticCurveTo(0.226, 0.27, 0.242, 0.318); // rail nose
+  frameShape.lineTo(-0.212, 0.318); // seat rail top runs back under the slats (slat undersides land at 0.315)
+  frameShape.quadraticCurveTo(-0.252, 0.5, -0.285, 0.735); // splayed rear stile front edge
+  frameShape.quadraticCurveTo(-0.291, 0.782, -0.314, 0.778); // rounded stile cap
+  frameShape.quadraticCurveTo(-0.338, 0.772, -0.33, 0.66); // cap back → stile back edge
+  frameShape.quadraticCurveTo(-0.3, 0.44, -0.258, 0.262); // splay down to the rear leg
+  frameShape.quadraticCurveTo(-0.25, 0.12, -0.202, 0.0); // curved rear leg, rounded heel
+  frameShape.lineTo(-0.154, 0.0); // rear foot bottom
+  frameShape.quadraticCurveTo(-0.138, 0.07, -0.132, 0.262); // rear leg front edge → rail underside
+  frameShape.lineTo(0.15, 0.262); // rail underside back to the front leg
+  frameShape.quadraticCurveTo(0.158, 0.13, 0.174, 0.056); // curved front-leg back edge
+  frameShape.lineTo(0.174, 0.0); // foot pad
+  frameShape.closePath();
+  const frameGeoBase = new THREE.ExtrudeGeometry(frameShape, {
+    depth: 0.05,
+    bevelEnabled: true,
+    bevelThickness: 0.008,
+    bevelSize: 0.008,
+    bevelSegments: 2,
+  });
+  frameGeoBase.translate(0, 0.008, -0.025); // lift the bevelled feet to y=0, center the thickness
+  frameGeoBase.rotateY(-Math.PI / 2); // extrusion axis → world X, shape.x → world z
+  const stretcherGeo = new THREE.CylinderGeometry(0.022, 0.022, 1.02, 8);
+  stretcherGeo.rotateZ(Math.PI / 2); // along X
+  stretcherGeo.translate(0, 0.168, -0.02);
+  const framePartGeos = [
+    frameGeoBase.clone().translate(-0.54, 0, 0), // extrude output is already non-indexed
+    frameGeoBase.clone().translate(0.54, 0, 0),
+    stretcherGeo.toNonIndexed(),
+  ];
+  const framesMerged = new THREE.Mesh(mergeGeometries(framePartGeos)!, cedarHoneyMat);
+  framesMerged.name = 'bench_cedar_frames';
+  framesMerged.castShadow = true;
+  group.add(framesMerged);
+  frameGeoBase.dispose();
+  stretcherGeo.dispose();
+  for (const g of framePartGeos) g.dispose();
+
+  // 2. Rounded armrest caps + their front posts + the rounded top rail — one
+  //    dark-cedar mesh (radiused capsule ends on the rail).
+  const darkPartGeos: THREE.BufferGeometry[] = [];
   for (const sx of [-0.54, 0.54]) {
-    const legFront = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.36, 0.06), ironMat);
-    legFront.position.set(sx, 0.18, 0.22);
-    legFront.castShadow = true;
-
-    const legRearBase = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.36, 0.06), ironMat);
-    legRearBase.position.set(sx, 0.18, -0.22);
-    legRearBase.castShadow = true;
-
-    const backrestStile = new THREE.Mesh(new THREE.BoxGeometry(0.055, 0.50, 0.055), ironMat);
-    backrestStile.position.set(sx, 0.57, -0.295);
-    backrestStile.rotation.x = -0.16;
-    backrestStile.castShadow = true;
-
-    const rail = new THREE.Mesh(new THREE.BoxGeometry(0.065, 0.055, 0.52), ironMat);
-    rail.position.set(sx, 0.31, 0.01);
-
-    const arm = new THREE.Mesh(new THREE.BoxGeometry(0.065, 0.045, 0.44), cedarDarkMat);
-    arm.position.set(sx, 0.51, 0.01);
-    arm.castShadow = true;
-
-    const armPost = new THREE.Mesh(new THREE.CylinderGeometry(0.022, 0.026, 0.19, 6), ironMat);
-    armPost.position.set(sx, 0.415, 0.19);
-
-    group.add(legFront, legRearBase, backrestStile, rail, arm, armPost);
+    const cap = new THREE.CapsuleGeometry(0.034, 0.36, 4, 10);
+    cap.rotateX(Math.PI / 2); // roll along Z
+    cap.translate(sx, 0.508, 0.02);
+    darkPartGeos.push(cap);
+    const post = new THREE.CylinderGeometry(0.026, 0.03, 0.17, 8);
+    post.translate(sx, 0.402, 0.19);
+    darkPartGeos.push(post);
   }
+  const topRail = new THREE.CapsuleGeometry(0.032, 1.096, 4, 10);
+  topRail.rotateZ(Math.PI / 2); // along X
+  topRail.translate(0, 0.795, -0.315);
+  darkPartGeos.push(topRail);
+  const darkMerged = new THREE.Mesh(mergeGeometries(darkPartGeos)!, cedarDarkMat);
+  darkMerged.name = 'bench_cedar_dark_merged';
+  darkMerged.castShadow = true;
+  group.add(darkMerged);
+  for (const g of darkPartGeos) g.dispose();
 
-  // Decorative center wrought-iron vertical backrest spindle + stretcher
-  const stretcher = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 1.08, 6), ironMat);
-  stretcher.rotation.z = Math.PI / 2;
-  stretcher.position.set(0, 0.16, -0.04);
-  const centerSpindle = new THREE.Mesh(new THREE.BoxGeometry(0.045, 0.44, 0.04), ironMat);
-  centerSpindle.position.set(0, 0.56, -0.295);
-  centerSpindle.rotation.x = -0.16;
-  group.add(stretcher, centerSpindle);
+  // 3. Sage fabric arm pads riding the caps (merged pair, all-season).
+  const armPadGeos: THREE.BufferGeometry[] = [];
+  for (const sx of [-0.54, 0.54]) {
+    const pad = new THREE.CapsuleGeometry(0.03, 0.3, 4, 10);
+    pad.rotateX(Math.PI / 2);
+    pad.scale(1, 0.5, 1); // oval cross-section
+    pad.translate(sx, 0.552, 0.02);
+    armPadGeos.push(pad);
+  }
+  const armPads = new THREE.Mesh(mergeGeometries(armPadGeos)!, sagePadMat);
+  armPads.name = 'bench_arm_pads';
+  group.add(armPads);
+  for (const g of armPadGeos) g.dispose();
 
-  // Four contoured cedar seat slats spanning z = -0.215..+0.265, top cleanly at y = 0.365.
-  // BUILD 02 (Doc 05 §3.2 P2): each slat gains a crowned center bulge (lathe-
-  // profile extrusion + micro-bevel) — the seat reads as planed timber parts,
-  // not planes. Same mesh count; the seat contract (top y 0.365) is preserved
-  // by the profile's 0.052 peak landing exactly on the old box top.
+  // 4. Four crowned cedar seat slats spanning z = -0.2265..+0.2765 — wider
+  //    slats (0.115) with a softer crown. BUILD 02 lineage kept: one shared
+  //    ExtrudeGeometry, profile edges land the seat line at y = 0.365.
   const slatProfile = new THREE.Shape();
-  slatProfile.moveTo(-0.0475, -0.0225);
-  slatProfile.lineTo(-0.0475, 0.0225);
-  slatProfile.quadraticCurveTo(0, 0.0375, 0.0475, 0.0225); // crown peak ≈ +0.030
-  slatProfile.lineTo(0.0475, -0.0225);
+  slatProfile.moveTo(-0.0525, -0.0225);
+  slatProfile.lineTo(-0.0525, 0.0225);
+  slatProfile.quadraticCurveTo(0, 0.03, 0.0525, 0.0225); // softer crown peak ≈ +0.004 over the edges
+  slatProfile.lineTo(0.0525, -0.0225);
   slatProfile.closePath();
   const slatGeo = new THREE.ExtrudeGeometry(slatProfile, {
     depth: 1.18,
     bevelEnabled: true,
     bevelThickness: 0.006,
-    bevelSize: 0.006,
+    bevelSize: 0.005,
     bevelSegments: 1,
   });
   slatGeo.rotateY(Math.PI / 2); // extrusion axis becomes X (the slat length)
-  slatGeo.translate(0, 0.3425, 0); // profile bottom lands at 0.32; edge top at 0.365
+  slatGeo.translate(-0.593, 0.3425, 0); // center the length on the frames; profile edge top line at y 0.365
   for (const sz of [-0.17, -0.04, 0.09, 0.22]) {
     const slat = new THREE.Mesh(slatGeo, cedarMat);
     slat.position.set(0, 0, sz);
@@ -994,9 +1227,62 @@ export function buildStorybookBench(
     group.add(slat);
   }
 
-  // BUILD 02 (Doc 05 §3.2 P2): wool winter seat cushions — seasonal group
-  // (hidden by default; the canvas shows it in winter, matching the interior
-  // knit language). Named + collected via `group.userData.winterCushions`.
+  // 5. Slim mint fabric seat pad resting on the crowned slats in ALL seasons
+  //    (squashed capsule, fabric weave). The winter wool cushions still ride
+  //    over it via group.userData.winterCushions below.
+  const seatPadGeo = new THREE.CapsuleGeometry(0.16, 0.62, 4, 12);
+  seatPadGeo.rotateZ(Math.PI / 2); // along X
+  seatPadGeo.scale(1, 0.16, 1.15); // slim pad: y ≈ 0.051, z ≈ 0.368
+  seatPadGeo.translate(0, 0.399, 0.025);
+  const seatPad = new THREE.Mesh(seatPadGeo, mintPadMat);
+  seatPad.name = 'bench_seat_pad';
+  seatPad.castShadow = true;
+  group.add(seatPad);
+
+  // 6. Two recessed angled backrest slats with radiused (capsule) ends —
+  //    front face cleanly behind z = -0.262 so seated characters never pass
+  //    through (same recline and rail lines as the locked contract).
+  const backSpecs: Array<{ y: number; z: number }> = [
+    { y: 0.54, z: -0.288 },
+    { y: 0.71, z: -0.316 },
+  ];
+  const backGeos: THREE.BufferGeometry[] = [];
+  for (const bs of backSpecs) {
+    const g = new THREE.CapsuleGeometry(0.022, 1.116, 4, 10);
+    g.rotateZ(Math.PI / 2); // along X
+    g.rotateX(-0.16); // same recline as the locked backrest line
+    g.translate(0, bs.y, bs.z);
+    backGeos.push(g);
+  }
+  const backSlats = new THREE.Mesh(mergeGeometries(backGeos)!, cedarMat);
+  backSlats.name = 'bench_backrest_slats';
+  backSlats.castShadow = true;
+  group.add(backSlats);
+  for (const g of backGeos) g.dispose();
+
+  // 7. Brass bolt details, sparingly — slat joints + rail seats (merged pair).
+  const boltGeos: THREE.BufferGeometry[] = [];
+  for (const bs of backSpecs) {
+    for (const bx of [-0.54, 0.54]) {
+      const bolt = new THREE.SphereGeometry(0.015, 6, 6);
+      bolt.translate(bx, bs.y, bs.z + 0.026);
+      boltGeos.push(bolt);
+    }
+  }
+  for (const bx of [-0.54, 0.54]) {
+    const bolt = new THREE.SphereGeometry(0.015, 6, 6);
+    bolt.translate(bx, 0.795, -0.29);
+    boltGeos.push(bolt);
+  }
+  const bolts = new THREE.Mesh(mergeGeometries(boltGeos)!, brassMat);
+  bolts.name = 'bench_brass_bolts';
+  group.add(bolts);
+  for (const g of boltGeos) g.dispose();
+
+  // 8. BUILD 02 (Doc 05 §3.2 P2): wool winter seat cushions — seasonal group
+  //    (hidden by default; the canvas shows it in winter, matching the interior
+  //    knit language). Named + collected via `group.userData.winterCushions`;
+  //    in winter the knit cushions appear OVER the mint pad.
   const cushionGroup = new THREE.Group();
   cushionGroup.name = 'winter_seat_cushion';
   const woolMat = palette.standard('#B3554A', 0.86, 0.0, { mapSet: 'fabric' });
@@ -1014,25 +1300,6 @@ export function buildStorybookBench(
   cushionGroup.visible = false;
   group.userData.winterCushions = cushionGroup;
   group.add(cushionGroup);
-
-  // Two recessed angled backrest slats (front face cleanly behind z = -0.262 so seated characters never pass through)
-  const backSpecs: Array<{ y: number; z: number }> = [
-    { y: 0.54, z: -0.288 },
-    { y: 0.71, z: -0.316 },
-  ];
-  for (const bs of backSpecs) {
-    const backSlat = new THREE.Mesh(new THREE.BoxGeometry(1.16, 0.105, 0.044), cedarMat);
-    backSlat.position.set(0, bs.y, bs.z);
-    backSlat.rotation.x = -0.16;
-    backSlat.castShadow = true;
-    group.add(backSlat);
-
-    for (const bx of [-0.54, 0.54]) {
-      const bolt = new THREE.Mesh(new THREE.SphereGeometry(0.018, 6, 6), brassMat);
-      bolt.position.set(bx, bs.y, bs.z + 0.024);
-      group.add(bolt);
-    }
-  }
 
   group.userData.backrestFrontZ = -0.262;
   group.userData.seatTopY = 0.365;

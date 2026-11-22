@@ -220,7 +220,7 @@ All core simulation, cottage home-life, personal inventory/gifting, dialogue, re
 
 ## 21. Character Quality Build CQ-1 Addendum (2026-11-22 — expression, motion & presentation)
 
-**Status**: implemented on main base `07be49c`, adversarial-review-verified, browser-verified. Gates: `npm test` **595/595**, `tsc --noEmit` clean, live play 0 console errors. WORKLOG Entry 059 is the full record.
+**Status**: implemented on main base `3bffc5f` (post World-Quality Overhaul merge), adversarial-review-verified, browser-verified. Gates: `npm test` **595/595**, `tsc --noEmit` clean, live play 0 console errors. WORKLOG Entry 060 is the full record.
 
 - **New rig contracts (`src/scene/models.ts`)** — all optional, neutral-default: `EyeGazeBinding` + `eyeBindings` (eye+catchlight pairs with build-time base positions), `eyeGazeState`, `blushMeshes`, `blushWarmState`, `leftBoot`/`rightBoot`, `bootAnkle {y:-0.24, z:0.05}`. Both rig builders (shared + Jun) populate the full kit.
 - **New animation options (`CharacterAnimationOptions`)** — `speed` (continuous gait blend; absent/≤3.2 u/s = authored baselines), `seatHeight` (seated ankle-fake pitch, `clamp((h-0.24)*2.1, 0.15, 0.72)`), `seatedReading` (sit-pose page-reading layer). Call sites MUST unconditionally assign all three per frame (zero-GC scratch discipline) — the canvas does at all 3 sites.

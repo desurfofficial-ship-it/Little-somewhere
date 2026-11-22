@@ -191,7 +191,10 @@ export const SEAT_SPOTS: readonly SeatSpot[] = [
     id: 'seat_sorrel_hollow',
     label: 'Sorrel Hollow Garden Bench',
     seatPos: { x: -19.7, z: 17.55 },
-    approachPos: { x: -18.75, z: 17.55 },
+    // Overhaul C-3: approach widened +0.15 — the old −18.75 left a 0.05
+    // margin against the r 0.42 bench collider; any collider bump would have
+    // re-trapped sitters (regression-locked at ≥0.2 in seating.test.ts).
+    approachPos: { x: -18.6, z: 17.55 },
     facingAngle: Math.PI / 2,
     seatHeight: 0.36,
     zoneId: 'orchard',
@@ -272,11 +275,21 @@ export const LANDMARK_ZONES: LandmarkZone[] = [
   { id: 'bee_line', name: 'The Bee Line', subtitle: 'Clover trail & the wild bee log', x: 10.4, z: -18.8, radius: 5.0 },
 ];
 
+/**
+ * Shared landmark anchors (single source of truth). The plaza fountain's
+ * interactable anchor previously drifted to (0, 4.1) while every other consumer
+ * (collision circle, interaction metrics, scene builder, proxies) sits on the
+ * true basin center (0, 1.5) — the anchor now references FOUNTAIN_CENTER so it
+ * cannot drift again. Same pattern for the Mirror Pond center.
+ */
+export const FOUNTAIN_CENTER: Vec2 = { x: 0, z: 1.5 };
+export const POND_CENTER: Vec2 = { x: 1.6, z: 14.0 };
+
 export const PROP_INTERACTABLES: PropInteractable[] = [
   { id: 'player_door', name: 'Cottage Porch Door', x: -10.3, z: 10.0, interactRadius: 2.5 },
   { id: 'player_mailbox', name: 'Willow Mailbox', x: -9.8, z: 7.2, interactRadius: 2.3 },
   { id: 'gazebo_bell', name: 'Gazebo Bell Spire', x: 0, z: -6.8, interactRadius: 2.8 },
-  { id: 'fountain_plaza', name: 'Mossy Stone Fountain', x: 0, z: 4.1, interactRadius: 2.6 },
+  { id: 'fountain_plaza', name: 'Mossy Stone Fountain', x: FOUNTAIN_CENTER.x, z: FOUNTAIN_CENTER.z, interactRadius: 2.6 },
   { id: 'hollow_oak', name: 'Hollow Oak Root', x: -6.2, z: 14.0, interactRadius: 2.5 },
   { id: 'plaza_noticeboard', name: 'Neighborhood Noticeboard', x: 4.4, z: -2.2, interactRadius: 2.3 },
   { id: 'mirror_pond', name: 'Mirror Pond Bank', x: 1.8, z: 10.6, interactRadius: 2.6 },
@@ -303,9 +316,7 @@ export interface PropInteractionMetrics {
   splashPos: Vec2;
 }
 
-const FOUNTAIN_CENTER: Vec2 = { x: 0, z: 1.5 };
 const FOUNTAIN_BASIN_RADIUS = 2.46;
-const POND_CENTER: Vec2 = { x: 1.6, z: 14.0 };
 const POND_SHORE_BOX = { minX: -2.0, maxX: 5.62, minZ: 11.24, maxZ: 16.6 };
 
 /**

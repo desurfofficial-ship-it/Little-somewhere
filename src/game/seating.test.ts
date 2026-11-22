@@ -29,7 +29,7 @@ import {
 } from './walkability';
 import { togglePlayerSitAction } from './actions';
 import { createFreshWorldState } from './storage';
-import { SEAT_SPOTS, isPointWalkable } from './worldMap';
+import { SEAT_SPOTS, getGroundHeightAt, isPointWalkable } from './worldMap';
 import { GREENHOUSE_BOUNDS, isGreenhouseInteriorWalkable } from './greenhouse';
 import type { PlayerLocation, SeatSpot, Vec2 } from './types';
 
@@ -330,4 +330,37 @@ test('radial recovery search is deterministic and finds open floor around blocke
   const standPos = resolveSeatStandPos(bakerySeat);
   assert.ok(standPos);
   assert.deepEqual(standPos, { x: bakerySeat.approachPos.x, z: bakerySeat.approachPos.z });
+});
+
+test('overhaul C-2: resolveSeatStandPos never returns null — every seat has a stand-up spot', () => {
+  const allSeats = [...SEAT_SPOTS, ...COTTAGE_SEAT_SPOTS, ...BAKERY_SEAT_SPOTS, ...NOOK_SEAT_SPOTS, ...COPPERWHEEL_SEAT_SPOTS];
+  assert.ok(allSeats.length >= 12, `expected the full 12-seat inventory, got ${allSeats.length}`);
+  for (const seat of allSeats) {
+    const standPos = resolveSeatStandPos(seat);
+    assert.ok(standPos, `${seat.id} must always resolve a stand-up position`);
+    // The final fallback is the authored approach anchor — never the seatPos
+    // itself (which sits inside the furniture collision volume).
+    assert.ok(
+      !(standPos.x === seat.seatPos.x && standPos.z === seat.seatPos.z),
+      `${seat.id} stand-up must not land inside the seat collider`,
+    );
+  }
+});
+
+test('overhaul C-1: seated ground Y includes the terrain under the seat (Foxglove deck)', () => {
+  const foxglove = SEAT_SPOTS.find((s) => s.id === 'seat_foxglove_rise');
+  assert.ok(foxglove, 'foxglove deck seat exists');
+  const terrainY = getGroundHeightAt(foxglove.seatPos.x, foxglove.seatPos.z);
+  assert.equal(terrainY, 0.62, 'the deck seat sits on the 0.62 rise deck');
+  // The seated tick formula: computeSitGroundY + terrain. The legacy formula
+  // omitted terrain and sank the sitter ~0.59 into the deck.
+  const seatedGroundY = computeSitGroundY(foxglove.seatHeight, 1.0) + terrainY;
+  assert.ok(seatedGroundY > 0.6, `seated ground ${seatedGroundY} clears the deck`);
+});
+
+test('overhaul C-3: every bench approach keeps a ≥ 0.2 margin against its collider', () => {
+  for (const seat of SEAT_SPOTS) {
+    const margin = Math.hypot(seat.approachPos.x - seat.seatPos.x, seat.approachPos.z - seat.seatPos.z) - 0.42;
+    assert.ok(margin >= 0.2, `${seat.id} approach margin ${margin.toFixed(3)}`);
+  }
 });

@@ -737,7 +737,7 @@ export function stepSimulationInPlace(
         if (goalChanged) {
           rt.targetPos.x = chosen.target.x;
           rt.targetPos.z = chosen.target.z;
-          rt.waypoints = computeWaypointPath(rt.position, rt.targetPos, 0.38);
+          rt.waypoints = computeWaypointPath(rt.position, rt.targetPos, 0.38) ?? [];
           rt.stuckSeconds = 0;
           pushNpcActivityHistoryInPlace(world.npcActivityHistory, id, {
             day: world.day,
@@ -759,6 +759,9 @@ export function stepSimulationInPlace(
         if (rt.socialPartnerId === otherId) continue;
         _otherPositions.push(world.npcRuntime[otherId].position);
       }
+      // Overhaul G-4: the player is a physical body too — residents separate
+      // from the player instead of walking straight through them.
+      _otherPositions.push(world.playerPos);
       const sep = computeSeparationVector(rt.position, _otherPositions, 0.95);
       const step = stepAlongWaypoints(rt.position, rt.waypoints, npcSpeed, dt, sep, 0.38);
 
@@ -772,7 +775,12 @@ export function stepSimulationInPlace(
         rt.currentSpeed = 0;
         if (rt.reservedSeatId && !rt.socialPartnerId) {
           const seat = getSeatById(rt.reservedSeatId);
-          if (seat) {
+          // Overhaul G-7: never teleport a resident onto a seat the player is
+          // currently sitting on — the 1-tick overlap window is closed and the
+          // next tick's steal reconciliation re-seats the resident elsewhere.
+          const seatHeldByPlayer =
+            world.playerSeatId === rt.reservedSeatId && world.playerPosture === 'sitting';
+          if (seat && !seatHeldByPlayer) {
             rt.position.x = seat.seatPos.x;
             rt.position.z = seat.seatPos.z;
             // Character-quality program (Workstream B): no instant facing snap on
@@ -807,7 +815,7 @@ export function stepSimulationInPlace(
             rt.currentSpeed = 0;
             rt.animState = getDefaultPoseForSlot(id, phase);
           } else if (rt.stuckSeconds > 1.2) {
-            rt.waypoints = computeWaypointPath(rt.position, rt.targetPos, 0.38);
+            rt.waypoints = computeWaypointPath(rt.position, rt.targetPos, 0.38) ?? [];
           }
         } else {
           rt.stuckSeconds = 0;
@@ -1025,7 +1033,7 @@ export function stepSimulationInPlace(
           rt.targetPos.x = spot.x;
           rt.targetPos.z = spot.z;
           rt.targetFacing = Math.atan2(faceSpot.x - spot.x, faceSpot.z - spot.z);
-          rt.waypoints = computeWaypointPath(rt.position, spot, 0.38);
+          rt.waypoints = computeWaypointPath(rt.position, spot, 0.38) ?? [];
           rt.currentActivityLabel = `Chatting with ${RESIDENTS[nextPartner].name}`;
           rt.emotion = 'happy';
           rt.emotionIntensity = 0.72;

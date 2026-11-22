@@ -337,6 +337,16 @@ export function buildWillowCottageInterior(
   const northCrown = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(7.36, 0.14, 0.24)), cedarDarkMat);
   northCrown.position.set(0, 2.75, -2.79);
   group.add(northWall, northWainscot, northCrown);
+  // Overhaul Phase 3 (E-6): shell tags for the yaw-aware cutaway. The full
+  // north/west assembly (+ its mounted props and overhead rafters) hides when
+  // the camera rotates to that side; the low east/south curbs never hide.
+  const tagShell = (obj: THREE.Object3D, side: 'N' | 'E' | 'S' | 'W', full: boolean) => {
+    obj.userData.shellSide = side;
+    obj.userData.shellFull = full;
+  };
+  tagShell(northWall, 'N', true);
+  tagShell(northWainscot, 'N', true);
+  tagShell(northCrown, 'N', true);
 
   // West wall split cleanly around the sunlit sill window at z = 0
   const westWallNorth = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(0.18, 2.75, 2.15)), plasterMat);
@@ -354,6 +364,12 @@ export function buildWillowCottageInterior(
   const westCrown = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(0.24, 0.14, 5.72)), cedarDarkMat);
   westCrown.position.set(-3.59, 2.75, 0);
   group.add(westWallNorth, westWallSouth, westWallBelow, westWallAbove, westWainscot, westCrown);
+  tagShell(westWallNorth, 'W', true);
+  tagShell(westWallSouth, 'W', true);
+  tagShell(westWallBelow, 'W', true);
+  tagShell(westWallAbove, 'W', true);
+  tagShell(westWainscot, 'W', true);
+  tagShell(westCrown, 'W', true);
 
   // West sunlit window frame + glass + muntins + sill
   const westGlass = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(0.06, 1.12, 1.4)), windowGlassMat);
@@ -366,6 +382,10 @@ export function buildWillowCottageInterior(
   const westMullionH = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(0.1, 0.06, 1.42)), creamMat);
   westMullionH.position.set(-3.55, 1.52, 0);
   group.add(westGlass, westSill, westMullionV, westMullionH);
+  tagShell(westGlass, 'W', true);
+  tagShell(westSill, 'W', true);
+  tagShell(westMullionV, 'W', true);
+  tagShell(westMullionH, 'W', true);
 
   // Phase B implied-space architecture (audit §7.3): the one-room contradiction is
   // answered with implied rooms, not more furniture —
@@ -400,6 +420,7 @@ export function buildWillowCottageInterior(
   backThreshold.position.set(0, 0.03, 0.1);
   backDoorFrame.add(backThreshold);
   group.add(backDoorFrame);
+  tagShell(backDoorFrame, 'N', true);
 
   const loftLadder = new THREE.Group();
   loftLadder.position.set(-0.35, 0, -2.52);
@@ -416,6 +437,7 @@ export function buildWillowCottageInterior(
     loftLadder.add(rung);
   }
   group.add(loftLadder);
+  tagShell(loftLadder, 'N', true);
   // Woven gathering basket parked at the ladder's foot
   const ladderBasket = new THREE.Group();
   ladderBasket.position.set(0.18, 0, -2.5);
@@ -427,6 +449,7 @@ export function buildWillowCottageInterior(
   ladderBasketRim.position.y = 0.22;
   ladderBasket.add(ladderBasketBody, ladderBasketRim);
   group.add(ladderBasket);
+  tagShell(ladderBasket, 'N', true);
 
   // Low cutaway East curb + Porch Door frame at z = 0
   const eastCurbNorth = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(0.18, 0.42, 2.05)), cedarWarmMat);
@@ -438,11 +461,16 @@ export function buildWillowCottageInterior(
   const southCap = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(7.34, 0.06, 0.22)), cedarDarkMat);
   southCap.position.set(0, 0.38, 2.79);
   group.add(eastCurbNorth, eastCurbSouth, southCurb, southCap);
+  tagShell(eastCurbNorth, 'E', false);
+  tagShell(eastCurbSouth, 'E', false);
+  tagShell(southCurb, 'S', false);
+  tagShell(southCap, 'S', false);
 
   // Overhead north-west ceiling rafters (keep max.y <= 3.35)
   for (const rx of [-2.4, 0.0, 2.2]) {
     const beam = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(0.14, 0.16, 1.85)), cedarDarkMat);
     beam.position.set(rx, 2.68, -1.88);
+    tagShell(beam, 'N', true);
     group.add(beam);
   }
 
@@ -1357,6 +1385,9 @@ export function buildWillowCottageInterior(
   hatBrim.position.set(2.65, 1.365, -2.65);
   hatBrim.rotation.set(0.12, 0, -0.06);
   group.add(pegA, pegB, pegBoard, hatCrown, hatBrim);
+  // Overhaul D-1 (QA-FINAL): wall-mounted dressing must hide with its wall or
+  // it floats mid-air when the yaw-aware cutaway stows the north wall.
+  for (const d of [pegA, pegB, pegBoard, hatCrown, hatBrim]) tagShell(d, 'N', true);
 
   // H. Lived-in dressing (Pass 1 — Everyday Life polish; all inside existing obstacle
   //    footprints or wall planes so COTTAGE_INTERIOR_OBSTACLES stays untouched).
@@ -1436,6 +1467,7 @@ export function buildWillowCottageInterior(
   curtainTieS.position.set(-3.51, 1.28, 0.83);
   curtainTieS.rotation.y = Math.PI * 0.5;
   group.add(curtainNorth, curtainSouth, curtainTieN, curtainTieS);
+  for (const d of [curtainRod, curtainNorth, curtainSouth, curtainTieN, curtainTieS]) tagShell(d, 'W', true);
 
   // H3. Framed botanical prints on the north wall (either side of keepsake shelf clock)
   const printFrameA = new THREE.Group();
@@ -1453,6 +1485,8 @@ export function buildWillowCottageInterior(
   const canvasB = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(0.24, 0.32, 0.05)), petalLavenderMat);
   printFrameB.add(frameB, canvasB);
   group.add(printFrameA, printFrameB);
+  tagShell(printFrameA, 'N', true);
+  tagShell(printFrameB, 'N', true);
 
   // H4. Round wall clock above the keepsake shelf — hands are pivot groups so
   // rig.update can drive them from the in-game minuteOfDay (Pass 8, EL-17).
@@ -1474,6 +1508,7 @@ export function buildWillowCottageInterior(
   const clockPin = new THREE.Mesh(trackGeo(new THREE.SphereGeometry(0.02, 6, 6)), brassMat);
   clockPin.position.set(1.3, 2.26, -2.63);
   group.add(clockRim, clockFace, clockHandHourPivot, clockHandMinutePivot, clockPin);
+  for (const d of [clockRim, clockFace, clockHandHourPivot, clockHandMinutePivot, clockPin]) tagShell(d, 'N', true);
 
   // H5. Dried-herb bundle hanging beside the chimney breast
   const herbBundle = new THREE.Group();
@@ -1489,6 +1524,7 @@ export function buildWillowCottageInterior(
   }
   herbBundle.add(herbTwine);
   group.add(herbBundle);
+  tagShell(herbBundle, 'N', true);
 
   // H6. Firewood basket beside the hearth counter (inside cottage_hearth footprint)
   const woodBasket = new THREE.Group();
@@ -1644,6 +1680,7 @@ export function buildWillowCottageInterior(
   scarfTail.rotation.z = -0.16;
   scarfPeg.add(pegPin, scarfLoop, scarfCloth, scarfTail);
   group.add(scarfPeg);
+  tagShell(scarfPeg, 'N', true);
 
   // H10. Hanging pendant lantern under the center beam (airborne — no walkability impact)
   const pendantGroup = new THREE.Group();
@@ -1658,6 +1695,8 @@ export function buildWillowCottageInterior(
   pendantRing.position.y = 2.11;
   pendantGroup.add(pendantCord, pendantShade, pendantBulb, pendantRing);
   group.add(pendantGroup);
+  // Hangs from the (tagged) north rafters — hide together.
+  tagShell(pendantGroup, 'N', true);
 
   // H11. Stronger empty-vase cue: dry stems + a small paper tag on the empty pitcher
   const dryStemA = new THREE.Mesh(trackGeo(new THREE.CylinderGeometry(0.008, 0.01, 0.2, 5)), foliageMat);

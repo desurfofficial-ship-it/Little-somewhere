@@ -4,6 +4,7 @@ import * as THREE from 'three';
 import { BAKERY_INTERACTABLES, getBakeForDay } from '../game/bakery';
 import { createFreshWorldState } from '../game/storage';
 import { MaterialPalette } from './materials';
+import { collectShellSides } from './roomFraming';
 import {
   buildHearthCrumbInterior,
   buildHearthCrumbPorchDressing,
@@ -125,5 +126,87 @@ test('bakery rig disposal clears owned GPU resources without touching the palett
   // Disposable group remains structurally intact (callers own the add/remove lifecycle)
   assert.ok(rig.group.children.length > 10, 'rig group stays populated after dispose');
   assert.equal(typeof rig.update, 'function');
+  palette.disposeAll();
+});
+
+// ---------------------------------------------------------------------------
+// FURN-1 / Overhaul Phase 3 (E-6): yaw-aware cutaway shell tags
+// ---------------------------------------------------------------------------
+
+/** Finds the first mesh whose geometry type + numeric parameters all match. */
+function findMeshByGeometry(
+  root: THREE.Object3D,
+  kind: string,
+  params: Record<string, number>,
+): THREE.Mesh | undefined {
+  let found: THREE.Mesh | undefined;
+  root.traverse((o) => {
+    if (found) return;
+    const m = o as THREE.Mesh;
+    if (!m.isMesh) return;
+    const geo = m.geometry as unknown as { type?: string; parameters?: Record<string, number> };
+    if (geo.type !== kind) return;
+    const p = geo.parameters ?? {};
+    const matches = Object.entries(params).every(([k, v]) => Math.abs((p[k] ?? NaN) - v) < 1e-6);
+    if (matches) found = m;
+  });
+  return found;
+}
+
+test('bakery shell tags: N/W full assembly + mounted props tagged, E/S curbs tagged low, furniture never tagged', () => {
+  const palette = new MaterialPalette();
+  const rig = buildHearthCrumbInterior(palette, new THREE.Texture(), { isSoftwareGl: true });
+  const shells = collectShellSides(rig.group);
+  const tagged = new Set(shells.map((s) => s.mesh));
+
+  assert.ok(shells.length >= 4, `at least 4 tagged shell meshes, got ${shells.length}`);
+
+  // Full-height shell: N or W only, and geometrically at its side (N = −Z, W = −X)
+  const fulls = shells.filter((s) => s.full);
+  assert.ok(fulls.length >= 4, `full wall assembly tagged, got ${fulls.length}`);
+  for (const s of fulls) {
+    assert.ok(s.side === 'N' || s.side === 'W', `full shells sit on N/W only, got ${s.side}`);
+    const p = new THREE.Vector3();
+    s.mesh.getWorldPosition(p);
+    if (s.side === 'N') {
+      assert.ok(p.z < -2.0, `N-tagged mesh at world z ${p.z.toFixed(2)} (north side)`);
+    } else {
+      assert.ok(p.x < -2.3, `W-tagged mesh at world x ${p.x.toFixed(2)} (west side)`);
+    }
+  }
+
+  // Curbs: E or S with full=false, geometrically at their low sides
+  const curbs = shells.filter((s) => !s.full);
+  assert.ok(curbs.length >= 3, `curb meshes tagged, got ${curbs.length}`);
+  for (const s of curbs) {
+    assert.ok(s.side === 'E' || s.side === 'S', `curbs sit on E/S only, got ${s.side}`);
+    const p = new THREE.Vector3();
+    s.mesh.getWorldPosition(p);
+    if (s.side === 'E') {
+      assert.ok(p.x > 2.8, `E curb at world x ${p.x.toFixed(2)}`);
+    } else {
+      assert.ok(p.z > 2.2, `S curb at world z ${p.z.toFixed(2)}`);
+    }
+  }
+
+  // Furniture, floor and interaction anchors are NEVER tagged (they must never hide)
+  for (const proxy of rig.hitProxies) {
+    assert.ok(!tagged.has(proxy), 'hit proxies are never shell-tagged');
+  }
+  const floor = findMeshByGeometry(rig.group, 'BoxGeometry', { width: 6.2, height: 0.06, depth: 4.9 });
+  assert.ok(floor && !tagged.has(floor), 'plank floor is never tagged');
+  const chairSeat = findMeshByGeometry(rig.group, 'CylinderGeometry', {
+    radiusTop: 0.19,
+    radiusBottom: 0.17,
+    height: 0.05,
+  });
+  assert.ok(chairSeat && !tagged.has(chairSeat), 'café chair seats are never tagged');
+  const ovenDome = findMeshByGeometry(rig.group, 'SphereGeometry', { radius: 0.72 });
+  assert.ok(ovenDome && !tagged.has(ovenDome), 'bake oven (furniture) is never tagged');
+  // The south entrance door group rides a curb side — deliberately untagged so it always shows.
+  const doorPanel = findMeshByGeometry(rig.group, 'BoxGeometry', { width: 1.06, height: 1.92, depth: 0.09 });
+  assert.ok(doorPanel && !tagged.has(doorPanel), 'south door panel (curb side) is never tagged');
+
+  rig.dispose();
   palette.disposeAll();
 });

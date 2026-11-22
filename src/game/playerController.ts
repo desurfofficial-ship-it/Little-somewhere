@@ -135,7 +135,9 @@ export function resolveDesiredSpeed(
 ): number {
   if (inputMagnitude < 0.04) return 0;
   if (walkModifierHeld) return PLAYER_WALK_SPEED * Math.min(1, inputMagnitude * 1.1);
-  if (sprintHeld || inputMagnitude >= 0.96 && sprintHeld) {
+  // Overhaul G-10: the second clause (`inputMagnitude >= 0.96 && sprintHeld`)
+  // was unreachable (subsumed by the first) and trapped refactors — removed.
+  if (sprintHeld) {
     return PLAYER_SPRINT_SPEED;
   }
   // Gentle proportional stick deflection walks softly; full deflection runs naturally
@@ -222,7 +224,12 @@ export function stepPlayerMovement(input: StepPlayerMovementInput): StepPlayerMo
         turnRateRadPerSec: 0,
         bankAngle: 0,
         animState: 'sit',
-        groundY: seat ? computeSitGroundY(seat.seatHeight, 1.0) : 0,
+        // Overhaul C-1: seated ground Y must include the terrain under the seat
+        // (Foxglove Rise's 0.62 deck previously sank seated avatars ~0.59 into
+        // it — the offset alone assumed flat world ground).
+        groundY: seat
+          ? computeSitGroundY(seat.seatHeight, 1.0) + getGroundHeightAt(seat.seatPos.x, seat.seatPos.z)
+          : 0,
         footstepPending: false,
         accelAmount: 0,
         skidAmount: 0,
@@ -550,6 +557,21 @@ export function selectBestInteractiveTarget(
 
   if (world.playerPosture === 'sitting') {
     const seat = resolveAnySeatById(world.playerSeatId);
+    // Overhaul C-5: the sip ritual works on any seat — a brewed drink travels
+    // in the satchel, so a plaza bench offers it exactly like the cottage table.
+    const sip = getFirstSipableItem(world.inventory);
+    if (sip) {
+      return {
+        kind: 'seat',
+        id: seat?.id ?? 'seat_current',
+        seatId: seat?.id,
+        label: seat?.label ?? 'Bench',
+        actionLabel: `Sip ${sip.def.label}`,
+        distance: 0,
+        worldPos: { ...world.playerPos },
+        sipItemId: sip.itemId,
+      };
+    }
     return {
       kind: 'seat',
       id: seat?.id ?? 'seat_current',
@@ -660,7 +682,9 @@ export function selectBestInteractiveTarget(
       distance2D(world.playerPos, seat.seatPos),
       distance2D(world.playerPos, seat.approachPos) + 0.35,
     );
-    if (d <= 2.0) {
+    // Overhaul G-11: unified with the tap-path's 2.35 seat range so HUD
+    // selection and raycast aiming agree.
+    if (d <= 2.35) {
       evaluateCandidate(
         {
           kind: 'seat',

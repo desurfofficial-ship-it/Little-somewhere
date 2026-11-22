@@ -203,52 +203,74 @@ export function buildHearthCrumbInterior(
   // ---------------------------------------------------------------------
   // 2. Room shell: tall north/west walls, cutaway south/east wainscot
   // ---------------------------------------------------------------------
+  // Overhaul Phase 3 (E-6): shell tags for the yaw-aware cutaway (mirrors the
+  // cottage builder). The full north/west assembly (+ its mounted props,
+  // windows and wall doors) hides when the camera rotates to that side; the
+  // low east/south wainscot curbs never hide. Floors, furniture and curb-side
+  // dressing (headers, corner posts, ceiling beam, south door group) stay
+  // untagged so they always render.
+  const tagShell = (obj: THREE.Object3D, side: 'N' | 'E' | 'S' | 'W', full: boolean) => {
+    obj.userData.shellSide = side;
+    obj.userData.shellFull = full;
+  };
   const wallHeight = 2.55;
   // North wall (z = -2.4) — chimney breast carries the bake oven
   const northWall = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(6.1, wallHeight, 0.16)), plasterMat);
   northWall.position.set(0, 0.8 + wallHeight / 2, -2.42);
   group.add(northWall);
+  tagShell(northWall, 'N', true);
   const northWainscot = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(6.1, 0.72, 0.18)), cedarWarmMat);
   northWainscot.position.set(0, 0.42, -2.4);
   northWainscot.castShadow = true;
   group.add(northWainscot);
+  tagShell(northWainscot, 'N', true);
   // Chimney breast above the oven
   const chimneyBreast = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(2.4, 2.4, 0.34)), darkStoneMat);
   chimneyBreast.position.set(-1.9, 1.9, -2.32);
   chimneyBreast.castShadow = true;
   group.add(chimneyBreast);
+  tagShell(chimneyBreast, 'N', true);
   const mantle = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(2.6, 0.12, 0.44)), cedarDarkMat);
   mantle.position.set(-1.9, 1.06, -2.24);
   mantle.castShadow = true;
   group.add(mantle);
+  tagShell(mantle, 'N', true);
   // Mantle keepsakes: small jar, tiny potted herb, flour tin
   const mantleJar = new THREE.Mesh(trackGeo(new THREE.CylinderGeometry(0.07, 0.07, 0.16, 8)), ceramicMat);
   mantleJar.position.set(-2.5, 1.2, -2.24);
   group.add(mantleJar);
+  tagShell(mantleJar, 'N', true);
   const mantlePot = new THREE.Mesh(trackGeo(new THREE.CylinderGeometry(0.06, 0.05, 0.1, 8)), terracottaMat);
   mantlePot.position.set(-1.9, 1.17, -2.24);
   group.add(mantlePot);
+  tagShell(mantlePot, 'N', true);
   const mantleHerb = new THREE.Mesh(trackGeo(new THREE.SphereGeometry(0.07, 7, 6)), mossMat);
   mantleHerb.position.set(-1.9, 1.28, -2.24);
   group.add(mantleHerb);
+  tagShell(mantleHerb, 'N', true);
 
   // West wall (x = -3.0) with a tall kitchen window (z -0.4..1.0)
   const westWall = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(0.16, wallHeight, 4.9)), plasterMat);
   westWall.position.set(-3.02, 0.8 + wallHeight / 2, 0);
   group.add(westWall);
+  tagShell(westWall, 'W', true);
   const westWainscot = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(0.18, 0.72, 4.9)), cedarWarmMat);
   westWainscot.position.set(-3.0, 0.42, 0);
   westWainscot.castShadow = true;
   group.add(westWainscot);
+  tagShell(westWainscot, 'W', true);
   const westWindow = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(0.08, 1.0, 1.3)), windowGlassMat);
   westWindow.position.set(-3.04, 1.75, 0.25);
   group.add(westWindow);
+  tagShell(westWindow, 'W', true);
   const westWindowTrim = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(0.14, 1.14, 1.44)), creamMat);
   westWindowTrim.position.set(-3.02, 1.75, 0.25);
   group.add(westWindowTrim);
+  tagShell(westWindowTrim, 'W', true);
   const westSill = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(0.26, 0.08, 1.5)), limestoneMat);
   westSill.position.set(-2.98, 1.2, 0.25);
   group.add(westSill);
+  tagShell(westSill, 'W', true);
 
   // Phase B implied-space architecture (audit §7.3): a closed BAKEHOUSE door on the
   // west wall's free south segment — the interior answer to the exterior bake-oven
@@ -282,6 +304,7 @@ export function buildHearthCrumbInterior(
   bhThreshold.position.set(0.1, 0.03, 0);
   bakehouseDoor.add(bhThreshold);
   group.add(bakehouseDoor);
+  tagShell(bakehouseDoor, 'W', true);
   // Bread-peel paddle mounted flat above the bakehouse lintel (no-text signage read)
   const peelHandle = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(0.05, 0.05, 0.9)), cedarWarmMat);
   peelHandle.position.set(-2.96, 2.62, 1.72);
@@ -289,12 +312,15 @@ export function buildHearthCrumbInterior(
   peelBoard.position.set(-2.96, 2.42, 1.28);
   peelBoard.rotation.x = -0.25;
   group.add(peelHandle, peelBoard);
+  tagShell(peelHandle, 'W', true);
+  tagShell(peelBoard, 'W', true);
 
   // East wall (x = +3.0) — cutaway dwarf wainscot + low glass so the camera reads in
   const eastWainscot = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(0.18, 0.72, 4.9)), cedarWarmMat);
   eastWainscot.position.set(3.0, 0.42, 0);
   eastWainscot.castShadow = true;
   group.add(eastWainscot);
+  tagShell(eastWainscot, 'E', false);
   const eastHeader = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(0.16, 0.7, 4.9)), plasterMat);
   eastHeader.position.set(3.02, 2.85, 0);
   group.add(eastHeader);
@@ -304,10 +330,12 @@ export function buildHearthCrumbInterior(
   southWainscotWest.position.set(-1.9, 0.42, 2.4);
   southWainscotWest.castShadow = true;
   group.add(southWainscotWest);
+  tagShell(southWainscotWest, 'S', false);
   const southWainscotEast = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(2.2, 0.72, 0.18)), cedarWarmMat);
   southWainscotEast.position.set(1.9, 0.42, 2.4);
   southWainscotEast.castShadow = true;
   group.add(southWainscotEast);
+  tagShell(southWainscotEast, 'S', false);
   const southHeader = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(6.1, 0.8, 0.2)), plasterMat);
   southHeader.position.set(0, 2.8, 2.42);
   group.add(southHeader);
@@ -836,6 +864,7 @@ export function buildHearthCrumbInterior(
     latticeB.position.set(0, 0.075, 0);
     sillPie.add(plate, pie, latticeA, latticeB);
     seasonLife.winter.add(sillPie);
+    tagShell(sillPie, 'W', true); // sits on the tagged west sill — hides with it
 
     // Frost tracery wedges at the west window corners
     const frost = new THREE.Group();
@@ -852,6 +881,7 @@ export function buildHearthCrumbInterior(
       frost.add(wedge);
     }
     seasonLife.winter.add(frost);
+    tagShell(frost, 'W', true); // hugs the tagged west window glass
   }
 
   // — Spring: blossom-branch jug on the west windowsill —
@@ -877,6 +907,7 @@ export function buildHearthCrumbInterior(
       jug.add(bloom);
     }
     seasonLife.spring.add(jug);
+    tagShell(jug, 'W', true); // sits on the tagged west sill — hides with it
   }
 
   // — Summer: two basil & mint pots on the west windowsill —
@@ -896,6 +927,7 @@ export function buildHearthCrumbInterior(
       herbs.add(tuft);
     }
     seasonLife.summer.add(herbs);
+    tagShell(herbs, 'W', true); // sits on the tagged west sill — hides with it
   }
 
   // — Autumn: dried-leaf garland on the ceiling beam + harvest basket hugging the east wall —

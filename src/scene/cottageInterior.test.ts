@@ -5,6 +5,7 @@ import { COTTAGE_INTERACTABLES, COTTAGE_SEAT_SPOTS } from '../game/cottage';
 import { createFreshWorldState } from '../game/storage';
 import { MaterialPalette } from './materials';
 import { buildWillowCottageInterior } from './builders/cottageInterior';
+import { applyShellCutaway, AUTHORED_YAW, collectShellSides } from './roomFraming';
 
 test('cottage interior 3D rig exposes all 7 cottage hit proxies + 2 indoor seat proxies', () => {
   const palette = new MaterialPalette();
@@ -526,4 +527,35 @@ test('Pass 14: seasons of home — sill posy, swag accent, floor scatter and gla
 
   rig.dispose();
   palette.disposeAll();
+});
+
+test('QA-FINAL D-1: wall-mounted dressing hides with its wall (no floating props)', () => {
+  const palette = new MaterialPalette();
+  const rig = buildWillowCottageInterior(palette, new THREE.Texture());
+  const shells = collectShellSides(rig.group);
+  assert.ok(shells.length > 20, `cottage shell coverage: ${shells.length}`);
+
+  // The QA-FINAL finding: static wall-mounted dressing (coat pegs + hat,
+  // botanical prints, wall clock, curtains, scarf peg, herb bundle, pendant
+  // lantern) must be tagged so the yaw-aware cutaway hides it WITH the wall.
+  // Locked by counting tagged N/W coverage — the dressing pushed the tagged
+  // count from ~21 (assembly only) well past 30.
+  const north = shells.filter((s) => s.side === 'N' && s.full);
+  const west = shells.filter((s) => s.side === 'W' && s.full);
+  assert.ok(north.length >= 10, `north full-wall coverage: ${north.length}`);
+  assert.ok(west.length >= 10, `west full-wall coverage: ${west.length}`);
+
+  // Hidden-wall behavior: rotating the camera to the N side hides the north
+  // assembly INCLUDING its mounted dressing (spot-check the clock + pendant).
+  const findByNamePosition = (y: number, z: number) =>
+    shells.find((s) => Math.abs(s.mesh.position.y - y) < 0.3 && Math.abs(s.mesh.position.z - z) < 0.3);
+  const clock = findByNamePosition(2.26, -2.6);
+  assert.ok(clock && clock.side === 'N' && clock.full, 'clock is tagged N full');
+  applyShellCutaway(shells, Math.PI);
+  assert.ok(!clock.mesh.visible, 'clock hides with the north wall');
+  const westWall = west.find((s) => s.mesh.position.y > 1 && Math.abs(s.mesh.position.x - -3.59) < 0.05);
+  assert.ok(westWall, 'west wall shell present');
+  assert.ok(westWall.mesh.visible, 'west wall stays visible at north yaw');
+  applyShellCutaway(shells, AUTHORED_YAW);
+  assert.ok(clock.mesh.visible, 'restored at the authored angle');
 });

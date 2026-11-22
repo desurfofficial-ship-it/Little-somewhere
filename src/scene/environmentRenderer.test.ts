@@ -268,7 +268,10 @@ test('upgraded Fountain and Mirror Pond rigs animate water shaders, koi, debris/
   assert.ok(fountainRig.submergedCoinsGroup);
   assert.ok(fountainRig.cascadeGroup);
   assert.ok((fountainRig.splashRings?.length ?? 0) >= 5);
-  assert.equal(fountainRig.spoutParticles.children.length, 20);
+  // WORLD-QUALITY OVERHAUL (Doc 04 §5): droplets grew 20 -> 28 (8 crown + 20 basin).
+  // Kind layout unchanged: children 0-7 'crown', 8+ 'basin', so the
+  // environmentRenderer ballistic animation contract still holds untouched.
+  assert.equal(fountainRig.spoutParticles.children.length, 28);
   assert.equal(pondRig.koiFishes.length, 3);
   assert.ok(pondRig.lilyBlooms.length >= 3);
   assert.ok(pondRig.dragonflies.length >= 2);

@@ -271,4 +271,8 @@ export const STORYBOOK_PALETTE = {
   petalLavender: '#A08CD6',
   petalCream: '#F2E7CA',
   petalCornflower: '#6F92C4',
+  // Upholstery & furniture woods (FURN-1: soft mint/sage soft seating + honey cedar frames)
+  upholsteryMint: '#B9D8C2',
+  upholsterySage: '#A7C4A0',
+  cedarHoney: '#9A6B45',
 } as const;
