@@ -1,6 +1,8 @@
 import React, { useEffect, useRef } from 'react';
 import * as THREE from 'three';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+import { CameraController, createCameraSnapshot } from './cameraController';
+import { screenToWorldMove, ZOOM_MAX, ZOOM_MIN } from './roomFraming';
 import { PerfProbe } from './perfProbe';
 import {
   CarryableItemId,
@@ -219,7 +221,6 @@ declare global {
 }
 
 const _vec3A = new THREE.Vector3();
-const _vec3B = new THREE.Vector3();
 const _raycaster = new THREE.Raycaster();
 const _pointer = new THREE.Vector2();
 const _groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
@@ -447,7 +448,7 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
     // events + the 0.05 dt clamp make long damp settles unreliable under
     // SwiftShader throttling).
     window.__LS_CAMERA_SET__ = (z: number) => {
-      zoomRef.current = THREE.MathUtils.clamp(z, 0.72, 1.45);
+      zoomRef.current = THREE.MathUtils.clamp(z, ZOOM_MIN, ZOOM_MAX);
       // Snap the rig immediately: under SwiftShader throttling the position
       // damp needs dozens of wall-clock seconds to converge, which makes
       // zoom-framed QA captures unreliable. The next tick's damp accepts the
@@ -456,7 +457,7 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
       const w = worldRef.current;
       const fx = w.playerPos?.x ?? 0;
       const fz = w.playerPos?.z ?? 0;
-      camera.position.set(fx + 19.5 * zz, 18.2 * zz, fz + 19.5 * zz);
+      cameraController.snapTo(fx, fz, zz);
     };
     window.__LS_CAMERA_GET__ = () => zoomRef.current;
     // BUILD 03 QA probe: live canopy-drift verification (dev/QA only, zero per-frame cost).
@@ -513,6 +514,12 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
       camera.position.set(18, 17, 18);
       camera.lookAt(0, 1.2, 0);
     }
+
+    // Overhaul Phase 1: the camera is now a first-class testable controller
+    // (src/scene/cameraController.ts) — continuous yaw orbit, pitch band,
+    // per-location profiles, damped look-target, occlusion probe scheduling.
+    const cameraController = new CameraController(camera);
+    const cameraSnapshot = createCameraSnapshot();
 
     // 3-Point Warm/Cool Lighting Rig
     const hemiLight = new THREE.HemisphereLight('#B5D7EB', '#7A664E', 0.54);
@@ -1300,9 +1307,6 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
     let activePulseFocusX = 0;
     let activePulseFocusZ = 0;
     let hasActivePulseFocus = false;
-    let smoothedOcclusionLift = 0;
-    let smoothedDialogueZoom = 1.0;
-    let smoothedDialogueDropY = 0;
     let hudSyncAccum = 0;
     let hasSyncedInitialHud = false;
     let lastNearestId: string | null = null;
@@ -1320,9 +1324,51 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
     let hearthAmbienceActive = false; // Pass 7: crackle room-tone evaluated on transitions only
     let rainAmbienceActive = false; // Pass 9: rain patter room-tone, same transition-only gate
 
+    // Overhaul Phase 1 — camera & input state:
+    //   simAcc: fixed-timestep accumulator for the world simulation (D-6/G-5)
+    //   _moveVec: scratch for the yaw-derived screen→world basis (D-10)
+    //   tapWalkTotalSeconds: absolute tap-walk timeout (D-8)
+    //   activePointer / pinch: drag-rotate + pinch-zoom gesture state (D-1/D-3/D-5)
+    let simAcc = 0;
+    const SIM_STEP = 0.05;
+    const _moveVec = { x: 0, z: 0 };
+    let tapWalkTotalSeconds = 0;
+    type PointerAction =
+      | { kind: 'interact'; target: InteractiveTarget }
+      | { kind: 'walk'; dest: Vec2; waypoints: Vec2[]; pending: InteractiveTarget | null };
+    let activePointer: {
+      pointerId: number;
+      startX: number;
+      startY: number;
+      lastX: number;
+      lastY: number;
+      moved: boolean;
+      action: PointerAction | null;
+    } | null = null;
+    let pinch: {
+      idA: number;
+      idB: number;
+      ax: number;
+      ay: number;
+      bx: number;
+      by: number;
+      lastSpan: number;
+    } | null = null;
+
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.code === 'Space' || e.code === 'Enter') {
-        if (screenStateRef.current === 'title') return;
+      // Overhaul D-9: Space/Enter were captured into keysDown while playing but
+      // never consumed anywhere — stop dead-capturing them. Comma/Period rotate
+      // the camera 15° per press (desktop keyboard bonus on top of drag).
+      if (e.code === 'Space' || e.code === 'Enter') return;
+      if (screenStateRef.current === 'playing' && !dialogueOpenRef.current) {
+        if (e.code === 'Comma') {
+          cameraController.nudgeYaw(-Math.PI / 12);
+          return;
+        }
+        if (e.code === 'Period') {
+          cameraController.nudgeYaw(Math.PI / 12);
+          return;
+        }
       }
       keysDown.add(e.code);
     };
@@ -1336,10 +1382,10 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
     window.addEventListener('keyup', handleKeyUp);
     window.addEventListener('blur', clearInputs);
 
-    const handlePointerDown = (e: PointerEvent) => {
-      if (screenStateRef.current !== 'playing' || dialogueOpenRef.current) return;
-      if (e.button !== 0 && e.pointerType === 'mouse') return;
-
+    // Resolve what a clean tap at this pointer position would do, WITHOUT
+    // committing anything (overhaul D-5: the commit moves to pointerup so a
+    // touch-drag never walks the player; D-1: drags rotate the camera).
+    const resolvePointerAction = (e: PointerEvent): PointerAction | null => {
       const rect = renderer.domElement.getBoundingClientRect();
       _pointer.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
       _pointer.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
@@ -1407,7 +1453,7 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
         if (ud.targetKind === 'cottage_prop') {
           const cid = ud.targetId as CottageInteractableId;
           const prop = COTTAGE_INTERACTABLES.find((p) => p.id === cid);
-          if (!prop) return;
+          if (!prop) return null;
           tPos = { x: prop.focusX, z: prop.focusZ };
           walkDest = { x: prop.x, z: prop.z };
           label = prop.name;
@@ -1421,7 +1467,7 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
         } else if (ud.targetKind === 'greenhouse_prop') {
           const gid = ud.targetId as GreenhouseInteractableId;
           const prop = GREENHOUSE_INTERACTABLES.find((p) => p.id === gid);
-          if (!prop) return;
+          if (!prop) return null;
           tPos = { x: prop.focusX, z: prop.focusZ };
           walkDest = { x: prop.x, z: prop.z };
           label = prop.name;
@@ -1435,7 +1481,7 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
         } else if (ud.targetKind === 'bakery_prop') {
           const bid = ud.targetId as BakeryInteractableId;
           const prop = BAKERY_INTERACTABLES.find((p) => p.id === bid);
-          if (!prop) return;
+          if (!prop) return null;
           tPos = { x: prop.focusX, z: prop.focusZ };
           walkDest = { x: prop.x, z: prop.z };
           label = prop.name;
@@ -1449,7 +1495,7 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
         } else if (ud.targetKind === 'nook_prop') {
           const nid = ud.targetId as NookInteractableId;
           const prop = NOOK_INTERACTABLES.find((p) => p.id === nid);
-          if (!prop) return;
+          if (!prop) return null;
           tPos = { x: prop.focusX, z: prop.focusZ };
           walkDest = { x: prop.x, z: prop.z };
           label = prop.name;
@@ -1463,7 +1509,7 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
         } else if (ud.targetKind === 'copperwheel_prop') {
           const wid = ud.targetId as CopperwheelInteractableId;
           const prop = COPPERWHEEL_INTERACTABLES.find((p) => p.id === wid);
-          if (!prop) return;
+          if (!prop) return null;
           tPos = { x: prop.focusX, z: prop.focusZ };
           walkDest = { x: prop.x, z: prop.z };
           label = prop.name;
@@ -1502,7 +1548,7 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
           }
         } else if (ud.targetKind === 'seat') {
           const seat = resolveAnySeatById(ud.targetId);
-          if (!seat) return;
+          if (!seat) return null;
           tPos = { ...seat.seatPos };
           walkDest = { ...seat.approachPos };
           label = seat.label;
@@ -1514,7 +1560,7 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
         } else if (ud.targetKind === 'carryable') {
           const cid = ud.targetId as CarryableItemId;
           const cProp = worldRef.current.worldProps?.[cid];
-          if (!cProp || cProp.holder !== 'world') return;
+          if (!cProp || cProp.holder !== 'world') return null;
           tPos = { ...cProp.pos };
           label = cProp.label;
           actionLabel = `Pick Up ${cProp.label}`;
@@ -1572,10 +1618,10 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
         };
 
         if (isImmediate) {
-          cozyAudio.playUiTap(1.05);
-          onSelectTargetRef.current(targetObj);
-        } else if (isIndoors) {
-          const dest = walkDest ?? { ...tPos };
+          return { kind: 'interact', target: targetObj };
+        }
+        const dest = walkDest ?? { ...tPos };
+        if (isIndoors) {
           const walkableDest =
             worldRef.current.playerLocation === 'greenhouse_interior'
               ? isGreenhouseInteriorWalkable(dest.x, dest.z, 0.42)
@@ -1596,8 +1642,7 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
               : isInteriorPointWalkable(dest.x, dest.z, 0.42)
               ? dest
               : findNearestInteriorWalkablePoint(dest.x, dest.z, worldRef.current.playerLocation) ?? dest;
-          tapWalkDest = walkableDest;
-          tapWalkWaypoints =
+          const waypoints =
             worldRef.current.playerLocation === 'greenhouse_interior'
             ? computeGreenhouseWaypoints(pPos, walkableDest, 0.42)
             : worldRef.current.playerLocation === 'bakery_interior'
@@ -1607,19 +1652,17 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
             : worldRef.current.playerLocation === 'copperwheel_interior'
             ? computeCopperwheelWaypoints(pPos, walkableDest, 0.42)
             : computeInteriorWaypoints(pPos, walkableDest, 0.42);
-          tapStuckSeconds = 0;
-          pendingTargetAfterWalk = targetObj;
-        } else {
-          const dest = walkDest ?? { ...tPos };
-          const walkableDest = isPointWalkable(dest.x, dest.z, 0.48)
-            ? dest
-            : findNearestWalkablePoint(dest.x, dest.z, pPos) ?? dest;
-          tapWalkDest = walkableDest;
-          tapWalkWaypoints = computeWaypointPath(pPos, walkableDest, 0.48);
-          tapStuckSeconds = 0;
-          pendingTargetAfterWalk = targetObj;
+          return { kind: 'walk', dest: walkableDest, waypoints, pending: targetObj };
         }
-        return;
+        const walkableDest = isPointWalkable(dest.x, dest.z, 0.48)
+          ? dest
+          : findNearestWalkablePoint(dest.x, dest.z, pPos) ?? dest;
+        return {
+          kind: 'walk',
+          dest: walkableDest,
+          waypoints: computeWaypointPath(pPos, walkableDest, 0.48),
+          pending: targetObj,
+        };
       }
 
       // Ground tap-to-walk
@@ -1630,39 +1673,155 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
             _vec3A.z,
             worldRef.current.playerLocation ?? 'exterior',
           );
-          if (walkableDest) {
-            tapWalkDest = walkableDest;
-            tapWalkWaypoints =
-              worldRef.current.playerLocation === 'greenhouse_interior'
-                ? computeGreenhouseWaypoints(worldRef.current.playerPos, walkableDest, 0.42)
-                : worldRef.current.playerLocation === 'bakery_interior'
-                ? computeBakeryWaypoints(worldRef.current.playerPos, walkableDest, 0.42)
-                : worldRef.current.playerLocation === 'nook_interior'
-                ? computeNookWaypoints(worldRef.current.playerPos, walkableDest, 0.42)
-                : worldRef.current.playerLocation === 'copperwheel_interior'
-                ? computeCopperwheelWaypoints(worldRef.current.playerPos, walkableDest, 0.42)
-                : computeInteriorWaypoints(worldRef.current.playerPos, walkableDest, 0.42);
-            tapStuckSeconds = 0;
-            pendingTargetAfterWalk = null;
-          }
-        } else {
-          const walkableDest = findNearestWalkablePoint(_vec3A.x, _vec3A.z, worldRef.current.playerPos);
-          if (walkableDest) {
-            tapWalkDest = walkableDest;
-            tapWalkWaypoints = computeWaypointPath(worldRef.current.playerPos, walkableDest, 0.48);
-            tapStuckSeconds = 0;
-            pendingTargetAfterWalk = null;
-          }
+          if (!walkableDest) return null;
+          const waypoints =
+            worldRef.current.playerLocation === 'greenhouse_interior'
+              ? computeGreenhouseWaypoints(worldRef.current.playerPos, walkableDest, 0.42)
+              : worldRef.current.playerLocation === 'bakery_interior'
+              ? computeBakeryWaypoints(worldRef.current.playerPos, walkableDest, 0.42)
+              : worldRef.current.playerLocation === 'nook_interior'
+              ? computeNookWaypoints(worldRef.current.playerPos, walkableDest, 0.42)
+              : worldRef.current.playerLocation === 'copperwheel_interior'
+              ? computeCopperwheelWaypoints(worldRef.current.playerPos, walkableDest, 0.42)
+              : computeInteriorWaypoints(worldRef.current.playerPos, walkableDest, 0.42);
+          return { kind: 'walk', dest: walkableDest, waypoints, pending: null };
         }
+        const walkableDest = findNearestWalkablePoint(_vec3A.x, _vec3A.z, worldRef.current.playerPos);
+        if (!walkableDest) return null;
+        return {
+          kind: 'walk',
+          dest: walkableDest,
+          waypoints: computeWaypointPath(worldRef.current.playerPos, walkableDest, 0.48),
+          pending: null,
+        };
+      }
+      return null;
+    };
+
+    // Gesture router (overhaul D-1/D-3/D-5): pointerdown records a candidate
+    // action without committing it; 6 px of movement promotes the press to a
+    // camera drag; a clean tap commits the action on pointerup; a second
+    // concurrent pointer becomes a pinch-zoom.
+    const YAW_SENS = 0.006;
+    const PITCH_SENS = 0.0042;
+    const DRAG_THRESHOLD_PX = 6;
+    const PINCH_ZOOM_SENS = 0.0045;
+
+    const handlePointerDown = (e: PointerEvent) => {
+      if (screenStateRef.current !== 'playing' || dialogueOpenRef.current) return;
+      if (e.button !== 0 && e.pointerType === 'mouse') return;
+      if (pinch) return; // two-finger gesture owns the canvas
+      if (activePointer) {
+        pinch = {
+          idA: activePointer.pointerId,
+          ax: activePointer.lastX,
+          ay: activePointer.lastY,
+          idB: e.pointerId,
+          bx: e.clientX,
+          by: e.clientY,
+          lastSpan: Math.hypot(e.clientX - activePointer.lastX, e.clientY - activePointer.lastY),
+        };
+        activePointer = null;
+        return;
+      }
+      activePointer = {
+        pointerId: e.pointerId,
+        startX: e.clientX,
+        startY: e.clientY,
+        lastX: e.clientX,
+        lastY: e.clientY,
+        moved: false,
+        action: resolvePointerAction(e),
+      };
+    };
+
+    const handlePointerMove = (e: PointerEvent) => {
+      if (pinch) {
+        if (e.pointerId === pinch.idA) {
+          pinch.ax = e.clientX;
+          pinch.ay = e.clientY;
+        } else if (e.pointerId === pinch.idB) {
+          pinch.bx = e.clientX;
+          pinch.by = e.clientY;
+        } else {
+          return;
+        }
+        const span = Math.hypot(pinch.bx - pinch.ax, pinch.by - pinch.ay);
+        // Pinch-out (span grows) zooms in (raw zoom target decreases).
+        zoomRef.current = THREE.MathUtils.clamp(
+          zoomRef.current + (pinch.lastSpan - span) * PINCH_ZOOM_SENS,
+          ZOOM_MIN,
+          ZOOM_MAX,
+        );
+        pinch.lastSpan = span;
+        return;
+      }
+      if (!activePointer || e.pointerId !== activePointer.pointerId) return;
+      const dx = e.clientX - activePointer.lastX;
+      const dy = e.clientY - activePointer.lastY;
+      if (!activePointer.moved) {
+        const total = Math.hypot(e.clientX - activePointer.startX, e.clientY - activePointer.startY);
+        if (total <= DRAG_THRESHOLD_PX) {
+          activePointer.lastX = e.clientX;
+          activePointer.lastY = e.clientY;
+          return;
+        }
+        activePointer.moved = true;
+      }
+      // Camera drag: yaw follows horizontal; pitch follows vertical (drag up
+      // raises the camera). Interiors stay pitch-locked until Phase 3 cutaway.
+      cameraController.addYawDelta(dx * YAW_SENS);
+      cameraController.addPitchDelta(-dy * PITCH_SENS);
+      activePointer.lastX = e.clientX;
+      activePointer.lastY = e.clientY;
+    };
+
+    const commitPointerAction = (action: PointerAction | null) => {
+      if (!action) return;
+      if (action.kind === 'interact') {
+        cozyAudio.playUiTap(1.05);
+        onSelectTargetRef.current(action.target);
+        return;
+      }
+      tapWalkDest = action.dest;
+      tapWalkWaypoints = action.waypoints;
+      tapStuckSeconds = 0;
+      tapWalkTotalSeconds = 0;
+      pendingTargetAfterWalk = action.pending;
+    };
+
+    const handlePointerUp = (e: PointerEvent) => {
+      if (pinch && (e.pointerId === pinch.idA || e.pointerId === pinch.idB)) {
+        pinch = null; // pinch ends; the remaining finger starts no new gesture
+        return;
+      }
+      if (!activePointer || e.pointerId !== activePointer.pointerId) return;
+      if (!activePointer.moved) {
+        commitPointerAction(activePointer.action);
+      }
+      activePointer = null;
+    };
+
+    const handlePointerCancel = (e: PointerEvent) => {
+      if (pinch && (e.pointerId === pinch.idA || e.pointerId === pinch.idB)) {
+        pinch = null;
+        return;
+      }
+      if (activePointer && e.pointerId === activePointer.pointerId) {
+        activePointer = null;
       }
     };
     renderer.domElement.addEventListener('pointerdown', handlePointerDown);
+    renderer.domElement.addEventListener('pointermove', handlePointerMove);
+    renderer.domElement.addEventListener('pointerup', handlePointerUp);
+    renderer.domElement.addEventListener('pointercancel', handlePointerCancel);
 
     const handleWheel = (e: WheelEvent) => {
       if (screenStateRef.current !== 'playing') return;
-      zoomRef.current = THREE.MathUtils.clamp(zoomRef.current + e.deltaY * 0.0008, 0.72, 1.45);
+      e.preventDefault();
+      zoomRef.current = THREE.MathUtils.clamp(zoomRef.current + e.deltaY * 0.0008, ZOOM_MIN, ZOOM_MAX);
     };
-    renderer.domElement.addEventListener('wheel', handleWheel, { passive: true });
+    renderer.domElement.addEventListener('wheel', handleWheel, { passive: false });
 
     const handleResize = () => {
       const w = container.clientWidth || window.innerWidth;
@@ -2239,12 +2398,23 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
         spawnSplashBurst(pSplash.x, 0.14, pSplash.z, true);
       }
 
-      // Step headless simulation clock & NPC navigation/runtime state
-      stepSimulationInPlace(world, dt, {
+      // Step headless simulation clock & NPC navigation/runtime state.
+      // Overhaul D-6/G-5: fixed-timestep accumulator — the world clock, NPC
+      // schedules and weather keep real-time pace even when frames exceed the
+      // 50 ms clamp (up to 5 substeps per frame; the remainder is dropped to
+      // avoid a death spiral on ~1 FPS software GL).
+      const simOpts = {
         paused: state === 'paused',
         dialogueOpen: state !== 'playing' || dialogueOpenRef.current,
         activeDialogueResidentId: activeDialogueResidentRef.current,
-      });
+      };
+      simAcc = Math.min(simAcc + Math.min(rawDt, 0.25), 0.3);
+      let simSteps = 0;
+      while (simAcc >= SIM_STEP && simSteps < 5) {
+        simAcc -= SIM_STEP;
+        simSteps += 1;
+        stepSimulationInPlace(world, SIM_STEP, simOpts);
+      }
 
       // Update triggered player gesture pulses (wave / interact / talk)
       const latestPulse = playerActionPulseRef.current;
@@ -2309,9 +2479,12 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
           activePulseTimer = 0;
           activePulseKind = null;
           hasActivePulseFocus = false;
-          // Screen-right = (+0.707, -0.707), Screen-down = (+0.707, +0.707)
-          moveDirX = screenHoriz * 0.7071 + screenVert * 0.7071;
-          moveDirZ = -screenHoriz * 0.7071 + screenVert * 0.7071;
+          // Camera-yaw-derived screen→world basis (overhaul D-10): identical
+          // to the legacy constants at the authored 45° azimuth, correct at
+          // every other camera yaw. Locked by roomFraming.test.ts.
+          screenToWorldMove(screenHoriz, screenVert, cameraController.getYaw(), _moveVec);
+          moveDirX = _moveVec.x;
+          moveDirZ = _moveVec.z;
           inputMagnitude = Math.abs(keyHoriz) > 0 || Math.abs(keyVert) > 0 ? 1.0 : Math.min(1, joyMag);
         } else if (tapWalkDest) {
           // Track updated exterior resident position when walking to talk
@@ -2387,7 +2560,7 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
         const snapFocusX = snapIsInterior ? world.playerPos.x * 0.45 : world.playerPos.x;
         const snapFocusZ = snapIsInterior ? world.playerPos.z * 0.45 : world.playerPos.z;
         const snapZoom = snapIsInterior ? 0.66 : zoomRef.current;
-        camera.position.set(snapFocusX + 19.5 * snapZoom, 18.2 * snapZoom, snapFocusZ + 19.5 * snapZoom);
+        cameraController.snapTo(snapFocusX, snapFocusZ, snapZoom);
       }
 
       const currentActiveProp = activePropIdRef.current;
@@ -2400,40 +2573,52 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
         pendingTargetAfterWalk = null;
       }
 
-      const moveResult = stepPlayerMovement({
-        pos: world.playerPos,
-        facing: world.playerFacing,
-        motion: playerMotion,
-        moveDirX,
-        moveDirZ,
-        inputMagnitude,
-        sprintHeld,
-        walkHeld,
-        carryingItem: Boolean(world.playerHeldItem),
-        interactionActive,
-        posture: world.playerPosture ?? 'standing',
-        seatId: world.playerSeatId ?? null,
-        location: curLocation,
-        dt,
-      });
+      // Overhaul D-6/G-5: consume the full frame delta in movement substeps
+      // ≤ 50 ms so the player keeps real-time pace below 20 FPS instead of
+      // dilating with the dt cap.
+      let moveBudget = Math.min(rawDt, 0.25);
+      let moveSteps = 0;
+      while (moveBudget > 0.0001 && moveSteps < 5) {
+        const moveStep = Math.min(SIM_STEP, moveBudget);
+        moveBudget -= moveStep;
+        moveSteps += 1;
+        const moveResult = stepPlayerMovement({
+          pos: world.playerPos,
+          facing: world.playerFacing,
+          motion: playerMotion,
+          moveDirX,
+          moveDirZ,
+          inputMagnitude,
+          sprintHeld,
+          walkHeld,
+          carryingItem: Boolean(world.playerHeldItem),
+          interactionActive,
+          posture: world.playerPosture ?? 'standing',
+          seatId: world.playerSeatId ?? null,
+          location: curLocation,
+          dt: moveStep,
+        });
 
-      world.playerPos = moveResult.pos;
-      world.playerFacing = moveResult.facing;
-      world.playerPosture = moveResult.posture;
-      world.playerSeatId = moveResult.seatId;
-      playerMotion = moveResult.motion;
+        world.playerPos = moveResult.pos;
+        world.playerFacing = moveResult.facing;
+        world.playerPosture = moveResult.posture;
+        world.playerSeatId = moveResult.seatId;
+        playerMotion = moveResult.motion;
+      }
 
       // Cancel tap-walk cleanly if player stayed blocked on an obstacle
+      // (D-8: plus an absolute timeout so wall-sliding can't hug forever).
       if (tapWalkDest && inputMagnitude > 0.1) {
+        tapWalkTotalSeconds += dt;
         if (playerMotion.speed < 0.22) {
           tapStuckSeconds += dt;
-          if (tapStuckSeconds > 1.0) {
-            tapWalkDest = null;
-            tapWalkWaypoints = [];
-            pendingTargetAfterWalk = null;
-            tapStuckSeconds = 0;
-          }
         } else {
+          tapStuckSeconds = 0;
+        }
+        if (tapStuckSeconds > 1.0 || tapWalkTotalSeconds > 6.0) {
+          tapWalkDest = null;
+          tapWalkWaypoints = [];
+          pendingTargetAfterWalk = null;
           tapStuckSeconds = 0;
         }
       }
@@ -2586,70 +2771,25 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
       // Update environment lighting, seasonal tints, reactive props, resident rigs & HUD
       syncVisualAndHud(world, elapsed, dt);
 
-      // Camera Choreography: Title Screen orbits Plaza/Gazebo; Playing follows player (or miniature cottage interior)
-      if (state === 'title') {
-        const orbitAngle = elapsed * 0.14 + 0.65;
-        const r = 27;
-        _vec3B.set(Math.cos(orbitAngle) * r, 16.5, Math.sin(orbitAngle) * r);
-        camera.position.lerp(_vec3B, Math.min(1, dt * 3));
-        // R-08: gaze biased east of the plaza so the slow orbit keeps the tallest
-        // west-side rooflines (Bakery/Book Nook) clear of the top-left title card.
-        camera.lookAt(1.5, 1.4, -2.5);
-      } else if (
-        curLocation === 'cottage_interior' ||
-        curLocation === 'bakery_interior' ||
-        curLocation === 'nook_interior' ||
-        curLocation === 'copperwheel_interior'
-      ) {
-        const interiorZoom = THREE.MathUtils.clamp(zoomRef.current * 0.68, 0.56, 0.92);
-        const focusX = world.playerPos.x * 0.42;
-        const focusZ = world.playerPos.z * 0.42;
-        const desiredCamX = focusX + 19.5 * interiorZoom;
-        const desiredCamY = 18.2 * interiorZoom;
-        const desiredCamZ = focusZ + 19.5 * interiorZoom;
-        camera.position.x = THREE.MathUtils.damp(camera.position.x, desiredCamX, 6.5, dt);
-        camera.position.y = THREE.MathUtils.damp(camera.position.y, desiredCamY, 6.5, dt);
-        camera.position.z = THREE.MathUtils.damp(camera.position.z, desiredCamZ, 6.5, dt);
-        _vec3A.set(focusX, 0.85, focusZ);
-        camera.lookAt(_vec3A);
+      // Camera choreography — CameraController (overhaul Phase 1): continuous
+      // yaw orbit, pitch band, per-location profiles, smoothed zoom + look
+      // target, legacy-parity title/exterior/interior behavior. Raycast
+      // occlusion lands in Phase 2 via consumeProbeRequest().
+      cameraController.setLocation(curLocation, state === 'title');
+      cameraController.setDialogue(Boolean(dialogueResId));
+      cameraSnapshot.playerX = world.playerPos.x;
+      cameraSnapshot.playerZ = world.playerPos.z;
+      cameraSnapshot.groundY = playerMotion.groundY;
+      cameraSnapshot.zoomRaw = zoomRef.current;
+      if (dialogueResId && world.npcRuntime?.[dialogueResId]) {
+        const sp = world.npcRuntime[dialogueResId].position;
+        cameraSnapshot.dialogueNpcX = sp.x;
+        cameraSnapshot.dialogueNpcZ = sp.z;
       } else {
-        const targetOcclusionLift =
-          world.playerPos.z > 8.5 && Math.abs(world.playerPos.x) > 8.5 ? 1.5 : 0;
-        smoothedOcclusionLift = THREE.MathUtils.damp(smoothedOcclusionLift, targetOcclusionLift, 4.5, dt);
-
-        const inDialogueSheet = Boolean(dialogueResId);
-        smoothedDialogueZoom = THREE.MathUtils.damp(
-          smoothedDialogueZoom,
-          inDialogueSheet ? 0.9 : 1.0,
-          5.0,
-          dt,
-        );
-        smoothedDialogueDropY = THREE.MathUtils.damp(
-          smoothedDialogueDropY,
-          inDialogueSheet ? -0.42 : 0,
-          5.0,
-          dt,
-        );
-
-        const zoom = zoomRef.current * smoothedDialogueZoom;
-        let focusX = world.playerPos.x;
-        let focusZ = world.playerPos.z;
-        if (dialogueResId && world.npcRuntime?.[dialogueResId]) {
-          const sp = world.npcRuntime[dialogueResId].position;
-          focusX = (world.playerPos.x + sp.x) * 0.5;
-          focusZ = (world.playerPos.z + sp.z) * 0.5;
-        }
-
-        const desiredCamX = focusX + 19.5 * zoom;
-        const desiredCamY = 18.2 * zoom + smoothedOcclusionLift;
-        const desiredCamZ = focusZ + 19.5 * zoom;
-        camera.position.x = THREE.MathUtils.damp(camera.position.x, desiredCamX, 6.5, dt);
-        camera.position.y = THREE.MathUtils.damp(camera.position.y, desiredCamY, 6.5, dt);
-        camera.position.z = THREE.MathUtils.damp(camera.position.z, desiredCamZ, 6.5, dt);
-
-        _vec3A.set(focusX, 1.0 + playerMotion.groundY * 0.6 + smoothedDialogueDropY, focusZ);
-        camera.lookAt(_vec3A);
+        cameraSnapshot.dialogueNpcX = null;
+        cameraSnapshot.dialogueNpcZ = null;
       }
+      cameraController.update(dt, cameraSnapshot);
 
       renderer.render(scene, camera);
 

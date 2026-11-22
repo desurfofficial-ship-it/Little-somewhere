@@ -105,6 +105,7 @@ import {
 } from './scene/NeighborhoodCanvas';
 import { TitleOverlay } from './components/TitleOverlay';
 import { VirtualJoystick } from './components/VirtualJoystick';
+import { ZOOM_MAX, ZOOM_MIN } from './scene/roomFraming';
 import { DialogueSheet } from './components/DialogueSheet';
 import { JournalDrawer } from './components/JournalDrawer';
 import { CottageStationMode, InventoryDrawer } from './components/InventoryDrawer';
@@ -1319,7 +1320,7 @@ export default function App() {
                 <button
                   type="button"
                   onClick={() => {
-                    zoomRef.current = Math.min(1.45, zoomRef.current + 0.14);
+                    zoomRef.current = Math.min(ZOOM_MAX, zoomRef.current + 0.14);
                   }}
                   aria-label="Zoom out"
                   className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg hover:bg-linen-deep text-espresso transition-colors cursor-pointer"
@@ -1329,7 +1330,7 @@ export default function App() {
                 <button
                   type="button"
                   onClick={() => {
-                    zoomRef.current = Math.max(0.72, zoomRef.current - 0.14);
+                    zoomRef.current = Math.max(ZOOM_MIN, zoomRef.current - 0.14);
                   }}
                   aria-label="Zoom in"
                   className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg hover:bg-linen-deep text-espresso transition-colors cursor-pointer"

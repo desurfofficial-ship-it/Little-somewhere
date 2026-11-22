@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { ScreenVec2 } from '../game/types';
 
 interface VirtualJoystickProps {
@@ -10,6 +10,17 @@ export const VirtualJoystick: React.FC<VirtualJoystickProps> = ({ vectorRef }) =
   const [knobOffset, setKnobOffset] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
   const activePointerId = useRef<number | null>(null);
   const maxRadius = 34;
+
+  // Overhaul G-1: the bottom controls (including this joystick) unmount whenever
+  // a modal opens or the screen state changes. Without this cleanup the last
+  // drag vector stayed live in the shared vectorRef and re-triggered auto-walk
+  // the instant controls remounted — movement with no finger on screen.
+  useEffect(() => {
+    return () => {
+      activePointerId.current = null;
+      vectorRef.current = { x: 0, y: 0 };
+    };
+  }, [vectorRef]);
 
   const updateFromClient = (clientX: number, clientY: number) => {
     const el = baseRef.current;
