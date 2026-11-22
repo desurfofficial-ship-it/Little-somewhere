@@ -27,7 +27,7 @@
 **Responsibility taxonomy (target):**
 - *Normalization* (older valid schemas): deterministic field defaults during migration — must warn, must be idempotent.
 - *Repair* (inconsistent-but-recoverable state): re-derive derived fields (trust from affinity, season from day, discovered-from-inventory), drop-and-warn for invalid optional records, clamp for window numerics — deterministic, warned, idempotent.
-- *Boundary defense* (untrusted input): reference resolution and domain enforcement — unknown references are **dropped with a warning, never fabricated**; out-of-domain counters are **clamped or the record is archived/dropped, never silently accepted**; impossible structural combinations (occupancy/`activeActivity` split) are **cleared as a unit**.
+- *Boundary defense* (untrusted input): reference resolution and domain enforcement — unknown references are **dropped with a warning, never fabricated**; out-of-domain counters are **clamped or the record is archived/dropped, never silently accepted**; occupancy is anchored to a live active invitation and `activeActivity` is anchored to the live invitation (never to occupancy alone) — mismatches are cleared or re-derived per the shipped rules in doc 06 §3 and LR doc 14 §4.3. *(Wording corrected during the 2026-11-21 integration review, finding R1-P-03: this bullet previously retained the rejected "cleared as a unit" unit-clear language that the original initiative's adversarial review had replaced.)*
 - Never: silently turn malformed data into apparently-valid state; fabricate records; nondeterministic repair.
 
 **Domain rules (target sanitizer invariants):**

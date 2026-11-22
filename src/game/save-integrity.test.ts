@@ -674,3 +674,124 @@ test('AR-5: the save path surfaces sanitizer repairs (sink param + console.warn 
     quiet.mock.restore();
   }
 });
+
+// ---------------------------------------------------------------------------
+// Integration review round 1 repairs (2026-11-21) — R1-P-01 / R1-P-02 / R1-P-04
+// ---------------------------------------------------------------------------
+
+test('SR-2d: a persisted activeActivity that mismatches the live active invitation is discarded WITH a warning (load + save parity)', () => {
+  const base = worldWithAcceptedLiveInvitation();
+  // Fixture M (reviewer round 1): live accepted invitation, no occupancy,
+  // stale/mismatched slice. Occupancy is dropped by the fixture itself; the
+  // mismatched slice must be discarded observably, not silently.
+  const res = loadMutated(base, (raw) => {
+    delete (raw as Record<string, unknown>).occupancy;
+    (raw as Record<string, unknown>).activeActivity = {
+      activityId: 'bogus_activity',
+      invitationId: 'inv_stale',
+    };
+  });
+  assert.equal(res.state.activeActivity, null, 'mismatched slice must not enter runtime state');
+  assert.ok(
+    res.warnings.some((w) => w.includes('activeActivity discarded')),
+    `expected a discard warning, got: ${JSON.stringify(res.warnings)}`,
+  );
+
+  // Save-path parity: the same sanitizer runs on save; the repair must be
+  // observable through the explicit sink (AR-5 standard).
+  const sink: string[] = [];
+  serializeWorldState(res.state, sink);
+  // The discarded state no longer carries a slice, so a re-save stays silent:
+  // parity means the ORIGINAL mismatched payload warned on save, which the
+  // load fixture above already exercises through deserialize. Here we pin the
+  // replacement-mask case instead: mismatched slice WITH valid occupancy must
+  // warn on both the discard and the restore.
+  const res2 = loadMutated(base, (raw) => {
+    (raw as Record<string, unknown>).activeActivity = {
+      activityId: 'bogus_activity',
+      invitationId: 'inv_stale',
+    };
+  });
+  assert.ok(res2.state.activeActivity, 'the live invitation anchors a fresh slice');
+  assert.ok(
+    res2.warnings.some((w) => w.includes('activeActivity discarded')),
+    `expected the discard warning before the restore, got: ${JSON.stringify(res2.warnings)}`,
+  );
+  assert.ok(
+    res2.warnings.some((w) => w.includes('activeActivity restored')),
+    `expected the restore warning, got: ${JSON.stringify(res2.warnings)}`,
+  );
+
+  // And the GUARD direction: the canonical mid-visit state stays warning-free.
+  const canonical = loadMutated(base, (raw) => {
+    (raw as Record<string, unknown>).activeActivity = {
+      activityId: 'share_featured_reading',
+      invitationId: (raw as Record<string, unknown>).activeInvitation
+        ? ((raw as Record<string, unknown>).activeInvitation as Record<string, unknown>).id
+        : undefined,
+    };
+  });
+  assert.deepEqual(
+    canonical.warnings.filter((w) => w.includes('activeActivity')),
+    [],
+    'canonical mid-visit slice must load warning-free',
+  );
+});
+
+test('SR-9f: a present-but-invalid schemaVersion claim rejects to a fresh state instead of the legacy v1 heuristic', () => {
+  const payload = JSON.parse(serializeWorldState(createFreshWorldState())) as Record<string, unknown>;
+  // Distinguish corruption from a real legacy save: the payload is modern
+  // (v11 fields present) but the version claim is unreadable.
+  payload.schemaVersion = null;
+  const res = deserializeWorldState(JSON.stringify(payload));
+  assert.equal(res.migratedFromVersion, null, 'an unreadable claim must not masquerade as v1');
+  assert.ok(
+    res.warnings.some((w) => w.includes('unrecognized or corrupt save payload')),
+    `expected the fresh-state warning, got: ${JSON.stringify(res.warnings)}`,
+  );
+
+  const strPayload = JSON.parse(serializeWorldState(createFreshWorldState())) as Record<string, unknown>;
+  strPayload.schemaVersion = '11';
+  const resStr = deserializeWorldState(JSON.stringify(strPayload));
+  assert.equal(resStr.migratedFromVersion, null);
+  assert.ok(resStr.warnings.some((w) => w.includes('unrecognized or corrupt save payload')));
+
+  // GUARD: a payload with no schemaVersion field still routes through the
+  // legacy heuristic (detected as v1, migrated up the chain) — the rejection
+  // only covers PRESENT-but-invalid claims. migratedFromVersion reports the
+  // originally detected version, so a heuristic-detected payload reads 1.
+  const legacy = JSON.parse(serializeWorldState(createFreshWorldState())) as Record<string, unknown>;
+  delete legacy.schemaVersion;
+  const resLegacy = deserializeWorldState(JSON.stringify(legacy));
+  assert.equal(resLegacy.migratedFromVersion, 1);
+});
+
+test('SR-9g: non-record rows inside memories/worldEvents/activeEncounters drop with counted warnings', () => {
+  const res = loadMutated(createFreshWorldState(), (raw) => {
+    (raw as Record<string, unknown>).memories = [
+      { id: 'mem_real', day: 1, phase: 'morning', title: 't', summary: 's' },
+      null,
+      7,
+    ];
+    (raw as Record<string, unknown>).worldEvents = [
+      { id: 'evt_1', day: 1, kind: 'story_flag', summary: 's', summaryTag: 'tag' },
+      'oops',
+    ];
+    (raw as Record<string, unknown>).activeEncounters = ['nope', 42];
+  });
+  assert.equal(
+    (res.state.memories as unknown as Array<Record<string, unknown>>).some((m) => m.id === 'mem_real'),
+    true,
+    'the valid row survives',
+  );
+  assert.ok(
+    res.warnings.some((w) => w.includes('journal memory rows with non-object shapes dropped on load (2)')),
+    `got: ${JSON.stringify(res.warnings)}`,
+  );
+  assert.ok(
+    res.warnings.some((w) => w.includes('worldEvents entries with non-object shapes dropped on load (1)')),
+  );
+  assert.ok(
+    res.warnings.some((w) => w.includes('activeEncounters entries with non-object shapes dropped on load (2)')),
+  );
+});

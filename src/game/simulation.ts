@@ -1062,8 +1062,12 @@ export function stepSimulation(
     // clone boundary otherwise. Per-record shallow clone: cheap (~0.4 µs at
     // the default population), value-preserving, and confined to the pure
     // path — stepSimulationInPlace (production) keeps its owned mutation.
+    // R1-S-02 (integration review round 1): a missing resident record is
+    // mirrored as missing, never fabricated as an empty {} the input lacked
+    // (which would diverge from the in-place path on malformed fixtures).
     residents: RESIDENT_ORDER.reduce((acc, id) => {
-      acc[id] = { ...world.residents[id] };
+      const record = world.residents[id];
+      if (record) acc[id] = { ...record };
       return acc;
     }, {} as WorldState['residents']),
     npcRuntime: cloneNpcRuntime(world.npcRuntime),

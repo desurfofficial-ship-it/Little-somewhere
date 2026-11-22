@@ -314,6 +314,14 @@ export function detectSchemaVersion(raw: unknown): number | null {
     const v = Math.floor(raw.schemaVersion);
     return v >= 1 && v === raw.schemaVersion ? v : null;
   }
+  // R1-P-02 (integration review round 1): a PRESENT-but-invalid claim (null,
+  // string, boolean, ...) is authoritative-but-unreadable. It must not fall
+  // through to the legacy v1 heuristic, which would silently rebuild v2-era
+  // slices of a modern payload (familiarity resets, gameplay-created
+  // npcRelations pairs destroyed) with zero warnings. Reject to the fresh-state
+  // path (SR-9b contract): the load pipeline warns and tombstones the raw
+  // payload, so nothing is unrecoverable.
+  if ('schemaVersion' in raw) return null;
   // Legacy v1 saves had no schemaVersion field, but carried day + residents + flags
   if (typeof raw.day === 'number' && isRecord(raw.residents) && isRecord(raw.flags)) {
     return 1;
@@ -386,8 +394,15 @@ function sanitizeMemories(rawMemories: unknown, warnings?: string[]): JournalMem
   const out: JournalMemory[] = [];
   const seenIds = new Set<string>();
   let droppedRows = 0;
+  let droppedNonRecordRows = 0;
   for (const item of rawMemories) {
-    if (!isRecord(item)) continue;
+    // R1-P-04 (integration review round 1): non-record rows were skipped
+    // before the drop counters — a mixed array loaded with zero warnings.
+    // Every drop warns (doc 03 §7).
+    if (!isRecord(item)) {
+      droppedNonRecordRows++;
+      continue;
+    }
     if (
       typeof item.id !== 'string' ||
       item.id.trim().length === 0 ||
@@ -426,6 +441,9 @@ function sanitizeMemories(rawMemories: unknown, warnings?: string[]): JournalMem
   }
   if (droppedRows > 0) {
     warnings?.push(`journal memory rows with empty or malformed ids dropped on load (${droppedRows})`);
+  }
+  if (droppedNonRecordRows > 0) {
+    warnings?.push(`journal memory rows with non-object shapes dropped on load (${droppedNonRecordRows})`);
   }
   return out.length > 0 ? out : fallback;
 }
@@ -736,8 +754,13 @@ function sanitizeWorldEvents(raw: unknown, warnings?: string[]): WorldEventRecor
   const out: WorldEventRecord[] = [];
   const seenIds = new Set<string>();
   let droppedDuplicates = 0;
+  let droppedNonRecordRows = 0;
   for (const item of raw) {
-    if (!isRecord(item)) continue;
+    // R1-P-04: every drop warns (doc 03 §7) — including non-object rows.
+    if (!isRecord(item)) {
+      droppedNonRecordRows++;
+      continue;
+    }
     if (typeof item.id !== 'string' || typeof item.summary !== 'string' || typeof item.summaryTag !== 'string') {
       continue;
     }
@@ -779,6 +802,9 @@ function sanitizeWorldEvents(raw: unknown, warnings?: string[]): WorldEventRecor
   if (droppedDuplicates > 0) {
     warnings?.push(`duplicate worldEvents ids dropped on load (${droppedDuplicates})`);
   }
+  if (droppedNonRecordRows > 0) {
+    warnings?.push(`worldEvents entries with non-object shapes dropped on load (${droppedNonRecordRows})`);
+  }
   return out;
 }
 
@@ -788,8 +814,13 @@ function sanitizeActiveEncounters(raw: unknown, warnings?: string[]): ActiveSoci
   const seenIds = new Set<string>();
   let droppedDuplicates = 0;
   let droppedBackwards = 0;
+  let droppedNonRecordRows = 0;
   for (const item of raw) {
-    if (!isRecord(item)) continue;
+    // R1-P-04: every drop warns (doc 03 §7) — including non-object rows.
+    if (!isRecord(item)) {
+      droppedNonRecordRows++;
+      continue;
+    }
     if (
       typeof item.id !== 'string' ||
       !Array.isArray(item.participants) ||
@@ -857,6 +888,9 @@ function sanitizeActiveEncounters(raw: unknown, warnings?: string[]): ActiveSoci
   }
   if (droppedBackwards > 0) {
     warnings?.push(`activeEncounters with endsMinute before startedMinute dropped on load (${droppedBackwards})`);
+  }
+  if (droppedNonRecordRows > 0) {
+    warnings?.push(`activeEncounters entries with non-object shapes dropped on load (${droppedNonRecordRows})`);
   }
   return out;
 }
@@ -1693,6 +1727,18 @@ function sanitizeLivingRelationships(
         activityId: active.activityId,
         invitationId: active.id,
       };
+    } else {
+      // R1-P-01 / R1-S-01 (integration review round 1): a persisted slice that
+      // does not match the live active invitation was discarded silently. The
+      // state outcome is contract-correct (doc 14 §4.3 anchors the slice to the
+      // live invitation), but the doc 03 §7 standard is that every drop warns
+      // — on both the load path (warnings) and the save path (the same
+      // sanitizer runs there). A later occupancy-derived restore still emits
+      // its own 'activeActivity restored ...' warning, so the replacement is
+      // observable end to end.
+      warnings.push(
+        'activeActivity discarded on load (did not match the live active invitation)',
+      );
     }
   } else if (!active && isRecord(candidate.activeActivity)) {
     // Make the doc 14 §4.3 orphan rule observable (SR-9): an activeActivity

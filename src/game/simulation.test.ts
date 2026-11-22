@@ -280,3 +280,23 @@ test('pure stepSimulation never leaks resident mutations into the retained input
     'two independent pure runs remain value-identical after the isolation fix',
   );
 });
+
+test('pure stepSimulation mirrors missing resident records as missing, never fabricates empty ones (R1-S-02)', () => {
+  const world = createFreshWorldState();
+  delete (world.residents as Record<string, unknown>).pip;
+  const before = JSON.stringify(world);
+  let current = world;
+  for (let i = 0; i < 50; i++) {
+    current = stepSimulation(current, 1 / 60);
+  }
+  assert.equal(
+    (current.residents as Record<string, unknown>).pip,
+    undefined,
+    'the pure path must not fabricate a record the input lacked',
+  );
+  assert.equal(
+    JSON.stringify(world),
+    before,
+    'the retained input stays byte-identical (purity holds on the malformed fixture too)',
+  );
+});
