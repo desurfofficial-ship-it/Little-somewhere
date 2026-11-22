@@ -23,6 +23,8 @@ import { isSeatOccupiedByNpc } from './playerController';
 import {
   PLAYER_DEFAULT_FACING,
   PLAYER_SPAWN,
+  FOUNTAIN_CENTER,
+  POND_CENTER,
   getLandmarkAt,
   getSeatById,
   isPointWalkable,
@@ -1986,7 +1988,7 @@ export function performFountainWishAction(world: WorldState): {
       ];
 
   const nextNpcMemories = cloneNpcMemories(world.npcMemories);
-  const witnesses = collectWitnessesForPosition(world, { x: 0, z: 1.5 }, LOCAL_WITNESS_RADIUS);
+  const witnesses = collectWitnessesForPosition(world, FOUNTAIN_CENTER, LOCAL_WITNESS_RADIUS);
   const wishEvId = `ev_fountain_wish_${world.day}_${nextCount}`;
   for (const wid of witnesses) {
     recordNpcMemoryInPlace(
@@ -2059,7 +2061,7 @@ export function performPondStoneSkipAction(world: WorldState): {
       ];
 
   const nextNpcMemories = cloneNpcMemories(world.npcMemories);
-  const witnesses = collectWitnessesForPosition(world, { x: 1.6, z: 14.0 }, LOCAL_WITNESS_RADIUS);
+  const witnesses = collectWitnessesForPosition(world, POND_CENTER, LOCAL_WITNESS_RADIUS);
   const skipEvId = `ev_pond_skip_${world.day}_${nextCount}`;
   for (const wid of witnesses) {
     recordNpcMemoryInPlace(

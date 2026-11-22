@@ -185,16 +185,21 @@ export function createStorybookPondWaterMaterial(): THREE.MeshStandardMaterial {
 }
 
 /**
- * Storybook Mossy Fountain basin & catch-bowl water material with radial spout splash ripples.
+ * Storybook Plaza Fountain basin & catch-bowl water material with radial spout splash ripples.
+ * WORLD-QUALITY OVERHAUL (Doc 04 §5): retuned from teal (#6BB8C8) to the reference's
+ * pale glacier-blue family (#BFE3EF base; in-shader deep/shallow ramp kept in the same
+ * family). Uniform system (uTime/uRain/uWinter/uWind/uDusk/uSplashPos/uSplashAge) and
+ * the 4 cardinal splash centers at r 1.20 are unchanged — they match the rebuilt
+ * fountain's weir-arc landing radius (1.22) and the droplet splash ring (r ≈ 1.2).
  */
 export function createStorybookFountainWaterMaterial(): THREE.MeshStandardMaterial {
   const uniforms = createBaseUniforms();
   const mat = new THREE.MeshStandardMaterial({
-    color: '#6BB8C8',
-    roughness: 0.11,
-    metalness: 0.16,
+    color: '#BFE3EF',
+    roughness: 0.13,
+    metalness: 0.12,
     transparent: true,
-    opacity: 0.86,
+    opacity: 0.88,
   });
   mat.userData.waterUniforms = uniforms;
   mat.customProgramCacheKey = () => 'storybook_fountain_water_v1';
@@ -245,8 +250,9 @@ export function createStorybookFountainWaterMaterial(): THREE.MeshStandardMateri
           (0.5 + 0.5 * sin(dW * 20.0 - t * 6.4)) * exp(-dW * 2.8);
 
         float rippleFoam = smoothstep(0.62, 0.98, waveC * 0.55 + cardinalSplash * 0.85);
-        vec3 baseWater = mix(vec3(0.34, 0.67, 0.75), vec3(0.56, 0.84, 0.90), smoothstep(0.2, 1.9, rCenter));
-        diffuseColor.rgb = mix(baseWater, vec3(0.92, 0.98, 1.0), rippleFoam * 0.42);
+        // Pale glacier-blue ramp (reference water): deeper powder-blue core -> airy pale rim
+        vec3 baseWater = mix(vec3(0.62, 0.83, 0.90), vec3(0.74, 0.90, 0.95), smoothstep(0.2, 1.9, rCenter));
+        diffuseColor.rgb = mix(baseWater, vec3(0.93, 0.99, 1.0), rippleFoam * 0.42);
 
         // Coin-wish extra burst ring localized to uSplashPos inside the basin
         if (uSplashAge < 2.2) {
