@@ -2,7 +2,7 @@ import React, { useEffect, useRef } from 'react';
 import * as THREE from 'three';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { CameraController, createCameraSnapshot } from './cameraController';
-import { screenToWorldMove, ZOOM_MAX, ZOOM_MIN } from './roomFraming';
+import { screenToWorldMove, applyShellCutaway, collectShellSides, ZOOM_MAX, ZOOM_MIN } from './roomFraming';
 import {
   createOcclusionRegistry,
   disposeOcclusion,
@@ -998,6 +998,14 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
     interiorRoot.add(copperwheelInteriorRig.group);
     copperwheelInteriorRig.group.userData.contactBatchRoot = true;
 
+    // Overhaul Phase 3 (E-6): collect the tagged shell walls once per interior
+    // rig; the per-frame cutaway hides near-camera full walls so rotation never
+    // blocks the room. Greenhouse is a glass shell — untagged, never hidden.
+    const cottageShellSides = collectShellSides(cottageInteriorRig.group);
+    const bakeryShellSides = collectShellSides(bakeryInteriorRig.group);
+    const nookShellSides = collectShellSides(nookInteriorRig.group);
+    const copperwheelShellSides = collectShellSides(copperwheelInteriorRig.group);
+
     // Exterior Sunbeam Greenhouse doorway on the west glass wall (M3 Build 6).
     // Phase A reconciliation: the leaf now sits IN the west glazing plane
     // (world x 11.53 = glass face 14.3 - 2.775) instead of floating 0.39 m proud
@@ -1793,7 +1801,8 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
         activePointer.moved = true;
       }
       // Camera drag: yaw follows horizontal; pitch follows vertical (drag up
-      // raises the camera). Interiors stay pitch-locked until Phase 3 cutaway.
+      // raises the camera). Phase 3's dynamic cutaway hides near full-walls so
+      // pitch/rotation stay safe indoors too.
       cameraController.addYawDelta(dx * YAW_SENS);
       cameraController.addPitchDelta(-dy * PITCH_SENS);
       activePointer.lastX = e.clientX;
@@ -2578,16 +2587,17 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
         playerMotion = createInitialPlayerMotion(world.playerPos);
         if (curLocation !== 'exterior') {
           playerMotion.groundY = 0;
-          // Leaving the exterior: restore every faded shell to opaque while it
-          // is off-screen so re-entry starts clean.
+        }
+        // Overhaul E-1/E-7: the location transition reframes cleanly under the
+        // scene veil (controller reset) instead of the legacy snap-then-redamp
+        // double jolt; user yaw and zoom are preserved across the trip.
+        const snapIsInterior = curLocation !== 'exterior';
+        if (!snapIsInterior) {
+          // Exterior re-entry: restore every faded shell to opaque while it is
+          // off-screen so the porch/world always starts clean.
           setAllOccluderTargets(occlusion, 1);
         }
-        // Snap camera smoothly toward the entered room or porch so there's zero disorienting cross-map pan
-        const snapIsInterior = curLocation !== 'exterior';
-        const snapFocusX = snapIsInterior ? world.playerPos.x * 0.45 : world.playerPos.x;
-        const snapFocusZ = snapIsInterior ? world.playerPos.z * 0.45 : world.playerPos.z;
-        const snapZoom = snapIsInterior ? 0.66 : zoomRef.current;
-        cameraController.snapTo(snapFocusX, snapFocusZ, snapZoom);
+        cameraController.resetSmoothing();
       }
 
       const currentActiveProp = activePropIdRef.current;
@@ -2804,6 +2814,18 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
       // occlusion lands in Phase 2 via consumeProbeRequest().
       cameraController.setLocation(curLocation, state === 'title');
       cameraController.setDialogue(Boolean(dialogueResId));
+      // Overhaul Phase 3 (E-6): keep the active room's near full-walls hidden
+      // at the current yaw (no-op at the authored angle; the greenhouse has no
+      // tagged shell so it is never affected).
+      if (curLocation === 'cottage_interior') {
+        applyShellCutaway(cottageShellSides, cameraController.getYaw());
+      } else if (curLocation === 'bakery_interior') {
+        applyShellCutaway(bakeryShellSides, cameraController.getYaw());
+      } else if (curLocation === 'nook_interior') {
+        applyShellCutaway(nookShellSides, cameraController.getYaw());
+      } else if (curLocation === 'copperwheel_interior') {
+        applyShellCutaway(copperwheelShellSides, cameraController.getYaw());
+      }
       cameraSnapshot.playerX = world.playerPos.x;
       cameraSnapshot.playerZ = world.playerPos.z;
       cameraSnapshot.groundY = playerMotion.groundY;

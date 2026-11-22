@@ -20,7 +20,6 @@ import {
   AUTHORED_YAW,
   effectiveZoom,
   EXTERIOR_PROFILE,
-  isInteriorLocation,
   profileForLocation,
   type RoomCameraProfile,
 } from './roomFraming';
@@ -112,9 +111,8 @@ export class CameraController {
     this.yaw = ((this.yaw % twoPi) + twoPi) % twoPi;
   }
 
-  /** Drag-pitch: clamped band; interiors stay pitch-locked until Phase 3 cutaway. */
+  /** Drag-pitch: clamped band. Phase 3's dynamic cutaway keeps interiors safe. */
   addPitchDelta(delta: number): void {
-    if (isInteriorLocation(this.location)) return;
     this.pitch = Math.min(PITCH_MAX, Math.max(PITCH_MIN, this.pitch + delta));
   }
 
@@ -211,7 +209,9 @@ export class CameraController {
       focusZ = (snap.playerZ + snap.dialogueNpcZ) * 0.5;
     }
     if (p.focusWeight !== 1.0) {
-      // Room-centered compression (interiors are origin-centered dioramas).
+      // Player-weighted composition toward the room center (interiors are
+      // origin-centered dioramas; the weight keeps both player and layout in
+      // frame instead of the legacy aim-at-compressed-floor).
       focusX = snap.playerX * p.focusWeight;
       focusZ = snap.playerZ * p.focusWeight;
     }
@@ -223,11 +223,16 @@ export class CameraController {
       this.smLift = THREE.MathUtils.damp(this.smLift, targetLift, LIFT_DAMP, dt);
     }
 
-    // Offset from yaw/pitch: exact polar parity with (19.5, 18.2, 19.5)·zoom
-    // at the authored yaw and zero pitch.
+    // Offset from yaw/pitch. Rooms with a bounds-derived baseDistance scale
+    // the polar radius linearly with the effective zoom (zEff 0.68 sits at
+    // exactly the fit distance); the exterior keeps the authored polar rig.
+    const radius =
+      p.baseDistance !== undefined
+        ? p.baseDistance * (zoom / 0.68)
+        : BASE_RADIUS * zoom;
     const elev = BASE_ELEV + this.pitch;
-    const distH = BASE_RADIUS * Math.cos(elev) * zoom;
-    const distY = BASE_RADIUS * Math.sin(elev) * zoom;
+    const distH = radius * Math.cos(elev);
+    const distY = radius * Math.sin(elev);
     this._pos.set(
       focusX + Math.sin(this.yaw) * distH,
       distY + this.smLift,

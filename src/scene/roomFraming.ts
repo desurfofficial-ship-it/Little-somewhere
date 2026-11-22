@@ -14,7 +14,13 @@
  * Locked by src/scene/roomFraming.test.ts.
  */
 
+import * as THREE from 'three';
 import type { PlayerLocation } from '../game/types';
+import { BAKERY_BOUNDS } from '../game/bakery';
+import { COTTAGE_BOUNDS } from '../game/cottage';
+import { NOOK_BOUNDS } from '../game/bookNook';
+import { COPPERWHEEL_BOUNDS } from '../game/copperwheel';
+import { GREENHOUSE_BOUNDS } from '../game/greenhouse';
 
 /** World-unit zoom limits for the raw zoom target (wheel / HUD / pinch / QA). */
 export const ZOOM_MIN = 0.55;
@@ -51,6 +57,8 @@ export interface RoomCameraProfile {
   zoomMax: number;
   /** Phase 3: room-local bounds the framing must keep inside the frustum. */
   bounds?: RoomBounds;
+  /** Phase 3: authored wall height (greenhouse uses the glass ridge). */
+  wallHeight?: number;
   /** Phase 3: precomputed distance at zoom = 1 that fits bounds + player margin. */
   baseDistance?: number;
 }
@@ -76,24 +84,40 @@ export const EXTERIOR_PROFILE: RoomCameraProfile = {
 };
 
 /**
- * Interior profiles at Phase 1 reproduce the legacy interior branch numbers
- * exactly (focus ×0.42 toward the room-centered origin, lookY 0.85,
- * zoom ×0.68 clamped [0.56, 0.92]) — with the greenhouse INCLUDED, fixing the
- * defect where greenhouse_interior fell through to the exterior camera branch
- * (D-4/E-4). Phase 3 replaces these with bounds-derived fits per room.
+ * Interior profiles (Phase 3): bounds-derived framing per room. The fit
+ * distance adapts to each room's actual footprint + wall height — small rooms
+ * frame closer, tall/wide rooms farther — while the zoom semantics stay
+ * legacy-shaped (scale 0.68, clamp [0.56, 0.92]) so the user's zoom wheel
+ * keeps its feel. Focus weight 0.55 / lookY 0.95 are the player-weighted
+ * composition values replacing the legacy 0.42 / 0.85 aim-at-empty-floor
+ * constants (E-2/E-3).
  */
-export const LEGACY_INTERIOR_PROFILE: RoomCameraProfile = {
-  focusWeight: 0.42,
-  lookY: 0.85,
-  groundFollow: 0,
-  dialogueDrop: false,
-  dialogueMidpoint: false,
-  dialogueZoom: false,
-  cornerLift: false,
-  zoomScale: 0.68,
-  zoomMin: 0.56,
-  zoomMax: 0.92,
-};
+const NOMINAL_ASPECT = 1.6;
+const CAMERA_FOV_DEG = 28;
+
+function interiorProfile(bounds: RoomBounds, wallHeight: number): RoomCameraProfile {
+  return {
+    focusWeight: 0.55,
+    lookY: 0.95,
+    groundFollow: 0,
+    dialogueDrop: false,
+    dialogueMidpoint: false,
+    dialogueZoom: false,
+    cornerLift: false,
+    zoomScale: 0.68,
+    zoomMin: 0.56,
+    zoomMax: 0.92,
+    bounds,
+    wallHeight,
+    baseDistance: fitDistance(bounds, CAMERA_FOV_DEG, NOMINAL_ASPECT, wallHeight),
+  };
+}
+
+const COTTAGE_PROFILE = interiorProfile(COTTAGE_BOUNDS, 2.75);
+const BAKERY_PROFILE = interiorProfile(BAKERY_BOUNDS, 2.55);
+const NOOK_PROFILE = interiorProfile(NOOK_BOUNDS, 2.6);
+const COPPERWHEEL_PROFILE = interiorProfile(COPPERWHEEL_BOUNDS, 2.72);
+const GREENHOUSE_PROFILE = interiorProfile(GREENHOUSE_BOUNDS, 4.08);
 
 const INTERIOR_LOCATIONS: ReadonlySet<PlayerLocation> = new Set<PlayerLocation>([
   'cottage_interior',
@@ -108,7 +132,20 @@ export function isInteriorLocation(location: PlayerLocation): boolean {
 }
 
 export function profileForLocation(location: PlayerLocation): RoomCameraProfile {
-  return isInteriorLocation(location) ? LEGACY_INTERIOR_PROFILE : EXTERIOR_PROFILE;
+  switch (location) {
+    case 'cottage_interior':
+      return COTTAGE_PROFILE;
+    case 'bakery_interior':
+      return BAKERY_PROFILE;
+    case 'nook_interior':
+      return NOOK_PROFILE;
+    case 'copperwheel_interior':
+      return COPPERWHEEL_PROFILE;
+    case 'greenhouse_interior':
+      return GREENHOUSE_PROFILE;
+    default:
+      return EXTERIOR_PROFILE;
+  }
 }
 
 /**
@@ -174,7 +211,7 @@ export function cutawaySidesForYaw(yaw: number): { near: ShellSide[]; far: Shell
 /**
  * Fit distance: how far along the authored viewing direction the camera must
  * sit (at zoom = 1) so that the room bounding sphere + a player margin stay
- * inside the frustum. Pure math used by Phase 3 profiles.
+ * inside the frustum. Pure math used by the interior profiles.
  */
 export function fitDistance(
   bounds: RoomBounds,
@@ -192,4 +229,61 @@ export function fitDistance(
   const halfFov = Math.min(fovY, fovX) / 2;
   // Distance along the view axis so the bounding sphere fits inside the frustum.
   return radius / Math.sin(halfFov);
+}
+
+// ---------------------------------------------------------------------------
+// Dynamic interior cutaway (E-6): interiors bake tall walls on two sides and
+// low curbs on the other two, authored for the 45° azimuth. Camera rotation
+// needs the NEAR full-height walls to step aside so they never block the room.
+// Builders tag their wall meshes (userData.shellSide / shellFull); the canvas
+// applies the cutaway per frame from the current camera yaw.
+// ---------------------------------------------------------------------------
+
+export interface ShellSideMesh {
+  mesh: THREE.Mesh;
+  side: ShellSide;
+  full: boolean;
+}
+
+/** Find the nearest shellSide tag on the object or its ancestors (Groups may
+ *  carry the tag for their whole subtree — wall-mounted props hide with their
+ *  wall). */
+function inheritedShell(obj: THREE.Object3D): { side?: ShellSide; full: boolean } {
+  let cur: THREE.Object3D | null = obj;
+  while (cur) {
+    const s = cur.userData.shellSide as ShellSide | undefined;
+    if (s === 'N' || s === 'E' || s === 'S' || s === 'W') {
+      return { side: s, full: cur.userData.shellFull === true };
+    }
+    cur = cur.parent;
+  }
+  return { full: false };
+}
+
+export function collectShellSides(root: THREE.Object3D): ShellSideMesh[] {
+  const out: ShellSideMesh[] = [];
+  root.traverse((obj) => {
+    const mesh = obj as THREE.Mesh;
+    if (!mesh.isMesh) return;
+    const { side, full } = inheritedShell(mesh);
+    if (side !== 'N' && side !== 'E' && side !== 'S' && side !== 'W') return;
+    out.push({ mesh, side, full: Boolean(full) });
+  });
+  return out;
+}
+
+/**
+ * Hide near-camera full walls (curbs and far walls stay). No-op on unchanged
+ * visibilities, so it is safe to call every frame. At the authored yaw the
+ * near sides are the baked curb sides, so full walls are never hidden and the
+ * default look is bit-identical to the pre-cutaway dioramas.
+ */
+export function applyShellCutaway(shells: ShellSideMesh[], yaw: number): void {
+  const { near } = cutawaySidesForYaw(yaw);
+  for (const { mesh, side, full } of shells) {
+    const hidden = full && near.includes(side);
+    if (mesh.visible === hidden) {
+      mesh.visible = !hidden;
+    }
+  }
 }

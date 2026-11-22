@@ -14,7 +14,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import * as THREE from 'three';
 import { CameraController, createCameraSnapshot, PITCH_MAX, PITCH_MIN } from './cameraController';
-import { AUTHORED_YAW } from './roomFraming';
+import { AUTHORED_YAW, profileForLocation } from './roomFraming';
 
 const makeCamera = () => new THREE.PerspectiveCamera(28, 1.6, 0.5, 160);
 const PROBE_INTERVAL = 0.15;
@@ -58,7 +58,7 @@ test('yaw integration: offset stays polar in yaw and height stays authored', () 
   assert.ok(c.getYaw() >= 0 && c.getYaw() < Math.PI * 2);
 });
 
-test('pitch clamps to the band and distorts the offset in polar form; interiors are pitch-locked', () => {
+test('pitch clamps to the band and distorts the offset in polar form; enabled everywhere after Phase 3', () => {
   const camera = makeCamera();
   const c = new CameraController(camera);
   c.setLocation('exterior', false);
@@ -66,55 +66,66 @@ test('pitch clamps to the band and distorts the offset in polar form; interiors 
   assert.equal(c.getPitch(), PITCH_MAX);
   c.addPitchDelta(-50);
   assert.equal(c.getPitch(), PITCH_MIN);
-  // Pitch changes camera height monotonically (higher pitch = higher camera at
-  // the same zoom since elev grows).
   const snap = createCameraSnapshot();
   snap.zoomRaw = 1;
   c.addPitchDelta(50); // back to max
   c.update(1 / 60, snap);
-  const yAtMaxPitch = camera.position.y;
-  assert.ok(yAtMaxPitch > 18.2, `elevated pitch should raise the camera: ${yAtMaxPitch}`);
+  assert.ok(camera.position.y > 18.2, `elevated pitch should raise the camera: ${camera.position.y}`);
 
+  // Phase 3: interiors accept pitch too (the dynamic cutaway hides near walls).
   const c2 = new CameraController(makeCamera());
   c2.setLocation('nook_interior', false);
   c2.addPitchDelta(0.5);
-  assert.equal(c2.getPitch(), 0, 'interior pitch stays locked until Phase 3 cutaway');
+  assert.equal(c2.getPitch(), PITCH_MAX);
 });
 
-test('interior profile parity: focus compression ×0.42, zoom ×0.68, lookY 0.85', () => {
+test('interior profile: bounds-derived distance, player-weighted focus, lookY 0.95', () => {
   const camera = makeCamera();
   const c = new CameraController(camera);
   c.setLocation('cottage_interior', false);
+  const profile = profileForLocation('cottage_interior');
   const snap = createCameraSnapshot();
   snap.playerX = 3;
   snap.playerZ = 2;
   snap.zoomRaw = 1;
   settle(c, snap);
-  const focusX = 3 * 0.42;
-  const focusZ = 2 * 0.42;
+  const focusX = 3 * profile.focusWeight;
+  const focusZ = 2 * profile.focusWeight;
   const zoom = 0.68;
-  assert.ok(Math.abs(camera.position.x - (focusX + 19.5 * zoom)) < 0.01, `${camera.position.x}`);
-  assert.ok(Math.abs(camera.position.y - 18.2 * zoom) < 0.01, `${camera.position.y}`);
-  assert.ok(Math.abs(camera.position.z - (focusZ + 19.5 * zoom)) < 0.01, `${camera.position.z}`);
-  // Look target converges to the compressed focus at lookY 0.85: reverse the
-  // camera forward direction from the lookAt matrix.
+  const radius = profile.baseDistance! * (zoom / 0.68);
+  const elev = Math.atan2(18.2, 19.5 * Math.SQRT2);
+  const distH = radius * Math.cos(elev);
+  const distY = radius * Math.sin(elev);
+  assert.ok(Math.abs(camera.position.y - distY) < 0.05, `y ${camera.position.y} vs ${distY}`);
+  assert.ok(
+    Math.abs(camera.position.x - (focusX + Math.sin(AUTHORED_YAW) * distH)) < 0.05,
+    `x ${camera.position.x}`,
+  );
+  assert.ok(
+    Math.abs(camera.position.z - (focusZ + Math.cos(AUTHORED_YAW) * distH)) < 0.05,
+    `z ${camera.position.z}`,
+  );
+  // Look target converges to the weighted focus at lookY 0.95.
   const dir = new THREE.Vector3();
   camera.getWorldDirection(dir);
-  const expected = new THREE.Vector3(focusX, 0.85, focusZ).sub(camera.position).normalize();
-  assert.ok(dir.dot(expected) > 0.9999, 'camera aims at the interior focus');
+  const expected = new THREE.Vector3(focusX, profile.lookY, focusZ).sub(camera.position).normalize();
+  assert.ok(dir.dot(expected) > 0.9999, 'camera aims at the weighted focus');
 });
 
 test('greenhouse interior now receives the interior camera treatment (D-4 fix)', () => {
   const camera = makeCamera();
   const c = new CameraController(camera);
   c.setLocation('greenhouse_interior', false);
+  const profile = profileForLocation('greenhouse_interior');
   const snap = createCameraSnapshot();
   snap.playerX = -2;
   snap.playerZ = 1.5;
   snap.zoomRaw = 1;
   settle(c, snap);
-  // Interior distance scale (×0.68), NOT the exterior (×1.0) treatment.
-  assert.ok(Math.abs(camera.position.y - 18.2 * 0.68) < 0.01, `${camera.position.y}`);
+  // Interior fit distance, NOT the exterior (×1.0) treatment.
+  const elev = Math.atan2(18.2, 19.5 * Math.SQRT2);
+  const expectedY = profile.baseDistance! * Math.sin(elev);
+  assert.ok(Math.abs(camera.position.y - expectedY) < 0.05, `${camera.position.y} vs ${expectedY}`);
 });
 
 test('dialogue: exterior zoom ×0.9, midpoint focus, and drop apply; interior ignores them', () => {
@@ -145,10 +156,23 @@ test('dialogue: exterior zoom ×0.9, midpoint focus, and drop apply; interior ig
   snap2.dialogueNpcX = 3;
   snap2.dialogueNpcZ = 3;
   settle(c2, snap2);
-  // Legacy interior branch ignored dialogue entirely.
-  assert.ok(Math.abs(c2.getCamera().position.y - 18.2 * 0.68) < 0.01);
-  const fx = 0.5 * 0.42;
-  assert.ok(Math.abs(c2.getCamera().position.x - (fx + 19.5 * 0.68)) < 0.01);
+  // Legacy interior branch ignored dialogue entirely; the profile keeps that.
+  const profile2 = profileForLocation('bakery_interior');
+  const elev2 = Math.atan2(18.2, 19.5 * Math.SQRT2);
+  assert.ok(
+    Math.abs(c2.getCamera().position.y - profile2.baseDistance! * Math.sin(elev2)) < 0.05,
+    `${c2.getCamera().position.y}`,
+  );
+  const fx = 0.5 * profile2.focusWeight;
+  const fz = 1 * profile2.focusWeight;
+  const distH2 = profile2.baseDistance! * Math.cos(elev2);
+  assert.ok(
+    Math.abs(c2.getCamera().position.x - (fx + Math.sin(AUTHORED_YAW) * distH2)) < 0.05,
+    `${c2.getCamera().position.x}`,
+  );
+  assert.ok(
+    Math.abs(c2.getCamera().position.z - (fz + Math.cos(AUTHORED_YAW) * distH2)) < 0.05,
+  );
 });
 
 test('look-target damping: converges smoothly instead of popping', () => {
