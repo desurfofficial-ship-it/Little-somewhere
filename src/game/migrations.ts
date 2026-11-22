@@ -1740,6 +1740,14 @@ function sanitizeLivingRelationships(
         'activeActivity discarded on load (did not match the live active invitation)',
       );
     }
+  } else if (active && candidate.activeActivity !== null && candidate.activeActivity !== undefined) {
+    // R2-P-01 (integration review round 2): truthy non-record garbage under a
+    // live active invitation was still cleared silently — neither the
+    // matched-record branch nor the orphan branch covers it. Every drop
+    // warns (doc 03 §7). null/undefined = "no slice" stays silent (normal).
+    warnings.push(
+      'activeActivity cleared on load (non-object shape under a live active invitation)',
+    );
   } else if (!active && isRecord(candidate.activeActivity)) {
     // Make the doc 14 §4.3 orphan rule observable (SR-9): an activeActivity
     // with no live active invitation is cleared, warned, every time.
@@ -1790,6 +1798,12 @@ function sanitizeLivingRelationships(
     // drop warns (doc 03 §7).
     warnings.push(
       'interior occupancy cleared on load (no live accepted invitation to anchor it)',
+    );
+  } else if (candidate.occupancy !== null && candidate.occupancy !== undefined) {
+    // R2-P-01 (integration review round 2): truthy non-record occupancy
+    // garbage also warns — same "every drop warns" contract.
+    warnings.push(
+      'interior occupancy cleared on load (non-object shape, no live accepted invitation to anchor it)',
     );
   }
 

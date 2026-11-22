@@ -723,12 +723,22 @@ test('SR-2d: a persisted activeActivity that mismatches the live active invitati
   );
 
   // And the GUARD direction: the canonical mid-visit state stays warning-free.
+  // R2-P-02 (review round 2): the fixture must read the REAL active invitation
+  // id from the payload (raw.invitations.active.id) so the guard pins a true
+  // id match — not the invitationId === undefined back-compat clause.
   const canonical = loadMutated(base, (raw) => {
+    const activeInv = (raw as Record<string, unknown>).invitations as Record<string, unknown>;
+    const activeId =
+      activeInv &&
+      activeInv.active &&
+      typeof activeInv.active === 'object' &&
+      typeof (activeInv.active as Record<string, unknown>).id === 'string'
+        ? ((activeInv.active as Record<string, unknown>).id as string)
+        : undefined;
+    assert.ok(typeof activeId === 'string', 'fixture requires a live active invitation id');
     (raw as Record<string, unknown>).activeActivity = {
       activityId: 'share_featured_reading',
-      invitationId: (raw as Record<string, unknown>).activeInvitation
-        ? ((raw as Record<string, unknown>).activeInvitation as Record<string, unknown>).id
-        : undefined,
+      invitationId: activeId,
     };
   });
   assert.deepEqual(
@@ -793,5 +803,50 @@ test('SR-9g: non-record rows inside memories/worldEvents/activeEncounters drop w
   );
   assert.ok(
     res.warnings.some((w) => w.includes('activeEncounters entries with non-object shapes dropped on load (2)')),
+  );
+});
+
+test('SR-2e: truthy non-record activeActivity/occupancy garbage drops with warnings under a live invitation', () => {
+  const res = loadMutated(worldWithAcceptedLiveInvitation(), (raw) => {
+    (raw as Record<string, unknown>).activeActivity = [1, 2, 3];
+  });
+  // The base fixture carries occupancy, so after the garbage slice is
+  // dropped (warned), the SR-2b restore legitimately re-derives the
+  // canonical slice from the accepted invitation (warned). Both events are
+  // observable; the final slice is exactly what production would write.
+  const slice = res.state.activeActivity as Record<string, unknown> | null;
+  assert.ok(slice === null || slice.activityId === 'share_featured_reading');
+  assert.ok(
+    res.warnings.some((w) =>
+      w.includes('activeActivity cleared on load (non-object shape under a live active invitation)'),
+    ),
+    `got: ${JSON.stringify(res.warnings)}`,
+  );
+  assert.ok(
+    res.warnings.some((w) => w.includes('activeActivity restored')),
+    `expected the restore warning after the drop, got: ${JSON.stringify(res.warnings)}`,
+  );
+
+  const res2 = loadMutated(worldWithAcceptedLiveInvitation(), (raw) => {
+    (raw as Record<string, unknown>).occupancy = 'garbage-string';
+  });
+  assert.equal(res2.state.occupancy, null);
+  assert.ok(
+    res2.warnings.some((w) =>
+      w.includes('interior occupancy cleared on load (non-object shape'),
+    ),
+    `got: ${JSON.stringify(res2.warnings)}`,
+  );
+
+  // GUARD: absent/null slices under a live invitation stay silent (normal).
+  const quiet = loadMutated(worldWithAcceptedLiveInvitation(), (raw) => {
+    delete (raw as Record<string, unknown>).activeActivity;
+    (raw as Record<string, unknown>).occupancy = null;
+  });
+  assert.deepEqual(
+    quiet.warnings.filter(
+      (w) => w.includes('activeActivity cleared') || w.includes('non-object shape'),
+    ),
+    [],
   );
 });
