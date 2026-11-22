@@ -19,6 +19,7 @@ import {
   NpcMemoryDetail,
   NpcMemoryEntry,
   NpcNpcRelation,
+  NpcPerception,
   NpcRuntimeState,
   PersonalItemId,
   PlayerLocation,
@@ -28,6 +29,8 @@ import {
   ResidentId,
   ResidentProgress,
   SeasonType,
+  SocialGroup,
+  SocialGroupMembership,
   StoryFlags,
   TeachingState,
   TimePhase,
@@ -306,6 +309,10 @@ export function createDefaultWorldState(): WorldState {
     activeActivity: null,
     // Everyday Gameplay GA-1 — Community Projects (WorldState v12)
     communityProjects: createInitialCommunityProjectsState(),
+    // NPC Intelligence Evolution — S4/S6 (optional; default empty so fresh,
+    // sanitized, and post-step states all carry the same keys for round-trip).
+    npcPerceptions: {},
+    npcSocialGroups: [],
   };
 }
 
@@ -1065,6 +1072,10 @@ function sanitizeMemoryDetail(raw: unknown): NpcMemoryDetail | undefined {
   if (typeof raw.acousticOnly === 'boolean') {
     detail.acousticOnly = raw.acousticOnly;
   }
+  // S1: preserve placeZoneId so encounter/witness memories round-trip cleanly.
+  if (typeof raw.placeZoneId === 'string' && raw.placeZoneId.length > 0) {
+    detail.placeZoneId = raw.placeZoneId;
+  }
   return Object.keys(detail).length > 0 ? detail : undefined;
 }
 
@@ -1559,7 +1570,101 @@ export function sanitizeWorldState(candidate: unknown, externalWarnings: string[
     teaching,
     activeActivity,
     communityProjects: sanitizeCommunityProjectsState(candidate.communityProjects, warnings),
+    npcPerceptions: sanitizeNpcPerceptions(candidate.npcPerceptions, warnings),
+    npcSocialGroups: sanitizeNpcSocialGroups(candidate.npcSocialGroups, warnings),
   };
+}
+
+/** S4: sanitize the directional perception overlay (optional; default empty). */
+function sanitizeNpcPerceptions(
+  raw: unknown,
+  warnings: string[],
+): Partial<Record<ResidentId, Partial<Record<ResidentId, NpcPerception>>>> {
+  if (!isRecord(raw)) return {};
+  const residentSet = new Set<string>(RESIDENT_ORDER);
+  const out: Partial<Record<ResidentId, Partial<Record<ResidentId, NpcPerception>>>> = {};
+  let dropped = 0;
+  for (const [perceiverKey, innerRaw] of Object.entries(raw as Record<string, unknown>)) {
+    if (!residentSet.has(perceiverKey)) { dropped++; continue; }
+    if (!isRecord(innerRaw)) continue;
+    const inner: Partial<Record<ResidentId, NpcPerception>> = {};
+    for (const [targetKey, entryRaw] of Object.entries(innerRaw as Record<string, unknown>)) {
+      if (!residentSet.has(targetKey)) { dropped++; continue; }
+      if (targetKey === perceiverKey) continue;
+      if (!isRecord(entryRaw)) continue;
+      const affinityDelta = Math.max(-30, Math.min(30, asFiniteNumber(entryRaw.affinityDelta, 0)));
+      const tensionDelta = Math.max(-20, Math.min(20, asFiniteNumber(entryRaw.tensionDelta, 0)));
+      if (affinityDelta === 0 && tensionDelta === 0) continue;
+      const perception: NpcPerception = {
+        perceiverId: perceiverKey as ResidentId,
+        targetId: targetKey as ResidentId,
+        affinityDelta,
+        tensionDelta,
+      };
+      if (Array.isArray(entryRaw.perceptionTags)) {
+        perception.perceptionTags = (entryRaw.perceptionTags as unknown[])
+          .filter((t): t is string => typeof t === 'string' && t.length > 0)
+          .slice(-4);
+      }
+      if (typeof entryRaw.lastShiftDay === 'number' && Number.isFinite(entryRaw.lastShiftDay)) {
+        perception.lastShiftDay = Math.max(1, Math.floor(entryRaw.lastShiftDay));
+      } else if (entryRaw.lastShiftDay === null) {
+        perception.lastShiftDay = null;
+      }
+      inner[targetKey as ResidentId] = perception;
+    }
+    if (Object.keys(inner).length > 0) out[perceiverKey as ResidentId] = inner;
+  }
+  if (dropped > 0) warnings.push(`npcPerceptions entries naming unregistered residents dropped on load (${dropped})`);
+  return out;
+}
+
+/** S6: sanitize the social groups list (optional; default empty). */
+function sanitizeNpcSocialGroups(
+  raw: unknown,
+  warnings: string[],
+): SocialGroup[] {
+  if (!Array.isArray(raw)) return [];
+  const residentSet = new Set<string>(RESIDENT_ORDER);
+  const out: SocialGroup[] = [];
+  for (const gRaw of raw) {
+    if (!isRecord(gRaw)) continue;
+    const id = typeof gRaw.id === 'string' ? gRaw.id : '';
+    const label = typeof gRaw.label === 'string' ? gRaw.label : 'Group';
+    const kind =
+      gRaw.kind === 'friend_circle' || gRaw.kind === 'shared_interest' || gRaw.kind === 'regular_gathering'
+        ? (gRaw.kind as SocialGroup['kind'])
+        : 'friend_circle';
+    if (!Array.isArray(gRaw.members)) continue;
+    const members: SocialGroupMembership[] = [];
+    for (const mRaw of gRaw.members) {
+      if (!isRecord(mRaw)) continue;
+      const rid = typeof mRaw.residentId === 'string' && residentSet.has(mRaw.residentId) ? mRaw.residentId : null;
+      if (!rid) continue;
+      members.push({
+        residentId: rid as ResidentId,
+        joinedDay: Math.max(1, asFiniteNumber(mRaw.joinedDay, 1)),
+        cohesion: Math.max(0, Math.min(1, asFiniteNumber(mRaw.cohesion, 0))),
+      });
+    }
+    if (members.length < 2) { warnings.push(`npcSocialGroups entry '${id}' dropped (<2 valid members)`); continue; }
+    const group: SocialGroup = {
+      id,
+      label,
+      kind,
+      members,
+      authored: Boolean(gRaw.authored),
+    };
+    if (typeof gRaw.anchorPlace === 'string') group.anchorPlace = gRaw.anchorPlace;
+    if (typeof gRaw.anchorPhase === 'string' && ['morning', 'afternoon', 'golden', 'dusk'].includes(gRaw.anchorPhase)) {
+      group.anchorPhase = gRaw.anchorPhase as TimePhase;
+    }
+    if (typeof gRaw.recognizedDay === 'number' && Number.isFinite(gRaw.recognizedDay)) {
+      group.recognizedDay = Math.max(1, Math.floor(gRaw.recognizedDay));
+    }
+    out.push(group);
+  }
+  return out;
 }
 
 function sanitizeLivingRelationships(

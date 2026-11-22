@@ -36,6 +36,11 @@ import {
   shouldSuppressNpcSocial,
 } from './relationships';
 import {
+  adjustNpcPerceptionInPlace,
+  cloneNpcPerceptions,
+  getPerceivedTierFast,
+} from './perceptions';
+import {
   computeSeparationVector,
   computeWaypointPath,
   stepAlongWaypoints,
@@ -43,6 +48,7 @@ import {
 import {
   cloneNpcMemories,
   collectWitnessesForPosition,
+  computePlaceAffinityBias,
   createNpcMemoryEntry,
   LOCAL_WITNESS_RADIUS,
   propagateEncounterGossipInPlace,
@@ -320,6 +326,79 @@ function companionBiasForTarget(confidantPositions: readonly Vec2[], target: Vec
   return 1.0;
 }
 
+/**
+ * S2 (commitment hysteresis): a continuation bonus for the resident's current
+ * activity so near-equal scores resolve to "stay" rather than flip-flopping every
+ * dwell window. Applied ONLY when the candidate id === rt.currentActivityId.
+ * The A5 repeat-suppressor (history, last-2) and S2 (current) operate on different
+ * sets, so they never conflict.
+ */
+const CONTINUATION_BONUS = 1.12;
+
+/**
+ * S3 (short-term intention): a deterministic, derived forward-looking signal
+ * from the resident's own needs + memories + nearest confidant. No new RNG, no
+ * persistence — recomputed at every re-selection. Returns a multiplicative bias
+ * for matching/violating candidates.
+ */
+interface ShortTermIntention {
+  kind: 'seek_zone' | 'avoid_zone' | 'seek_resident' | 'rest' | 'none';
+  target?: string; // zoneId or residentId
+  strength: number; // 0..1
+}
+
+function deriveShortTermIntention(
+  world: WorldState,
+  id: ResidentId,
+  rt: NpcRuntimeState,
+  memories: readonly import('./types').NpcMemoryEntry[],
+): ShortTermIntention {
+  const day = world.day;
+  // (a) Strongest unmet need → rest intention.
+  if (rt.needs.energy < 30) return { kind: 'rest', strength: 0.6 };
+  // (b) Top emotionalWeight non-expired memory with placeZoneId → seek/avoid zone.
+  let topWarm: { zoneId: string; weight: number } | null = null;
+  let topTense: { zoneId: string; weight: number } | null = null;
+  for (let i = 0; i < memories.length; i++) {
+    const m = memories[i];
+    const zone = m.detail?.placeZoneId;
+    if (!zone) continue;
+    // Expired check (inline, no import churn).
+    if (m.retention !== 'permanent' && m.expiresDay !== undefined && day > m.expiresDay) continue;
+    if (m.valence === 'warm' && (!topWarm || m.emotionalWeight > topWarm.weight)) {
+      topWarm = { zoneId: zone, weight: m.emotionalWeight };
+    } else if (m.valence === 'tense' && (!topTense || m.emotionalWeight > topTense.weight)) {
+      topTense = { zoneId: zone, weight: m.emotionalWeight };
+    }
+  }
+  // A tense memory outweighs a warm one of equal weight (avoidance is stronger).
+  if (topTense && topTense.weight >= 50) {
+    return { kind: 'avoid_zone', target: topTense.zoneId, strength: Math.min(0.5, topTense.weight / 100) };
+  }
+  if (topWarm && topWarm.weight >= 50) {
+    return { kind: 'seek_zone', target: topWarm.zoneId, strength: Math.min(0.4, topWarm.weight / 100) };
+  }
+  return { kind: 'none', strength: 0 };
+}
+
+/** S3: apply the intention as a multiplicative bias for a candidate zone. */
+function intentionBiasForCandidate(
+  intention: ShortTermIntention,
+  candidateZoneId: string,
+  candidateGoalKind: ActivityGoalKind | null,
+): number {
+  if (intention.kind === 'rest') {
+    return candidateGoalKind === 'rest' ? 1 + intention.strength * 0.3 : 1.0;
+  }
+  if (intention.kind === 'seek_zone' && intention.target === candidateZoneId) {
+    return 1 + intention.strength * 0.25;
+  }
+  if (intention.kind === 'avoid_zone' && intention.target === candidateZoneId) {
+    return 1 - intention.strength * 0.35;
+  }
+  return 1.0;
+}
+
 function selectActivityForResident(
   world: WorldState,
   id: ResidentId,
@@ -391,6 +470,18 @@ function selectActivityForResident(
     anchorAnimState,
   );
 
+  // S1+S3 (memory→behavior bridge): derive the resident's place-affinity and
+  // short-term intention from their OWN memories. This is the central ask —
+  // memories now drive activity selection, not just dialogue. O(14) at re-
+  // selection only; zero per-tick cost; no new RNG.
+  const ownMemories = world.npcMemories[id] ?? [];
+  const intention = deriveShortTermIntention(world, id, rt, ownMemories);
+  const anchorZoneId = getLandmarkAt(anchor.target).id;
+  const anchorPlaceBias = computePlaceAffinityBias(ownMemories, anchorZoneId, world.day);
+  const anchorIntentionBias = intentionBiasForCandidate(intention, anchorZoneId, anchorGoalKind);
+  // S2: continuation bonus if the resident is already on the anchor.
+  const anchorContinuation = rt.currentActivityId === `${phase}:anchor` ? CONTINUATION_BONUS : 1.0;
+
   // B5: tightened RNG jitter (±10% vs old ±25%) so trait/need/emotion signal
   // dominates noise. RNG call COUNT and ORDER are preserved (1 call for the
   // anchor, 1 per evaluated extra, 1 for duration) so the seeded stream and
@@ -421,7 +512,10 @@ function selectActivityForResident(
       anchorBase *
         zoneAffinityForTarget(def.traits.preferredZones, anchor.target) *
         needUtilityForGoal(anchorGoalKind, uEnergy, uHunger, uSocial, uFulfillment) *
-        emotionBiasForGoal(rt.emotion, anchorGoalKind) +
+        emotionBiasForGoal(rt.emotion, anchorGoalKind) *
+        (1 + anchorPlaceBias) *
+        anchorIntentionBias *
+        anchorContinuation +
       tiebreakForGoal(anchorGoalKind),
     seatId: null,
     goalKind: anchorGoalKind,
@@ -453,13 +547,13 @@ function selectActivityForResident(
   // C5: companion bias — collect current positions of confidant-tier partners
   // so candidates near a close friend get a small gravitation bonus (residents
   // drift toward friends rather than only repelling via the crowding penalty).
-  // Uses getNpcRelationTierFast (zero-GC) to avoid per-tick allocation for the
-  // ~9 lazy pairs each resident checks.
+  // Uses getPerceivedTierFast (S4 directional, zero-GC) so A gravitates toward
+  // B based on A's OWN perception of B, not just the bilateral ledger.
   const confidantPositions: Vec2[] = [];
   for (let k = 0; k < RESIDENT_ORDER.length; k++) {
     const oid = RESIDENT_ORDER[k];
     if (oid === id) continue;
-    if (getNpcRelationTierFast(world.npcRelations, id, oid) === 'confidant') {
+    if (getPerceivedTierFast(world.npcRelations, world.npcPerceptions, id, oid) === 'confidant') {
       confidantPositions.push(world.npcRuntime[oid].position);
     }
   }
@@ -515,6 +609,13 @@ function selectActivityForResident(
         ? 0.85 + (1 - def.traits.outdoorsiness) * 0.4
         : 0.85 + def.traits.outdoorsiness * 0.35;
 
+    // S1+S2+S3: place-affinity bias from memories, continuation hysteresis,
+    // and short-term intention. All deterministic, no new RNG.
+    const candZoneId = getLandmarkAt(cand.target).id;
+    const candPlaceBias = computePlaceAffinityBias(ownMemories, candZoneId, world.day);
+    const candIntentionBias = intentionBiasForCandidate(intention, candZoneId, candGoalKind);
+    const candContinuation = rt.currentActivityId === candActivityId ? CONTINUATION_BONUS : 1.0;
+
     const score =
       weight *
         traitModifier *
@@ -522,6 +623,9 @@ function selectActivityForResident(
         needUtilityForGoal(candGoalKind, uEnergy, uHunger, uSocial, uFulfillment) *
         emotionBiasForGoal(rt.emotion, candGoalKind) *
         companionBiasForTarget(confidantPositions, cand.target) *
+        (1 + candPlaceBias) *
+        candIntentionBias *
+        candContinuation *
         (0.90 + rand() * 0.20) +
       tiebreakForGoal(candGoalKind);
     if (score > bestOption.score) {
@@ -1365,6 +1469,18 @@ export function stepSimulationInPlace(
           if (topic.tag === 'helped_chore') {
             rt.needs.fulfillment = clampNeed(rt.needs.fulfillment + 8);
           }
+          // S4: friction writes a directional perception — this participant now
+          // subjectively distrusts the other (independent of the bilateral
+          // tension delta). Enables "A avoids B even after B forgives A."
+          // F2 fix: only write for the actual friction pair (a↔b), NOT the
+          // round-robin nextPartner (which misattributes friction to an innocent
+          // third participant in 3-person encounters). The bilateral write loop
+          // below handles all pairs; the perception overlay is written here only
+          // for the friction pair, symmetrically in both directions.
+          if (isFriction && (pid === a || pid === b)) {
+            const other = pid === a ? b : a;
+            adjustNpcPerceptionInPlace(world, pid, other, world.day, -3, +4, 'friction_encounter');
+          }
         }
 
         // C4: friction inverts the affinity/tension deltas so the pair drifts
@@ -1408,6 +1524,7 @@ export function stepSimulationInPlace(
         // pre-existing gossip propagated). This lets future dialogue reference
         // "the chat we had by the gazebo" via requiresNpcMemory conditions.
         const encounterPlace = rtA.currentPlaceName;
+        const encounterZoneId = getLandmarkAt(rtA.position).id;
         for (let pIdx = 0; pIdx < participants.length; pIdx++) {
           const pid = participants[pIdx];
           const others = participants.filter((p) => p !== pid);
@@ -1429,7 +1546,7 @@ export function stepSimulationInPlace(
               retention: 'durable',
               valence: isFriction ? 'tense' : 'warm',
               emotionalWeight: isFriction ? 55 : 40,
-              detail: { placeName: encounterPlace },
+              detail: { placeName: encounterPlace, placeZoneId: encounterZoneId },
             }),
             world.day,
           );
@@ -1462,7 +1579,7 @@ export function stepSimulationInPlace(
               retention: 'durable',
               valence: isFriction ? 'tense' : 'neutral',
               emotionalWeight: isFriction ? 35 : 25,
-              detail: { placeName: encounterPlace },
+              detail: { placeName: encounterPlace, placeZoneId: encounterZoneId },
             }),
             world.day,
           );
@@ -1503,6 +1620,16 @@ export function stepSimulation(
     }, {} as WorldState['residents']),
     npcRuntime: cloneNpcRuntime(world.npcRuntime),
     npcRelations: { ...world.npcRelations },
+    // S4/S6: clone the directional perception overlay and social groups so the
+    // pure stepSimulation path and the in-place path share the same view
+    // (twin-determinism when perceptions/groups are non-empty).
+    npcPerceptions: cloneNpcPerceptions(world.npcPerceptions),
+    npcSocialGroups: world.npcSocialGroups
+      ? world.npcSocialGroups.map((g) => ({
+          ...g,
+          members: g.members.map((m) => ({ ...m })),
+        }))
+      : world.npcSocialGroups,
     activeEncounters: world.activeEncounters.map((e) => ({
       ...e,
       participants: [...e.participants],
