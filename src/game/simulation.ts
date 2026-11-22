@@ -1472,8 +1472,14 @@ export function stepSimulationInPlace(
           // S4: friction writes a directional perception — this participant now
           // subjectively distrusts the other (independent of the bilateral
           // tension delta). Enables "A avoids B even after B forgives A."
-          if (isFriction) {
-            adjustNpcPerceptionInPlace(world, pid, nextPartner, world.day, -3, +4, 'friction_encounter');
+          // F2 fix: only write for the actual friction pair (a↔b), NOT the
+          // round-robin nextPartner (which misattributes friction to an innocent
+          // third participant in 3-person encounters). The bilateral write loop
+          // below handles all pairs; the perception overlay is written here only
+          // for the friction pair, symmetrically in both directions.
+          if (isFriction && (pid === a || pid === b)) {
+            const other = pid === a ? b : a;
+            adjustNpcPerceptionInPlace(world, pid, other, world.day, -3, +4, 'friction_encounter');
           }
         }
 

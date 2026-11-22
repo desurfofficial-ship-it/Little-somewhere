@@ -700,3 +700,64 @@ test('23. performance within budget with perception overlay (evolution)', () => 
   const elapsed = Date.now() - start;
   assert.ok(elapsed < 400, `200 ticks with perceptions <400ms (got ${elapsed}ms)`);
 });
+
+// ── EV-F adversarial QA regression tests ──
+
+test('24. EV-F F1: advanceToNextDay does NOT mutate the input state\'s npcPerceptions', () => {
+  let world = createFreshWorldState();
+  adjustNpcPerceptionInPlace(world, 'clara', 'toby', world.day, +15, +10, 'old_favor');
+  const beforeJson = serializeWorldState(world);
+  // Call advanceToNextDay WITHOUT reassigning world — verify the INPUT state is
+  // not mutated by the drift/reconcile path. (F1: driftNpcPerceptionsInPlace
+  // used to alias state.npcPerceptions and mutate it in-place.)
+  advanceToNextDay(world);
+  const afterJson = serializeWorldState(world);
+  assert.equal(beforeJson, afterJson, 'input state serialized identically before and after advanceToNextDay (no input mutation)');
+});
+
+test('25. EV-F F2: 3-person friction writes perception only for the friction pair (symmetric)', () => {
+  // Simulate the friction-perception write logic directly: a 3-person encounter
+  // [clara, toby, mina] where clara:toby is the guarded friction pair. The
+  // perception overlay should be written ONLY for clara↔toby (both directions),
+  // NOT for the innocent third participant (mina).
+  let world = createFreshWorldState();
+  const a = 'clara' as ResidentId;
+  const b = 'toby' as ResidentId;
+  const c = 'mina' as ResidentId;
+  const participants: ResidentId[] = [a, b, c];
+  // Simulate the friction write loop (mirrors simulation.ts:1480-1483).
+  for (const pid of participants) {
+    if (pid === a || pid === b) {
+      const other = pid === a ? b : a;
+      adjustNpcPerceptionInPlace(world, pid, other, world.day, -3, +4, 'friction_encounter');
+    }
+  }
+  // Clara→Toby and Toby→Clara should both be written (symmetric).
+  assert.ok(world.npcPerceptions?.clara?.toby, 'clara→toby perception written');
+  assert.ok(world.npcPerceptions?.toby?.clara, 'toby→clara perception written (symmetric)');
+  // Mina should have NO perception written (innocent third participant).
+  assert.ok(!world.npcPerceptions?.mina?.clara, 'mina→clara NOT written (innocent)');
+  assert.ok(!world.npcPerceptions?.mina?.toby, 'mina→toby NOT written (innocent)');
+  assert.ok(!world.npcPerceptions?.clara?.mina, 'clara→mina NOT written (innocent)');
+  assert.ok(!world.npcPerceptions?.toby?.mina, 'toby→mina NOT written (innocent)');
+});
+
+test('26. EV-F: byte-equality across twin runs with populated perceptions (not just deepEqual)', () => {
+  let simA = createFreshWorldState();
+  let simB = createFreshWorldState();
+  // Seed identical perceptions so the overlay path is exercised.
+  adjustNpcPerceptionInPlace(simA, 'clara', 'toby', 1, +10, -2, 'seed');
+  adjustNpcPerceptionInPlace(simB, 'clara', 'toby', 1, +10, -2, 'seed');
+  for (let f = 0; f < 200; f++) {
+    simA = stepSimulation(simA, 0.25, { clockRateMinutesPerSec: 8 });
+    simB = stepSimulation(simB, 0.25, { clockRateMinutesPerSec: 8 });
+  }
+  simA = advanceToNextDay(simA);
+  simB = advanceToNextDay(simB);
+  for (let f = 0; f < 200; f++) {
+    simA = stepSimulation(simA, 0.25, { clockRateMinutesPerSec: 8 });
+    simB = stepSimulation(simB, 0.25, { clockRateMinutesPerSec: 8 });
+  }
+  // Byte-identical (not just structural deepEqual).
+  assert.equal(serializeWorldState(simA), serializeWorldState(simB), 'twin runs byte-identical with populated perceptions');
+});

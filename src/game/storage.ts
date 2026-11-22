@@ -775,6 +775,10 @@ export function advanceToNextDay(state: WorldState): WorldState {
     bakeryState: prevBakery,
     nookState: prevNook,
     copperwheelState: prevCopperwheel,
+    // F1 fix: clone npcPerceptions so driftNpcPerceptionsInPlace does NOT mutate
+    // the caller's input state. The bilateral npcRelations and npcMemories are
+    // already cloned above; the perception overlay must be too.
+    npcPerceptions: cloneNpcPerceptions(state.npcPerceptions),
   };
 
   const reconciled = reconcileLivingRelationshipsOnDayAdvance(rolled);
