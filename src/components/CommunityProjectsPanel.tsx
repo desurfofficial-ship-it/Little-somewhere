@@ -1,8 +1,9 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useRef } from 'react';
 import { Check, MapPin, Users, X } from 'lucide-react';
 import { getCommunityProjectsView } from '../game/community';
 import { getItemCount } from '../game/inventory';
 import { PersonalItemId, WorldState } from '../game/types';
+import { useDialogA11y } from './useDialogA11y';
 
 interface CommunityProjectsPanelProps {
   open: boolean;
@@ -29,6 +30,11 @@ export const CommunityProjectsPanel: React.FC<CommunityProjectsPanelProps> = ({
   onClose,
   onContribute,
 }) => {
+  // UI/UX program (WP3): shared focus kit. Declared BEFORE the early return so
+  // hook order stays stable across open/close.
+  const dialogRef = useRef<HTMLDivElement | null>(null);
+  useDialogA11y(dialogRef, open);
+
   const projects = useMemo(() => getCommunityProjectsView(world), [world]);
 
   const totals = useMemo(
@@ -52,7 +58,9 @@ export const CommunityProjectsPanel: React.FC<CommunityProjectsPanelProps> = ({
       onClick={onClose}
     >
       <div
+        ref={dialogRef}
         role="dialog"
+        aria-modal="true"
         aria-label="Community Contribution Shelf"
         onClick={(e) => e.stopPropagation()}
         className="w-full max-w-2xl max-h-[85vh] bg-linen border border-stone-line rounded-2xl shadow-elevation-drawer flex flex-col overflow-hidden"
@@ -190,7 +198,7 @@ export const CommunityProjectsPanel: React.FC<CommunityProjectsPanelProps> = ({
                             aria-label={`Contribute one ${item.label} to ${project.title}`}
                             className={`min-h-[44px] px-3.5 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-colors ${
                               canContributeOne
-                                ? 'bg-sage hover:bg-[#4F6E53] text-linen cursor-pointer'
+                                ? 'bg-sage-deep hover:bg-sage text-linen cursor-pointer'
                                 : 'bg-[#E6DAC7] text-[#8C7D6F] cursor-not-allowed'
                             }`}
                           >
