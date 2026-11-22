@@ -1743,6 +1743,15 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
     const handlePointerDown = (e: PointerEvent) => {
       if (screenStateRef.current !== 'playing' || dialogueOpenRef.current) return;
       if (e.button !== 0 && e.pointerType === 'mouse') return;
+      // Overhaul H-1 (QA-FINAL): capture the pointer so a mouse drag released
+      // outside the canvas still delivers pointerup/cancel (touch implicitly
+      // captures; mouse does not — without this the camera kept following
+      // hover moves after an off-canvas release).
+      try {
+        renderer.domElement.setPointerCapture(e.pointerId);
+      } catch {
+        // pointer already gone — the gesture simply cannot start
+      }
       if (pinch) return; // two-finger gesture owns the canvas
       if (activePointer) {
         pinch = {

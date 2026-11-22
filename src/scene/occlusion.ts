@@ -50,6 +50,24 @@ function isSkippableMaterial(mat: THREE.Material): boolean {
   return Boolean(std.transparent && (std.opacity ?? 1) < OPACITY_EPSILON);
 }
 
+/**
+ * Carry shader-attachment state from the original onto its fade clone.
+ * Material.copy does not transfer onBeforeCompile / customProgramCacheKey /
+ * live userData bindings (QA-FINAL C-1) — without this, sway/ground-gradient
+ * clones render as un-shadered copies.
+ */
+function reattachShaderState(clone: THREE.Material, original: THREE.Material): void {
+  if (original.onBeforeCompile) {
+    clone.onBeforeCompile = original.onBeforeCompile;
+    clone.customProgramCacheKey = original.customProgramCacheKey;
+  }
+  // Sway uniforms live in userData and are driven by reference — sharing the
+  // object keeps the clone swaying with the original.
+  if (original.userData?.swayUniforms) {
+    clone.userData.swayUniforms = original.userData.swayUniforms;
+  }
+}
+
 export function registerOccluder(
   registry: OcclusionRegistry,
   root: THREE.Object3D,
@@ -72,6 +90,7 @@ export function registerOccluder(
       if (!m || replacement.has(m) || registry.originals.has(m)) continue;
       if (isSkippableMaterial(m)) continue;
       const clone = m.clone();
+      reattachShaderState(clone, m);
       registry.originals.set(clone, m);
       replacement.set(m, clone);
       record.materials.push(clone);
@@ -174,9 +193,25 @@ function probeRays(
   }
 }
 
-/** Per-frame fade tween (cheap: ≤ ~10 records × few materials). */
+/** Per-frame fade tween (cheap: ≤ ~10 records × few materials) plus the
+ *  live-property sync that carries envRenderer mutations (seasonal tints,
+ *  canopy drift, window/lantern emissive) from the shared originals onto the
+ *  per-shell clones (QA-FINAL C-1/C-2). */
 export function updateOcclusionFades(registry: OcclusionRegistry, dt: number): void {
   for (const record of registry.records) {
+    for (let i = 0; i < record.materials.length; i++) {
+      const clone = record.materials[i];
+      const original = registry.originals.get(clone);
+      if (original) {
+        const src = original as THREE.MeshStandardMaterial;
+        const dst = clone as THREE.MeshStandardMaterial;
+        if (dst.color && src.color) dst.color.copy(src.color);
+        if (dst.emissive && src.emissive) {
+          dst.emissive.copy(src.emissive);
+          dst.emissiveIntensity = src.emissiveIntensity;
+        }
+      }
+    }
     if (record.fade !== record.target) {
       record.fade = THREE.MathUtils.damp(record.fade, record.target, FADE_DAMP, dt);
       if (Math.abs(record.fade - record.target) < 0.004) record.fade = record.target;

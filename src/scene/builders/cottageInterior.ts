@@ -1385,6 +1385,9 @@ export function buildWillowCottageInterior(
   hatBrim.position.set(2.65, 1.365, -2.65);
   hatBrim.rotation.set(0.12, 0, -0.06);
   group.add(pegA, pegB, pegBoard, hatCrown, hatBrim);
+  // Overhaul D-1 (QA-FINAL): wall-mounted dressing must hide with its wall or
+  // it floats mid-air when the yaw-aware cutaway stows the north wall.
+  for (const d of [pegA, pegB, pegBoard, hatCrown, hatBrim]) tagShell(d, 'N', true);
 
   // H. Lived-in dressing (Pass 1 — Everyday Life polish; all inside existing obstacle
   //    footprints or wall planes so COTTAGE_INTERIOR_OBSTACLES stays untouched).
@@ -1464,6 +1467,7 @@ export function buildWillowCottageInterior(
   curtainTieS.position.set(-3.51, 1.28, 0.83);
   curtainTieS.rotation.y = Math.PI * 0.5;
   group.add(curtainNorth, curtainSouth, curtainTieN, curtainTieS);
+  for (const d of [curtainRod, curtainNorth, curtainSouth, curtainTieN, curtainTieS]) tagShell(d, 'W', true);
 
   // H3. Framed botanical prints on the north wall (either side of keepsake shelf clock)
   const printFrameA = new THREE.Group();
@@ -1481,6 +1485,8 @@ export function buildWillowCottageInterior(
   const canvasB = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(0.24, 0.32, 0.05)), petalLavenderMat);
   printFrameB.add(frameB, canvasB);
   group.add(printFrameA, printFrameB);
+  tagShell(printFrameA, 'N', true);
+  tagShell(printFrameB, 'N', true);
 
   // H4. Round wall clock above the keepsake shelf — hands are pivot groups so
   // rig.update can drive them from the in-game minuteOfDay (Pass 8, EL-17).
@@ -1502,6 +1508,7 @@ export function buildWillowCottageInterior(
   const clockPin = new THREE.Mesh(trackGeo(new THREE.SphereGeometry(0.02, 6, 6)), brassMat);
   clockPin.position.set(1.3, 2.26, -2.63);
   group.add(clockRim, clockFace, clockHandHourPivot, clockHandMinutePivot, clockPin);
+  for (const d of [clockRim, clockFace, clockHandHourPivot, clockHandMinutePivot, clockPin]) tagShell(d, 'N', true);
 
   // H5. Dried-herb bundle hanging beside the chimney breast
   const herbBundle = new THREE.Group();
@@ -1517,6 +1524,7 @@ export function buildWillowCottageInterior(
   }
   herbBundle.add(herbTwine);
   group.add(herbBundle);
+  tagShell(herbBundle, 'N', true);
 
   // H6. Firewood basket beside the hearth counter (inside cottage_hearth footprint)
   const woodBasket = new THREE.Group();
@@ -1672,6 +1680,7 @@ export function buildWillowCottageInterior(
   scarfTail.rotation.z = -0.16;
   scarfPeg.add(pegPin, scarfLoop, scarfCloth, scarfTail);
   group.add(scarfPeg);
+  tagShell(scarfPeg, 'N', true);
 
   // H10. Hanging pendant lantern under the center beam (airborne — no walkability impact)
   const pendantGroup = new THREE.Group();
@@ -1686,6 +1695,8 @@ export function buildWillowCottageInterior(
   pendantRing.position.y = 2.11;
   pendantGroup.add(pendantCord, pendantShade, pendantBulb, pendantRing);
   group.add(pendantGroup);
+  // Hangs from the (tagged) north rafters — hide together.
+  tagShell(pendantGroup, 'N', true);
 
   // H11. Stronger empty-vase cue: dry stems + a small paper tag on the empty pitcher
   const dryStemA = new THREE.Mesh(trackGeo(new THREE.CylinderGeometry(0.008, 0.01, 0.2, 5)), foliageMat);

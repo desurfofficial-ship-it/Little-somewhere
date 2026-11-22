@@ -104,3 +104,38 @@ test('setAllOccluderTargets restores opacity targets (interior entry) and multi-
   assert.equal(matB.opacity, 1);
   disposeOcclusion(registry);
 });
+
+test('QA-FINAL C-1/C-2: clones inherit shader state and live-sync env mutations', () => {
+  const registry = createOcclusionRegistry();
+  const root = new THREE.Group();
+  // A sway-style material: onBeforeCompile + shared userData uniforms + emissive
+  // mutated at runtime by the environment renderer.
+  const sharedUniforms = { uTime: { value: 0 } };
+  const original = new THREE.MeshStandardMaterial();
+  original.onBeforeCompile = (shader) => {
+    shader.uniforms.uTime = sharedUniforms.uTime;
+  };
+  original.customProgramCacheKey = () => 'storybook_sway_test';
+  original.userData.swayUniforms = sharedUniforms;
+  const mesh = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), original);
+  root.add(mesh);
+  const record = registerOccluder(registry, root, 'grove')!;
+  const clone = record.materials[0] as THREE.MeshStandardMaterial;
+  assert.ok(clone.onBeforeCompile, 'clone carries onBeforeCompile');
+  assert.equal(clone.customProgramCacheKey?.(), 'storybook_sway_test');
+  assert.equal(clone.userData.swayUniforms, sharedUniforms, 'uniform object shared by reference');
+
+  // Env renderer mutates the ORIGINAL — the per-frame sync must carry it over.
+  original.emissive.set('#FFB347');
+  original.emissiveIntensity = 1.55;
+  original.color.set('#7FA05A');
+  updateOcclusionFades(registry, 1 / 30);
+  assert.equal(clone.emissive.getHexString(), 'ffb347', 'emissive synced');
+  assert.equal(clone.emissiveIntensity, 1.55, 'emissiveIntensity synced');
+  assert.equal(clone.color.getHexString(), '7fa05a', 'seasonal tint synced');
+  // Fade tween still works alongside the sync.
+  record.target = OCCLUSION_FADED_OPACITY;
+  for (let i = 0; i < 120; i++) updateOcclusionFades(registry, 1 / 30);
+  assert.ok(Math.abs(clone.opacity - OCCLUSION_FADED_OPACITY) < 0.01);
+  disposeOcclusion(registry);
+});

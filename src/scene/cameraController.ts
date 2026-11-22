@@ -239,19 +239,14 @@ export class CameraController {
       focusZ + Math.cos(this.yaw) * distH,
     );
 
-    if (!this.initialized) {
-      this.camera.position.copy(this._pos);
-      this.initialized = true;
-    } else {
-      this.camera.position.x = THREE.MathUtils.damp(this.camera.position.x, this._pos.x, POS_DAMP, dt);
-      this.camera.position.y = THREE.MathUtils.damp(this.camera.position.y, this._pos.y, POS_DAMP, dt);
-      this.camera.position.z = THREE.MathUtils.damp(this.camera.position.z, this._pos.z, POS_DAMP, dt);
-    }
-
     // Look target — now smoothed (fixes the dialogue/branch look-target pops).
+    // B-1 (QA-FINAL): seed the smoothed target on the SAME first frame the
+    // position snaps, so resetSmoothing()/snapTo() reframe aim as well —
+    // otherwise the look target damps from the stale pre-transition location.
+    const firstFrame = !this.initialized;
     const targetY =
       p.lookY + snap.groundY * p.groundFollow + this.smDialogueDropY;
-    if (!this.initialized) {
+    if (firstFrame) {
       this.lookX = focusX;
       this.lookY = targetY;
       this.lookZ = focusZ;
@@ -261,6 +256,15 @@ export class CameraController {
     this.lookZ = THREE.MathUtils.damp(this.lookZ, focusZ, LOOK_DAMP, dt);
     this._look.set(this.lookX, this.lookY, this.lookZ);
     this.camera.lookAt(this._look);
+
+    if (firstFrame) {
+      this.camera.position.copy(this._pos);
+      this.initialized = true;
+    } else {
+      this.camera.position.x = THREE.MathUtils.damp(this.camera.position.x, this._pos.x, POS_DAMP, dt);
+      this.camera.position.y = THREE.MathUtils.damp(this.camera.position.y, this._pos.y, POS_DAMP, dt);
+      this.camera.position.z = THREE.MathUtils.damp(this.camera.position.z, this._pos.z, POS_DAMP, dt);
+    }
   }
 
   private updateTitle(dt: number): void {
