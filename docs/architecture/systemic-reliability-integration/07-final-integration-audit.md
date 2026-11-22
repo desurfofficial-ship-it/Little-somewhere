@@ -36,12 +36,23 @@ All mandatory gates satisfied; merge authorized per the directive (reliability p
 
 ## 5. Publication record
 
-- Branch: `integrate/systemic-reliability-current-main`
-- PR: opened against `main` @ `0273821` immediately after this record (number and URL recorded by the post-merge docs commit — not written speculatively here)
+- Branch: `integrate/systemic-reliability-current-main` (head `a4afcc9`)
+- PR: **#11** — "Integrate Systemic Reliability with current main" — https://github.com/desurfofficial-ship-it/Little-somewhere/pull/11 (opened against `main` @ `0273821`; PR body carries the full why/preserved/omitted/tests/reviewers/deferred summary)
 - Merge method: GitHub PR **merge commit** (repository convention, matching PRs #4–#6/#9/#10)
-- Merge commit + resulting main hash: **recorded by the post-merge docs commit** (§6 / HANDOVER §19 / WORKLOG Entry 056 addendum)
+- Merge commit: `f1c2af4` ("Merge pull request #11 ..."); resulting authoritative `origin/main` = **`f1c2af4a8db74b45f66238d71dfe497da3648e4a`**
 
-## 6. Post-merge verification (to be recorded after the merge)
+## 6. Post-merge verification (recorded 2026-11-22, after the merge)
 
-Recorded in-repo by the post-merge docs commit, covering: the actual merged-main commit hash; full suite, TypeScript, build, stress/determinism, and targeted persistence/invitation/occupancy/simulation suites re-run on a fresh checkout of the fetched merged main; clean-repository confirmation; original reliability branch/worktree preservation; PR #3/#7/#8 unmerged-and-untouched confirmation. No result in this section is written before the verification it describes has actually run.
+Re-run on a fresh checkout of the fetched merged main (`f1c2af4`, deps installed fresh):
+
+| Gate | Result |
+|---|---|
+| Full suite `npx tsx --test src/game/*.test.ts src/scene/*.test.ts` | **528/528 pass, 0 fail** |
+| TypeScript `npx tsc --noEmit` | exit 0 |
+| Production build | green (891 ms; pre-existing >500 kB advisory only) |
+| Targeted persistence/LR suites (save-integrity, invitations, occupancy, simulation, storage, journal) | **107/107 pass** |
+| Stress harness | scenarios A–G clean, zero hard invariant violations; `B_twin_continuity` byte-identical to no-reload twin (deterministic replay byte-identical) |
+| Repository | clean working tree; integration branch merged (PR #11 state=merged), branch preserved on the remote |
+| Preservation | original `feat/systemic-reliability` @ `b71bb3c` + worktree `/home/z/my-project/little-somewhere-sri` clean and untouched |
+| Historical PR protection | PR #3 (`d615a8e`), #7 (`6fd59c7`), #8 (`b26e0d3`) verified via authenticated API: still open, unmerged, heads unchanged — untouched |
 
