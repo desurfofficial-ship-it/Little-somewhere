@@ -74,3 +74,16 @@ Named drivers, per the "every addition names its offset" law:
 - tsc clean · **527/527 tests** (489 pre-overhaul + 38 overhaul) · production build 854 ms — re-verified on the evidence-campaign tree.
 - 53 capture PNGs + per-shot metadata across six phase directories; console-error audit **0 errors in every session**.
 - Known limitations carried forward (WORKLOG 056): real-GPU FPS unmeasured; interior profiles use nominal aspect 1.6; occlusion probes SwiftShader-paced; fountain droplets individual meshes (InstancedMesh follow-up flagged).
+
+## 8. Final Definition-of-Done audit (Doc 00 six-problem register)
+
+| # | Problem (Doc 00) | Fix shipped | Evidence | Verdict |
+|---|---|---|---|---|
+| A | Fountain does not match reference | Reference-matched rebuild: 32-seg circular two-tier basin, bullnose coping, stone ring, pale-blue `#BFE3EF`; merged masonry; anchor `(0,4.1)`→`FOUNTAIN_CENTER` (0,1.5); 8 contract tests | `phase4-fountain/` ×7 (3 angles + dusk row + dry pair) vs BUILD 04 before-captures; perf bank −45 flowing (WORKLOG 056) | **DONE** |
+| B | Benches / furniture quality | Bench v2 (curved cedar, rounded rail, sage/mint pad) on the locked seat contract; mint upholstery in nook/copperwheel armchairs; palette + `upholsteryMint/Sage/cedarHoney` | `phase5-furniture/` ×10 (3 spots + close joinery + winter + 2 armchairs + café chair) | **DONE** |
+| C | Armchair sit orientation (+ residuals) | Contract intact (`seatMeshYaw` suite green throughout); C-1 deck sink fixed, C-2 stand-up fallback, C-3 sorrel margin ≥0.2, outdoor sipping | `phase6-seating/` ×4 incl. close-up no-sink proof + live "Stand Up" prompt; seating suites green | **DONE** |
+| D | Camera inadequate | `cameraController.ts` + `roomFraming.ts`: continuous yaw orbit (drag/pinch/wheel/Q,E/Comma/Period), pitch band, zoom 0.55–1.75, gesture re-ownership (tap commits on pointerup), yaw-derived movement basis, fixed-timestep accumulator (slow-motion eliminated) | `phase1-camera-foundation/` before/after drag + interior; `phase3` yaw90 pairs 17.5–21.5 % pixel-diff (real drag path); accumulator lock tests | **DONE** |
+| E | Interior camera framing | Bounds-derived `RoomCameraProfile` ×5 rooms + fit distance + player-weighted focus; greenhouse interior branch fixed; damped transitions; dynamic per-side cutaway incl. wall-mounted dressing | `phase3-interior-framing/` 5×4 grid + cutaway yaw sweep; zoommin/zoommax pairs 19.1–27.5 % pixel-diff | **DONE** |
+| F | Additional bug register | 5×P1 + P2 batch (G-2 future-schema refusal + autosave block, G-3 sit-range assert, NPC separation, arrival pre-check, A*-null fallbacks, cooldowns, KeyM gating, ambient dispose, …) | 38 new tests (527/527); G-2 live probe `phase7-bug-register/` (v12 payload preserved, autosave blocked 10 s); perf rows `phase8-final/` | **DONE** |
+
+DoD acceptance per Doc 05 Phase 8: checklist ticked with evidence links (this document) — satisfied; known-limitations list published (WORKLOG 056 + §7 above). Real-GPU FPS remains the one honestly-registered external gap.
