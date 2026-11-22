@@ -69,15 +69,6 @@ const GREETING_COOLDOWN_MINUTES = 65;
 
 // Pre-allocated scratch buffer so stepSimulationInPlace stays zero-GC in browser tick()
 const _otherPositions: Vec2[] = [];
-// A1 (Finding 7): per-resident free-movement timer (ephemeral, not persisted).
-// Cleared when an activity is blocked; accumulates while moving freely; once it
-// exceeds the grace window, blockedActivityIds is cleared. Module-scope so it
-// never touches the persisted NpcRuntimeState shape.
-const _unstuckSeconds: Record<string, number> = {};
-function resetUnstuckTimers(): void {
-  for (const id of RESIDENT_ORDER) _unstuckSeconds[id] = 0;
-}
-resetUnstuckTimers();
 
 function normalizeAngleDiff(target: number, current: number): number {
   let diff = target - current;
@@ -692,6 +683,7 @@ export function createInitialNpcRuntime(
       targetLookPos: null,
       currentSpeed: 0,
       blockedActivityIds: [],
+      unstuckSeconds: 0,
     };
   }
   return out;
@@ -711,6 +703,10 @@ export function cloneNpcRuntime(
       needs: { ...r.needs },
       targetLookPos: r.targetLookPos ? { x: r.targetLookPos.x, z: r.targetLookPos.z } : null,
       blockedActivityIds: r.blockedActivityIds ? [...r.blockedActivityIds] : [],
+      // QA-SIM D1: clone the ephemeral unstuckSeconds so the pure stepSimulation
+      // path and the in-place path share the same view of free-movement time
+      // (twin-determinism when blockedActivityIds is non-empty).
+      unstuckSeconds: r.unstuckSeconds ?? 0,
     };
   }
   return out;
@@ -1084,7 +1080,7 @@ export function stepSimulationInPlace(
             rt.animState = getDefaultPoseForSlot(id, phase);
             rt.activityUntilMinute = world.minuteOfDay;
             rt.goalCommittedUntilMinute = world.minuteOfDay;
-            _unstuckSeconds[id] = 0;
+            rt.unstuckSeconds = 0;
             if (rt.currentActivityId && !rt.currentActivityId.endsWith(':anchor')) {
               rt.blockedActivityIds = pushBounded(
                 rt.blockedActivityIds,
@@ -1099,17 +1095,19 @@ export function stepSimulationInPlace(
           // A1 (Finding 7): the NPC is moving freely. Once it has been unstuck
           // for a few seconds, clear the blocked-activity list so a transient
           // obstruction (another NPC walking through) doesn't blacklist a now-
-          // reachable activity for the rest of the day. Tracked in module-scope
-          // scratch so it never touches the persisted NpcRuntimeState shape.
+          // reachable activity for the rest of the day. Tracked on the runtime
+          // record (ephemeral — sanitizer strips it, never persisted) and cloned
+          // by cloneNpcRuntime so the pure stepSimulation path and the in-place
+          // path stay in lockstep (QA-SIM D1 twin-determinism fix).
           rt.stuckSeconds = 0;
           if (rt.blockedActivityIds && rt.blockedActivityIds.length > 0) {
-            _unstuckSeconds[id] = (_unstuckSeconds[id] ?? 0) + dt;
-            if (_unstuckSeconds[id] > 8) {
+            rt.unstuckSeconds = (rt.unstuckSeconds ?? 0) + dt;
+            if (rt.unstuckSeconds > 8) {
               rt.blockedActivityIds = [];
-              _unstuckSeconds[id] = 0;
+              rt.unstuckSeconds = 0;
             }
           } else {
-            _unstuckSeconds[id] = 0;
+            rt.unstuckSeconds = 0;
           }
         }
       }
@@ -1136,7 +1134,19 @@ export function stepSimulationInPlace(
         }
       } else {
         const extra = findMatchingExtraActivity(id, phase, rt.currentActivityId);
-        rt.animState = extra ? extra.animState : getDefaultPoseForSlot(id, phase);
+        if (extra) {
+          rt.animState = extra.animState;
+        } else if (rt.currentActivityId.endsWith(':evening_home') || rt.currentActivityId.endsWith(':morning_wake')) {
+          // QA-GAME D1 fix: the evening_home wind-down and morning_wake stoop
+          // overrides return animState:'rest' from selectActivityForResident,
+          // but they are NOT in RESIDENT_EXTRA_ACTIVITIES, so the old
+          // `getDefaultPoseForSlot` fallback silently clobbered them with
+          // 'work'/'idle' — draining energy instead of restoring it during the
+          // 65-min dusk wind-down. Honor the chosen rest pose.
+          rt.animState = 'rest';
+        } else {
+          rt.animState = getDefaultPoseForSlot(id, phase);
+        }
       }
 
       const isIndoors =

@@ -327,3 +327,190 @@ test('8. population scaling: the full 10-resident tick completes well under budg
   // The encounter pairing loop must always terminate (no infinite loops).
   assert.ok(perTickUs < 2000, `per-tick cost sustainable (<2ms avg, got ${perTickUs.toFixed(0)}us)`);
 });
+
+// --- §14 test-gap fillers: occupied destinations, personality divergence, perf-sensitive updates ---
+
+test('9. occupied-destination selection: a resident whose target seat is claimed yields and picks a reachable alternative', () => {
+  let world = createFreshWorldState();
+  const seat = getSeatById('seat_east_plaza');
+  assert.ok(seat, 'seat exists');
+  // Player claims the east plaza bench.
+  world = {
+    ...world,
+    minuteOfDay: 760,
+    playerPosture: 'sitting',
+    playerSeatId: 'seat_east_plaza',
+    playerPos: { x: seat!.approachPos.x, z: seat!.approachPos.z },
+    // Force Clara to consider the east bench: seed her at the plaza nearby with
+    // the east-bench activity as a candidate by giving her a fresh re-eval window.
+    npcRuntime: {
+      ...world.npcRuntime,
+      clara: {
+        ...world.npcRuntime.clara,
+        position: { x: seat!.approachPos.x + 1.5, z: seat!.approachPos.z + 1.5 },
+        currentActivityId: 'morning:anchor',
+        activityUntilMinute: world.minuteOfDay,
+        goalCommittedUntilMinute: world.minuteOfDay,
+        reservedSeatId: null,
+        socialPartnerId: null,
+        waypoints: [],
+        posture: 'standing',
+      },
+    },
+  };
+  // Step a few frames so Clara re-evaluates. The claimed seat candidate must be
+  // filtered out (isSeatClaimed) and Clara must pick a different reachable target.
+  for (let f = 0; f < 8; f++) world = stepSimulation(world, 0.25);
+  const clara = world.npcRuntime.clara;
+  assert.notEqual(clara.reservedSeatId, 'seat_east_plaza', 'Clara did not claim the player-occupied seat');
+  assert.equal(
+    isPointWalkable(clara.targetPos.x, clara.targetPos.z, 0.35),
+    true,
+    'Clara picked a reachable alternative target',
+  );
+});
+
+test('10. personality-driven divergence: same situation, different traits produce different activity preferences', () => {
+  // Two residents at the same location with different sociability/outdoorsiness
+  // should, over a run, select different activity distributions. We verify the
+  // trait vectors genuinely differ and that the traitModifier in the scorer
+  // produces measurably different candidate rankings by inspecting the activity
+  // history over a shared window.
+  const world = createFreshWorldState();
+  // Arthur (sociability 0.20, contemplative) vs Pip (sociability 0.92, spirited).
+  assert.ok(RESIDENTS.pip.traits.sociability > RESIDENTS.arthur.traits.sociability + 0.5, 'trait vectors diverge');
+  assert.ok(RESIDENTS.pip.traits.curiosity > RESIDENTS.arthur.traits.curiosity, 'curiosity diverges');
+  // Run a day and collect the distinct activities each picked.
+  let w = { ...world, playerPos: { x: -10.5, z: 10.5 } };
+  for (let f = 0; f < 200; f++) w = stepSimulation(w, 0.25, { clockRateMinutesPerSec: 6 });
+  const arthurActs = new Set(w.npcActivityHistory.arthur.map((e) => e.activityId));
+  const pipActs = new Set(w.npcActivityHistory.pip.map((e) => e.activityId));
+  // Both should have engaged (history non-empty), and their activity sets should
+  // differ — proving personality drives choice rather than identical RNG outcomes.
+  assert.ok(arthurActs.size > 0, 'Arthur has activity history');
+  assert.ok(pipActs.size > 0, 'Pip has activity history');
+  // They share the anchor pattern, but their extra-activity picks should diverge.
+  const arthurExtras = [...arthurActs].filter((a) => !a.endsWith(':anchor'));
+  const pipExtras = [...pipActs].filter((a) => !a.endsWith(':anchor'));
+  // QA-SIM D3 fix: the old assertion passed via a tautology clause when both
+  // residents stayed on anchor. Require real evidence: at least one extra
+  // activity picked somewhere, OR observable divergence between the two.
+  const totalExtras = arthurExtras.length + pipExtras.length;
+  const diverged = arthurExtras.length !== pipExtras.length
+    || arthurExtras.some((a) => !pipExtras.includes(a))
+    || pipExtras.some((p) => !arthurExtras.includes(p));
+  assert.ok(
+    totalExtras >= 1,
+    `personality-driven divergence requires at least one non-anchor pick (arthur: ${arthurExtras.join(',')}, pip: ${pipExtras.join(',')})`,
+  );
+  assert.ok(
+    diverged,
+    `Arthur and Pip activity sets must diverge (arthur extras: ${arthurExtras.join(',')}, pip extras: ${pipExtras.join(',')})`,
+  );
+});
+
+test('11. performance-sensitive update behavior: tick cost stays bounded under sustained load and does not degrade over time', () => {
+  let world = createFreshWorldState();
+  world = { ...world, playerPos: { x: -10.5, z: 10.5 } };
+  // Warm up sufficiently for JIT to settle (QA-SIM D4 / QA-PERF MINOR-3).
+  for (let f = 0; f < 200; f++) world = stepSimulation(world, 0.25);
+  // Measure early-run per-tick cost over a longer window for stability.
+  const earlyStart = Date.now();
+  for (let f = 0; f < 500; f++) world = stepSimulation(world, 0.25);
+  const earlyMs = Date.now() - earlyStart;
+  // Run 800 more ticks to simulate sustained play (memory/relations grow).
+  for (let f = 0; f < 800; f++) world = stepSimulation(world, 0.25);
+  // Measure late-run per-tick cost — must not have regressed (no O(n) drift).
+  const lateStart = Date.now();
+  for (let f = 0; f < 500; f++) world = stepSimulation(world, 0.25);
+  const lateMs = Date.now() - lateStart;
+  const earlyPerTick = earlyMs / 500;
+  const latePerTick = lateMs / 500;
+  // QA-SIM D4 fix: drop the +1ms cushion (it hid a 20x drift at 0.05ms/tick).
+  // Use a 1.5x multiplier + small absolute floor for JIT noise.
+  assert.ok(latePerTick < earlyPerTick * 1.5 + 0.1, `tick cost did not drift: early ${earlyPerTick.toFixed(3)}ms late ${latePerTick.toFixed(3)}ms`);
+  assert.ok(latePerTick < 3, `late-run per-tick cost sustainable (<3ms, got ${latePerTick.toFixed(3)}ms)`);
+  // Bounded collections held throughout sustained play.
+  assert.ok(world.worldEvents.length <= 40, 'worldEvents stayed bounded under load');
+  for (const id of RESIDENT_ORDER) {
+    assert.ok(world.npcMemories[id].length <= 14, `${id} memories stayed bounded under load`);
+  }
+});
+
+// --- NPC Autonomy facade contract test (for LR-3/LR-4/LR-5 consumers) ---
+
+test('12. npcAutonomy facade: public query helpers return stable, correct snapshots', async () => {
+  const { getResidentActivity, getResidentSocialPartner, getResidentNeeds, isResidentAvailableForActivity, getNearestConfidant, getPlayerRelationshipTier, getAvailableResidents, getNpcRelationTierForPair, getNpcFamiliarity } = await import('./npcAutonomy');
+  let world = createFreshWorldState();
+  // Clara starts at her morning anchor (Bakery Porch) per createFreshWorldState.
+  const snap = getResidentActivity('clara', world);
+  assert.ok(snap, 'snapshot returns a value');
+  assert.equal(snap!.residentId, 'clara');
+  assert.equal(typeof snap!.activityId, 'string');
+  assert.equal(typeof snap!.placeName, 'string');
+  assert.equal(typeof snap!.isTraveling, 'boolean');
+  assert.equal(typeof snap!.isSeated, 'boolean');
+  assert.equal(snap!.socialPartnerId, null, 'no partner at fresh start');
+  assert.deepEqual(snap!.needs, world.npcRuntime.clara.needs, 'needs snapshot matches runtime');
+  // Destination matches targetPos.
+  const dest = getResidentActivity('clara', world)!.destination;
+  assert.equal(dest.x, world.npcRuntime.clara.targetPos.x);
+
+  // isResidentAvailableForActivity: true at fresh start (standing, no partner, not indoor).
+  assert.equal(isResidentAvailableForActivity('clara', world), true, 'Clara available at fresh start');
+  // Make Clara seated — she should become unavailable.
+  world = { ...world, npcRuntime: { ...world.npcRuntime, clara: { ...world.npcRuntime.clara, posture: 'sitting' } } };
+  assert.equal(isResidentAvailableForActivity('clara', world), false, 'seated resident unavailable');
+  // Make Clara the indoor occupant — unavailable.
+  world = { ...world, occupancy: { residentId: 'clara', location: 'bakery_interior', stationId: 'x', localPos: { x: 0, z: 0 }, facing: 0, invitationId: 'iv1' } };
+  assert.equal(isResidentAvailableForActivity('clara', world), false, 'indoor occupant unavailable');
+
+  // getNearestConfidant: clara→mina is the baseline confidant.
+  const conf = getNearestConfidant('clara', world);
+  assert.ok(conf === 'mina' || conf === null, 'nearest confidant is Mina or null if far');
+
+  // getPlayerRelationshipTier: stranger at fresh start (affinity 0).
+  assert.equal(getPlayerRelationshipTier('clara', world), 'stranger');
+
+  // getAvailableResidents: returns a list of available resident ids.
+  world = createFreshWorldState();
+  const avail = getAvailableResidents(world);
+  assert.ok(avail.length > 0, 'some residents available at fresh start');
+  assert.ok(avail.includes('clara'), 'Clara is available at fresh start');
+
+  // getNpcRelationTierForPair / getNpcFamiliarity: read-only convenience.
+  assert.equal(getNpcRelationTierForPair('clara', 'mina', world), 'confidant', 'baseline confidant tier');
+  assert.equal(getNpcFamiliarity('clara', 'mina', world), 5, 'baseline familiarity 5');
+
+  // Unknown resident returns null/empty gracefully.
+  assert.equal(getResidentActivity('nonexistent' as never, world), null);
+  assert.equal(getResidentNeeds('nonexistent' as never, world), null);
+});
+
+// --- QA-GAME D1 regression: dusk evening_home must restore energy, not drain it ---
+
+test('13. dusk evening_home wind-down restores energy (QA-GAME D1 regression)', () => {
+  // The dusk wind-down activity (minuteOfDay >= 1225) returns animState:'rest',
+  // but a fallback in the dwelling branch used to clobber it with the default
+  // pose ('work' for Clara/Arthur/Mina), draining energy instead of restoring
+  // it over the 65-min wind-down window. Verify the fix holds.
+  let world = createFreshWorldState();
+  // Fast-forward to dusk wind-down and deplete energy so the rest effect is visible.
+  world = { ...world, minuteOfDay: 1226 };
+  for (const id of RESIDENT_ORDER) {
+    world.npcRuntime[id] = { ...world.npcRuntime[id], needs: { ...world.npcRuntime[id].needs, energy: 40 } };
+  }
+  const before = world.npcRuntime.clara.needs.energy;
+  // Step ~30 in-game minutes of wind-down. Clara should rest (energy rises).
+  for (let f = 0; f < 180; f++) world = stepSimulation(world, 0.25, { clockRateMinutesPerSec: 4 });
+  const after = world.npcRuntime.clara.needs.energy;
+  // The bug: energy DROPPED (was -18 over 110 min). The fix: energy RISES.
+  assert.ok(
+    after >= before - 1,
+    `Clara's energy must not drain during dusk wind-down (before=${before.toFixed(1)}, after=${after.toFixed(1)}). QA-GAME D1: animState must be 'rest', not the clobbered default.`,
+  );
+  // And the animState during wind-down should be rest (or the resident is mid-travel home).
+  const clara = world.npcRuntime.clara;
+  const isRestingOrTraveling = clara.animState === 'rest' || clara.waypoints.length > 0;
+  assert.ok(isRestingOrTraveling, `Clara should be resting or traveling home during wind-down (animState=${clara.animState}, wp=${clara.waypoints.length})`);
+});

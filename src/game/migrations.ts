@@ -597,6 +597,10 @@ function sanitizeNpcRuntime(
             .filter((s): s is string => typeof s === 'string' && s.length > 0)
             .slice(-4)
         : [],
+      // QA-SIM D1: unstuckSeconds is ephemeral (never persisted). Default to 0
+      // so fresh, sanitized, and cloned runtimes all carry the same key, keeping
+      // save/load round-trip byte-identical and twin-determinism intact.
+      unstuckSeconds: 0,
     };
   }
   return out;
