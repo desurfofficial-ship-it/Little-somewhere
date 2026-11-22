@@ -128,6 +128,20 @@ export function cloneNpcMemoryEntry(entry: NpcMemoryEntry): NpcMemoryEntry {
   };
 }
 
+/**
+ * Returns a copy of `detail` with the `acousticOnly` flag removed. A secondhand
+ * listener did not "hear" the event acoustically, so the flag must not propagate.
+ * Previously this set `acousticOnly: undefined`, which JSON.stringify drops —
+ * breaking save/load round-trip equality (the in-memory entry carried the key
+ * with an undefined value while the sanitized reload omitted it). Deleting the
+ * key keeps in-memory and persisted representations identical.
+ */
+function stripAcousticOnly(detail: NpcMemoryDetail): NpcMemoryDetail | undefined {
+  if (!('acousticOnly' in detail)) return { ...detail };
+  const { acousticOnly: _omitted, ...rest } = detail;
+  return Object.keys(rest).length > 0 ? rest : undefined;
+}
+
 export function cloneNpcMemories(
   src?: Record<ResidentId, NpcMemoryEntry[]>,
 ): Record<ResidentId, NpcMemoryEntry[]> {
@@ -542,8 +556,22 @@ export function pruneExpiredNpcMemoriesInPlace(
     const list = npcMemories[id];
     if (!list) continue;
     for (let i = list.length - 1; i >= 0; i--) {
-      if (isMemoryExpired(list[i], currentDay)) {
+      const m = list[i];
+      if (isMemoryExpired(m, currentDay)) {
         list.splice(i, 1);
+        continue;
+      }
+      // D3 (emotional decay): a non-permanent memory's emotional pull gently
+      // fades after a 3-day grace window, lowering its retention score so
+      // fresher memories win eviction without the fact being forgotten.
+      // Permanent memories are exempt (their salience is narrative-anchored).
+      if (m.retention !== 'permanent') {
+        const ageDays = Math.max(0, currentDay - m.learnedDay);
+        const decay = Math.max(0, ageDays - 3) * 1.5;
+        const nextWeight = Math.max(15, Math.round(m.emotionalWeight - decay));
+        if (nextWeight !== m.emotionalWeight) {
+          list[i] = { ...m, emotionalWeight: nextWeight };
+        }
       }
     }
   }
@@ -911,9 +939,7 @@ export function propagateEncounterGossipInPlace(
       emotionalWeight: Math.max(20, chosen.emotionalWeight - 10),
       mentionedToPlayer: false,
       sharedCount: 0,
-      detail: chosen.detail
-        ? { ...chosen.detail, acousticOnly: undefined }
-        : undefined,
+      detail: chosen.detail ? stripAcousticOnly(chosen.detail) : undefined,
     });
 
     recordNpcMemoryInPlace(npcMemories, listenerId, transferredEntry, world.day);

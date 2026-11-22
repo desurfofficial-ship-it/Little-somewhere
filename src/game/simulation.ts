@@ -13,6 +13,7 @@ import {
 } from './types';
 import {
   ActivityCandidate,
+  ActivityGoalKind,
   RESIDENTS,
   RESIDENT_EXTRA_ACTIVITIES,
   RESIDENT_ORDER,
@@ -45,7 +46,7 @@ import {
 import { cloneStorylines } from './storylines';
 import { expireInvitationsInPlace } from './invitations';
 import { discoverExplorationInPlace } from './exploration';
-import { distance2D, getSeatById, isPointWalkable } from './worldMap';
+import { distance2D, getLandmarkAt, getSeatById, isPointWalkable } from './worldMap';
 
 export interface SimulationStepOptions {
   paused?: boolean;
@@ -169,6 +170,136 @@ function findMatchingExtraActivity(
   return undefined;
 }
 
+/**
+ * B6: derive an effective goal kind for the current activity so need
+ * satisfaction (rest→energy, eat→hunger, …) is read from declared semantics
+ * rather than the fragile `isEating` substring heuristic on activityId.
+ */
+function effectiveGoalKindForActivity(
+  id: ResidentId,
+  phase: TimePhase,
+  activityId: string,
+  animState: NpcAnimationState,
+): ActivityGoalKind | null {
+  const extra = findMatchingExtraActivity(id, phase, activityId);
+  if (extra?.goalKind) return extra.goalKind;
+  // Anchor / override: infer a lightweight kind from the resolved anim state.
+  if (animState === 'rest' || animState === 'sit') return 'rest';
+  if (animState === 'work') return 'work';
+  if (animState === 'sketch_read' || animState === 'music' || animState === 'admire') return 'leisure';
+  return null;
+}
+
+/**
+ * B3: graded need urgency (0..1), only fires below a threshold. Replaces the
+ * old binary fatigueBoost/hungerBoost so all four needs — including social and
+ * fulfillment — can actually drive activity selection.
+ */
+function needUrgency(value: number, threshold: number): number {
+  return value < threshold ? (threshold - value) / threshold : 0;
+}
+
+function needUtilityForGoal(
+  goalKind: ActivityGoalKind | null,
+  uEnergy: number,
+  uHunger: number,
+  uSocial: number,
+  uFulfillment: number,
+): number {
+  let u = 1.0;
+  if (goalKind === 'rest') u += uEnergy * 1.6;
+  else if (goalKind === 'eat') u += uHunger * 1.6;
+  else if (goalKind === 'social') u += uSocial * 1.4;
+  else if (goalKind === 'leisure') u += uFulfillment * 1.0;
+  else if (goalKind === 'work') u += uFulfillment * 0.6;
+  return u;
+}
+
+/**
+ * B4: emotion feedback. The NPC's current emotion biases which goal kinds feel
+ * appealing — closing the open loop where emotion was computed every tick but
+ * never fed back into activity selection. A frustrated NPC avoids social
+ * candidates; a tired NPC favors rest; a curious NPC gravitates to leisure.
+ */
+function emotionBiasForGoal(emotion: CharacterEmotion, goalKind: ActivityGoalKind | null): number {
+  if (!goalKind) return 1.0;
+  switch (emotion) {
+    case 'tired':
+      return goalKind === 'rest'
+        ? 1.30
+        : goalKind === 'work'
+        ? 0.85
+        : goalKind === 'social'
+        ? 0.88
+        : 1.0;
+    case 'frustrated':
+    case 'angry':
+      return goalKind === 'social'
+        ? 0.70
+        : goalKind === 'rest'
+        ? 1.20
+        : goalKind === 'eat'
+        ? 1.15
+        : goalKind === 'work'
+        ? 1.05
+        : 1.0;
+    case 'sad':
+      return goalKind === 'rest'
+        ? 1.15
+        : goalKind === 'social'
+        ? 0.90
+        : goalKind === 'leisure'
+        ? 1.05
+        : 1.0;
+    case 'happy':
+    case 'excited':
+      return goalKind === 'social'
+        ? 1.18
+        : goalKind === 'leisure'
+        ? 1.10
+        : goalKind === 'work'
+        ? 0.97
+        : goalKind === 'rest'
+        ? 0.92
+        : 1.0;
+    case 'curious':
+      return goalKind === 'leisure' ? 1.20 : goalKind === 'work' ? 0.97 : 1.0;
+    default:
+      return 1.0;
+  }
+}
+
+/** B5: deterministic goalKind tiebreak so genuine score ties resolve by intent. */
+function tiebreakForGoal(goalKind: ActivityGoalKind | null): number {
+  if (goalKind === 'rest') return 0.001;
+  if (goalKind === 'eat') return 0.0005;
+  return 0;
+}
+
+/** A3: activity-kind-varied dwell durations (in-game minutes). */
+function dwellRangeForGoal(goalKind: ActivityGoalKind | null): [number, number] {
+  switch (goalKind) {
+    case 'work':
+      return [55, 90];
+    case 'eat':
+      return [18, 32];
+    case 'rest':
+      return [30, 48];
+    case 'social':
+      return [38, 58];
+    case 'leisure':
+      return [30, 52];
+    default:
+      return [44, 72];
+  }
+}
+
+/** B2: preferred-zone affinity multiplier derived from the landmark at a target. */
+function zoneAffinityForTarget(preferredZones: readonly string[], target: Vec2): number {
+  const zoneId = getLandmarkAt(target).id;
+  return preferredZones.includes(zoneId) ? 1.20 : 0.95;
+}
+
 function selectActivityForResident(
   world: WorldState,
   id: ResidentId,
@@ -224,10 +355,30 @@ function selectActivityForResident(
   const blockIndex = Math.floor(minuteOfDay / 45);
   const rand = mulberry32(hashSeed(world.simSeed, world.day, blockIndex, id));
 
-  // Midday meal window boosts eat goals gently
+  // B3: graded need urgency (0..1, only below threshold). Replaces the old
+  // binary fatigueBoost/hungerBoost so social & fulfillment also drive choice.
   const isMealWindow = minuteOfDay >= 690 && minuteOfDay <= 820;
-  const fatigueBoost = rt.needs.energy < 42 ? 0.45 : 0;
-  const hungerBoost = rt.needs.hunger < 48 || isMealWindow ? 0.38 : 0;
+  const uEnergy = needUrgency(rt.needs.energy, 42);
+  const uHunger = Math.max(needUrgency(rt.needs.hunger, 48), isMealWindow ? 0.4 : 0);
+  const uSocial = needUrgency(rt.needs.social, 40);
+  const uFulfillment = needUrgency(rt.needs.fulfillment, 35);
+
+  const anchorAnimState = getDefaultPoseForSlot(id, phase);
+  const anchorGoalKind: ActivityGoalKind | null = effectiveGoalKindForActivity(
+    id,
+    phase,
+    `${phase}:anchor`,
+    anchorAnimState,
+  );
+
+  // B5: tightened RNG jitter (±10% vs old ±25%) so trait/need/emotion signal
+  // dominates noise. RNG call COUNT and ORDER are preserved (1 call for the
+  // anchor, 1 per evaluated extra, 1 for duration) so the seeded stream and
+  // twin-determinism invariant are unchanged.
+  const anchorJitter = rand() * 0.20; // 0..0.20 (single draw, mirrors old count)
+  const isRainShy =
+    weather === 'light_rain' && def.traits.rainBehavior !== 'umbrella_stroll';
+  const anchorBase = isRainShy ? 0.55 + anchorJitter : 0.95 + anchorJitter;
 
   let bestOption: {
     id: string;
@@ -238,18 +389,22 @@ function selectActivityForResident(
     animState: NpcAnimationState;
     score: number;
     seatId: string | null;
+    goalKind: ActivityGoalKind | null;
   } = {
     id: `${phase}:anchor`,
     target: anchor.target,
     placeName: anchor.placeName,
     activity: anchor.activity,
     facingAngle: anchor.facingAngle,
-    animState: getDefaultPoseForSlot(id, phase),
+    animState: anchorAnimState,
     score:
-      weather === 'light_rain' && def.traits.rainBehavior !== 'umbrella_stroll'
-        ? 0.55 + rand() * 0.25
-        : 0.95 + rand() * 0.35,
+      anchorBase *
+        zoneAffinityForTarget(def.traits.preferredZones, anchor.target) *
+        needUtilityForGoal(anchorGoalKind, uEnergy, uHunger, uSocial, uFulfillment) *
+        emotionBiasForGoal(rt.emotion, anchorGoalKind) +
+      tiebreakForGoal(anchorGoalKind),
     seatId: null,
+    goalKind: anchorGoalKind,
   };
 
   // Early morning waking hour (< 430): morning larks step out briskly; night owls linger near home
@@ -263,8 +418,17 @@ function selectActivityForResident(
       animState: 'rest',
       score: 1.32,
       seatId: null,
+      goalKind: 'rest',
     };
   }
+
+  // A5: activity-history repeat suppression — penalise candidates re-picked
+  // within the last couple of recorded entries so residents don't loop the same
+  // micro-activity block after block. `npcActivityHistory[id][0..1]` are the
+  // two most recent transitions.
+  const recentActivityIds = (world.npcActivityHistory?.[id] ?? [])
+    .slice(0, 2)
+    .map((e) => e.activityId);
 
   const extras = RESIDENT_EXTRA_ACTIVITIES[id];
   for (let i = 0; i < extras.length; i++) {
@@ -274,6 +438,8 @@ function selectActivityForResident(
     if (cand.requiresSideFlag && !world.sideFlags?.[cand.requiresSideFlag]) continue;
     if (cand.onlyWeathers && !cand.onlyWeathers.includes(weather)) continue;
     if (cand.seatId && isSeatClaimed(world, cand.seatId, id)) continue;
+
+    const candGoalKind = cand.goalKind ?? null;
 
     let weight = cand.baseWeight;
     if (weather === 'light_rain') {
@@ -286,8 +452,11 @@ function selectActivityForResident(
       weight *= 0.6;
     }
 
-    if (cand.goalKind === 'rest') weight += fatigueBoost;
-    if (cand.goalKind === 'eat') weight += hungerBoost;
+    // A5: dampen recently-repeated activities so routines stay varied.
+    const candActivityId = `${phase}:${cand.id}`;
+    if (recentActivityIds.includes(candActivityId)) {
+      weight *= 0.45;
+    }
 
     // Slight crowding penalty if >= 2 other NPCs already settled right on this spot
     let crowdedNeighbors = 0;
@@ -310,10 +479,17 @@ function selectActivityForResident(
         ? 0.85 + (1 - def.traits.outdoorsiness) * 0.4
         : 0.85 + def.traits.outdoorsiness * 0.35;
 
-    const score = weight * traitModifier * (0.75 + rand() * 0.5);
+    const score =
+      weight *
+        traitModifier *
+        zoneAffinityForTarget(def.traits.preferredZones, cand.target) *
+        needUtilityForGoal(candGoalKind, uEnergy, uHunger, uSocial, uFulfillment) *
+        emotionBiasForGoal(rt.emotion, candGoalKind) *
+        (0.90 + rand() * 0.20) +
+      tiebreakForGoal(candGoalKind);
     if (score > bestOption.score) {
       bestOption = {
-        id: `${phase}:${cand.id}`,
+        id: candActivityId,
         target: cand.target,
         placeName: cand.placeName,
         activity: cand.activity,
@@ -321,10 +497,13 @@ function selectActivityForResident(
         animState: cand.animState,
         score,
         seatId: cand.seatId ?? null,
+        goalKind: candGoalKind,
       };
     }
   }
 
+  // A3: activity-kind-varied dwell durations instead of a uniform 44–72 window.
+  const [dwellMin, dwellMax] = dwellRangeForGoal(bestOption.goalKind);
   return {
     id: bestOption.id,
     target: bestOption.target,
@@ -332,7 +511,7 @@ function selectActivityForResident(
     activity: bestOption.activity,
     facingAngle: bestOption.facingAngle,
     animState: bestOption.animState,
-    durationMinutes: seededInt(rand, 44, 72),
+    durationMinutes: seededInt(rand, dwellMin, dwellMax),
     seatId: bestOption.seatId,
     utility: bestOption.score,
   };
@@ -347,10 +526,15 @@ function updateResidentEmotionInPlace(
   const rel = world.playerRelations?.[id];
   const needs = rt.needs;
 
-  // Step continuous physiological/social needs cleanly
+  // B6: derive need satisfaction from the activity's declared goalKind instead
+  // of the fragile `isEating` substring heuristic (which false-positive matched
+  // anchor labels containing "loaf"/"bakery"). Anchors now only count as eating
+  // when their resolved goal kind is 'eat'.
+  const emotionPhase = getTimePhase(world.minuteOfDay);
+  const currentGoalKind = effectiveGoalKindForActivity(id, emotionPhase, rt.currentActivityId, rt.animState);
   const isResting = rt.animState === 'rest' || rt.animState === 'sit' || rt.posture === 'sitting';
   const isWorking = rt.animState === 'work' || rt.animState === 'walk';
-  const isEating = rt.currentActivityId.includes('tea') || rt.currentActivityId.includes('bakery') || rt.currentActivityId.includes('loaf') || rt.currentActivityId.includes('bun');
+  const isEating = currentGoalKind === 'eat';
 
   needs.energy = clampNeed(needs.energy + (isResting ? 0.55 : isWorking ? -0.18 : -0.07) * dtMinutes);
   needs.hunger = clampNeed(needs.hunger + (isEating ? 1.4 : -0.14) * dtMinutes);
@@ -366,13 +550,15 @@ function updateResidentEmotionInPlace(
   // Hysteresis lock keeps current emotion steady until emotionUntilMinute expires
   if (world.minuteOfDay < rt.emotionUntilMinute) return;
 
+  // B1: the emotion cascade now computes the natural emotion FIRST (driven by
+  // needs, social partner, weather, affinity, curiosity), then applies the
+  // restored-bell as a gentle mood BOOST rather than a short-circuit override.
+  // Previously `bellRestored` flattened every NPC to permanently "happy",
+  // erasing tired/frustrated/sad states even when their needs warranted them.
   let nextEmotion: CharacterEmotion = getInitialEmotionForResident(id, world.flags.claraArthurReconciled);
   let nextIntensity = 0.55;
 
-  if (world.flags.bellRestored) {
-    nextEmotion = 'happy';
-    nextIntensity = 0.85;
-  } else if (needs.energy < 28) {
+  if (needs.energy < 28) {
     nextEmotion = 'tired';
     nextIntensity = 0.72;
   } else if (needs.hunger < 26) {
@@ -390,6 +576,21 @@ function updateResidentEmotionInPlace(
   } else if (RESIDENTS[id].traits.curiosity >= 0.75) {
     nextEmotion = 'curious';
     nextIntensity = 0.62;
+  }
+
+  // B1: a restored bell lifts the neighborhood's spirits — but as a modifier,
+  // not an override. A bone-tired or hungry resident still reads as such; a
+  // content resident just feels a little warmer about the bell.
+  if (world.flags.bellRestored) {
+    if (nextEmotion === 'sad' || nextEmotion === 'frustrated' || nextEmotion === 'angry') {
+      // The bell softens, but doesn't erase, a low mood.
+      nextIntensity = Math.min(0.8, nextIntensity + 0.1);
+    } else {
+      nextIntensity = Math.min(0.9, nextIntensity + 0.15);
+      if (nextEmotion === 'relaxed' || nextEmotion === 'curious') {
+        nextEmotion = 'happy';
+      }
+    }
   }
 
   rt.emotion = nextEmotion;
