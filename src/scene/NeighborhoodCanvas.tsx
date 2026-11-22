@@ -3,6 +3,14 @@ import * as THREE from 'three';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { CameraController, createCameraSnapshot } from './cameraController';
 import { screenToWorldMove, ZOOM_MAX, ZOOM_MIN } from './roomFraming';
+import {
+  createOcclusionRegistry,
+  disposeOcclusion,
+  probeOcclusion,
+  registerOccluder,
+  setAllOccluderTargets,
+  updateOcclusionFades,
+} from './occlusion';
 import { PerfProbe } from './perfProbe';
 import {
   CarryableItemId,
@@ -520,6 +528,9 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
     // per-location profiles, damped look-target, occlusion probe scheduling.
     const cameraController = new CameraController(camera);
     const cameraSnapshot = createCameraSnapshot();
+    // Overhaul Phase 2: selective building/vegetation fade (D-2). Probes are
+    // interval-scheduled by the controller; fades run on per-shell clones.
+    const occlusion = createOcclusionRegistry();
 
     // 3-Point Warm/Cool Lighting Rig
     const hemiLight = new THREE.HemisphereLight('#B5D7EB', '#7A664E', 0.54);
@@ -624,6 +635,7 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
     exteriorRoot.add(buildPerimeterBorder(palette, shadowTex));
     const groveRig = buildGroveTreesInstanced(palette, isSoftwareGl);
     exteriorRoot.add(groveRig.group);
+    registerOccluder(occlusion, groveRig.group, 'plaza-grove');
 
     // Instanced botanical dressing: clover cushions, grass tufts, wildflower
     // clumps & fieldstone pebbles across the meadow margins (5 draw calls,
@@ -680,6 +692,7 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
     const willowCottage = buildWillowStepCottage(willowProtoCtx);
     willowCottage.group.position.set(-14.5, 0, 10.0);
     exteriorRoot.add(willowCottage.group);
+    registerOccluder(occlusion, willowCottage.group, 'cottage');
 
     const willowCourtyard = buildWillowLaneCourtyardProps(willowProtoCtx);
     exteriorRoot.add(willowCourtyard.group);
@@ -690,21 +703,31 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
     const mbFlag = willowMailbox.flagMesh;
 
     // 2. Hearth & Crumb Bakery (Clara) + Reactive Outdoor Café Tables
-    exteriorRoot.add(buildStorybookBakery(buildingCtx));
+    const bakeryBuilding = buildStorybookBakery(buildingCtx);
+    exteriorRoot.add(bakeryBuilding);
+    registerOccluder(occlusion, bakeryBuilding, 'bakery');
     const bakeryTablesGroup = buildBakeryCafeTables(palette, shadowTex);
     exteriorRoot.add(bakeryTablesGroup);
 
     // 3. Linden Book Nook (Nora)
-    exteriorRoot.add(buildStorybookBookNook(buildingCtx));
+    const bookNookBuilding = buildStorybookBookNook(buildingCtx);
+    exteriorRoot.add(bookNookBuilding);
+    registerOccluder(occlusion, bookNookBuilding, 'book-nook');
 
     // 4. Copperwheel Cottage (Arthur)
-    exteriorRoot.add(buildStorybookArthurWorkshop(buildingCtx));
+    const workshopBuilding = buildStorybookArthurWorkshop(buildingCtx);
+    exteriorRoot.add(workshopBuilding);
+    registerOccluder(occlusion, workshopBuilding, 'copperwheel-workshop');
 
-    // 5. Sunbeam Greenhouse (Mina)
-    exteriorRoot.add(buildStorybookGreenhouse(buildingCtx));
+    // 5. Sunbeam Greenhouse (Mina) — glass shell self-skips (already transparent)
+    const greenhouseBuilding = buildStorybookGreenhouse(buildingCtx);
+    exteriorRoot.add(greenhouseBuilding);
+    registerOccluder(occlusion, greenhouseBuilding, 'greenhouse');
 
     // 6. Pinecone Woodshop (Barnaby)
-    exteriorRoot.add(buildStorybookBarnabyWoodshop(buildingCtx));
+    const woodshopBuilding = buildStorybookBarnabyWoodshop(buildingCtx);
+    exteriorRoot.add(woodshopBuilding);
+    registerOccluder(occlusion, woodshopBuilding, 'woodshop');
 
     // 7. Old Bell Gazebo (Centerpiece Landmark!)
     const gazeboRig: GazeboRig = buildStorybookGazebo(palette, shadowTex, sageRoofTex);
@@ -724,6 +747,7 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
     exteriorRoot.add(pondRig.group);
     const hollowOakRig = buildHollowOakLandmark(palette, shadowTex);
     exteriorRoot.add(hollowOakRig.group);
+    registerOccluder(occlusion, hollowOakRig.group, 'hollow-oak');
     const oakGlint = hollowOakRig.oakGlint;
 
     // 10c. The Wild Hollows — Foxglove Rise, Sorrel Hollow, Marigold Lane, Bee Line
@@ -2554,6 +2578,9 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
         playerMotion = createInitialPlayerMotion(world.playerPos);
         if (curLocation !== 'exterior') {
           playerMotion.groundY = 0;
+          // Leaving the exterior: restore every faded shell to opaque while it
+          // is off-screen so re-entry starts clean.
+          setAllOccluderTargets(occlusion, 1);
         }
         // Snap camera smoothly toward the entered room or porch so there's zero disorienting cross-map pan
         const snapIsInterior = curLocation !== 'exterior';
@@ -2791,6 +2818,14 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
       }
       cameraController.update(dt, cameraSnapshot);
 
+      // Overhaul Phase 2 (D-2): interval-scheduled occlusion probes outdoors;
+      // interiors are handled by the diorama swap (nothing to probe). Fades
+      // tween every frame so entries/exits complete within ~200 ms.
+      if (curLocation === 'exterior' && cameraController.consumeProbeRequest(dt)) {
+        probeOcclusion(occlusion, camera, world.playerPos.x, 0.8, world.playerPos.z);
+      }
+      updateOcclusionFades(occlusion, dt);
+
       renderer.render(scene, camera);
 
       // Perf QA sampling (opt-in; branch costs ~2 int increments when disabled)
@@ -2837,7 +2872,11 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
       window.removeEventListener('keyup', handleKeyUp);
       window.removeEventListener('blur', clearInputs);
       renderer.domElement.removeEventListener('pointerdown', handlePointerDown);
+      renderer.domElement.removeEventListener('pointermove', handlePointerMove);
+      renderer.domElement.removeEventListener('pointerup', handlePointerUp);
+      renderer.domElement.removeEventListener('pointercancel', handlePointerCancel);
       renderer.domElement.removeEventListener('wheel', handleWheel);
+      disposeOcclusion(occlusion);
       envController.dispose();
       progressionRigs.dispose();
       staticContactShadows.dispose();
