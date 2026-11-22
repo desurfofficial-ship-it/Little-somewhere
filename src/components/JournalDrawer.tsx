@@ -662,6 +662,12 @@ export const JournalDrawer: React.FC<JournalDrawerProps> = ({
                             </p>
                           )}
 
+                          {person.chapter && (
+                            <p className="text-xs text-[#7A6A5B] leading-relaxed italic">
+                              {person.chapter}
+                            </p>
+                          )}
+
                           {person.knownNotes.length > 0 && (
                             <div className="pt-2 border-t border-[#E5D9C7] space-y-1.5">
                               <p className="text-[11px] font-semibold text-espresso-muted">

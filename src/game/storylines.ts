@@ -569,7 +569,14 @@ export function sanitizeStorylines(
     }
 
     const def = STORYLINE_MAP[key];
-    const maxStage = def ? def.stages.length : 12;
+    if (!def) {
+      // Reference-resolution rule (systemic-reliability doc 03 §2 / SR-4):
+      // unknown storyline keys are dropped with a warning, never minted as
+      // fabricated stage-12/active progress that would then re-persist forever.
+      warnings?.push(`unknown storyline key discarded on load: ${key}`);
+      continue;
+    }
+    const maxStage = def.stages.length;
     const baseEntry = hydrated[key] ?? {
       id: key,
       stage: 0,

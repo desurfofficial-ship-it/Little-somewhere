@@ -1,5 +1,5 @@
 {
- "count": 85,
+ "count": 86,
  "topics": [
   {
    "index": 0,
@@ -1309,6 +1309,24 @@
      "status": "accepted",
      "requireLive": true
     }
+   }
+  },
+  {
+   "index": 85,
+   "id": "everyday_shared_visit_echo",
+   "residentId": "any",
+   "category": "event_reaction",
+   "priority": 14,
+   "historyScope": null,
+   "condition": {
+    "requiresNpcMemory": {
+     "tags": [
+      "shared_featured_reading"
+     ],
+     "unmentionedOnly": true,
+     "maxDaysOld": 6
+    },
+    "notSeenToday": true
    }
   }
  ]

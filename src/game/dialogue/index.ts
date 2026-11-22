@@ -31,6 +31,7 @@ import { RELATIONSHIP_TOPICS } from './everyday/relationships';
 import { WEATHER_SEASON_TOPICS } from './everyday/weather';
 import { DAILY_SLICE_TOPICS } from './everyday/smalltalk';
 import { EVERYDAY_HOME_TOPICS } from './everyday/home';
+import { REFLECTION_TOPICS } from './everyday/reflections';
 import { GREENHOUSE_TOPICS } from './interiors/greenhouse';
 import { BAKERY_TOPICS } from './interiors/bakery';
 import { BOOK_NOOK_TOPICS } from './interiors/bookNook';
@@ -61,4 +62,9 @@ export const DIALOGUE_TOPICS: readonly DialogueTopic[] = [
   ...COPPERWHEEL_TOPICS, // 2 topics (Milestone 3 Build 9 — Copperwheel Cottage, Arthur)
   ...WILDS_TOPICS, // 2 topics (Build 10 — The Wild Hollows exploration check-ins)
   ...INVITATION_TOPICS, // Living Relationships LR-1 / LR-2
+  // Social Foundation SF-4 (2026-11): memory-callback reflections, appended
+  // at the registry tail per the append-only ordering contract. Golden
+  // snapshot regenerated 85 → 86 with justification recorded in
+  // docs/architecture/living-relationships/22-social-foundation-contracts.md.
+  ...REFLECTION_TOPICS,
 ];

@@ -1,0 +1,51 @@
+name: CI
+
+# Machine-checked gates for the three-layer architecture + determinism + build.
+# Spec: docs/architecture/master-architecture/08-integration-and-release-strategy.md §2
+#
+# This workflow is a REQUIRED status check. No PR merges without it passing.
+# It complements deploy-pages.yml (which only builds, on main only) by running
+# the full test suite, typecheck, build, and the layer-boundary guard on every
+# PR and every push.
+
+on:
+  pull_request:
+    branches: ['**']
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: test + lint + build + boundary
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm install --legacy-peer-deps
+
+      - name: Typecheck (tsc --noEmit)
+        run: npm run lint
+
+      - name: Unit tests (tsx --test)
+        run: npm test
+
+      - name: Layer-boundary guard
+        run: npx tsx scripts/check_layer_boundaries.ts
+
+      - name: Production build
+        run: npm run build

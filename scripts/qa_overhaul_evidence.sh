@@ -157,7 +157,7 @@ fresh = place(fresh, {'x': 2.0, 'z': 4.6}, -2.1)
 open('/tmp/ov_perf_fresh.b64', 'w').write(base64.b64encode(inject_js(fresh).encode()).decode())
 
 # Open-sky veteran framing (pond bench, no building on the camera→player ray):
-# isolates occlusion-fade deltas from content deltas (reconciles WORKLOG 056 +49).
+# isolates occlusion-fade deltas from content deltas (reconciles WORKLOG 059 +49).
 perf_open = place(with_env(), {'x': 1.8, 'z': 20.5}, 3.14)
 open('/tmp/ov_perf_veteran_open.b64', 'w').write(base64.b64encode(inject_js(perf_open).encode()).decode())
 
@@ -414,7 +414,7 @@ if [ "$ONLY" = "all" ] || [ "$ONLY" = "perf" ]; then
   run_perf /tmp/ov_perf_fresh.b64 perf_overhaul_fresh phase8-final \
     "20s fresh-save gameplay (Entry 054 parity doctrine: fresh 1704 pre-change)"
   run_perf /tmp/ov_perf_veteran_open.b64 perf_overhaul_veteran_opensky phase8-final \
-    "20s veteran golden flowing gameplay at open-sky pond framing (no occluder on ray) — reconciles WORKLOG 056 named-offset register"
+    "20s veteran golden flowing gameplay at open-sky pond framing (no occluder on ray) — reconciles WORKLOG 059 named-offset register"
 fi
 
 agent-browser close > /dev/null 2>&1 || true

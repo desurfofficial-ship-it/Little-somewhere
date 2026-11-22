@@ -18,6 +18,7 @@ import {
 } from './residents';
 import { getResidentAvailableQuestCue } from './narrative';
 import { getSharedActivityDef } from './activities';
+import { deriveResidentChapter } from './emergentStories';
 import { isInvitationLive } from './invitations';
 import { PERSONAL_ITEMS, PERSONAL_ITEM_MAP } from './inventory';
 import { describePlacedFlower } from './cottage';
@@ -45,6 +46,13 @@ import {
 } from './types';
 
 export const JOURNAL_READ_STORAGE_KEY = 'little_somewhere_journal_read_v1';
+
+/**
+ * Bounded size of the journal read-key cache, enforced symmetrically on the
+ * write path (saveJournalReadKeys) and the load path (loadJournalReadKeys).
+ * See systemic-reliability doc 03 §1 J-4 / SR-13.
+ */
+export const JOURNAL_READ_KEYS_CAP = 240;
 
 export type JournalTabId = 'stories' | 'memories' | 'people' | 'discoveries';
 
@@ -118,6 +126,13 @@ export interface JournalPersonCard {
   reliabilityLabel?: string;
   cueKind: 'story' | 'ready' | 'none';
   cueTitle?: string;
+  /**
+   * Social Foundation SF-3: one derived lived-experience line (bridging
+   * awareness, shared tradition, keepsake owed, observable feeling, early
+   * acquaintance). Absent when nothing has been lived worth recording —
+   * derive-only, never persisted, knowledge-boundary-safe.
+   */
+  chapter?: string;
   knownNotes: JournalNpcNote[];
   discoveredConnections: string[];
   isNew: boolean;
@@ -199,7 +214,14 @@ export function loadJournalReadKeys(): Set<string> {
     if (!raw) return new Set<string>();
     const parsed: unknown = JSON.parse(raw);
     if (!Array.isArray(parsed)) return new Set<string>();
-    return new Set(parsed.filter((item): item is string => typeof item === 'string'));
+    // Load-path cap mirrors the write-path cap in saveJournalReadKeys so a
+    // hand-edited over-cap payload cannot smuggle unbounded read history into
+    // runtime (systemic-reliability doc 03 §1 J-4 / SR-13).
+    return new Set(
+      parsed
+        .filter((item): item is string => typeof item === 'string')
+        .slice(-JOURNAL_READ_KEYS_CAP),
+    );
   } catch {
     return new Set<string>();
   }
@@ -208,7 +230,7 @@ export function loadJournalReadKeys(): Set<string> {
 export function saveJournalReadKeys(keys: ReadonlySet<string>): void {
   try {
     if (typeof window === 'undefined' || !window.localStorage) return;
-    const bounded = Array.from(keys).slice(-240);
+    const bounded = Array.from(keys).slice(-JOURNAL_READ_KEYS_CAP);
     window.localStorage.setItem(JOURNAL_READ_STORAGE_KEY, JSON.stringify(bounded));
   } catch {
     // Ignore storage write failures in private mode or quota-limited environments
@@ -772,6 +794,10 @@ function buildPeopleList(
     const hasNewNote = knownNotes.some((n) => n.isNew);
     const isNew = !seenKeys.has(entryKey) || hasNewNote;
 
+    // Social Foundation SF-3: the derived lived-experience chapter line
+    // (pure derivation; undefined when nothing worth recording).
+    const chapter = deriveResidentChapter(world, id);
+
     return {
       id,
       entryKey,
@@ -788,6 +814,7 @@ function buildPeopleList(
       reliabilityLabel,
       cueKind,
       ...(cueTitle ? { cueTitle } : {}),
+      ...(chapter ? { chapter } : {}),
       knownNotes,
       discoveredConnections,
       isNew,
