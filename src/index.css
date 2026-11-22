@@ -15,7 +15,12 @@
   --color-terracotta: #C86446;
   --color-terracotta-deep: #B45539;
   --color-sage: #5E8062;
+  --color-sage-deep: #4C6B50;
   --color-honey: #E5A93C;
+  --color-honey-deep: #B98A2E;
+  --color-honey-ink: #8A6219;
+  --color-clay-ink: #9A5B32;
+  --color-heart-empty: #A89886;
   --color-stone-line: #D4C4AE;
   --color-parchment: #E2D4C0;
   --color-card-warm: #F4ECE0;
@@ -55,11 +60,14 @@
     user-select: none;
   }
 
-  /* BUILD 04 a11y floor (Doc 08 §7.5): focus-visible everywhere — a warm
-     terracotta ring for keyboard navigation, never shown for pointer input. */
+  /* BUILD 04 a11y floor (Doc 08 §7.5), amended by the UI/UX program (WP3):
+     the ring is espresso ink with a terracotta halo — visible on EVERY surface
+     color (the old terracotta-on-terracotta ring vanished on primary buttons,
+     live-verified on active tabs and CTAs). Never shown for pointer input. */
   :focus-visible {
-    outline: 2px solid var(--terracotta);
+    outline: 2px solid var(--espresso);
     outline-offset: 2px;
+    box-shadow: 0 0 0 4px rgba(200, 100, 70, 0.35);
   }
 }
 
@@ -184,11 +192,37 @@
   animation: continue-hint-bob 1.6s ease-in-out infinite;
 }
 
-/* Accessibility: honor prefers-reduced-motion across the HUD (doc 09 §6). */
+/* UI/UX program (WP2): a brief honey fill-pulse on newly earned friendship
+   hearts so ordinary trust gains are felt, not just milestones. */
+@keyframes heart-fill-pulse {
+  0% {
+    transform: scale(1);
+  }
+  40% {
+    transform: scale(1.45);
+  }
+  70% {
+    transform: scale(0.92);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+.animate-heart-fill {
+  animation: heart-fill-pulse 0.5s cubic-bezier(0.22, 1, 0.36, 1) 1;
+}
+
+/* Accessibility: honor prefers-reduced-motion across the HUD (doc 09 §6).
+   UI/UX program (WP3) extends the guard to the brew-flame pulse and the
+   scene veil so no infinite/opacity animation runs for motion-sensitive
+   players. */
 @media (prefers-reduced-motion: reduce) {
   .animate-sheet-rise,
   .animate-portrait-fade,
-  .animate-avatar-milestone {
+  .animate-avatar-milestone,
+  .animate-heart-fill,
+  .animate-pulse {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
   }
@@ -196,5 +230,8 @@
     animation: none !important;
     transform: none !important;
     opacity: 0.75 !important;
+  }
+  *[data-scene-veil] {
+    transition-duration: 0.01ms !important;
   }
 }

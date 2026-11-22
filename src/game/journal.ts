@@ -560,7 +560,7 @@ function buildMainStorySteps(
     steps.push({
       id: 'mystery',
       entryKey,
-      title: 'The Quiet Gazebo Bell',
+      title: 'The Silent Gazebo Bell',
       status: 'ongoing',
       detailText:
         'Thick ivy wraps the gazebo spire in the plaza. Ask Pip in the square or Nora at Linden Book Nook what quieted the bell.',
@@ -578,7 +578,7 @@ function buildMainStorySteps(
   }> = [
     {
       id: 'mystery',
-      title: 'The Quiet Gazebo Bell',
+      title: 'The Silent Gazebo Bell',
       done: true,
       ongoingText: '',
       doneText: 'Learned how the old brass bell fell quiet years ago.',
@@ -918,7 +918,7 @@ function buildDiscoveriesSection(
         ? wishes > 0
           ? `Clear spring water arcs across the basin · ${wishes} lucky ${wishes === 1 ? 'coin' : 'coins'} glinting below.`
           : 'Clear spring water arcs through all four bronze spouts.'
-        : 'Dry autumn leaves still clog the old stone intake.',
+        : 'Silt and fallen leaves still clog the old stone intake.',
     },
     {
       id: 'gazebo_bell',
@@ -1334,4 +1334,20 @@ export function buildPocketJournalView(
       discoveries: discoveriesKeys,
     },
   };
+}
+
+/**
+ * HUD badge helper (UI/UX program WP4): total unread entries across all four
+ * journal tabs for the current world.
+ *
+ * Pure derivation over the exact same projection the Pocket Journal drawer
+ * renders — callers must invoke it on discrete edges only (world commits,
+ * journal open/close), never per frame.
+ */
+export function countJournalUnread(
+  world: WorldState,
+  seenKeys: ReadonlySet<string> = new Set<string>(),
+): number {
+  const counts = buildPocketJournalView(world, seenKeys).newCounts;
+  return counts.stories + counts.memories + counts.people + counts.discoveries;
 }

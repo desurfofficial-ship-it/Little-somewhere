@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import type {
   PortraitDescriptor,
   SubjectDescriptor,
@@ -443,6 +443,11 @@ export const PortraitCanvas: React.FC<{
   className?: string;
 }> = ({ descriptor, size, className }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  // UI/UX program WP2: callers resolve fresh descriptor objects per render, so
+  // depending on identity repainted the canvas on EVERY sheet re-render. The
+  // repaint now keys on the descriptor's VALUE — the header comment's contract
+  // ("repaints only when the descriptor or size actually changes") is honored.
+  const descriptorKey = useMemo(() => JSON.stringify(descriptor), [descriptor]);
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -453,7 +458,8 @@ export const PortraitCanvas: React.FC<{
     if (!ctx) return;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     paintPortrait(ctx, descriptor, size);
-  }, [descriptor, size]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [descriptorKey, size]);
   return (
     <canvas
       ref={canvasRef}
@@ -1245,6 +1251,8 @@ export const SubjectCanvas: React.FC<{
   className?: string;
 }> = ({ descriptor, size, className }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  // Same value-keyed repaint contract as PortraitCanvas (UI/UX program WP2).
+  const descriptorKey = useMemo(() => JSON.stringify(descriptor), [descriptor]);
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -1255,7 +1263,8 @@ export const SubjectCanvas: React.FC<{
     if (!ctx) return;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     paintSubject(ctx, descriptor, size);
-  }, [descriptor, size]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [descriptorKey, size]);
   return (
     <canvas
       ref={canvasRef}

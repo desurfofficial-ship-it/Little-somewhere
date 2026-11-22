@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 
 interface TitleOverlayProps {
   hasSavedProgress: boolean;
@@ -13,6 +13,9 @@ export const TitleOverlay: React.FC<TitleOverlayProps> = ({
   onStart,
   onResetAndStart,
 }) => {
+  // UI/UX program WP1: world reset is destructive and irreversible — it must
+  // never happen on a single unconfirmed activation. Two-step arm/confirm.
+  const [resetArmed, setResetArmed] = useState<boolean>(false);
   return (
     <div className="fixed inset-0 z-20 flex flex-col justify-between items-start pointer-events-none p-4 sm:p-8 md:p-12">
       {/* Upper-left calm storybook card (R-08: slimmer vertical padding keeps more
@@ -56,7 +59,7 @@ export const TitleOverlay: React.FC<TitleOverlayProps> = ({
             type="button"
             data-start="true"
             onClick={onStart}
-            className="min-h-[48px] px-6 py-3 rounded-xl bg-terracotta hover:bg-[#B55639] active:scale-[0.98] text-linen font-semibold text-base shadow-elevation-card transition-all cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-espresso whitespace-nowrap shrink-0"
+            className="min-h-[48px] px-6 py-3 rounded-xl bg-terracotta hover:bg-terracotta-deep active:scale-[0.98] text-linen font-semibold text-base shadow-elevation-card transition-all cursor-pointer whitespace-nowrap shrink-0"
           >
             {hasSavedProgress ? `Continue Day ${savedDay}` : 'Begin Your Day'}
           </button>
@@ -64,10 +67,27 @@ export const TitleOverlay: React.FC<TitleOverlayProps> = ({
           {hasSavedProgress && (
             <button
               type="button"
-              onClick={onResetAndStart}
-              className="min-h-[48px] px-4 py-3 rounded-xl bg-[#F2E9DA] hover:bg-[#E7DAC5] active:scale-[0.98] text-espresso border border-stone-line font-medium text-sm transition-all cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-espresso whitespace-nowrap shrink-0"
+              onClick={() => {
+                if (!resetArmed) {
+                  setResetArmed(true);
+                  return;
+                }
+                setResetArmed(false);
+                onResetAndStart();
+              }}
+              onBlur={() => setResetArmed(false)}
+              aria-label={
+                resetArmed
+                  ? 'Confirm: start a new neighborhood and erase the saved day'
+                  : 'Start a new neighborhood (erases saved progress)'
+              }
+              className={`min-h-[48px] px-4 py-3 rounded-xl active:scale-[0.98] font-medium text-sm transition-all cursor-pointer whitespace-nowrap shrink-0 border ${
+                resetArmed
+                  ? 'bg-terracotta-deep hover:bg-terracotta-deep text-linen border-terracotta-deep shadow-sm'
+                  : 'bg-[#F2E9DA] hover:bg-[#E7DAC5] text-espresso border-stone-line'
+              }`}
             >
-              Start New Neighborhood
+              {resetArmed ? 'Erase Day and Start New?' : 'Start New Neighborhood'}
             </button>
           )}
         </div>

@@ -526,6 +526,22 @@ export function getGiftReactionTier(
   return 'neutral';
 }
 
+/**
+ * UI/UX program (WP2): player-facing gift hint for the dialogue picker.
+ * Reveals only the resident's reaction tier for an item the player actually
+ * holds — never the full preference table — so gifting becomes knowledge-driven
+ * discovery instead of trial-and-error while preserving the post-gift reveal.
+ */
+export function getGiftTierHint(
+  residentId: ResidentId,
+  itemId: PersonalItemId,
+): 'loves' | 'likes' | null {
+  const tier = getGiftReactionTier(residentId, itemId);
+  if (tier === 'loved') return 'loves';
+  if (tier === 'liked') return 'likes';
+  return null;
+}
+
 export function getOwnedGiftableItems(
   inventory: Partial<Record<PersonalItemId, number>> | undefined,
 ): Array<{ def: PersonalItemDef; count: number }> {

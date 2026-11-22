@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   ChevronDown,
   ChevronRight,
@@ -26,6 +26,7 @@ import {
 import { isChoiceAvailable } from '../game/narrative';
 import { resolvePortrait, resolveSubjectImage, subjectForItem } from '../game/dialogue/assets';
 import { PortraitCanvas, SubjectCanvas, useDialogueVisualSize } from './DialogueVisuals';
+import { useDialogA11y } from './useDialogA11y';
 
 /**
  * BUILD 04 a11y floor (Doc 08 §7.5): the five DialogueChoice tones each carry a
@@ -54,7 +55,7 @@ import {
   getRelationshipTier,
   getRelationshipTierLabel,
 } from '../game/relationships';
-import { getOwnedGiftableItems, PERSONAL_ITEM_CATEGORY_LABELS, PERSONAL_ITEM_MAP } from '../game/inventory';
+import { getOwnedGiftableItems, PERSONAL_ITEM_CATEGORY_LABELS, PERSONAL_ITEM_MAP, getGiftTierHint } from '../game/inventory';
 import { RESIDENTS } from '../game/residents';
 import { PropInteractionResult } from '../game/actions';
 
@@ -161,30 +162,54 @@ export const DialogueSheet: React.FC<DialogueSheetProps> = ({
   const [historyOpen, setHistoryOpen] = useState<boolean>(false);
   const [history, setHistory] = useState<DialogueHistoryEntry[]>([]);
   const visualSize = useDialogueVisualSize();
+  // UI/UX program (WP3): shared focus kit — the sheet renders two exclusive
+  // dialog variants (prop inspection / conversation); each gets its own ref.
+  const propDialogRef = useRef<HTMLDivElement | null>(null);
+  const convoDialogRef = useRef<HTMLDivElement | null>(null);
+  useDialogA11y(propDialogRef, Boolean(propCard));
+  useDialogA11y(convoDialogRef, Boolean(session));
+  // UI/UX program WP2 — honest history: the drawer records the exchange, not a
+  // duplicate of the live line. `lastNodeIdRef` tracks the node we just LEFT so
+  // the drawer always trails the conversation by one beat.
+  const lastNodeIdRef = useRef<string | null>(null);
 
   useEffect(() => {
     setGiftPickerOpen(false);
   }, [session?.residentId, session?.currentNodeId]);
 
-  // History is UI-only state: reset when a new conversation begins, append the
-  // displayed line whenever the current node advances. Capped at 6 entries.
+  // History is UI-only state: reset when a new conversation begins. Capped at 6.
   useEffect(() => {
     setHistory([]);
     setHistoryOpen(false);
+    lastNodeIdRef.current = null;
   }, [session?.residentId, session?.topicId]);
 
   useEffect(() => {
-    if (!session) return;
-    const node =
-      session.nodes[session.currentNodeId] ??
-      session.nodes.root ??
-      Object.values(session.nodes)[0];
-    if (!node) return;
+    if (!session) {
+      lastNodeIdRef.current = null;
+      return;
+    }
+    const prevId = lastNodeIdRef.current;
+    lastNodeIdRef.current = session.currentNodeId;
+    // First node of a conversation (or re-render of the same node): nothing to
+    // commit — the live prose already shows the current line (WP2 dedupe fix).
+    if (prevId === null || prevId === session.currentNodeId) return;
+    const prevNode = session.nodes[prevId];
+    if (!prevNode) return;
     setHistory((prev) =>
-      [...prev, { speaker: node.speakerName, text: node.text }].slice(-HISTORY_LINES),
+      [...prev, { speaker: prevNode.speakerName, text: prevNode.text }].slice(-HISTORY_LINES),
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session?.currentNodeId, session?.residentId]);
+
+  // WP2: the player's own voice belongs in the transcript. Wrapped so every
+  // selection records a "You" entry before the engine advances the node.
+  const handleSelectChoice = (choice: DialogueChoice) => {
+    setHistory((prev) =>
+      [...prev, { speaker: 'You', text: choice.label }].slice(-HISTORY_LINES),
+    );
+    onSelectChoice(choice);
+  };
 
   if (!session && !propCard) return null;
 
@@ -196,20 +221,28 @@ export const DialogueSheet: React.FC<DialogueSheetProps> = ({
         onClick={onClose}
       >
         <div
+          ref={propDialogRef}
           role="dialog"
+          aria-modal="true"
           aria-label={propCard.title}
           onClick={(e) => e.stopPropagation()}
           className="animate-sheet-rise w-full max-w-lg bg-linen border border-[#CBB9A0] ring-1 ring-inset ring-[#E9DFCE] rounded-2xl shadow-elevation-sheet p-3.5 sm:p-5"
         >
           <div className="flex items-start gap-3">
-            {/* Same visual slot as speaker portraits — object illustration */}
-            <div className="animate-portrait-fade shrink-0 rounded-[26%] border-2 border-[#E6DAC7] overflow-hidden shadow-sm">
+            {/* Same visual slot as speaker portraits — dashed inset + eyebrow distinguish
+                object inspection from conversation (UI/UX program WP2) */}
+            <div className="animate-portrait-fade shrink-0 rounded-[26%] border-2 border-dashed border-[#C9B79E] bg-[#F6F0E4] overflow-hidden shadow-sm">
               <SubjectCanvas descriptor={subjectDesc} size={visualSize} />
             </div>
             <div className="flex items-start justify-between gap-3 min-w-0 flex-1">
-              <h2 className="font-display text-lg sm:text-xl font-semibold text-espresso leading-snug break-words pt-1.5">
-                {propCard.title}
-              </h2>
+              <div className="min-w-0 pt-1.5">
+                <p className="text-[10px] sm:text-[11px] font-semibold uppercase tracking-[0.08em] text-espresso-muted">
+                  Taking a closer look
+                </p>
+                <h2 className="font-display text-lg sm:text-xl font-semibold text-espresso leading-snug break-words">
+                  {propCard.title}
+                </h2>
+              </div>
               <button
                 type="button"
                 onClick={onClose}
@@ -221,7 +254,8 @@ export const DialogueSheet: React.FC<DialogueSheetProps> = ({
             </div>
           </div>
 
-          <div className="mt-2.5 text-[15px] sm:text-base text-[#3D3128] leading-relaxed max-h-[26vh] overflow-y-auto storybook-scroll pr-1">
+          <div tabIndex={0}
+          className="mt-2.5 text-[15px] sm:text-base text-[#3D3128] leading-relaxed max-h-[26vh] overflow-y-auto storybook-scroll pr-1">
             {propCard.gainedItems && propCard.gainedItems.length > 0 && (
               <div
                 className="flex flex-wrap gap-1.5 mb-2.5"
@@ -253,7 +287,7 @@ export const DialogueSheet: React.FC<DialogueSheetProps> = ({
               <button
                 type="button"
                 onClick={() => onPropAction(propCard.actionType!)}
-                className="min-h-[44px] px-4.5 py-2 rounded-xl bg-terracotta hover:bg-terracotta-deep text-sm font-semibold text-linen transition-colors cursor-pointer whitespace-nowrap"
+                className="min-h-[44px] px-4.5 py-2 rounded-xl bg-terracotta-deep hover:bg-terracotta text-sm font-semibold text-linen transition-colors cursor-pointer whitespace-nowrap"
               >
                 {propCard.actionLabel}
               </button>
@@ -296,7 +330,9 @@ export const DialogueSheet: React.FC<DialogueSheetProps> = ({
       onClick={onClose}
     >
       <div
+        ref={convoDialogRef}
         role="dialog"
+        aria-modal="true"
         aria-label={`Conversation with ${node.speakerName}`}
         onClick={(e) => e.stopPropagation()}
         className="animate-sheet-rise w-full max-w-xl bg-linen border border-[#CBB9A0] ring-1 ring-inset ring-[#E9DFCE] rounded-2xl shadow-elevation-sheet p-3.5 sm:p-5"
@@ -322,26 +358,30 @@ export const DialogueSheet: React.FC<DialogueSheetProps> = ({
                   {node.speakerName}
                 </h2>
                 {renderRelationshipTierIcon(resolvedTier, tierLabel)}
-                <div className="flex items-center gap-0.5 ml-0.5" aria-label={`Friendship ${trust} of 5`}>
+                <div
+                  key={trust}
+                  className="flex items-center gap-0.5 ml-0.5 animate-heart-fill"
+                  role="img"
+                  aria-label={`Friendship ${trust} of 5`}
+                >
                   {[0, 1, 2, 3, 4].map((idx) => (
                     <Heart
                       key={idx}
                       className={`w-3 h-3 ${
                         idx < trust
                           ? 'fill-terracotta text-terracotta'
-                          : 'fill-transparent text-[#C7B7A2]'
+                          : 'fill-transparent text-heart-empty'
                       }`}
                     />
                   ))}
                 </div>
               </div>
               <div className="text-[11px] sm:text-xs text-espresso-muted flex items-center gap-x-1.5 flex-wrap leading-tight mt-1">
-                <span>{node.speakerRole}</span>
-                <span aria-hidden="true">·</span>
-                <span>{emotionLabel}</span>
-                <span className="font-medium text-sage whitespace-nowrap">
-                  · {tierLabel}
-                </span>
+                {/* WP2: separators ride at the END of each unit so a wrap never opens
+                    with a dangling leading "·" (live-verified mobile wrap defect) */}
+                <span className="whitespace-nowrap">{node.speakerRole} ·</span>
+                <span className="whitespace-nowrap">{emotionLabel} ·</span>
+                <span className="font-medium text-sage-deep whitespace-nowrap">{tierLabel}</span>
               </div>
             </div>
           </div>
@@ -374,6 +414,7 @@ export const DialogueSheet: React.FC<DialogueSheetProps> = ({
             id="dialogue-history-drawer"
             data-testid="dialogue-history-drawer"
             aria-label="Recent conversation lines"
+            tabIndex={0}
             className="mt-2.5 rounded-xl bg-card-warm border border-[#DFD1BC] p-2.5 max-h-[18vh] overflow-y-auto storybook-scroll space-y-1.5"
           >
             {history.length === 0 ? (
@@ -390,9 +431,27 @@ export const DialogueSheet: React.FC<DialogueSheetProps> = ({
         )}
 
         {(session.recentToast || session.milestoneLabel) && (
-          <div className="mt-2.5 flex items-center gap-1.5 text-xs font-semibold text-sage">
-            <Sparkles className="w-3.5 h-3.5 shrink-0" />
-            <span>{session.recentToast ?? session.milestoneLabel}</span>
+          <div className="mt-2.5 space-y-1">
+            {/* WP2: consequence rows are independent — a milestone must never be
+                masked by a mundane toast ("Gave X to Y" hid "Friendship deepened!"). */}
+            {session.milestoneLabel && (
+              <div
+                className="flex items-center gap-1.5 text-xs font-semibold text-honey-ink"
+                data-testid="dialogue-milestone-label"
+              >
+                <Sparkles className="w-3.5 h-3.5 shrink-0 text-honey-deep" />
+                <span>{session.milestoneLabel}</span>
+              </div>
+            )}
+            {session.recentToast && (
+              <div
+                className="flex items-center gap-1.5 text-xs font-semibold text-sage-deep"
+                data-testid="dialogue-recent-toast"
+              >
+                <Sparkles className="w-3.5 h-3.5 shrink-0 text-sage" />
+                <span>{session.recentToast}</span>
+              </div>
+            )}
           </div>
         )}
 
@@ -400,6 +459,8 @@ export const DialogueSheet: React.FC<DialogueSheetProps> = ({
         <div className="relative mt-2.5 sm:mt-3">
           <p
             data-testid="dialogue-prose"
+            tabIndex={0}
+            aria-label="Conversation text"
             className="text-[15px] sm:text-base text-espresso leading-relaxed max-h-[24vh] sm:max-h-[28vh] overflow-y-auto storybook-scroll pr-1 max-w-[65ch]"
           >
             “{node.text}”
@@ -408,7 +469,7 @@ export const DialogueSheet: React.FC<DialogueSheetProps> = ({
             <span
               aria-hidden="true"
               data-testid="dialogue-continue-hint"
-              className="animate-continue-hint absolute bottom-0.5 right-0 text-terracotta"
+              className="animate-continue-hint absolute bottom-0.5 right-0 bg-linen/85 rounded-full shadow-sm p-0.5 text-terracotta-deep"
             >
               <ChevronDown className="w-4 h-4" />
             </span>
@@ -431,7 +492,7 @@ export const DialogueSheet: React.FC<DialogueSheetProps> = ({
               <button
                 key={choice.id}
                 type="button"
-                onClick={() => onSelectChoice(choice)}
+                onClick={() => handleSelectChoice(choice)}
                 className={`w-full min-h-[44px] px-3.5 py-2 text-left rounded-xl active:scale-[0.995] border text-sm font-medium transition-all cursor-pointer flex items-center justify-between gap-2.5 ${toneStyle}`}
               >
                 <span className="leading-snug">{choice.label}</span>
@@ -461,9 +522,11 @@ export const DialogueSheet: React.FC<DialogueSheetProps> = ({
               </div>
 
               {giftPickerOpen && (
-                <div className="p-2.5 rounded-xl bg-card-warm border border-[#DFD1BC] max-h-[22vh] overflow-y-auto storybook-scroll space-y-1.5">
+                <div tabIndex={0}
+                    aria-label="Giftable items in your satchel"
+                    className="p-2.5 rounded-xl bg-card-warm border border-[#DFD1BC] max-h-[22vh] overflow-y-auto storybook-scroll space-y-1.5">
                   {world.dailyActivities?.giftedResidentsToday?.includes(session.residentId) ? (
-                    <p className="text-xs text-umber px-1 py-1">
+                    <p className="text-xs text-espresso-muted px-1 py-1">
                       You already shared a gift with {node.speakerName} today. Stop by again tomorrow!
                     </p>
                   ) : (
@@ -471,17 +534,25 @@ export const DialogueSheet: React.FC<DialogueSheetProps> = ({
                       const ownedGifts = getOwnedGiftableItems(world.inventory);
                       if (ownedGifts.length === 0) {
                         return (
-                          <p className="text-xs text-umber px-1 py-1">
+                          <p className="text-xs text-espresso-muted px-1 py-1">
                             Your satchel has no giftable items right now—gather blossoms, orchard crabapples, or bake at your cottage hearth.
                           </p>
                         );
                       }
-                      return ownedGifts.map(({ def, count }) => (
+                      return ownedGifts.map(({ def, count }) => {
+                        // WP2: player-facing gift hint — surface the resident's
+                        // reaction tier for items the player holds so gifting is
+                        // knowledge-driven, not trial-and-error.
+                        const giftHint = getGiftTierHint(session.residentId, def.id);
+                        return (
                         <button
                           key={def.id}
                           type="button"
                           onClick={() => {
                             setGiftPickerOpen(false);
+                            setHistory((prev) =>
+                              [...prev, { speaker: 'You', text: `(offered a ${def.label})` }].slice(-HISTORY_LINES),
+                            );
                             onGiveGift(def.id);
                           }}
                           className="w-full min-h-[44px] px-3 py-2 rounded-xl bg-linen hover:bg-[#EFE5D5] border border-stone-line text-left flex items-center justify-between gap-2 transition-colors cursor-pointer"
@@ -500,13 +571,19 @@ export const DialogueSheet: React.FC<DialogueSheetProps> = ({
                             </div>
                             <div className="text-[11px] text-espresso-muted">
                               {PERSONAL_ITEM_CATEGORY_LABELS[def.category]}
+                              {giftHint && (
+                                <span className="font-semibold text-sage-deep whitespace-nowrap">
+                                  {' '}· {node.speakerName} {giftHint} this
+                                </span>
+                              )}
                             </div>
                           </div>
-                          <span className="font-mono-nums text-xs font-semibold text-sage shrink-0">
+                          <span className="font-mono-nums text-xs font-semibold text-sage-deep shrink-0">
                             ×{count} · Give
                           </span>
                         </button>
-                      ));
+                        );
+                      });
                     })()
                   )}
                 </div>
@@ -519,7 +596,7 @@ export const DialogueSheet: React.FC<DialogueSheetProps> = ({
               <button
                 type="button"
                 onClick={onClose}
-                className="min-h-[44px] px-5 py-2 rounded-xl bg-terracotta hover:bg-terracotta-deep text-sm font-semibold text-linen transition-colors cursor-pointer"
+                className="min-h-[44px] px-5 py-2 rounded-xl bg-terracotta-deep hover:bg-terracotta text-sm font-semibold text-linen transition-colors cursor-pointer"
               >
                 {emotion === 'frustrated' || emotion === 'angry' || emotion === 'sad'
                   ? 'Step Back Gently'

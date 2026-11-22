@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Check, Flame, Flower2, Frame, Sparkles, X } from 'lucide-react';
 import {
   HEARTH_RECIPES,
@@ -13,6 +13,7 @@ import { describePlacedFlower } from '../game/cottage';
 import { cozyAudio } from '../game/audio';
 import { PersonalItemId, WorldState } from '../game/types';
 import { CottageStationMode } from './InventoryDrawer';
+import { useDialogA11y } from './useDialogA11y';
 
 interface CottageStationModalProps {
   mode: CottageStationMode | null;
@@ -84,6 +85,11 @@ export const CottageStationModal: React.FC<CottageStationModalProps> = ({
 
   const brewing = brewSteps !== null;
 
+  // UI/UX program (WP3): shared focus kit. Declared BEFORE the early return so
+  // hook order stays stable across open/close.
+  const dialogRef = useRef<HTMLDivElement | null>(null);
+  useDialogA11y(dialogRef, Boolean(mode));
+
   if (!mode) return null;
 
   const cottage = world.cottageState;
@@ -104,7 +110,9 @@ export const CottageStationModal: React.FC<CottageStationModalProps> = ({
       onClick={onClose}
     >
       <div
+        ref={dialogRef}
         role="dialog"
+        aria-modal="true"
         aria-label={title}
         onClick={(e) => e.stopPropagation()}
         className="relative w-full max-w-2xl max-h-[85vh] bg-linen border border-stone-line rounded-2xl shadow-elevation-drawer flex flex-col overflow-hidden"
@@ -147,7 +155,7 @@ export const CottageStationModal: React.FC<CottageStationModalProps> = ({
                 onClick={() => onChangeMode(t.id)}
                 className={`min-h-[44px] px-3 sm:px-3.5 py-2 rounded-xl text-xs sm:text-sm font-semibold flex items-center gap-1.5 transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
                   active
-                    ? 'bg-terracotta text-linen'
+                    ? 'bg-terracotta-deep text-linen'
                     : 'bg-linen-deep text-[#4E4036] hover:bg-[#E7DAC5]'
                 }`}
               >
@@ -159,7 +167,7 @@ export const CottageStationModal: React.FC<CottageStationModalProps> = ({
         </div>
 
         {/* Body */}
-        <div className="flex-1 overflow-y-auto storybook-scroll p-4 sm:p-5 space-y-3.5">
+        <div tabIndex={0} className="flex-1 overflow-y-auto storybook-scroll p-4 sm:p-5 space-y-3.5">
           {mode === 'hearth' && (
             <>
               <p className="text-xs sm:text-sm text-umber leading-relaxed">
@@ -287,7 +295,7 @@ export const CottageStationModal: React.FC<CottageStationModalProps> = ({
                         <button
                           type="button"
                           onClick={() => onPlaceFlower(def.id)}
-                          className="min-h-[44px] px-4 py-2 rounded-xl bg-sage hover:bg-[#4F6E53] text-xs sm:text-sm font-semibold text-linen transition-colors cursor-pointer whitespace-nowrap shrink-0"
+                          className="min-h-[44px] px-4 py-2 rounded-xl bg-sage-deep hover:bg-sage text-xs sm:text-sm font-semibold text-linen transition-colors cursor-pointer whitespace-nowrap shrink-0"
                         >
                           Arrange
                         </button>
