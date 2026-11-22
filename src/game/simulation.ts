@@ -41,7 +41,11 @@ import {
 } from './navigation';
 import {
   cloneNpcMemories,
+  collectWitnessesForPosition,
+  createNpcMemoryEntry,
+  LOCAL_WITNESS_RADIUS,
   propagateEncounterGossipInPlace,
+  recordNpcMemoryInPlace,
 } from './memories';
 import { cloneStorylines } from './storylines';
 import { expireInvitationsInPlace } from './invitations';
@@ -307,6 +311,14 @@ function zoneAffinityForTarget(preferredZones: readonly string[], target: Vec2):
   return preferredZones.includes(zoneId) ? 1.20 : 0.95;
 }
 
+/** C5: companion bias — a candidate near a confidant's current position is gently favoured. */
+function companionBiasForTarget(confidantPositions: readonly Vec2[], target: Vec2): number {
+  for (let k = 0; k < confidantPositions.length; k++) {
+    if (distance2D(confidantPositions[k], target) < 3.0) return 1.12;
+  }
+  return 1.0;
+}
+
 function selectActivityForResident(
   world: WorldState,
   id: ResidentId,
@@ -437,6 +449,18 @@ function selectActivityForResident(
     .slice(0, 2)
     .map((e) => e.activityId);
 
+  // C5: companion bias — collect current positions of confidant-tier partners
+  // so candidates near a close friend get a small gravitation bonus (residents
+  // drift toward friends rather than only repelling via the crowding penalty).
+  const confidantPositions: Vec2[] = [];
+  for (let k = 0; k < RESIDENT_ORDER.length; k++) {
+    const oid = RESIDENT_ORDER[k];
+    if (oid === id) continue;
+    if (getNpcRelationTier(getNpcRelation(world.npcRelations, id, oid)) === 'confidant') {
+      confidantPositions.push(world.npcRuntime[oid].position);
+    }
+  }
+
   const extras = RESIDENT_EXTRA_ACTIVITIES[id];
   for (let i = 0; i < extras.length; i++) {
     const cand = extras[i];
@@ -494,6 +518,7 @@ function selectActivityForResident(
         zoneAffinityForTarget(def.traits.preferredZones, cand.target) *
         needUtilityForGoal(candGoalKind, uEnergy, uHunger, uSocial, uFulfillment) *
         emotionBiasForGoal(rt.emotion, candGoalKind) *
+        companionBiasForTarget(confidantPositions, cand.target) *
         (0.90 + rand() * 0.20) +
       tiebreakForGoal(candGoalKind);
     if (score > bestOption.score) {
@@ -1174,6 +1199,13 @@ export function stepSimulationInPlace(
       : world.playerPos;
   if (!dialogueOpen && world.activeEncounters.length < maxConcurrentEncounters) {
     const socialSlot = Math.floor(world.minuteOfDay / 15);
+    // F1: build a per-tick Set of recorded world-event ids so the encounter
+    // dedup scan is O(N) overall rather than O(N * |worldEvents|) inside the
+    // O(N^2) pairing loop.
+    const recordedEventIds = new Set<string>();
+    for (let e = 0; e < world.worldEvents.length; e++) {
+      recordedEventIds.add(world.worldEvents[e].id);
+    }
     for (let i = 0; i < RESIDENT_ORDER.length; i++) {
       if (world.activeEncounters.length >= maxConcurrentEncounters) break;
       const a = RESIDENT_ORDER[i];
@@ -1197,7 +1229,7 @@ export function stepSimulationInPlace(
         const npcTierAB = getNpcRelationTier(relAB);
 
         const encId = `enc_${world.day}_${socialSlot}_${a}_${b}`;
-        if (world.worldEvents.some((e) => e.id === encId)) continue;
+        if (recordedEventIds.has(encId)) continue;
 
         const pairRand = mulberry32(hashSeed(world.simSeed, world.day, socialSlot, a, b))();
         const tierBonus =
@@ -1213,6 +1245,15 @@ export function stepSimulationInPlace(
           0.32 + (RESIDENTS[a].traits.sociability + RESIDENTS[b].traits.sociability) * 0.25 + tierBonus,
         );
         if (pairRand > pairChance) continue;
+
+        // C4: occasional autonomous friction — a guarded-tier pair has a small
+        // deterministic chance per encounter slot to rub each other the wrong
+        // way, so NPC relationships can drift apart without player intervention
+        // (creating mediation opportunities). Seeded independently of pairRand.
+        const frictionRoll = mulberry32(
+          hashSeed(world.simSeed, world.day, socialSlot, a, b, 'friction'),
+        )();
+        const isFriction = npcTierAB === 'guarded' && frictionRoll < 0.08;
 
         // Check for optional 3rd resident nearby for a 3-person cozy circle
         let thirdId: ResidentId | null = null;
@@ -1240,7 +1281,12 @@ export function stepSimulationInPlace(
 
         const participants: ResidentId[] = thirdId ? [a, b, thirdId] : [a, b];
         const inOrchard = rtA.position.z < -13.5 && rtB.position.z < -13.5;
-        const topic = buildSocialTopic(a, b, world.flags, world.sideFlags, inOrchard);
+        const baseTopic = buildSocialTopic(a, b, world.flags, world.sideFlags, inOrchard);
+        // C4: friction overrides the topic so the encounter reads as a prickly
+        // exchange rather than a warm chat.
+        const topic = isFriction
+          ? { tag: 'neighbor_friction', label: 'A brief, prickly exchange over a lingering difference' }
+          : baseTopic;
         const endsMinute = Math.min(DAY_END_MINUTE, world.minuteOfDay + SOCIAL_ENCOUNTER_DURATION_MINUTES);
         const cooldownUntil = endsMinute + SOCIAL_COOLDOWN_MINUTES;
 
@@ -1275,21 +1321,25 @@ export function stepSimulationInPlace(
           rt.targetFacing = Math.atan2(faceSpot.x - spot.x, faceSpot.z - spot.z);
           rt.waypoints = computeWaypointPath(rt.position, spot, 0.38) ?? [];
           rt.currentActivityLabel = `Chatting with ${RESIDENTS[nextPartner].name}`;
-          rt.emotion = 'happy';
-          rt.emotionIntensity = 0.72;
+          // C4: a friction encounter leaves participants frustrated, not happy.
+          rt.emotion = isFriction ? 'frustrated' : 'happy';
+          rt.emotionIntensity = isFriction ? 0.6 : 0.72;
           rt.emotionUntilMinute = endsMinute + 20;
           if (topic.tag === 'helped_chore') {
             rt.needs.fulfillment = clampNeed(rt.needs.fulfillment + 8);
           }
         }
 
-        const affinityGain =
-          topic.tag === 'helped_chore' || npcTierAB === 'confidant'
-            ? 4
-            : npcTierAB === 'guarded'
-            ? 2
-            : 3;
-        const tensionDelta = npcTierAB === 'guarded' ? -3 : -2;
+        // C4: friction inverts the affinity/tension deltas so the pair drifts
+        // apart; otherwise the encounter warms them as before.
+        const affinityGain = isFriction
+          ? -2
+          : topic.tag === 'helped_chore' || npcTierAB === 'confidant'
+          ? 4
+          : npcTierAB === 'guarded'
+          ? 2
+          : 3;
+        const tensionDelta = isFriction ? 4 : npcTierAB === 'guarded' ? -3 : -2;
         for (let p1 = 0; p1 < participants.length; p1++) {
           for (let p2 = p1 + 1; p2 < participants.length; p2++) {
             applyNpcSocialRelationInPlace(
@@ -1312,8 +1362,74 @@ export function stepSimulationInPlace(
           kind: 'npc_social',
           actors: participants,
           summary: `${summaryActors} paused near ${rtA.currentPlaceName} — ${topic.label.toLowerCase()}.`,
-          summaryTag: `chat_${getNpcPairKey(a, b)}`,
+          summaryTag: isFriction ? `friction_${getNpcPairKey(a, b)}` : `chat_${getNpcPairKey(a, b)}`,
         });
+        recordedEventIds.add(encId);
+
+        // C1: each participant records a firsthand memory of the conversation
+        // itself (previously encounters created no participant memory — only
+        // pre-existing gossip propagated). This lets future dialogue reference
+        // "the chat we had by the gazebo" via requiresNpcMemory conditions.
+        const encounterPlace = rtA.currentPlaceName;
+        for (let pIdx = 0; pIdx < participants.length; pIdx++) {
+          const pid = participants[pIdx];
+          const others = participants.filter((p) => p !== pid);
+          recordNpcMemoryInPlace(
+            world.npcMemories,
+            pid,
+            createNpcMemoryEntry({
+              id: `${encId}_mem_${pid}`,
+              eventId: encId,
+              tag: isFriction ? 'encounter_friction' : `encounter_${topic.tag}`,
+              category: isFriction ? 'friction' : 'interaction',
+              subjectPlayer: false,
+              subjectResidents: others,
+              provenance: 'firsthand',
+              sourceKind: 'participant',
+              createdDay: world.day,
+              createdMinute: Math.round(world.minuteOfDay),
+              importance: isFriction ? 3 : 2,
+              retention: 'durable',
+              valence: isFriction ? 'tense' : 'warm',
+              emotionalWeight: isFriction ? 55 : 40,
+              detail: { placeName: encounterPlace },
+            }),
+            world.day,
+          );
+        }
+
+        // C2: nearby non-participants form witness firsthand memories — organic
+        // "I saw Clara and Mina talking by the gazebo" recall that can surface
+        // in later dialogue. Bounded by LOCAL_WITNESS_RADIUS; sheltered NPCs
+        // are excluded during rain via collectWitnessesForPosition.
+        const witnesses = collectWitnessesForPosition(world, rtA.position, LOCAL_WITNESS_RADIUS, {
+          excludeIds: participants,
+        });
+        for (let w = 0; w < witnesses.length; w++) {
+          const wid = witnesses[w];
+          recordNpcMemoryInPlace(
+            world.npcMemories,
+            wid,
+            createNpcMemoryEntry({
+              id: `${encId}_wit_${wid}`,
+              eventId: encId,
+              tag: isFriction ? 'witnessed_friction' : 'witnessed_chat',
+              category: isFriction ? 'friction' : 'interaction',
+              subjectPlayer: false,
+              subjectResidents: participants.slice(),
+              provenance: 'firsthand',
+              sourceKind: 'witness',
+              createdDay: world.day,
+              createdMinute: Math.round(world.minuteOfDay),
+              importance: isFriction ? 2 : 1,
+              retention: 'durable',
+              valence: isFriction ? 'tense' : 'neutral',
+              emotionalWeight: isFriction ? 35 : 25,
+              detail: { placeName: encounterPlace },
+            }),
+            world.day,
+          );
+        }
 
         propagateEncounterGossipInPlace(world, participants, encId);
         break;
