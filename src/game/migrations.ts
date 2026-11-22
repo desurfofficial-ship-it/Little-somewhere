@@ -1065,6 +1065,10 @@ function sanitizeMemoryDetail(raw: unknown): NpcMemoryDetail | undefined {
   if (typeof raw.acousticOnly === 'boolean') {
     detail.acousticOnly = raw.acousticOnly;
   }
+  // S1: preserve placeZoneId so encounter/witness memories round-trip cleanly.
+  if (typeof raw.placeZoneId === 'string' && raw.placeZoneId.length > 0) {
+    detail.placeZoneId = raw.placeZoneId;
+  }
   return Object.keys(detail).length > 0 ? detail : undefined;
 }
 

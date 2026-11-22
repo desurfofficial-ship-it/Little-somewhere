@@ -560,6 +560,8 @@ export interface NpcMemoryDetail {
   placeName?: string;
   targetTier?: RelationshipTier;
   acousticOnly?: boolean;
+  /** S1: the landmark zone id where the memory formed, for place-affinity bias. */
+  placeZoneId?: string;
 }
 
 export interface NpcMemoryEntry {

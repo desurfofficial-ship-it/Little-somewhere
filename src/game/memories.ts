@@ -327,6 +327,38 @@ export function createInitialNpcMemories(
   return out;
 }
 
+/**
+ * S1 (memory→behavior bridge): compute a resident's place-affinity bias toward
+ * a candidate zone, derived from their OWN memories of that zone.
+ *
+ * Each non-expired memory tagged with `detail.placeZoneId === targetZoneId`
+ * contributes `valenceSign × (emotionalWeight/100) × recency × (importance/5)`.
+ * Warm memories attract; tense memories repel. Sum clamped to [-0.30, +0.30]
+ * (±30% multiplicative bias cap).
+ *
+ * Reads ONLY `world.npcMemories[residentId]` (omniscience-safe). O(14) per call.
+ * Called from `selectActivityForResident` at re-selection (every 26-90 min),
+ * not per tick — zero-GC steady state preserved.
+ */
+export function computePlaceAffinityBias(
+  memories: readonly NpcMemoryEntry[],
+  targetZoneId: string,
+  currentDay: number,
+): number {
+  let bias = 0;
+  for (let i = 0; i < memories.length; i++) {
+    const m = memories[i];
+    if (m.detail?.placeZoneId !== targetZoneId) continue;
+    if (isMemoryExpired(m, currentDay)) continue;
+    const valenceSign = m.valence === 'warm' ? 1 : m.valence === 'tense' ? -1 : 0;
+    if (valenceSign === 0) continue;
+    const recency = Math.max(0, 1 - (currentDay - m.learnedDay) / 14);
+    if (recency <= 0) continue;
+    bias += valenceSign * (m.emotionalWeight / 100) * recency * (m.importance / 5);
+  }
+  return Math.max(-0.3, Math.min(0.3, bias));
+}
+
 export function computeRetentionScore(entry: NpcMemoryEntry, currentDay: number): number {
   const rank = getProvenanceRank(entry.provenance);
   const provBonus = rank === 3 ? 2.5 : rank === 2 ? 1.0 : 0;
