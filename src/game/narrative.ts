@@ -18,6 +18,7 @@ import {
   selectDialogueSession,
 } from './dialogueEngine';
 import { DIALOGUE_TOPICS } from './dialogue';
+import { computeContextBoosts } from './dialogueContext';
 
 export { isChoiceAvailable };
 
@@ -391,7 +392,19 @@ export function buildResidentDialogue(
   world: WorldState,
   phase: TimePhase,
 ): DialogueSession {
-  return selectDialogueSession(id, world, phase, DIALOGUE_TOPICS, buildConcurrentQuestChoices);
+  // Social Foundation SF-4: the single production composition point computes
+  // the additive context boosts (relationship/memory-aware tie-breaks inside
+  // category bands) and forwards them to the engine. Condition gating,
+  // priorities, penalties and rotation remain owned by selectDialogueSession.
+  const contextBoosts = computeContextBoosts(world, id, phase, DIALOGUE_TOPICS);
+  return selectDialogueSession(
+    id,
+    world,
+    phase,
+    DIALOGUE_TOPICS,
+    buildConcurrentQuestChoices,
+    contextBoosts,
+  );
 }
 
 /**

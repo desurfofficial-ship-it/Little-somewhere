@@ -35,7 +35,7 @@ import { getTimePhase } from './time';
 import { getSeatById } from './worldMap';
 import { canOfferInvitation, isInvitationLive } from './invitations';
 
-const CATEGORY_PRIORITY: Record<DialogueCategory, number> = {
+export const CATEGORY_PRIORITY: Record<DialogueCategory, number> = {
   quest_milestone: 100,
   invitation: 86,
   conflict_reconciliation: 84,
@@ -419,6 +419,32 @@ export function evaluateDialogueCondition(
         ev.day <= world.day,
     );
     if (!found) return false;
+  }
+
+  // Social Foundation SF-4: the knowledge-scoped sibling of
+  // `requiresRecentEventKind/Tag`. The legacy predicates scan `worldEvents`
+  // globally — ANY resident "knows" ANY recent event, which is exactly the
+  // omniscience trap new content must avoid. This predicate requires the
+  // speaker to have actually experienced the event (they appear in the
+  // event's actor list — participation or firsthand witness) AND to hold a
+  // subjective memory bound to that event id. No actor match + no memory ⇒
+  // the resident does not bring it up.
+  if (cond.requiresWitnessedEvent) {
+    const spec = cond.requiresWitnessedEvent;
+    const maxDay = spec.maxDaysAgo;
+    const event = (world.worldEvents ?? []).find(
+      (ev) =>
+        world.day - ev.day <= maxDay &&
+        ev.day <= world.day &&
+        (spec.kinds === undefined || spec.kinds.includes(ev.kind)) &&
+        (spec.tagPrefix === undefined || ev.summaryTag.startsWith(spec.tagPrefix)) &&
+        ev.actors.includes(residentId),
+    );
+    if (!event) return false;
+    const remembered = (world.npcMemories?.[residentId] ?? []).some(
+      (m) => !isMemoryExpired(m, world.day) && m.eventId === event.id,
+    );
+    if (!remembered) return false;
   }
 
   if (cond.requiresNpcMemoriesAny && cond.requiresNpcMemoriesAny.length > 0) {
@@ -822,6 +848,17 @@ export function selectDialogueSession(
     choices: DialogueChoice[];
     extraNodes: Record<string, DialogueNode>;
   },
+  /**
+   * Social Foundation SF-4 (context assembly): optional additive score boosts
+   * keyed by topic id, computed by `dialogueContext.computeContextBoosts`.
+   * Purely additive — undefined preserves the exact legacy ordering (all
+   * existing tests and the golden snapshot run boost-free). The ENGINE also
+   * clamps every boost to ±5 (the min gap between boost-eligible adjacent
+   * category bands is 6), so the band guarantee is an engine invariant, not
+   * merely a producer promise — hostile or buggy callers cannot smuggle a
+   * topic across a category band.
+   */
+  contextBoosts?: Readonly<Record<string, number>>,
 ): DialogueSession {
   const def = RESIDENTS[residentId];
   const prog = world.residents[residentId];
@@ -839,7 +876,14 @@ export function selectDialogueSession(
     if (topic.residentId !== 'any' && topic.residentId !== residentId) continue;
     if (!evaluateDialogueCondition(topic.condition, residentId, world, phase, topic.id)) continue;
 
-    let score = CATEGORY_PRIORITY[topic.category] + (topic.priority ?? 0);
+    // Engine-side clamp (SF-4): the band guarantee is an invariant HERE, not
+    // just a producer convention — hostile/buggy callers cannot cross bands.
+    // Max |boost| 5 < the 6-point minimum gap between boost-eligible bands.
+    const boost = Math.max(-5, Math.min(5, contextBoosts?.[topic.id] ?? 0));
+    let score =
+      CATEGORY_PRIORITY[topic.category] +
+      (topic.priority ?? 0) +
+      boost;
     const hist = getTopicHistoryEntry(world, residentId, topic.id);
     if (hist) {
       if (hist.lastSeenDay === world.day) score -= 28;
@@ -1025,6 +1069,13 @@ export function selectDialogueSession(
   } else if (chosenId === 'gossip_third_party_relation') {
     const subj = selectThirdPartyGossipSubject(residentId, world);
     if (subj) surfacedMemoryEventIds.push({ residentId, eventId: subj.eventId });
+  } else if (chosenId === 'everyday_shared_visit_echo') {
+    const mem = findSpeakerMemory(residentId, world, {
+      tags: ['shared_featured_reading'],
+      unmentionedOnly: true,
+      maxDaysOld: 6,
+    });
+    if (mem) surfacedMemoryEventIds.push({ residentId, eventId: mem.eventId });
   } else if (chosenEntry.topic.condition?.playerRelationWith) {
     const subjMem = findSpeakerMemory(residentId, world, {
       subjectPlayer: true,

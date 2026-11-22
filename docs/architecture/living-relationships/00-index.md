@@ -55,5 +55,9 @@ This package designs the Invitation, Teaching, Home Visit, and Shared Activities
 | 19 | Final Acceptance Readiness Review | Gate sign-off before implementation |
 | 20 | [LR-1 Implementation Notes](20-lr1-implementation-notes.md) | Implementation record incl. anchoring policy (recovered from the PR #3 archive, byte-identical) |
 | 21 | [LR-1 Design Decision Record](21-lr1-design-decision-record.md) | Decision A (gate-4 offer-time reading) & Decision B (LR2-04b staging) — recovered byte-identical from PR #3 `d615a8e`; Decision B's re-anchored staging is implemented on main since the Build-10/LR recovery (WORKLOG Entry 051) |
+| 22 | [Social Foundation Contracts](22-social-foundation-contracts.md) | SF-1..SF-4 as-built contracts (derive-only social profile, invitation framework, emergent stories, dialogue context boosts) — the reusable social gameplay foundation; includes the LR-3 reservation map |
+| 23 | [LR-4 Teaching Specification](23-lr4-teaching-specification.md) | Implementation-ready LR-4 spec (grant transaction, knowledge registry, sanitizer strip, first condition topic) |
+| 24 | [LR-5 Arthur/Copperwheel Specification](24-lr5-arthur-copperwheel-specification.md) | Implementation-ready LR-5 spec (workbench hour def, occupant anchor, schedule matrix, decision register) |
 
 **Post-implementation corrective record**: `docs/architecture/build10-lr-recovery/` (docs 01–14) — Build-10 restoration, strict-predicate unification (doc 05), adversarial validation, gameplay QA, and the merge/integration record.
+**Social Foundation initiative record**: `docs/architecture/social-foundation/` (docs 00–04) — audit synthesis, design decisions, implementation record, adversarial QA.

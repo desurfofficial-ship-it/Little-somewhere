@@ -18,6 +18,7 @@ import {
 } from './residents';
 import { getResidentAvailableQuestCue } from './narrative';
 import { getSharedActivityDef } from './activities';
+import { deriveResidentChapter } from './emergentStories';
 import { isInvitationLive } from './invitations';
 import { PERSONAL_ITEMS, PERSONAL_ITEM_MAP } from './inventory';
 import { describePlacedFlower } from './cottage';
@@ -125,6 +126,13 @@ export interface JournalPersonCard {
   reliabilityLabel?: string;
   cueKind: 'story' | 'ready' | 'none';
   cueTitle?: string;
+  /**
+   * Social Foundation SF-3: one derived lived-experience line (bridging
+   * awareness, shared tradition, keepsake owed, observable feeling, early
+   * acquaintance). Absent when nothing has been lived worth recording —
+   * derive-only, never persisted, knowledge-boundary-safe.
+   */
+  chapter?: string;
   knownNotes: JournalNpcNote[];
   discoveredConnections: string[];
   isNew: boolean;
@@ -786,6 +794,10 @@ function buildPeopleList(
     const hasNewNote = knownNotes.some((n) => n.isNew);
     const isNew = !seenKeys.has(entryKey) || hasNewNote;
 
+    // Social Foundation SF-3: the derived lived-experience chapter line
+    // (pure derivation; undefined when nothing worth recording).
+    const chapter = deriveResidentChapter(world, id);
+
     return {
       id,
       entryKey,
@@ -802,6 +814,7 @@ function buildPeopleList(
       reliabilityLabel,
       cueKind,
       ...(cueTitle ? { cueTitle } : {}),
+      ...(chapter ? { chapter } : {}),
       knownNotes,
       discoveredConnections,
       isNew,

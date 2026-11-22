@@ -852,6 +852,18 @@ export interface DialogueCondition {
   };
   requiresRecentEventKind?: { kind: WorldEventRecord['kind']; maxDaysAgo: number };
   requiresRecentEventTag?: { tagPrefix: string; maxDaysAgo: number };
+  /**
+   * Social Foundation SF-4: the knowledge-scoped sibling of
+   * `requiresRecentEventKind/Tag`. Requires a recent world event the SPEAKER
+   * experienced (actor match) AND holds a subjective memory for. Use this —
+   * not the global-scan predicates — for any content where a resident reacts
+   * to something that happened in the world.
+   */
+  requiresWitnessedEvent?: {
+    kinds?: WorldEventRecord['kind'][];
+    tagPrefix?: string;
+    maxDaysAgo: number;
+  };
   requiresNpcMemoriesAny?: string[];
   excludesNpcMemories?: string[];
   requiresNpcMemory?: {
