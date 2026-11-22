@@ -194,11 +194,13 @@ The documented three-layer boundary (`AGENTS.md` §2) **holds**, with **two real
 | LR-1 invitations + LR-2 indoor occupancy | **Implemented** | `invitations.ts`, `occupancy.ts`, `activities.ts` |
 | Build-10 Wild Hollows exploration | **Implemented** | `exploration.ts`, `scene/builders/wilds.ts` |
 | Software-WebGL fallback | **Implemented, gameplay-neutral** | `NeighborhoodCanvas.tsx:401-410`, visual-only reductions |
-| **CI test/lint workflow** | **MISSING** | `.github/workflows/` has only `deploy-pages.yml` (build-only) — doc 08 |
-| **Tag-on-merge durability** | **MISSING** | the lost-branch incident root cause — doc 08 |
-| **Machine-checked layer-boundary enforcement** | **MISSING** | no ESLint/script gate — doc 04, 08 |
-| **Duplicate-migration-version guard test** | **MISSING** | LR-A11 recommendation, unfixed — doc 07, 08 |
-| LR-3+ (additional invitations/teaching) | **Not started** | next target per HANDOVER |
+| **CI test/lint workflow** | **Implemented** (PR #14) | `.github/workflows/ci.yml` — test + lint + build + boundary on every PR + push — doc 08 |
+| **Tag-on-merge durability** | **Implemented** (PR #14) | `deploy-pages.yml` tag-on-merge step — doc 08 §4 |
+| **Machine-checked layer-boundary enforcement** | **Implemented** (PR #14) | `scripts/check_layer_boundaries.ts` — doc 04, 08 |
+| **Duplicate-migration-version guard test** | **Implemented** (PR #14) | `src/game/migrations-guard.test.ts` (LR-A11) — doc 07, 08 |
+| **Operating directive encoded** | **Implemented** (PR #18) | `docs/architecture/master-architecture/10-operating-directive.md` + alignment across docs 00/03/07/08 — doc 10 |
+| Social foundation SF-1..SF-4 (derived) | **Implemented** (commit `8b715fc`) | `socialProfile.ts`, `invitationFramework.ts`, `emergentStories.ts`, `dialogueContext.ts` — zero new WorldState fields; schema stays v11; derive-only layer — doc 04 §1, doc 06 §3 |
+| LR-3 (Clara invitation) | **In progress — design phase** | owner: LR team; design on `origin/docs/lr3-{design,discovery,reconciliation}` (PR #13 open); **not on `main`** — doc 04 §1, doc 10 §5 |
 | `@google/genai` runtime integration | **Phantom** (declared, unused) | doc 08 §6 |
 
 ---

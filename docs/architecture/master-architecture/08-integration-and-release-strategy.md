@@ -32,6 +32,22 @@
 | GitHub Pages deploy | `npm run build` + `peaceiris/actions-gh-pages` | push to main | (existing) | Existing; hardening recommendations in §7 |
 | Golden-replay harness | target | every PR touching `actions/*` or `migrations/*` | target (Phase E2 prerequisite) | Not yet built |
 | Screenshot diff | target | every PR touching `src/scene/**` | target | Partial (`scripts/qa_*_evidence.sh` exist); formalize |
+| **Independent adversarial review** (directive §5) | second agent (not the implementer) files a review citing `file:line`; reproducible findings must be fixed in-PR or architect-waived in doc 03 §6 | every PR meeting the "major implementation" definition below | yes | **Added in `ci.yml` checklist (this encoding, PR #15)** — human gate, not mechanical |
+
+**"Major implementation" definition (directive §5):** a PR is major — requiring independent adversarial review — if **any** of:
+- (a) it touches a shared file in doc 04 §2 (`types.ts` cross-layer portion, `migrations.ts`, `storage.ts`, `narrative.ts`, `residents.ts`, `worldMap.ts`, `materials.ts`, `App.tsx` post-E1, `WORKLOG.md`, `HANDOVER.md`);
+- (b) it adds/renames/removes a `WorldState` field (doc 06 §1) — i.e., a schema bump per doc 07 §2;
+- (c) it modifies `src/scene/NeighborhoodCanvas.tsx` `tick()` or the module-scope scratch at `:221-226` (zero-alloc invariant, doc 00 #5);
+- (d) it modifies `commitWorld` (`App.tsx:272-284`) or `migrateWorldState` (`migrations.ts:2412-2478`) or `sanitizeWorldState` (doc 00 invariants #1, #2, #4);
+- (e) it touches >1 owning team's defining modules per doc 04 §1;
+- (f) it adds a new resident / interior / storyline / item (doc 04 §5 rule 3).
+
+**Reviewer rules:**
+- The reviewer is independent of the implementer's team (different doc 04 cell or designated cross-team reviewer).
+- The reviewer's job is to **actively attempt to disprove correctness**: hunt edge cases, broken doc 00 invariants, state inconsistencies, data-loss paths, player-facing failures.
+- Findings must be **reproducible** (cited `file:line` + reproduction steps) to be blocking; reproducible findings **must** be addressed by the implementer (fix in-PR or documented rejection with architect sign-off in doc 03 §6).
+- A "PASSED" verdict with zero findings is suspicious — the reviewer should justify why no edge cases were found.
+- Review is **distinct from and additional to** CI mechanical gates — green CI does not satisfy this gate.
 
 ---
 
@@ -134,6 +150,10 @@ The existing `deploy-pages.yml` has three SPOFs:
 - [ ] If touching a shared file (doc 04 §2): every affected consumer listed; reviewers signed off.
 - [ ] If schema bump (doc 07 §2): all four merge-points covered; duplicate-version guard passes; doc 06 §1 table updated.
 - [ ] If touching `src/scene/**`: screenshot diff acceptable.
+- [ ] **Independent adversarial review filed** (directive §5) for any PR meeting the "major implementation" definition (§2); reproducible findings addressed or architect-waived in doc 03 §6.
+- [ ] **Persistence gate** (directive §6): if touching saves/migrations/storage, `save-integrity.test.ts` + a `scripts/make_*_save.ts` fixture round-trips byte-identical through the change.
+- [ ] **Gameplay/browser gate** (directive §6): for any player-visible change (not only `src/scene/**`), headless screenshot diff at 1440×900 + 390×844 acceptable; zero console errors.
+- [ ] **Documentation consistency** (directive §9): doc 01 §10 / doc 04 §1 / doc 06 §1 updated if subsystems/contracts moved; status uses the 6-state vocabulary (doc 07 §6); no unmerged work described as complete.
 - [ ] `WORKLOG.md` entry appended (correct number per doc 07 §5).
 - [ ] `HANDOVER.md` updated if architecture/storage keys/open backlog changed.
 - [ ] Re-run full verification on the final tree (the tip commit, not an earlier commit).

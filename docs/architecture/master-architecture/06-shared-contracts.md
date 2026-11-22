@@ -77,6 +77,9 @@ These are read-only derived reads where subsystem X reads subsystem Y's persiste
 | `game/progressionVisuals.ts:383-384` | `bakeryState.kneadingSessions` (≥5) | bakery | `recipeCardTier` 1/2 |
 | `game/journal.ts:917-1008` | `greenhouseState.totalHarvests`, `bakeryState.{kneadingSessions,loavesShared,bakeCheckedDay}`, `nookState.{booksRead,teasShared,shelfBrowsedDay}`, `copperwheelState.windingSessions` | greenhouse/bakery/nook/copperwheel | daily journal summary text |
 | `game/storage.ts:145-498` | every persisted field | all | autosave dirty detection (the revision hash) |
+| `game/journal.ts` (SF-3 chapter derivation, commit `8b715fc`) | `emergentStories.deriveResidentChapter` → reads `invitations.history`, `memories`, `relationships`, `sideFlags` | LR / journal / relationships | People-card chapter line (`JournalPersonCard.chapter?`) — derive-only, zero persisted state |
+| `game/narrative.ts` + `game/dialogueEngine.ts` (SF-4 context boosts, commit `8b715fc`) | `dialogueContext.computeContextBoosts` → reads `relationships`, `memories`, `npcRuntime`, `topicHistory` | relationships / sim / narrative | optional `contextBoosts?` 6th param on `selectDialogueSession` (undefined = byte-identical legacy; engine-side ±5 clamp) |
+| `game/socialProfile.ts` ↔ `game/journal.ts` (SF-D4 mirror, commit `8b715fc`) | `socialProfile.isMemoryPlayerKnown` mirrors `journal.isNpcMemoryKnownToPlayer` | Social foundation / narrative | **Lockstep contract:** if journal's predicate changes, socialProfile's mirror MUST change in the same PR. Co-owned derived-read constraint (SF-D4, SF1-03). |
 
 **`ProgressionReadModel` target interface (C3):**
 ```ts

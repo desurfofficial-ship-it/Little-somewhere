@@ -39,6 +39,7 @@
 | 07 | [Parallel-development protocol](07-parallel-development-protocol.md) | Branch strategy, the serialized schema-bump protocol, WORKLOG numbering protocol, dialogue-content ordering, guard-test-first rule, cross-team dependency register. |
 | 08 | [Integration and release strategy](08-integration-and-release-strategy.md) | CI gates, tag-on-merge durability, golden-replay harness requirement, merge method, pre-merge verification checklist, phantom-dependency cleanup, deploy hardening. |
 | 09 | [Specialist evidence pack](09-specialist-evidence-pack.md) | Consolidated raw findings from the six parallel specialist investigations (Tasks 1-a..1-f) that ground docs 01–08. Kept for auditability. |
+| 10 | [Global multi-agent operating directive](10-operating-directive.md) | The operating constitution for every specialist lead and subagent: the 9 directive sections + philosophy, the directive↔governance alignment map, and the standing operating rules (subagent no-recursion, no competing implementations, no unauthorized irreversible decisions, no unmerged-as-complete). |
 
 ---
 
@@ -62,3 +63,12 @@ These are the load-bearing properties of the codebase. Every proposal in this di
 5. **Zero per-frame allocations in `tick()`** — module-scope scratch (`NeighborhoodCanvas.tsx:221-226`, `environmentRenderer.ts:22-65`). (`AGENTS.md` §2.)
 6. **No history rewrite** — WORKLOG/HANDOVER entries preserved verbatim; numbering gaps stay. (`WORKLOG.md` Entry 056 policy.)
 7. **Clean DAG** — `src/game/` has zero circular dependencies (Tarjan-verified, doc 05). No proposal may introduce a back-edge.
+
+## Standing operating rules (behavioral — additive to the invariants)
+
+These four rules are behavioral, not mechanical. They are recorded authoritatively in doc 10 §4 and mirrored here so they appear alongside the load-bearing invariants.
+
+- **(a) Subagent no-recursion** — subagents may be delegated independent missions but cannot launch further subagents. The lead owns synthesis. (Directive §1.)
+- **(b) No competing implementations in production** — competing *approaches* are compared off-main via subagents; exactly one implementation lands on `main`. Two PRs implementing the same subsystem with incompatible designs are both blocked until the lead picks one. (Directive §2.)
+- **(c) No irreversible product decisions without authorization** — adding/removing a resident, interior, storyline, or core gameplay loop requires explicit architect authorization recorded in doc 03 §6 Decision register. Behavior-preserving refactors do not. (Directive §8.)
+- **(d) No unmerged work described as complete on `main`** — per the 6-state vocabulary (doc 07 §6), work not yet `Merged` may not be described as "shipped," "complete," or "in the game." Work that is `Merged` but not `Verified in integrated build` may be described as "merged" only, never "verified." (Directive §9.)

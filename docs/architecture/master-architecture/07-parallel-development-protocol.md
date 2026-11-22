@@ -127,8 +127,18 @@ Changes to shared files (doc 04 §2) require:
 - WORKLOG entries claimed: <numbers>
 - Contract surfaces: <per doc 06>
 - Reviewers needed: <teams per doc 04 §1 whose contract is touched>
-- Status: proposed / in-progress / ready-for-review / merged
+- Status: **use the 6-state vocabulary (directive §9)** — `Proposed` / `In progress` / `Implemented locally` / `Tested` / `Merged` / `Verified in integrated build`. See the transition rule below.
 ```
+
+**6-state status vocabulary (directive §9) — forward-only transitions:**
+1. **Proposed** — design exists in a doc/PR; no code on `main`.
+2. **In progress** — code on a feature branch pushed to `origin/`; not yet green on CI.
+3. **Implemented locally** — code passes `tsc` + `npm test` + `npm run build` on the branch; not yet reviewed.
+4. **Tested** — CI green (test + lint + build + boundary-check + guard test) on the branch AND an independent adversarial review filed with reproducible findings addressed (doc 08 §2).
+5. **Merged** — merge commit landed on `main`; tag `build-<N>-<sha>` pushed.
+6. **Verified in integrated build** — re-verified on a fresh checkout of merged `main` (doc 08 §8 post-merge step).
+
+**Rule:** No PR description, WORKLOG entry, or `master-architecture/` doc may describe work in a state later than its actual state. Work not yet **Merged** may not be described as "shipped," "complete," or "in the game." Work that is **Merged** but not yet **Verified in integrated build** may be described as "merged" only, never "verified." (Directive §9 / doc 00 standing operating rule (d).)
 
 ---
 
@@ -183,7 +193,34 @@ When two teams' work conflicts:
 - **Do not** edit a shared file (doc 04 §2) without the shared-file change protocol (§4).
 - **Do not** introduce an event bus / dynamic registry / per-region tick controller (rejected alternatives, doc 03 §5).
 - **Do not** take ownership of another team's feature implementation (initiative boundary).
+- **Do not** create competing implementations in production code on `main` — compete on *approaches* via subagents off-main, then land one (directive §2 / doc 00 standing operating rule (b)).
+- **Do not** describe unmerged work as complete on `main` — use the 6-state vocabulary (§6) honestly (directive §9 / doc 00 standing operating rule (d)).
+- **Do not** make irreversible product decisions (adding/removing a resident, interior, storyline, or core gameplay loop) without explicit architect authorization recorded in doc 03 §6 (directive §8 / doc 00 standing operating rule (c)).
 
 ---
 
-This protocol is the operating manual. Its enforcement is the gates in doc 08. Its evidence base is the specialist findings in doc 09.
+This protocol is the operating manual. Its enforcement is the gates in doc 08. Its evidence base is the specialist findings in doc 09. Its operating constitution is doc 10.
+
+---
+
+## 11. Consolidated team-report spec (directive §7)
+
+Every team maintains a consolidated report so the central coordinator can see the whole field at once. **Cadence:** one report per merge cycle (whenever a PR merging to `main` touches >1 owning team) OR daily if any team has active in-flight work, whichever is more frequent. Filed as a WORKLOG entry (per §5 numbering) with a structured sub-section, OR posted to the team's coordination channel.
+
+**Format (10 required fields):**
+
+```
+## [YYYY-MM-DD] Consolidated team report — <team/initiative>
+- Completed this cycle: PR #, tag build-<N>-<sha>, files, owning team, final 6-state status (§6).
+- Active work: branch, owner, current 6-state status, blocking on.
+- Subagents launched this cycle: agent ID, mission, parent team, findings disposition.
+- Files/modules affected: per doc 04 §1 ownership.
+- Dependencies: cross-team register entries (§6) filed/merged this cycle; schema bumps.
+- Blockers: explicit list with owner + escalation path.
+- Test evidence: CI run URL, screenshot diff baselines, golden-replay result if applicable.
+- Decisions: any doc 03 §6 Decision register entries this cycle.
+- Risks: new/changed risks vs doc 02 W1-W24 + doc 05 §9 coupling register.
+- Next: the single highest-leverage next action.
+```
+
+**Immediate-escalation rule:** if a cross-team dependency blocks another team's PR, notify the central coordinator the same day (WORKLOG entry prefixed `[BLOCKER]` or direct message). Do not sit on a blocker.
