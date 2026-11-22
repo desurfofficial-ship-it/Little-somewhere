@@ -57,6 +57,23 @@ export interface MirrorPondRig {
   sailboat: THREE.Group;
 }
 
+/**
+ * Character-quality program (Workstream C): an eye + catchlight pair with the
+ * build-time base positions preserved, so `animateCharacterRig` can drive a
+ * damped micro-gaze (saccades, away-glances, downcast looks) by offsetting the
+ * whole pair without disturbing the ±0.120 eye-spread identity contract.
+ */
+export interface EyeGazeBinding {
+  eye: THREE.Mesh;
+  catchlight?: THREE.Mesh;
+  baseX: number;
+  baseY: number;
+  baseZ: number;
+  catchlightBaseX?: number;
+  catchlightBaseY?: number;
+  catchlightBaseZ?: number;
+}
+
 export interface CharacterRig {
   root: THREE.Group;
   bodyGroup: THREE.Group;
@@ -120,4 +137,27 @@ export interface CharacterRig {
   knitBaseColors?: string[];
   /** Hand-knit neck warmer shown only during winter (tinted from the coat color). */
   winterKnitCollar?: THREE.Group;
+  // ---------------------------------------------------------------------
+  // Character-quality program (Build CQ) — expression & seated-grounding kit.
+  // All fields are optional with neutral defaults, so every existing rig and
+  // test contract stays green; the shared animation driver consumes them when
+  // present and ignores them otherwise.
+  // ---------------------------------------------------------------------
+  /** Left/right eye + catchlight bindings for the damped micro-gaze system. */
+  eyeBindings?: [EyeGazeBinding, EyeGazeBinding];
+  /** Current damped gaze offset (lives on the rig; written only by animateCharacterRig). */
+  eyeGazeState?: { x: number; y: number };
+  /** Cheek blush meshes — warmth answers the current emotion instead of sitting constant. */
+  blushMeshes?: THREE.Mesh[];
+  /** Current damped blush warmth multiplier (1 = authored baseline). */
+  blushWarmState?: number;
+  /** Boot meshes (named 'boot', direct children of the hip pivots) for the seated ankle-fake. */
+  leftBoot?: THREE.Mesh;
+  rightBoot?: THREE.Mesh;
+  /**
+   * Ankle pivot point (legPivot-local) the seated boot pitch rotates around.
+   * The animation compensates mesh position so the boot pivots at the ankle
+   * rather than swinging around the hip origin — no new scene-graph DOF.
+   */
+  bootAnkle?: { y: number; z: number };
 }

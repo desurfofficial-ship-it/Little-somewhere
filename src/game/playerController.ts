@@ -207,6 +207,12 @@ export function stepPlayerMovement(input: StepPlayerMovementInput): StepPlayerMo
     } else {
       const seatPos = seat ? { ...seat.seatPos } : pos;
       const seatFacing = seat ? seat.facingAngle : facing;
+      // Character-quality program (Workstream B): the body eases around into the
+      // seat's facing instead of snapping — sitting down keeps its continuity.
+      // wrapAngleDelta(current, target) returns the wrapped (target - current).
+      const easedFacing = seat
+        ? facing + wrapAngleDelta(facing, seatFacing) * Math.min(1, dt * 7)
+        : seatFacing;
       const nextMotion: PlayerMotionRuntime = {
         ...input.motion,
         vx: 0,
@@ -223,7 +229,7 @@ export function stepPlayerMovement(input: StepPlayerMovementInput): StepPlayerMo
       };
       return {
         pos: seatPos,
-        facing: seatFacing,
+        facing: easedFacing,
         posture: 'sitting',
         seatId,
         motion: nextMotion,

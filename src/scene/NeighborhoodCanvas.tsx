@@ -7,6 +7,7 @@ import {
   CottageInteractableId,
   GameScreenState,
   InteractiveTarget,
+  NpcAnimationState,
   PlayerLocation,
   PlayerPosture,
   PropInteractableId,
@@ -176,7 +177,7 @@ export interface HudBubbleSnapshot {
 }
 
 export interface PlayerActionPulse {
-  kind: 'wave' | 'interact' | 'talk';
+  kind: 'wave' | 'interact' | 'talk' | 'gift';
   seq: number;
   focusPos?: Vec2;
 }
@@ -1295,7 +1296,7 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
     let pendingTargetAfterWalk: InteractiveTarget | null = null;
     let playerMotion = createInitialPlayerMotion(worldRef.current.playerPos);
     let lastPulseSeq = playerActionPulseRef.current?.seq ?? 0;
-    let activePulseKind: 'wave' | 'interact' | 'talk' | null = null;
+    let activePulseKind: 'wave' | 'interact' | 'talk' | 'gift' | null = null;
     let activePulseTimer = 0;
     let activePulseFocusX = 0;
     let activePulseFocusZ = 0;
@@ -1753,6 +1754,15 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
     let prevFountainWishLocal = fountainWishCounter;
     let prevPondSkipLocal = pondSkipCounter;
 
+    // Character-quality program (Workstream D): short one-shot resident gestures
+    // (wave-back, gift receive) layered over the sim's animState, expiring by elapsed time.
+    const residentGestures = new Map<ResidentId, { kind: NpcAnimationState; untilElapsed: number }>();
+    const giftHandoffs = new Map<ResidentId, { propId: string; untilElapsed: number }>();
+    const prevPropHolders = new Map<string, string>();
+    // QA fix: holder-history resets on world replacement (load / new day) so a
+    // save whose props already live with residents can't replay a stale hand-off.
+    let lastSeenWorld: WorldState | null = null;
+
     function syncVisualAndHud(
       world: WorldState,
       elapsed: number,
@@ -1948,12 +1958,42 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
       }
 
       // Sync carryable world props (ground placement vs held in player carrySocket vs delivered)
+      // QA fix: on world replacement (load / commitWorld), drop the holder
+      // history so pre-delivered props in a loaded save never replay a hand-off.
+      if (world !== lastSeenWorld) {
+        lastSeenWorld = world;
+        prevPropHolders.clear();
+        giftHandoffs.clear();
+      }
       const playerSocket = playerRig.carrySocket ?? playerRig.bodyGroup;
+      // Workstream D: expire finished gift hand-offs (allocation-free sweep over
+      // the bounded RESIDENT_ORDER instead of iterating the map itself).
+      for (let r = 0; r < RESIDENT_ORDER.length; r++) {
+        const expiredHandoff = giftHandoffs.get(RESIDENT_ORDER[r]);
+        if (expiredHandoff && elapsed >= expiredHandoff.untilElapsed) {
+          giftHandoffs.delete(RESIDENT_ORDER[r]);
+        }
+      }
       for (let i = 0; i < CARRYABLE_PROP_DEFS.length; i++) {
         const def = CARRYABLE_PROP_DEFS[i];
         const rig = carryableRigs[def.id];
         const placement = world.worldProps?.[def.id];
         const holder = placement?.holder ?? 'world';
+        // Workstream D: detect player → resident hand-offs. prevPropHolders is
+        // seeded on the first invocation (no transition can fire until it has
+        // real history), then every holder change updates it in place.
+        const prevPropHolder = prevPropHolders.get(def.id);
+        if (
+          prevPropHolders.size > 0 &&
+          prevPropHolder === 'player' &&
+          holder !== 'world' &&
+          holder !== 'player' &&
+          RESIDENT_ORDER.includes(holder)
+        ) {
+          residentGestures.set(holder, { kind: 'interact', untilElapsed: elapsed + 1.25 });
+          giftHandoffs.set(holder, { propId: def.id, untilElapsed: elapsed + 1.25 });
+        }
+        prevPropHolders.set(def.id, String(holder));
         if (holder === 'world') {
           const px = placement?.pos.x ?? def.pos.x;
           const pz = placement?.pos.z ?? def.pos.z;
@@ -1973,8 +2013,31 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
           if (rig.shadow) rig.shadow.visible = false;
           rig.hitProxy.visible = false;
         } else {
-          rig.group.visible = false;
-          rig.hitProxy.visible = false;
+          // Resident holder: while a hand-off is active and the resident rig is
+          // outdoors, ride the prop on the resident's handAnchor; afterwards
+          // (or when hidden indoors) fall back to the plain hide, re-parenting
+          // into exteriorRoot — the same parent the 'world' branch uses — so a
+          // later pickup re-parents cleanly from a known place.
+          const handoff = giftHandoffs.get(holder);
+          const anchorRig = residentRigs[holder];
+          if (
+            handoff &&
+            elapsed < handoff.untilElapsed &&
+            world.occupancy?.residentId !== holder &&
+            anchorRig?.handAnchor
+          ) {
+            const handAnchor = anchorRig.handAnchor;
+            if (rig.group.parent !== handAnchor) handAnchor.add(rig.group);
+            rig.group.position.set(0, 0.02, 0.06);
+            rig.group.rotation.set(0, 0, 0);
+            rig.group.visible = true;
+            rig.hitProxy.visible = false;
+            if (rig.shadow) rig.shadow.visible = false;
+          } else {
+            rig.group.visible = false;
+            rig.hitProxy.visible = false;
+            if (rig.group.parent !== exteriorRoot) exteriorRoot.add(rig.group);
+          }
         }
       }
 
@@ -2027,7 +2090,27 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
         _npcAnimOpts.squash = feel.squash;
         _npcAnimOpts.carrying = false;
         _npcAnimOpts.isMoving = rt.currentSpeed > 0.25;
-        animateCharacterRig(rig, rt.animState, rt.walkPhase, elapsed, dt, i * 0.7, _npcAnimOpts);
+        // Character-quality program (Workstream B/D): continuous gait speed,
+        // seated ankle pitch from the reserved seat, and one-shot gesture
+        // overrides (wave-back / gift receive) layered over the sim's state.
+        _npcAnimOpts.speed = rt.currentSpeed;
+        _npcAnimOpts.seatHeight = seat ? seat.seatHeight : undefined;
+        _npcAnimOpts.seatedReading = false;
+        let npcAnimState: NpcAnimationState = rt.animState;
+        const gesture = residentGestures.get(id);
+        if (gesture) {
+          if (elapsed < gesture.untilElapsed) {
+            // QA fix: gestures never unfold a seated resident (legs would clip
+            // the bench while the root stays at the seated ground height), and
+            // an active dialogue partner keeps the sim's authoritative 'talk'.
+            if (rt.posture !== 'sitting' && activeDialogueResidentRef.current !== id) {
+              npcAnimState = gesture.kind;
+            }
+          } else {
+            residentGestures.delete(id);
+          }
+        }
+        animateCharacterRig(rig, npcAnimState, rt.walkPhase, elapsed, dt, i * 0.7, _npcAnimOpts);
 
         // Quest cue diamond
         const cue = getResidentAvailableQuestCue(id, world);
@@ -2116,6 +2199,12 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
         // shared with the resident loop above, and a stale value leaked into the
         // nook occupant's face amplitudes (audit finding, zero-GC scratch rule).
         _npcAnimOpts.emotionIntensity = 0.75;
+        // Workstream B/D: same scratch discipline for the new fields — the nook
+        // seat is a fixed 0.5-height perch, the occupant never walks, and the
+        // reading layer arms only when a shared invitation is actually active.
+        _npcAnimOpts.seatHeight = 0.5;
+        _npcAnimOpts.speed = undefined;
+        _npcAnimOpts.seatedReading = Boolean(nookOcc.invitationId);
         animateCharacterRig(nookOccupantRig, 'sit', 0, elapsed, dt, 1.3, _npcAnimOpts);
 
         const occCue = getResidentAvailableQuestCue(nookOcc.residentId, world);
@@ -2256,6 +2345,8 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
             ? 0.9
             : latestPulse.kind === 'interact'
             ? 0.78
+            : latestPulse.kind === 'gift'
+            ? 0.9
             : 0.65;
         if (latestPulse.focusPos) {
           activePulseFocusX = latestPulse.focusPos.x;
@@ -2263,6 +2354,30 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
           hasActivePulseFocus = true;
         } else {
           hasActivePulseFocus = false;
+        }
+        // Workstream D wave-back: exactly once per wave pulse, the friendliest
+        // nearby outdoor resident mirrors the greeting (allocation allowed here —
+        // this runs on pulse edges, never per frame).
+        if (latestPulse.kind === 'wave') {
+          let waveBackId: ResidentId | null = null;
+          let waveBackDist = 3.6;
+          for (let wi = 0; wi < RESIDENT_ORDER.length; wi++) {
+            const waveCandidate = RESIDENT_ORDER[wi];
+            if (world.occupancy?.residentId === waveCandidate) continue;
+            if (activeDialogueResidentRef.current === waveCandidate) continue;
+            const candidateRt = world.npcRuntime[waveCandidate];
+            if (!candidateRt || candidateRt.posture === 'sitting') continue;
+            if (candidateRt.emotion === 'angry' || candidateRt.emotion === 'frustrated') continue;
+            if ((world.playerRelations?.[waveCandidate]?.affinity ?? 0) < 10) continue;
+            const candidateDist = distance2D(world.playerPos, candidateRt.position);
+            if (candidateDist < waveBackDist) {
+              waveBackDist = candidateDist;
+              waveBackId = waveCandidate;
+            }
+          }
+          if (waveBackId) {
+            residentGestures.set(waveBackId, { kind: 'wave', untilElapsed: elapsed + 1.4 });
+          }
         }
       }
       if (activePulseTimer > 0) {
@@ -2515,7 +2630,15 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
           }
           playerLookYaw = wrapAngleDelta(world.playerFacing, targetYaw);
           if (world.playerPosture !== 'sitting') {
-            playerAnim = activePulseTimer > 0 && activePulseKind === 'talk' ? 'talk' : 'listen';
+            // Workstream D: a 'gift' pulse lands while the dialogue sheet is open
+            // (the giver is handing an item over) — present it as the interact
+            // gesture instead of dropping the player into 'listen'.
+            playerAnim =
+              activePulseTimer > 0 && activePulseKind === 'talk'
+                ? 'talk'
+                : activePulseTimer > 0 && activePulseKind === 'gift'
+                ? 'interact'
+                : 'listen';
           }
         }
       } else if (currentActiveProp !== null || (activePulseTimer > 0 && hasActivePulseFocus)) {
@@ -2542,25 +2665,33 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
           activePulseKind &&
           playerMotion.speed < 1.35
         ) {
-          playerAnim = activePulseKind;
+          // 'gift' is not a rig animState — present the hand-off as 'interact'.
+          playerAnim = activePulseKind === 'gift' ? 'interact' : activePulseKind;
         }
       } else if (
         activePulseTimer > 0 &&
         activePulseKind &&
         world.playerPosture !== 'sitting' &&
-        (activePulseKind === 'interact' ? playerMotion.speed < 1.35 : playerMotion.speed < 0.25)
+        (activePulseKind === 'interact' || activePulseKind === 'gift'
+          ? playerMotion.speed < 1.35
+          : playerMotion.speed < 0.25)
       ) {
-        playerAnim = activePulseKind;
+        playerAnim = activePulseKind === 'gift' ? 'interact' : activePulseKind;
       }
 
       // Animate player character rig cleanly with joint pivots, ground height & turn banking
       playerRig.root.position.set(world.playerPos.x, playerMotion.groundY, world.playerPos.z);
       playerRig.root.rotation.y = world.playerFacing;
-      _playerAnimOpts.emotion = world.playerHeldItem
-        ? 'happy'
-        : dialogueResId
-        ? 'curious'
-        : 'relaxed';
+      _playerAnimOpts.emotion =
+        // Workstream D: a gift pulse reads as joy first — before the held-item
+        // and dialogue heuristics below can override it.
+        activePulseKind === 'gift'
+          ? 'happy'
+          : world.playerHeldItem
+          ? 'happy'
+          : dialogueResId
+          ? 'curious'
+          : 'relaxed';
       _playerAnimOpts.lookYaw = playerLookYaw;
       _playerAnimOpts.lookPitch = playerLookPitch;
       _playerAnimOpts.bankAngle = playerMotion.bankAngle;
@@ -2573,6 +2704,17 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
       _playerAnimOpts.accelLean = playerMotion.accelAmount;
       _playerAnimOpts.squash =
         impactSquashEnv + playerMotion.skidAmount * 0.05 - playerMotion.accelAmount * 0.022;
+      // Character-quality program (Workstream B/D): continuous gait speed and
+      // seated ankle pitch reach the rig — the sitting seat resolves through the
+      // same any-seat lookup the sim uses (indoor stools + outdoor benches).
+      // The player is never page-reading. Every field is assigned unconditionally
+      // so no stale scratch value survives between frames.
+      _playerAnimOpts.speed = playerMotion.speed;
+      _playerAnimOpts.seatHeight =
+        world.playerPosture === 'sitting' && world.playerSeatId
+          ? resolveAnySeatById(world.playerSeatId)?.seatHeight
+          : undefined;
+      _playerAnimOpts.seatedReading = false;
       animateCharacterRig(
         playerRig,
         playerAnim,

@@ -712,6 +712,19 @@ export function stepSimulationInPlace(
           rt.posture = 'standing';
         }
 
+        // Character-quality program (Workstream C): the player stole this resident's
+        // reserved seat — an organic frustrated huff plus a one-shot bubble. Fires
+        // exactly once per steal: this re-selection reassigns reservedSeatId away
+        // from the player-occupied seat (isSeatClaimed excludes it), so the trigger
+        // cannot re-fire while the emotion window is live.
+        if (seatStolenByPlayer && rt.emotion !== 'angry' && world.minuteOfDay >= rt.emotionUntilMinute) {
+          rt.emotion = 'frustrated';
+          rt.emotionIntensity = 0.7;
+          rt.emotionUntilMinute = Math.min(DAY_END_MINUTE, world.minuteOfDay + 12);
+          rt.activeBubbleText = 'Oh — I was just resting there.';
+          rt.activeBubbleUntilMinute = Math.min(DAY_END_MINUTE, world.minuteOfDay + 6);
+        }
+
         rt.currentActivityId = chosen.id;
         rt.currentPlaceName = chosen.placeName;
         rt.currentActivityLabel = chosen.activity;
@@ -762,7 +775,9 @@ export function stepSimulationInPlace(
           if (seat) {
             rt.position.x = seat.seatPos.x;
             rt.position.z = seat.seatPos.z;
-            rt.facing = seat.facingAngle;
+            // Character-quality program (Workstream B): no instant facing snap on
+            // arrival — targetFacing glides the body into the chair via the
+            // settled-branch facing ease below.
             rt.targetFacing = seat.facingAngle;
             rt.posture = 'sitting';
             rt.animState = 'sit';
@@ -850,7 +865,15 @@ export function stepSimulationInPlace(
 
       if (pDist < greetDist) {
         rt.targetLookPos = world.playerPos;
-        if (!rt.reservedSeatId) {
+        if (rt.posture === 'sitting' && rt.reservedSeatId) {
+          // Character-quality program (Workstream B): the body settles into the
+          // chair's facing while the head look-at handles the player gaze.
+          const seatedSeat = getSeatById(rt.reservedSeatId);
+          if (seatedSeat) {
+            const diff = normalizeAngleDiff(seatedSeat.facingAngle, rt.facing);
+            rt.facing += diff * Math.min(1, dt * 6);
+          }
+        } else if (!rt.reservedSeatId) {
           const playerYaw = Math.atan2(world.playerPos.x - rt.position.x, world.playerPos.z - rt.position.z);
           const diff = normalizeAngleDiff(playerYaw, rt.facing);
           rt.facing += diff * Math.min(1, dt * 4);
@@ -872,6 +895,13 @@ export function stepSimulationInPlace(
           rt.lastGreetedPlayerMinute = world.minuteOfDay;
           rt.activeBubbleText = getGreetingBubbleText(id, rt.emotion, affinity, reliability, met);
           rt.activeBubbleUntilMinute = world.minuteOfDay + 8;
+          // Character-quality program (Workstream C): a first-ever meeting flashes an
+          // organic surprised reaction alongside the greeting bubble.
+          if (!met && world.minuteOfDay >= rt.emotionUntilMinute) {
+            rt.emotion = 'surprised';
+            rt.emotionIntensity = 0.72;
+            rt.emotionUntilMinute = Math.min(DAY_END_MINUTE, world.minuteOfDay + 20);
+          }
           if (rt.posture !== 'sitting' && rt.socialPartnerId === null && !guarded) {
             rt.animState = 'wave';
           }

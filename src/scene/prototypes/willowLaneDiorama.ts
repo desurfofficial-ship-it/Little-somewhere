@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { ResidentAppearance, SeasonType } from '../../game/types';
-import { CharacterRig } from '../models';
+import { CharacterRig, EyeGazeBinding } from '../models';
 import { MaterialPalette, STORYBOOK_PALETTE } from '../materials';
 import { buildWinterKnitCollar, shadeHex } from '../builders/characters';
 import { addStaticContactShadow } from '../contactShadows';
@@ -1341,6 +1341,7 @@ export function buildStorybookJun(
   const stampMat = palette.standard('#C86446', 0.65, 0.02);
 
   // Pivoted Legs (hip pivot at y = 0.42)
+  const bootMeshes: THREE.Mesh[] = [];
   const makeLeg = (xPos: number) => {
     const legPivot = new THREE.Group();
     legPivot.position.set(xPos, 0.42, 0);
@@ -1359,10 +1360,16 @@ export function buildStorybookJun(
     const pant = new THREE.Mesh(pantGeo, trousersMat);
     pant.position.y = -0.11;
     pant.castShadow = true;
-    const boot = new THREE.Mesh(new THREE.CapsuleGeometry(0.095, 0.1, 4, 8), bootMat);
-    boot.position.set(0, -0.28, 0.058); // rides the baked knee bend (+0.028)
+    // Character-quality program: boot geometry rides the baked knee bend exactly
+    // like the shared builder (vertices translated, mesh at the pivot origin) so
+    // the seated ankle-fake pivot math is identical across the whole cast.
+    const bootGeo = new THREE.CapsuleGeometry(0.095, 0.1, 4, 8);
+    bootGeo.translate(0, -0.28, 0.058);
+    const boot = new THREE.Mesh(bootGeo, bootMat);
+    boot.name = 'boot';
     boot.castShadow = true;
     legPivot.add(pant, boot);
+    bootMeshes.push(boot);
     return legPivot;
   };
   const leftLeg = makeLeg(-0.13);
@@ -1502,6 +1509,10 @@ export function buildStorybookJun(
   headGroup.add(head);
 
   // Sculpted nose + warm cheek blush
+  // Character-quality program: capture the face parts the animation driver can
+  // steer — blush warmth answers emotion; eye pairs ride a damped micro-gaze.
+  const junBlushMeshes: THREE.Mesh[] = [];
+  const junEyeBindings: EyeGazeBinding[] = [];
   const nose = new THREE.Mesh(new THREE.SphereGeometry(0.052, 8, 8), skinMat);
   nose.position.set(0, -0.02, 0.283);
   headGroup.add(nose);
@@ -1518,6 +1529,7 @@ export function buildStorybookJun(
     blush.scale.set(1.2, 0.72, 0.45);
     blush.position.set(sx * 0.155, -0.06, 0.245);
     headGroup.add(blush);
+    junBlushMeshes.push(blush);
 
     // Expressive eye + tiny warm catchlight dot
     const eye = new THREE.Mesh(new THREE.SphereGeometry(0.052, 8, 8), eyeMat);
@@ -1525,6 +1537,16 @@ export function buildStorybookJun(
     const catchlight = new THREE.Mesh(new THREE.SphereGeometry(0.02, 6, 6), highlightMat);
     catchlight.position.set(sx * 0.12 + 0.014, 0.042, 0.322);
     headGroup.add(eye, catchlight);
+    junEyeBindings.push({
+      eye,
+      catchlight,
+      baseX: eye.position.x,
+      baseY: eye.position.y,
+      baseZ: eye.position.z,
+      catchlightBaseX: catchlight.position.x,
+      catchlightBaseY: catchlight.position.y,
+      catchlightBaseZ: catchlight.position.z,
+    });
 
     const eyelid = new THREE.Mesh(lidGeo, skinMat);
     eyelid.position.set(sx * 0.12, 0.056, 0.272);
@@ -1652,6 +1674,14 @@ export function buildStorybookJun(
     knitMaterials: [knitCoatMat, winterCollar.material, knitScarfMat],
     knitBaseColors: [appearance.coatColor, appearance.coatColor, appearance.accentColor],
     winterKnitCollar: winterCollar.group,
+    // Character-quality program: expression & seated-grounding kit (cast parity).
+    eyeBindings: junEyeBindings as [EyeGazeBinding, EyeGazeBinding],
+    eyeGazeState: { x: 0, y: 0 },
+    blushMeshes: junBlushMeshes,
+    blushWarmState: 1,
+    leftBoot: bootMeshes[0],
+    rightBoot: bootMeshes[1],
+    bootAnkle: { y: -0.24, z: 0.05 },
   };
 }
 

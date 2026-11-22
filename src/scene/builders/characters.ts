@@ -8,7 +8,7 @@ import {
   SeasonType,
 } from '../../game/types';
 import { MaterialPalette, STORYBOOK_PALETTE } from '../materials';
-import { CharacterRig } from '../models';
+import { CharacterRig, EyeGazeBinding } from '../models';
 import { addContactShadow } from './vegetation';
 
 export type CharacterArchetypeId = ResidentId | 'player';
@@ -37,6 +37,24 @@ export interface CharacterAnimationOptions {
    * without rebuilding the rig. Absent = the rig's build-time carryPose.
    */
   carryPose?: 'cradle' | 'side' | 'two-hand';
+  /**
+   * Character-quality program (Workstream B): continuous speed in u/s. When
+   * present, walk/run/sprint gait amplitudes blend across the controller's own
+   * tier thresholds instead of popping at the discrete state gates. Residents
+   * (2.3 u/s) and tests (option absent) keep the authored walk baseline.
+   */
+  speed?: number;
+  /**
+   * Seat height while seated — drives the ankle-fake boot pitch so feet rest on
+   * the seat edge instead of hovering. Absent while seated = a gentle default pitch.
+   */
+  seatHeight?: number;
+  /**
+   * Seated shared-activity layer (Workstream D): when true and animState is
+   * 'sit', the arms/head layer a page-reading pose over the seated fold — the
+   * Book Nook host reads along instead of sitting statically.
+   */
+  seatedReading?: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -340,6 +358,7 @@ export function buildStorybookCharacter(
   // and a heel block (Doc 04 §4.3) for grounded, chunky stances. The three
   // boot parts merge into ONE geometry so the visual upgrade stays
   // draw-call neutral (review finding: Phase 2 must not grow mesh count).
+  const bootMeshes: THREE.Mesh[] = [];
   const makeLeg = (xPos: number) => {
     const legPivot = new THREE.Group();
     legPivot.position.set(xPos, 0.42, 0);
@@ -372,6 +391,7 @@ export function buildStorybookCharacter(
     boot.name = 'boot';
     boot.castShadow = true;
     legPivot.add(pant, boot);
+    bootMeshes.push(boot);
     return legPivot;
   };
   const leftLeg = makeLeg(-0.13);
@@ -812,17 +832,33 @@ export function buildStorybookCharacter(
   let leftBrow!: THREE.Mesh;
   let rightBrow!: THREE.Mesh;
 
+  // Character-quality program: capture the face parts the animation driver can
+  // steer — blush warmth answers emotion; eye pairs ride a damped micro-gaze.
+  const blushMeshes: THREE.Mesh[] = [];
+  const eyeBindings: EyeGazeBinding[] = [];
+
   for (const sx of [-1, 1] as const) {
     const blush = new THREE.Mesh(new THREE.SphereGeometry(0.062, 8, 8), blushMat);
     blush.scale.set(1.2, 0.72, 0.45);
     blush.position.set(sx * 0.155 * faceReSeat, -0.06 * faceReSeat, 0.245 * faceReSeat);
     headGroup.add(blush);
+    blushMeshes.push(blush);
 
     const eye = new THREE.Mesh(new THREE.SphereGeometry(eyeR, 8, 8), eyeMat);
     eye.position.set(sx * 0.12, 0.025 * faceReSeat, 0.272 * faceReSeat);
     const catchlight = new THREE.Mesh(new THREE.SphereGeometry(0.02 * (face.eyeScale ?? 1), 6, 6), highlightMat);
     catchlight.position.set(sx * 0.12 + 0.014, 0.042 * faceReSeat, 0.272 * faceReSeat + 0.05 * (face.eyeScale ?? 1));
     headGroup.add(eye, catchlight);
+    eyeBindings.push({
+      eye,
+      catchlight,
+      baseX: eye.position.x,
+      baseY: eye.position.y,
+      baseZ: eye.position.z,
+      catchlightBaseX: catchlight.position.x,
+      catchlightBaseY: catchlight.position.y,
+      catchlightBaseZ: catchlight.position.z,
+    });
 
     const eyelid = new THREE.Mesh(lidGeo, skinMat);
     eyelid.position.set(sx * 0.12, 0.07 * faceReSeat, 0.272 * faceReSeat);
@@ -1256,6 +1292,15 @@ export function buildStorybookCharacter(
     knitMaterials,
     knitBaseColors,
     winterKnitCollar: winterCollar.group,
+    // Character-quality program: expression & seated-grounding kit.
+    eyeBindings: eyeBindings as [EyeGazeBinding, EyeGazeBinding],
+    eyeGazeState: { x: 0, y: 0 },
+    blushMeshes,
+    blushWarmState: 1,
+    leftBoot: bootMeshes[0],
+    rightBoot: bootMeshes[1],
+    // Ankle pivot sits where the pant cuff meets the boot shaft (legPivot-local).
+    bootAnkle: { y: -0.24, z: 0.05 },
   };
 }
 
@@ -1282,6 +1327,29 @@ export function animateCharacterRig(
   const emotionIntensity = THREE.MathUtils.clamp(opts?.emotionIntensity ?? 0.75, 0.55, 0.9);
   const faceAmp = emotionIntensity / 0.75;
   const poseAmp = 0.6 + 0.4 * (emotionIntensity / 0.75);
+
+  // Character-quality program (Workstream B): continuous gait blending. The
+  // controller's own speed-tier thresholds (walk→run 4.2 @ 3.6–5.4 ramp,
+  // run→sprint 6.1 @ 6.1–7.6 ramp) become amplitude ramps, so crossing a tier
+  // eases the stride instead of snapping the pose. Without `speed` (tests,
+  // static residents) every value stays at the authored walk baseline.
+  const spd = opts?.speed;
+  let gaitLegAmp = 0.48;
+  let gaitArmAmp = 0.65;
+  let gaitBobAmp = 0.045;
+  let gaitTorsoPitch = 0.05;
+  let gaitTorsoYawAmp = 0.055;
+  let gaitArmBias = 0;
+  if (spd !== undefined && Number.isFinite(spd) && spd > 3.2) {
+    const tRun = THREE.MathUtils.clamp((spd - 3.6) / 1.8, 0, 1);
+    const tSprint = THREE.MathUtils.clamp((spd - 6.1) / 1.5, 0, 1);
+    gaitLegAmp = THREE.MathUtils.lerp(THREE.MathUtils.lerp(0.48, 0.72, tRun), 0.92, tSprint);
+    gaitArmAmp = THREE.MathUtils.lerp(THREE.MathUtils.lerp(0.65, 0.8, tRun), 0.95, tSprint);
+    gaitBobAmp = THREE.MathUtils.lerp(THREE.MathUtils.lerp(0.045, 0.072, tRun), 0.095, tSprint);
+    gaitTorsoPitch = THREE.MathUtils.lerp(THREE.MathUtils.lerp(0.05, 0.12, tRun), 0.2, tSprint);
+    gaitTorsoYawAmp = THREE.MathUtils.lerp(THREE.MathUtils.lerp(0.055, 0.08, tRun), 0.1, tSprint);
+    gaitArmBias = THREE.MathUtils.lerp(THREE.MathUtils.lerp(0, 0.25, tRun), 0.45, tSprint);
+  }
 
   let targetLeftLegX = 0;
   let targetRightLegX = 0;
@@ -1316,39 +1384,51 @@ export function animateCharacterRig(
       targetHeadY += glance;
       targetTorsoY += glance * 0.24;
     }
+    // Character-quality program (Workstream B): a slow ~20 s weight shift rides
+    // the hips, plus an occasional thoughtful head tilt with a soft arm settle —
+    // long waits read as a person thinking, not a statue blinking.
+    if (Math.abs(bankAngle) < 0.005) {
+      targetTorsoZ += Math.sin(elapsed * 0.31 + phaseSeed * 0.9) * 0.01;
+    }
+    const fidgetT = (elapsed + phaseSeed * 3.3) % 9.5;
+    if (fidgetT > 6.8 && fidgetT < 8.2) {
+      const fA = Math.sin(((fidgetT - 6.8) / 1.4) * Math.PI);
+      targetHeadZ += fA * 0.09;
+      targetLeftArmX -= fA * 0.06;
+    }
   } else if (animState === 'walk') {
-    const rSwing = Math.sin(walkPhase) * 0.48;
+    const rSwing = Math.sin(walkPhase) * gaitLegAmp;
     targetLeftLegX = rSwing;
     targetRightLegX = -rSwing;
-    targetLeftArmX = -rSwing * 0.65;
-    targetRightArmX = rSwing * 0.65;
+    targetLeftArmX = -rSwing * gaitArmAmp;
+    targetRightArmX = rSwing * gaitArmAmp;
     targetLeftArmZ = 0.08;
     targetRightArmZ = -0.08;
-    targetTorsoX = 0.05;
-    targetTorsoY = -Math.sin(walkPhase) * 0.055;
-    targetBodyY = Math.abs(Math.sin(walkPhase)) * 0.045;
+    targetTorsoX = gaitTorsoPitch;
+    targetTorsoY = -Math.sin(walkPhase) * gaitTorsoYawAmp;
+    targetBodyY = Math.abs(Math.sin(walkPhase)) * gaitBobAmp;
   } else if (animState === 'run') {
-    const rSwing = Math.sin(walkPhase) * 0.72;
+    const rSwing = Math.sin(walkPhase) * gaitLegAmp;
     targetLeftLegX = rSwing;
     targetRightLegX = -rSwing;
-    targetLeftArmX = -0.25 - rSwing * 0.8;
-    targetRightArmX = -0.25 + rSwing * 0.8;
+    targetLeftArmX = -gaitArmBias - rSwing * gaitArmAmp;
+    targetRightArmX = -gaitArmBias + rSwing * gaitArmAmp;
     targetLeftArmZ = 0.1;
     targetRightArmZ = -0.1;
-    targetTorsoX = 0.12;
-    targetTorsoY = -Math.sin(walkPhase) * 0.08;
-    targetBodyY = Math.abs(Math.sin(walkPhase)) * 0.072;
+    targetTorsoX = gaitTorsoPitch;
+    targetTorsoY = -Math.sin(walkPhase) * gaitTorsoYawAmp;
+    targetBodyY = Math.abs(Math.sin(walkPhase)) * gaitBobAmp;
   } else if (animState === 'sprint') {
-    const rSwing = Math.sin(walkPhase) * 0.92;
+    const rSwing = Math.sin(walkPhase) * gaitLegAmp;
     targetLeftLegX = rSwing;
     targetRightLegX = -rSwing;
-    targetLeftArmX = -0.45 - rSwing * 0.95;
-    targetRightArmX = -0.45 + rSwing * 0.95;
+    targetLeftArmX = -gaitArmBias - rSwing * gaitArmAmp;
+    targetRightArmX = -gaitArmBias + rSwing * gaitArmAmp;
     targetLeftArmZ = 0.12;
     targetRightArmZ = -0.12;
-    targetTorsoX = 0.2;
-    targetTorsoY = -Math.sin(walkPhase) * 0.1;
-    targetBodyY = Math.abs(Math.sin(walkPhase)) * 0.095;
+    targetTorsoX = gaitTorsoPitch;
+    targetTorsoY = -Math.sin(walkPhase) * gaitTorsoYawAmp;
+    targetBodyY = Math.abs(Math.sin(walkPhase)) * gaitBobAmp;
   } else if (animState === 'carry') {
     if (opts?.isMoving) {
       const rSwing = Math.sin(walkPhase) * 0.44;
@@ -1534,6 +1614,34 @@ export function animateCharacterRig(
     }
   }
 
+  // Emotion flavor rides the gait (Workstream C): joy lightens the stride,
+  // weariness weighs it down — feelings travel through the whole body.
+  if (animState === 'walk' || animState === 'run' || (animState === 'carry' && opts?.isMoving)) {
+    if (emotion === 'excited') {
+      targetBodyY += 0.014 * poseAmp;
+      targetTorsoX -= 0.02 * poseAmp;
+    } else if (emotion === 'sad' || emotion === 'tired') {
+      targetTorsoX += 0.045 * poseAmp;
+      targetBodyY *= 0.85;
+    }
+  }
+
+  // Character-quality program (Workstream D): seated shared-activity layer —
+  // when the occupant hosts a reading invitation, the seated fold gains page
+  // arms and a downcast reading gaze instead of sitting statically. Legs keep
+  // the sit pose (no chair clipping); only arms, elbows and head re-layer.
+  if (animState === 'sit' && opts?.seatedReading) {
+    const pageSway = Math.sin(elapsed * 1.4 + phaseSeed) * 0.04;
+    targetLeftArmX = -0.52;
+    targetRightArmX = -0.66 + pageSway;
+    targetLeftArmZ = 0.16;
+    targetRightArmZ = -0.2;
+    targetLeftElbowX = -0.6;
+    targetRightElbowX = -0.78;
+    targetHeadX = 0.2 + Math.sin(elapsed * 0.8 + phaseSeed) * 0.03;
+    targetHeadY = Math.sin(elapsed * 0.5 + phaseSeed) * 0.05;
+  }
+
   // Player polish: lean into launch acceleration, keep the gaze level
   const accelLean = opts?.accelLean ?? 0;
   if (accelLean > 0) {
@@ -1598,8 +1706,11 @@ export function animateCharacterRig(
   // Deterministic natural blink cycle (~every 4.3s) — unconditional, so the
   // rhythm is identical for every intensity level. The lens cap fully covers
   // the r-0.052 eye without poking past the brow (review fix: blink overshoot).
+  // Character-quality program: an occasional off-rhythm second blink keeps the
+  // cadence from reading mechanical (deterministic, ~every 11.3 s).
   const blinkPhase = (elapsed + phaseSeed * 1.7) % 4.3;
-  if (blinkPhase > 4.14) {
+  const dblBlinkPhase = (elapsed + phaseSeed * 3.7 + 1.1) % 11.3;
+  if (blinkPhase > 4.14 || dblBlinkPhase > 11.12) {
     eyelidScaleY = 1.05;
     eyelidPosY = 0.018;
   }
@@ -1709,6 +1820,10 @@ export function animateCharacterRig(
     }
     // Emotion intensity scales the mouth's amplitude away from neutral 1.0.
     smileScaleT = 1 + (smileScaleT - 1) * faceAmp;
+    // Character-quality program (Workstream C): speech cadence follows the
+    // mood — excitement flutters faster, weariness slurs slower.
+    const flapRate =
+      emotion === 'excited' ? 22 : emotion === 'sad' || emotion === 'tired' ? 13 : 18;
     rig.mouthSmile.visible = !showO;
     rig.mouthO.visible = showO;
     if (showO) {
@@ -1716,7 +1831,7 @@ export function animateCharacterRig(
       // the talk drive so surprised speech flaps too (Doc 04 §5.1.2).
       let oPulse = 1 + Math.sin(elapsed * 5.5 + phaseSeed) * 0.12;
       if (animState === 'talk' || animState === 'converse') {
-        oPulse *= 1 + Math.sin(elapsed * Math.PI * 18 + phaseSeed) * 0.25 * faceAmp;
+        oPulse *= 1 + Math.sin(elapsed * Math.PI * flapRate + phaseSeed) * 0.25 * faceAmp;
       }
       const oScale = THREE.MathUtils.lerp(rig.mouthO.scale.x || 0.01, oPulse, dampSpeed);
       rig.mouthO.scale.setScalar(oScale);
@@ -1725,13 +1840,134 @@ export function animateCharacterRig(
       const mScale = THREE.MathUtils.lerp(rig.mouthSmile.scale.x, smileScaleT, dampSpeed);
       rig.mouthSmile.scale.setScalar(mScale);
       // BUILD 04 talk mouth-flap (Doc 04 §5.1.2): speech has a face at dialogue
-      // zoom — the smile arc's height oscillates ±25% at ~9 Hz while
-      // talking/conversing, scaled by emotion intensity. Uniform scale restores
-      // automatically: setScalar above re-seeds scale.y every frame.
+      // zoom — the smile arc's height oscillates ±25% while talking/conversing
+      // at the emotion-paced rate, scaled by emotion intensity. Uniform scale
+      // restores automatically: setScalar above re-seeds scale.y every frame.
       if (animState === 'talk' || animState === 'converse') {
-        const flap = Math.sin(elapsed * Math.PI * 18 + phaseSeed);
+        const flap = Math.sin(elapsed * Math.PI * flapRate + phaseSeed);
         rig.mouthSmile.scale.y = mScale * (1 + flap * 0.25 * faceAmp);
       }
+    }
+  }
+
+  // Character-quality program (Workstream C): emotion-gated blush warmth —
+  // the cheeks answer feelings (warm for joy & embarrassment, faded when sad)
+  // instead of sitting at a constant authored scale. Damped via blushWarmState.
+  if (rig.blushMeshes && rig.blushMeshes.length > 0) {
+    let blushWarmth = 1;
+    switch (emotion) {
+      case 'happy':
+        blushWarmth = 1.1;
+        break;
+      case 'excited':
+        blushWarmth = 1.18;
+        break;
+      case 'embarrassed':
+        blushWarmth = 1.3;
+        break;
+      case 'surprised':
+        blushWarmth = 0.95;
+        break;
+      case 'curious':
+        blushWarmth = 0.98;
+        break;
+      case 'sad':
+        blushWarmth = 0.8;
+        break;
+      case 'tired':
+        blushWarmth = 0.78;
+        break;
+      case 'frustrated':
+        blushWarmth = 0.88;
+        break;
+      case 'angry':
+        blushWarmth = 0.85;
+        break;
+      default:
+        break;
+    }
+    blushWarmth = 1 + (blushWarmth - 1) * faceAmp;
+    rig.blushWarmState = THREE.MathUtils.lerp(rig.blushWarmState ?? 1, blushWarmth, dampSpeed);
+    const bw = rig.blushWarmState;
+    for (const blush of rig.blushMeshes) {
+      blush.scale.set(1.2 * bw, 0.72 * bw, 0.45 * bw);
+    }
+  }
+
+  // Character-quality program (Workstream C): damped micro-gaze — the eyes
+  // wander, glance away, drop downward, or lead the head during speech,
+  // layered ON TOP of head look-at. Zero allocations; offsets stay sub-2 cm.
+  if (rig.eyeBindings && rig.eyeGazeState) {
+    let gazeX = Math.sin(elapsed * 0.9 + phaseSeed * 2.9) * 0.0045;
+    let gazeY = Math.sin(elapsed * 0.57 + phaseSeed * 1.3 + 1.7) * 0.003;
+    const atRest =
+      animState === 'idle' ||
+      animState === 'rest' ||
+      animState === 'sit' ||
+      animState === 'listen' ||
+      animState === 'admire' ||
+      animState === 'sketch_read';
+    if (!atRest) {
+      // In motion the gaze steadies forward — wander only while settled.
+      gazeX *= 0.3;
+      gazeY *= 0.3;
+    }
+    if (animState === 'talk' || animState === 'converse') {
+      // Micro-saccade flicks: the eyes lead the head while speaking.
+      gazeX += Math.sin(elapsed * 2.6 + phaseSeed * 1.9) * 0.006 * faceAmp;
+    }
+    if (emotion === 'sad' || emotion === 'tired') {
+      gazeY -= 0.009 * faceAmp;
+    } else if (emotion === 'embarrassed') {
+      // The embarrassed glance darts away and down.
+      gazeX += 0.012 * faceAmp;
+      gazeY -= 0.007 * faceAmp;
+    } else if (emotion === 'surprised') {
+      gazeY += 0.004 * faceAmp;
+    }
+    rig.eyeGazeState.x = THREE.MathUtils.lerp(rig.eyeGazeState.x, gazeX, dampSpeed);
+    rig.eyeGazeState.y = THREE.MathUtils.lerp(rig.eyeGazeState.y, gazeY, dampSpeed);
+    const gx = rig.eyeGazeState.x;
+    const gy = rig.eyeGazeState.y;
+    for (const binding of rig.eyeBindings) {
+      binding.eye.position.set(binding.baseX + gx, binding.baseY + gy, binding.baseZ);
+      if (binding.catchlight) {
+        binding.catchlight.position.set(
+          (binding.catchlightBaseX ?? 0) + gx,
+          (binding.catchlightBaseY ?? 0) + gy,
+          binding.catchlightBaseZ ?? 0,
+        );
+      }
+    }
+  }
+
+  // Character-quality program (Workstream B): seated ankle-fake — while seated
+  // the boots pitch toes-down around an ankle point (mesh position compensated
+  // so the boot pivots at the cuff, not the hip), grounding the feet on the
+  // seat edge. Stands restore the untouched authored boot transform.
+  if (rig.leftBoot && rig.rightBoot) {
+    let bootPitch = 0;
+    if (animState === 'sit') {
+      const seatH = opts?.seatHeight;
+      bootPitch =
+        seatH === undefined
+          ? 0.42
+          : THREE.MathUtils.clamp((seatH - 0.24) * 2.1, 0.15, 0.72);
+      bootPitch += Math.sin(elapsed * 1.1 + phaseSeed) * 0.02;
+    }
+    rig.leftBoot.rotation.x = THREE.MathUtils.lerp(rig.leftBoot.rotation.x, bootPitch, dampSpeed);
+    rig.rightBoot.rotation.x = THREE.MathUtils.lerp(rig.rightBoot.rotation.x, bootPitch, dampSpeed);
+    const ankle = rig.bootAnkle;
+    if (ankle && (rig.leftBoot.rotation.x !== 0 || rig.rightBoot.rotation.x !== 0)) {
+      const cosT = Math.cos(rig.leftBoot.rotation.x);
+      const sinT = Math.sin(rig.leftBoot.rotation.x);
+      const posY = ankle.y - (ankle.y * cosT - ankle.z * sinT);
+      const posZ = ankle.z - (ankle.y * sinT + ankle.z * cosT);
+      rig.leftBoot.position.set(0, posY, posZ);
+      rig.rightBoot.position.set(0, posY, posZ);
+    } else {
+      rig.leftBoot.position.set(0, 0, 0);
+      rig.rightBoot.position.set(0, 0, 0);
     }
   }
 

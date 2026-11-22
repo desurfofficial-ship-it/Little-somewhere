@@ -2,6 +2,19 @@
 
 All notable changes to **LITTLE SOMEWHERE** are documented in this file.
 
+## [0.10.0] — 2026-11-22
+
+### Added — Character Quality Build CQ-1 (expression, motion & presentation program)
+- **Living faces**: damped eye micro-gaze (rest wander, motion steadying, speech saccades, downcast sad/tired, away-glance embarrassment, surprised lift) + emotion-gated blush warmth (joy warms, weariness fades, embarrassment blooms) + emotion-paced speech flap rate + occasional double-blink — every face now answers the sim's live `emotion`/`emotionIntensity` stream (rigs expose `eyeBindings`/`blushMeshes`; both builders, Jun included).
+- **Grounded sitting**: seated boots pitch toes-down around a compensated ankle point scaled by seat height (bench vs stool), residents glide into the seat facing on arrival instead of snapping, seated players ease around, and the Book Nook host page-reads while hosting an invitation.
+- **Continuous gait blending**: walk/run/sprint amplitudes ride the controller's speed ramps instead of popping at tier gates (`opts.speed`).
+- **Visible gift hand-overs**: the new `'gift'` player pulse + a 1.25 s receive gesture — the delivered prop rides the recipient's hand before being treasured away; satchel gifts and held-item "Share" both animate.
+- **Social mirroring**: dialogue goodbyes earn a wave-back from the nearest friendly outdoor neighbor; first-ever meetings flash a `surprised` welcome; bench thieves earn an organic `frustrated` huff ("Oh — I was just resting there.").
+- **Idle life**: slow weight shifts, occasional thoughtful fidgets, and emotion flavor riding the gait (excited bounce, weary sag).
+
+### Performance & compatibility
+- Zero per-frame allocations added to `tick()`; zero new meshes/materials/draw calls; WorldState stays v11 (no migration); every pre-existing test contract unmodified — suite 595/595, `tsc` 0 errors.
+
 ## [0.9.0] — 2026-11-20
 
 ### Added — Milestone 3 (Build 9: Visitable Copperwheel Cottage & Arthur's Brass Workshop)

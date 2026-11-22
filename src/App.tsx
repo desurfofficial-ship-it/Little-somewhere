@@ -643,7 +643,12 @@ export default function App() {
       );
       commitWorld(nextWorld);
       setDialogueSession(nextSession);
-      triggerPlayerPulse('talk');
+      // Workstream D: a held-item delivery choice (the synthetic
+      // 'gift_<item>_<resident>' choice from actions.deliverHeldItemAction and
+      // the 'deliver_<item>_to_<resident>' choice from dialogueEngine's
+      // buildDynamicGiftChoice both carry deliverHeldItem) gets the gift
+      // hand-off pulse instead of the generic talk nod.
+      triggerPlayerPulse(choice.deliverHeldItem ? 'gift' : 'talk');
       if (memoryUnlockedTitle) {
         cozyAudio.playMemoryChime();
         showToast(`Memory saved: ${memoryUnlockedTitle}`);
@@ -672,7 +677,7 @@ export default function App() {
       if (res.ok) {
         commitWorld(res.nextWorld);
         setDialogueSession(res.nextSession);
-        triggerPlayerPulse('talk');
+        triggerPlayerPulse('gift');
         if (res.keepsakeAwardedId) {
           cozyAudio.playMemoryChime();
         } else {
