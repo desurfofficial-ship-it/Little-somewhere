@@ -64,6 +64,27 @@ export function serializeWorldState(state: WorldState, warnings?: string[]): str
 export function deserializeWorldState(rawJson: string): MigrationResult {
   try {
     const parsed: unknown = JSON.parse(rawJson);
+    // Overhaul G-2: a save written by a NEWER runtime must never be silently
+    // downgraded (the sanitizer used to strip unknown fields and autosave then
+    // persisted the stripped v11 over the newer save — permanent data loss).
+    // Refuse the load; loadWorldState preserves the raw payload untouched.
+    // (Integrated union: the payload field is `schemaVersion` — the overhaul
+    // draft read a nonexistent `version` key; refusal is structural here so a
+    // future payload never enters the migration machinery at all.)
+    const futureVersion =
+      typeof parsed === 'object' && parsed !== null &&
+      typeof (parsed as { schemaVersion?: unknown }).schemaVersion === 'number'
+        ? (parsed as { schemaVersion: number }).schemaVersion
+        : null;
+    if (futureVersion !== null && futureVersion > CURRENT_SCHEMA_VERSION) {
+      return {
+        state: createDefaultWorldState(),
+        migratedFromVersion: futureVersion,
+        warnings: [
+          `save version ${futureVersion} is newer than runtime ${CURRENT_SCHEMA_VERSION}; load refused, original save preserved`,
+        ],
+      };
+    }
     return migrateWorldState(parsed);
   } catch {
     return {
@@ -72,6 +93,17 @@ export function deserializeWorldState(rawJson: string): MigrationResult {
       warnings: [`corrupt JSON payload; created fresh WorldState v${CURRENT_SCHEMA_VERSION}`],
     };
   }
+}
+
+/**
+ * Overhaul G-2: set when a future-schema save was detected at load time.
+ * While flagged, autosave must not write the main key — the raw newer save
+ * stays intact under STORAGE_KEY for the newer runtime.
+ */
+let futureSchemaSaveDetected = false;
+
+export function isFutureSchemaSaveDetected(): boolean {
+  return futureSchemaSaveDetected;
 }
 
 export function loadWorldState(): WorldState {
@@ -94,6 +126,12 @@ export function loadWorldState(): WorldState {
       res.migratedFromVersion !== null && res.migratedFromVersion < CURRENT_SCHEMA_VERSION;
     const future =
       res.migratedFromVersion !== null && res.migratedFromVersion > CURRENT_SCHEMA_VERSION;
+    if (future) {
+      // Overhaul G-2: a newer runtime's save stays parked untouched; the game
+      // runs on a fresh state this session and autosave is blocked (see
+      // saveWorldState) so the payload is never downgraded-overwritten.
+      futureSchemaSaveDetected = true;
+    }
     if (legacy || future || res.warnings.length > 0) {
       try {
         // Tombstone the raw payload BEFORE any rewrite so a repair that later
@@ -108,6 +146,12 @@ export function loadWorldState(): WorldState {
       } catch {
         // Ignore quota errors on backup/upgrade write
       }
+    }
+    if (future) {
+      // Overhaul G-2: refuse the future payload — fresh runtime view this
+      // session; the stored newer-version payload remains intact for its own
+      // runtime (tombstoned above for recoverability).
+      return createDefaultWorldState();
     }
     return res.state;
   } catch {
@@ -502,6 +546,11 @@ export function saveWorldState(state: WorldState): { ok: boolean; error?: string
     if (typeof window === 'undefined' || !window.localStorage) {
       return { ok: false, error: 'localStorage unavailable' };
     }
+    // Overhaul G-2: while a future-schema save is parked under the main key,
+    // never overwrite it with downgraded runtime state.
+    if (futureSchemaSaveDetected) {
+      return { ok: false, error: 'future-schema save preserved; autosave skipped' };
+    }
     window.localStorage.setItem(STORAGE_KEY, serializeWorldState(state));
     return { ok: true };
   } catch (err) {
@@ -513,6 +562,9 @@ export function saveWorldState(state: WorldState): { ok: boolean; error?: string
 }
 
 export function resetWorldState(): WorldState {
+  // A deliberate reset clears the future-schema guard — the user is choosing
+  // to overwrite whatever is parked under the main key.
+  futureSchemaSaveDetected = false;
   const fresh = createDefaultWorldState();
   saveWorldState(fresh);
   return fresh;
@@ -646,6 +698,9 @@ export function advanceToNextDay(state: WorldState): WorldState {
       ? COPPERWHEEL_PORCH_EXIT_FACING
       : PLAYER_DEFAULT_FACING,
     playerPosture: 'standing',
+    // Overhaul G-13: held props are day-scoped — nobody wakes up still
+    // carrying yesterday's pail across the location reset.
+    playerHeldItem: null,
     playerSeatId: null,
     worldProps: nextWorldProps,
     residents: nextResidents,

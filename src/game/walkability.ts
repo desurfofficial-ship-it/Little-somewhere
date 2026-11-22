@@ -104,8 +104,10 @@ export function findNearestWalkableSpot(
  *    finds open floor instead of trapping the player inside the furniture's collision
  *    volume. Two anchors are needed: the Copperwheel window armchair sits in a deep
  *    corner pocket where the shell around `seatPos` alone is fully blocked.
- * 3. `null` means no exit was found; callers keep the player at the seat position
- *    (movement resolvers will then slide as usual once obstacles change).
+ * 3. Final fallback: the authored `approachPos` itself. The historic `null`
+ *    contract left callers keeping the sitter INSIDE the furniture collision
+ *    volume with zero exit directions (C-2); a slightly crowded approach
+ *    anchor is always preferable and movement resolvers slide as usual.
  */
 export function resolveSeatStandPos(seat: SeatSpot): Vec2 | null {
   const location = seatLocation(seat);
@@ -117,6 +119,9 @@ export function resolveSeatStandPos(seat: SeatSpot): Vec2 | null {
   }
   return (
     findNearestWalkableSpot(location, seat.seatPos.x, seat.seatPos.z, radius) ??
-    findNearestWalkableSpot(location, seat.approachPos.x, seat.approachPos.z, radius)
+    findNearestWalkableSpot(location, seat.approachPos.x, seat.approachPos.z, radius) ?? {
+      x: seat.approachPos.x,
+      z: seat.approachPos.z,
+    }
   );
 }

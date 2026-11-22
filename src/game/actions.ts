@@ -23,6 +23,9 @@ import { isSeatOccupiedByNpc } from './playerController';
 import {
   PLAYER_DEFAULT_FACING,
   PLAYER_SPAWN,
+  FOUNTAIN_CENTER,
+  POND_CENTER,
+  distance2D,
   getLandmarkAt,
   getSeatById,
   isPointWalkable,
@@ -976,6 +979,13 @@ export function togglePlayerSitAction(
 
   const seat = resolveAnySeatById(seatId);
   if (!seat) return { nextWorld: world, sat: false };
+  // Overhaul G-3 (defense-in-depth): sitting TELEPORTS the player, so the
+  // reducer re-validates range — a stale/captured target can no longer
+  // teleport-sit from across the map. Selector range 2.35 + arrival slack;
+  // 3.0 keeps every legitimate flow safe while blocking distant ghosts.
+  if (distance2D(world.playerPos, seat.seatPos) > 3.0) {
+    return { nextWorld: world, sat: false };
+  }
   if (
     seat.id === 'nook_seat_armchair' &&
     isStationOccupied(world, 'nook_interior', NOOK_CHAIR_STATION_ID)
@@ -1047,13 +1057,10 @@ export function sipBeverageAtTableAction(
   if (world.playerPosture !== 'sitting') {
     return { ok: false, nextWorld: world, title: '', body: '' };
   }
-  // Indoor seats live inside interiors; an exterior world can never legitimately hold one
-  // (the sanitizer enforces the same pairing on load).
-  if (world.playerLocation === 'exterior') {
-    return { ok: false, nextWorld: world, title: '', body: '' };
-  }
+  // Overhaul C-5: the sip ritual works on any seat — outdoor benches included.
+  // A brewed drink travels in the satchel; seated sipping is seated sipping.
   const seat = resolveAnySeatById(world.playerSeatId);
-  if (!seat?.indoor) {
+  if (!seat) {
     return { ok: false, nextWorld: world, title: '', body: '' };
   }
 
@@ -1960,11 +1967,26 @@ export function performRingBellAction(world: WorldState): {
   };
 }
 
+// Overhaul G-12: session-scoped interaction cooldowns (reset on reload by
+// design — they exist to stop the per-click spam loop, not to persist).
+const WISH_COOLDOWN_MS = 30_000;
+let lastFountainWishAt = 0;
+let lastStoneSkipAt = 0;
+
 export function performFountainWishAction(world: WorldState): {
   nextWorld: WorldState;
   toast: string;
   memoryUnlockedTitle?: string;
 } {
+  // Overhaul G-12: session-level spam cooldown — every wish used to increment
+  // counters and write a unique-id witness memory until the daily prune.
+  if (Date.now() - lastFountainWishAt < WISH_COOLDOWN_MS) {
+    return {
+      nextWorld: world,
+      toast: 'The water is still settling. Give it a moment.',
+    };
+  }
+  lastFountainWishAt = Date.now();
   const prevCount = Number(world.sideFlags?.fountainWishesCount ?? 0);
   const nextCount = prevCount + 1;
   const memId = 'mem_fountain_wish';
@@ -1986,7 +2008,7 @@ export function performFountainWishAction(world: WorldState): {
       ];
 
   const nextNpcMemories = cloneNpcMemories(world.npcMemories);
-  const witnesses = collectWitnessesForPosition(world, { x: 0, z: 1.5 }, LOCAL_WITNESS_RADIUS);
+  const witnesses = collectWitnessesForPosition(world, FOUNTAIN_CENTER, LOCAL_WITNESS_RADIUS);
   const wishEvId = `ev_fountain_wish_${world.day}_${nextCount}`;
   for (const wid of witnesses) {
     recordNpcMemoryInPlace(
@@ -2037,6 +2059,15 @@ export function performPondStoneSkipAction(world: WorldState): {
   memoryUnlockedTitle?: string;
   skipsThisThrow: number;
 } {
+  // Overhaul G-12: same session-level spam cooldown as fountain wishes.
+  if (Date.now() - lastStoneSkipAt < WISH_COOLDOWN_MS) {
+    return {
+      nextWorld: world,
+      toast: 'The pond is still rippling. Wait for a calm stretch.',
+      skipsThisThrow: 0,
+    };
+  }
+  lastStoneSkipAt = Date.now();
   const prevCount = Number(world.sideFlags?.pondPebblesSkipped ?? 0);
   const nextCount = prevCount + 1;
   const skipsThisThrow = world.season === 'winter' ? 1 : 2 + ((world.day + nextCount) % 4);
@@ -2059,7 +2090,7 @@ export function performPondStoneSkipAction(world: WorldState): {
       ];
 
   const nextNpcMemories = cloneNpcMemories(world.npcMemories);
-  const witnesses = collectWitnessesForPosition(world, { x: 1.6, z: 14.0 }, LOCAL_WITNESS_RADIUS);
+  const witnesses = collectWitnessesForPosition(world, POND_CENTER, LOCAL_WITNESS_RADIUS);
   const skipEvId = `ev_pond_skip_${world.day}_${nextCount}`;
   for (const wid of witnesses) {
     recordNpcMemoryInPlace(

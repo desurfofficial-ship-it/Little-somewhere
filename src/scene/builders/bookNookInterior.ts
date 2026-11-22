@@ -199,19 +199,32 @@ export function buildLindenBookNookInterior(
   // ---------------------------------------------------------------------
   // 2. Room shell: tall north/west walls, cutaway south/east wainscot
   // ---------------------------------------------------------------------
+  // Overhaul Phase 3 (E-6): shell tags for the yaw-aware cutaway (mirrors the
+  // cottage builder). The full north/west assembly (+ the wall-mounted crown,
+  // stacks door, returns ledge and window) hides when the camera rotates to
+  // that side; the low east/south wainscot curbs never hide. Furniture (the
+  // bookshelf wall, armchair, desk, tea console) and curb-side dressing stay
+  // untagged so they always render.
+  const tagShell = (obj: THREE.Object3D, side: 'N' | 'E' | 'S' | 'W', full: boolean) => {
+    obj.userData.shellSide = side;
+    obj.userData.shellFull = full;
+  };
   const wallHeight = 2.6;
   // North wall (z = -2.4) behind the bookshelf
   const northWall = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(5.1, wallHeight, 0.16)), plasterMat);
   northWall.position.set(0, 0.8 + wallHeight / 2, -2.42);
   group.add(northWall);
+  tagShell(northWall, 'N', true);
   const northWainscot = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(5.1, 0.72, 0.18)), cedarWarmMat);
   northWainscot.position.set(0, 0.42, -2.4);
   northWainscot.castShadow = true;
   group.add(northWainscot);
+  tagShell(northWainscot, 'N', true);
   // Shelf-wall crown + little ladder rail
   const shelfCrown = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(3.7, 0.1, 0.24)), cedarDarkMat);
   shelfCrown.position.set(-0.68, 2.52, -2.34);
   group.add(shelfCrown);
+  tagShell(shelfCrown, 'N', true);
 
   // Phase B implied-space architecture (audit §7.3): a closed STACKS door on the
   // north wall's free east segment (east of the bookshelf wall) implying the archive
@@ -241,6 +254,7 @@ export function buildLindenBookNookInterior(
   stacksKnob.position.set(-0.32, 1.0, 0.12);
   stacksDoor.add(stacksKnob);
   group.add(stacksDoor);
+  tagShell(stacksDoor, 'N', true);
   // Returns stack: two leaning books + a folded lending slip on the wainscot ledge
   const returnsStack = new THREE.Group();
   returnsStack.position.set(2.3, 0, -2.36);
@@ -256,34 +270,42 @@ export function buildLindenBookNookInterior(
   rbB.rotation.z = -0.14;
   returnsStack.add(rbA, rbB);
   group.add(returnsStack);
+  tagShell(returnsStack, 'N', true); // rides the tagged north wainscot ledge
 
   // West wall (x = -2.5) with a reading window above the tea console
   const westWall = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(0.16, wallHeight, 4.9)), plasterMat);
   westWall.position.set(-2.52, 0.8 + wallHeight / 2, 0);
   group.add(westWall);
+  tagShell(westWall, 'W', true);
   const westWainscot = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(0.18, 0.72, 4.9)), cedarWarmMat);
   westWainscot.position.set(-2.5, 0.42, 0);
   westWainscot.castShadow = true;
   group.add(westWainscot);
+  tagShell(westWainscot, 'W', true);
   const westWindow = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(0.08, 0.95, 1.2)), windowGlassMat);
   westWindow.position.set(-2.54, 1.8, 0.3);
   group.add(westWindow);
+  tagShell(westWindow, 'W', true);
   const westWindowTrim = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(0.14, 1.09, 1.34)), creamMat);
   westWindowTrim.position.set(-2.52, 1.8, 0.3);
   group.add(westWindowTrim);
+  tagShell(westWindowTrim, 'W', true);
   const westSill = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(0.24, 0.08, 1.4)), limestoneMat);
   westSill.position.set(-2.48, 1.27, 0.3);
   group.add(westSill);
+  tagShell(westSill, 'W', true);
 
   // East wall (x = +2.5) — cutaway dwarf wainscot + header; door opening centered z 0
   const eastWainscotNorth = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(0.18, 0.72, 1.7)), cedarWarmMat);
   eastWainscotNorth.position.set(2.5, 0.42, -1.55);
   eastWainscotNorth.castShadow = true;
   group.add(eastWainscotNorth);
+  tagShell(eastWainscotNorth, 'E', false);
   const eastWainscotSouth = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(0.18, 0.72, 1.7)), cedarWarmMat);
   eastWainscotSouth.position.set(2.5, 0.42, 1.55);
   eastWainscotSouth.castShadow = true;
   group.add(eastWainscotSouth);
+  tagShell(eastWainscotSouth, 'E', false);
   const eastHeader = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(0.16, 0.75, 4.9)), plasterMat);
   eastHeader.position.set(2.52, 2.85, 0);
   group.add(eastHeader);
@@ -296,10 +318,12 @@ export function buildLindenBookNookInterior(
   southWainscotWest.position.set(-1.55, 0.42, 2.4);
   southWainscotWest.castShadow = true;
   group.add(southWainscotWest);
+  tagShell(southWainscotWest, 'S', false);
   const southWainscotEast = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(1.8, 0.72, 0.18)), cedarWarmMat);
   southWainscotEast.position.set(1.55, 0.42, 2.4);
   southWainscotEast.castShadow = true;
   group.add(southWainscotEast);
+  tagShell(southWainscotEast, 'S', false);
   const southHeader = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(5.1, 0.8, 0.2)), plasterMat);
   southHeader.position.set(0, 2.8, 2.42);
   group.add(southHeader);
@@ -504,6 +528,47 @@ export function buildLindenBookNookInterior(
   chairGroup.position.set(-0.9, 0, 1.6);
   addStaticContactShadow(chairGroup, shadowTex, 1.2, 1.2, 0.42, 0.018);
 
+  // FURN-1 soft-seating pass: plush mint upholstery layered onto the existing
+  // chair (FURN-1 reference: rounded mint armchair). Everything is parented
+  // INSIDE chairGroup so the seat proxy, sit anchor and the winter blanket
+  // anchoring stay exactly where the contracts expect them.
+  const mintFabric = palette.standard(STORYBOOK_PALETTE.upholsteryMint, 0.86, 0.0, { mapSet: 'fabric' });
+  const sageFabric = palette.standard(STORYBOOK_PALETTE.upholsterySage, 0.88, 0.0, { mapSet: 'fabric' });
+  const plushSeatGeo = trackGeo(new THREE.CapsuleGeometry(0.18, 0.58, 4, 10));
+  plushSeatGeo.rotateZ(Math.PI / 2); // length along X
+  plushSeatGeo.scale(1, 0.42, 2.6); // squashed plush topper over the seat slab
+  const plushSeat = new THREE.Mesh(plushSeatGeo, mintFabric);
+  plushSeat.position.set(0, 0.545, 0.02);
+  plushSeat.castShadow = true;
+  chairGroup.add(plushSeat);
+  const plushBackGeo = trackGeo(new THREE.CapsuleGeometry(0.19, 0.5, 4, 10));
+  plushBackGeo.rotateZ(Math.PI / 2);
+  plushBackGeo.scale(1, 1.35, 0.42); // upright rounded back cushion
+  const plushBack = new THREE.Mesh(plushBackGeo, mintFabric);
+  plushBack.position.set(0, 0.87, -0.3);
+  plushBack.rotation.x = -0.12; // matches the existing chairBack tilt
+  chairGroup.add(plushBack);
+  // Rounded shell armrests: half-torus rolls capping each arm's front end
+  // (clear of the winter blanket's arm-top drape span).
+  const armRollGeo = trackGeo(new THREE.TorusGeometry(0.13, 0.062, 7, 12, Math.PI));
+  for (const ax of [-0.44, 0.44]) {
+    const armRoll = new THREE.Mesh(armRollGeo, sageFabric);
+    armRoll.position.set(ax, 0.615, 0.45);
+    chairGroup.add(armRoll);
+  }
+  // Small turned wood feet sleeves around the existing leg stubs
+  const footGeo = trackGeo(new THREE.CylinderGeometry(0.05, 0.058, 0.06, 8));
+  for (const [fx, fz] of [
+    [-0.4, -0.38],
+    [0.4, -0.38],
+    [-0.4, 0.38],
+    [0.4, 0.38],
+  ] as Array<[number, number]>) {
+    const foot = new THREE.Mesh(footGeo, cedarDarkMat);
+    foot.position.set(fx, 0.03, fz);
+    chairGroup.add(foot);
+  }
+
   const cushion = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(0.95, 0.32, 0.95)), linenPlumMat);
   cushion.position.y = 0.36;
   cushion.castShadow = true;
@@ -675,6 +740,7 @@ export function buildLindenBookNookInterior(
       frost.add(wedge);
     }
     seasonLife.winter.add(frost);
+    tagShell(frost, 'W', true); // hugs the tagged west window glass
 
     // Evergreen swag + brass bell over the east door header beam (2.5, 2.28, 0)
     const swag = new THREE.Group();
@@ -736,6 +802,7 @@ export function buildLindenBookNookInterior(
       bud.add(bloom);
     }
     seasonLife.spring.add(bud);
+    tagShell(bud, 'W', true); // sits on the tagged west sill — hides with it
   }
 
   // — Summer: potted mini-sunflower on the shelf top (east of the bookend owl) —

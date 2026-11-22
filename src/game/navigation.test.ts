@@ -67,7 +67,7 @@ test('navigation graph forms a single connected component', () => {
 test('A* routes cleanly around Mirror Pond and central obstacles without cutting corners', () => {
   const pondWest = { x: -4.4, z: 13.8 }; // Toby morning at Mirror Pond Bank
   const eastWoodshop = { x: 7.5, z: 11.8 }; // Barnaby morning at Pinecone Woodshop
-  const path = computeWaypointPath(pondWest, eastWoodshop, 0.38);
+  const path = computeWaypointPath(pondWest, eastWoodshop, 0.38)!;
 
   assert.ok(path.length >= 2, 'Should route via bridge/south or plaza nodes around Mirror Pond');
 
@@ -90,7 +90,7 @@ test('all resident schedule transitions and reconciled slots produce valid walka
     for (let i = 0; i < phases.length; i++) {
       const fromSlot = getResidentScheduleSlot(id, phases[i], false);
       const toSlot = getResidentScheduleSlot(id, phases[(i + 1) % phases.length], false);
-      const path = computeWaypointPath(fromSlot.target, toSlot.target, 0.38);
+      const path = computeWaypointPath(fromSlot.target, toSlot.target, 0.38)!;
       assert.ok(path.length >= 1);
       for (const wp of path) {
         assert.equal(isPointWalkable(wp.x, wp.z, 0.35), true);
@@ -119,7 +119,7 @@ test('all autonomous resident extra activities are walkable and A*-reachable', (
         true,
         `Activity ${act.id} (${act.target.x}, ${act.target.z}) must be walkable`,
       );
-      const path = computeWaypointPath(start, act.target, 0.38);
+      const path = computeWaypointPath(start, act.target, 0.38)!;
       assert.ok(path.length >= 1);
     }
   }
