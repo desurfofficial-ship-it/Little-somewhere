@@ -30,6 +30,20 @@ jobs:
       - name: Install dependencies
         run: npm install --legacy-peer-deps
 
+      # Durability: tag every push to main so the commit is GC-proof.
+      # Prevents a repeat of the lost-branch incident (doc 08 §5):
+      # a branch that lived only in a local worktree was GC'd when the
+      # worktree was lost. Tags are never garbage-collected by git.
+      # Spec: docs/architecture/master-architecture/08-integration-and-release-strategy.md §4
+      - name: Tag merge commit for durability
+        if: github.event_name == 'push'
+        run: |
+          SHORT_SHA="${GITHUB_SHA::12}"
+          TAG="build-${SHORT_SHA}"
+          git tag "$TAG" "$GITHUB_SHA"
+          git push origin "$TAG"
+        continue-on-error: true
+
       - name: Build for GitHub Pages
         env:
           GITHUB_PAGES: "true"
