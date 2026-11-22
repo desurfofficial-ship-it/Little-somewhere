@@ -468,6 +468,15 @@ export interface NpcRuntimeState {
   activeBubbleUntilMinute: number;
   targetLookPos: Vec2 | null;
   currentSpeed: number;
+  // A1: activity ids recently found unreachable via stuck-recovery; suppressed
+  // for a few re-selections so the resident picks a reachable alternative.
+  blockedActivityIds?: string[];
+  // QA-SIM D1 fix: seconds accumulated while moving freely — clears
+  // blockedActivityIds after a short grace window so a transient obstruction
+  // doesn't blacklist an activity for the rest of the day. Ephemeral (sanitizer
+  // strips it; never persisted), but cloned by cloneNpcRuntime so the pure
+  // stepSimulation path and the in-place path stay in lockstep (twin-determinism).
+  unstuckSeconds?: number;
 }
 
 export type RelationshipTier =
@@ -512,6 +521,11 @@ export interface NpcNpcRelation {
   lastGossipDay?: number | null;
   lastGossipMinute?: number | null;
   lastGossipEventId?: string;
+  // C3: a distinct "how well they know each other" axis from affinity.
+  // Repeated autonomous encounters accumulate familiarity; confidant tier now
+  // requires a familiarity threshold so a pair can't skip straight to intimacy.
+  familiarity?: number;
+  encounterCount?: number;
 }
 
 export type NpcMemoryProvenance = 'firsthand' | 'secondhand' | 'rumor';

@@ -62,7 +62,12 @@ export function getRelationshipTierLabel(tier: RelationshipTier): string {
 export function getNpcRelationTier(relation: NpcNpcRelation): NpcRelationTier {
   if (relation.affinity < 0 || relation.tension >= 55) return 'estranged';
   if (relation.tension >= 25 || relation.affinity < 15) return 'guarded';
-  if (relation.affinity >= 65 && relation.tension < 10) return 'confidant';
+  // C3: confidant now requires accumulated familiarity (repeated encounters),
+  // not just high affinity — a pair can't skip straight to intimacy from a
+  // single warm chat. Baseline bonds seed familiarity so existing closeness
+  // is preserved; dynamically-formed pairs must build it over time.
+  const fam = relation.familiarity ?? 0;
+  if (relation.affinity >= 65 && relation.tension < 10 && fam >= 2) return 'confidant';
   if (relation.affinity >= 40 && relation.tension < 20) return 'warm';
   return 'acquainted';
 }
@@ -189,17 +194,18 @@ const BASELINE_NPC_BONDS: ReadonlyArray<{
   affinity: number;
   tension: number;
   sharedTags: string[];
+  familiarity: number;
 }> = [
-  { a: 'arthur', b: 'clara', affinity: -20, tension: 75, sharedTags: ['gazebo_rift'] },
-  { a: 'clara', b: 'mina', affinity: 65, tension: 0, sharedTags: ['lavender_loaves'] },
-  { a: 'arthur', b: 'barnaby', affinity: 55, tension: 5, sharedTags: ['timber_and_brass'] },
-  { a: 'nora', b: 'sora', affinity: 58, tension: 0, sharedTags: ['evening_almanac'] },
-  { a: 'nora', b: 'pip', affinity: 52, tension: 0, sharedTags: ['chalk_stories'] },
-  { a: 'pip', b: 'toby', affinity: 48, tension: 0, sharedTags: ['pond_skippers'] },
-  { a: 'jun', b: 'clara', affinity: 54, tension: 0, sharedTags: ['morning_post_loaf'] },
-  { a: 'mina', b: 'sora', affinity: 50, tension: 0, sharedTags: ['chamomile_harvest'] },
-  { a: 'barnaby', b: 'pip', affinity: 42, tension: 0, sharedTags: ['cedar_scraps'] },
-  { a: 'jun', b: 'nora', affinity: 40, tension: 5, sharedTags: ['misplaced_postcard'] },
+  { a: 'arthur', b: 'clara', affinity: -20, tension: 75, sharedTags: ['gazebo_rift'], familiarity: 0 },
+  { a: 'clara', b: 'mina', affinity: 65, tension: 0, sharedTags: ['lavender_loaves'], familiarity: 5 },
+  { a: 'arthur', b: 'barnaby', affinity: 55, tension: 5, sharedTags: ['timber_and_brass'], familiarity: 4 },
+  { a: 'nora', b: 'sora', affinity: 58, tension: 0, sharedTags: ['evening_almanac'], familiarity: 4 },
+  { a: 'nora', b: 'pip', affinity: 52, tension: 0, sharedTags: ['chalk_stories'], familiarity: 3 },
+  { a: 'pip', b: 'toby', affinity: 48, tension: 0, sharedTags: ['pond_skippers'], familiarity: 3 },
+  { a: 'jun', b: 'clara', affinity: 54, tension: 0, sharedTags: ['morning_post_loaf'], familiarity: 3 },
+  { a: 'mina', b: 'sora', affinity: 50, tension: 0, sharedTags: ['chamomile_harvest'], familiarity: 3 },
+  { a: 'barnaby', b: 'pip', affinity: 42, tension: 0, sharedTags: ['cedar_scraps'], familiarity: 2 },
+  { a: 'jun', b: 'nora', affinity: 40, tension: 5, sharedTags: ['misplaced_postcard'], familiarity: 2 },
 ];
 
 export function createInitialNpcRelations(reconciled: boolean): Record<string, NpcNpcRelation> {
@@ -213,6 +219,8 @@ export function createInitialNpcRelations(reconciled: boolean): Record<string, N
       tension: bond.tension,
       sharedTags: [...bond.sharedTags],
       lastInteractionDay: null,
+      familiarity: bond.familiarity,
+      encounterCount: 0,
     };
   }
 
@@ -223,6 +231,8 @@ export function createInitialNpcRelations(reconciled: boolean): Record<string, N
       tension: 5,
       sharedTags: ['reconciled_bell'],
       lastInteractionDay: null,
+      familiarity: 3,
+      encounterCount: 0,
     };
   }
 
@@ -245,7 +255,38 @@ export function getNpcRelation(
     tension: isArthurPair ? 10 : 0,
     sharedTags: [],
     lastInteractionDay: null,
+    familiarity: 0,
+    encounterCount: 0,
   };
+}
+
+/**
+ * ADV-1 Finding 8: zero-GC tier lookup. `getNpcRelation` allocates a fresh
+ * default object for every non-baseline (lazy) pair, which the per-tick
+ * companion-bias and encounter loops called ~70×/tick. This fast path reads
+ * the persisted entry directly (or the lazy-default affinity/tension/
+ * familiarity constants) without allocating, so the tick stays zero-GC.
+ * Returns the same tier `getNpcRelationTier(getNpcRelation(...))` would.
+ */
+export function getNpcRelationTierFast(
+  npcRelations: Record<string, NpcNpcRelation>,
+  a: ResidentId,
+  b: ResidentId,
+): NpcRelationTier {
+  const key = getNpcPairKey(a, b);
+  const rel = npcRelations[key];
+  if (rel) {
+    return getNpcRelationTier(rel);
+  }
+  // Lazy-default: arthur pairs start colder (affinity 10, tension 10); others 24/0.
+  // familiarity 0 -> never confidant; affinity 24 -> acquainted; never estranged/guarded.
+  const isArthurPair = a === 'arthur' || b === 'arthur';
+  const affinity = isArthurPair ? 10 : 24;
+  const tension = isArthurPair ? 10 : 0;
+  if (affinity < 0 || tension >= 55) return 'estranged';
+  if (tension >= 25 || affinity < 15) return 'guarded';
+  if (affinity >= 40 && tension < 20) return 'warm';
+  return 'acquainted';
 }
 
 /**
@@ -435,6 +476,13 @@ export function applyNpcSocialRelationInPlace(
   const tags = cur.sharedTags.includes(topicTag)
     ? cur.sharedTags
     : [...cur.sharedTags.slice(-5), topicTag];
+  // C3: accumulate familiarity — the first encounter each in-game day gives a
+  // larger familiarity bump than subsequent ones, mirroring the player-side
+  // first-daily-small-talk rule so repeated meetings gradually deepen a bond.
+  const isFirstEncounterToday = cur.lastInteractionDay !== day;
+  const familiarityGain = isFirstEncounterToday ? 1 : 0;
+  const nextFamiliarity = (cur.familiarity ?? 0) + familiarityGain;
+  const nextEncounterCount = (cur.encounterCount ?? 0) + 1;
   npcRelations[key] = {
     ...cur,
     pair: key,
@@ -442,6 +490,8 @@ export function applyNpcSocialRelationInPlace(
     tension: Math.max(0, Math.min(100, cur.tension + deltaTension)),
     sharedTags: tags,
     lastInteractionDay: day,
+    familiarity: nextFamiliarity,
+    encounterCount: nextEncounterCount,
   };
 }
 

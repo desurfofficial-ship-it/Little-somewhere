@@ -592,6 +592,15 @@ function sanitizeNpcRuntime(
           ? { x: entry.targetLookPos.x, z: entry.targetLookPos.z }
           : null,
       currentSpeed: Math.max(0, asFiniteNumber(entry.currentSpeed, 0)),
+      blockedActivityIds: Array.isArray(entry.blockedActivityIds)
+        ? entry.blockedActivityIds
+            .filter((s): s is string => typeof s === 'string' && s.length > 0)
+            .slice(-4)
+        : [],
+      // QA-SIM D1: unstuckSeconds is ephemeral (never persisted). Default to 0
+      // so fresh, sanitized, and cloned runtimes all carry the same key, keeping
+      // save/load round-trip byte-identical and twin-determinism intact.
+      unstuckSeconds: 0,
     };
   }
   return out;
@@ -735,6 +744,23 @@ function sanitizeNpcRelations(
     }
     if (typeof entry.lastGossipEventId === 'string' && entry.lastGossipEventId.length > 0) {
       sanitizedRel.lastGossipEventId = entry.lastGossipEventId;
+    }
+    // C3: familiarity / encounterCount are optional accumulation counters.
+    // A v11 save written before these fields existed carries no familiarity —
+    // inherit the baseline default (def) so existing closeness is preserved
+    // (HANDOVER §20). Lazy pairs with no default stay at 0, matching the
+    // getNpcRelation lazy default and the fresh-game seeding.
+    const familiarityRaw = entry.familiarity;
+    const encounterCountRaw = entry.encounterCount;
+    if (typeof familiarityRaw === 'number' && Number.isFinite(familiarityRaw)) {
+      sanitizedRel.familiarity = Math.max(0, Math.floor(familiarityRaw));
+    } else if (def && typeof def.familiarity === 'number') {
+      sanitizedRel.familiarity = def.familiarity;
+    }
+    if (typeof encounterCountRaw === 'number' && Number.isFinite(encounterCountRaw)) {
+      sanitizedRel.encounterCount = Math.max(0, Math.floor(encounterCountRaw));
+    } else if (def && typeof def.encounterCount === 'number') {
+      sanitizedRel.encounterCount = def.encounterCount;
     }
     if (writtenKeys.has(key)) {
       collapsedDuplicatePairs++;

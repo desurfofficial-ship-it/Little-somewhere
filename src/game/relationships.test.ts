@@ -404,3 +404,32 @@ test('gossip dialogue lines rely strictly on speaker npcMemories without omnisci
 });
 
 
+
+// --- Adversarial-review regression tests (ADV-1 Findings 1 & 4) ---
+
+test('ADV-1 Finding 1: a v11 save written before familiarity existed preserves baseline confidant tier on load', () => {
+  // A pre-C3 save carries no familiarity/encounterCount on any npcRelations entry.
+  // The sanitizer must inherit the baseline default so clara:mina (affinity 65,
+  // seeded familiarity 5) remains 'confidant' after load, not silently drop to 'warm'.
+  const fresh = createFreshWorldState();
+  const preC3Relations = Object.fromEntries(
+    Object.entries(fresh.npcRelations).map(([k, v]) => {
+      const copy = { ...v };
+      delete (copy as { familiarity?: number }).familiarity;
+      delete (copy as { encounterCount?: number }).encounterCount;
+      return [k, copy];
+    }),
+  );
+  const stripped = { ...fresh, npcRelations: preC3Relations };
+  const reloaded = deserializeWorldState(serializeWorldState(stripped)).state;
+
+  const claraMina = getNpcRelation(reloaded.npcRelations, 'clara', 'mina');
+  assert.equal(claraMina.affinity, 65, 'affinity preserved');
+  assert.equal(claraMina.familiarity, 5, 'baseline familiarity inherited from default on v11 load');
+  assert.equal(getNpcRelationTier(claraMina), 'confidant', 'confidant tier preserved across v11 load');
+
+  // Lazy pair (no baseline) stays at 0 familiarity -> acquainted tier (not confidant).
+  const lazy = getNpcRelation(reloaded.npcRelations, 'clara', 'toby');
+  assert.equal((lazy.familiarity ?? 0), 0, 'lazy pair familiarity defaults to 0');
+  assert.notEqual(getNpcRelationTier(lazy), 'confidant', 'lazy pair cannot skip to confidant without encounters');
+});

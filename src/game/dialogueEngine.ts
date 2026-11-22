@@ -149,12 +149,16 @@ export function findSpeakerMemory(
     if (opts.subjectPlayer !== undefined && m.subjectPlayer !== opts.subjectPlayer) continue;
     if (opts.subjectResidentId && !m.subjectResidents.includes(opts.subjectResidentId)) continue;
 
+    // D1 (recency fix): previously `m.learnedDay * 2` UP-weighted stale news,
+    // surfacing old lore ahead of fresh gossip. Mirror the recency penalty used
+    // by selectThirdPartyGossipSubject so freshly-learned memories win retrieval.
+    const ageDays = Math.max(0, world.day - m.learnedDay);
     const score =
       (m.mentionedToPlayer ? 0 : 40) +
       getProvenanceRank(m.provenance) * 10 +
       (m.detail?.acousticOnly ? 0 : 4) +
-      m.importance * 5 +
-      m.learnedDay * 2;
+      m.importance * 5 -
+      ageDays * 3;
     if (!best || score > best.score) {
       best = { entry: m, score };
     }
@@ -400,24 +404,37 @@ export function evaluateDialogueCondition(
 
   if (cond.requiresRecentEventKind) {
     const maxDay = cond.requiresRecentEventKind.maxDaysAgo;
-    const found = (world.worldEvents ?? []).some(
-      (ev) =>
-        ev.kind === cond.requiresRecentEventKind!.kind &&
-        world.day - ev.day <= maxDay &&
-        ev.day <= world.day,
-    );
+    // D2 (knowledge gate): a speaker may only reference a world event they
+    // personally participated in (actors), OR hold a (non-expired) memory of
+    // it. Prevents future omniscience leaks where every NPC comments on events
+    // they never witnessed. Backward-compatible: existing topics pair this gate
+    // with requiresNpcMemory, so behaviour is unchanged for them; only ungated
+    // future authoring is now protected.
+    const speakerMems = world.npcMemories?.[residentId] ?? [];
+    const found = (world.worldEvents ?? []).some((ev) => {
+      if (ev.kind !== cond.requiresRecentEventKind!.kind) return false;
+      if (world.day - ev.day > maxDay || ev.day > world.day) return false;
+      if (ev.actors.includes(residentId)) return true;
+      return speakerMems.some(
+        (m) => !isMemoryExpired(m, world.day) && m.eventId === ev.id,
+      );
+    });
     if (!found) return false;
   }
 
   if (cond.requiresRecentEventTag) {
     const maxDay = cond.requiresRecentEventTag.maxDaysAgo;
     const prefix = cond.requiresRecentEventTag.tagPrefix;
-    const found = (world.worldEvents ?? []).some(
-      (ev) =>
-        ev.summaryTag.startsWith(prefix) &&
-        world.day - ev.day <= maxDay &&
-        ev.day <= world.day,
-    );
+    // D2 (knowledge gate): same witness/memory requirement as above.
+    const speakerMems = world.npcMemories?.[residentId] ?? [];
+    const found = (world.worldEvents ?? []).some((ev) => {
+      if (!ev.summaryTag.startsWith(prefix)) return false;
+      if (world.day - ev.day > maxDay || ev.day > world.day) return false;
+      if (ev.actors.includes(residentId)) return true;
+      return speakerMems.some(
+        (m) => !isMemoryExpired(m, world.day) && m.eventId === ev.id,
+      );
+    });
     if (!found) return false;
   }
 
