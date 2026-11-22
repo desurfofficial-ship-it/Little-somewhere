@@ -269,9 +269,11 @@ test('gathering results carry explicit gainedItems chips matching the inventory 
 
   const greenhouse = interactWithProp(world, 'greenhouse_planters');
   world = greenhouse.nextWorld;
+  // GA-2: the first-ever tending also finds Mina's one-time lavender seed sachet.
   assert.deepEqual(
     [...greenhouse.gainedItems ?? []].sort((a, b) => a.itemId.localeCompare(b.itemId)),
     [
+      { itemId: 'lavender_seeds', count: 1 },
       { itemId: 'lavender_sprig', count: 1 },
       { itemId: 'lemon_thyme', count: 1 },
     ],

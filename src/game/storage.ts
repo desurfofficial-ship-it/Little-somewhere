@@ -453,6 +453,8 @@ export function computeWorldSaveRevision(state: WorldState): string {
       pushNum(plot.nightsGrown);
       pushNum(plot.stage);
       pushBool(plot.wateredToday);
+      // Everyday Gameplay GA-2 — per-plot care streak participates in the save fingerprint.
+      pushNum(plot.waterStreak ?? 0);
     }
   }
 
@@ -536,6 +538,23 @@ export function computeWorldSaveRevision(state: WorldState): string {
   if (state.activeActivity) {
     pushStr(state.activeActivity.activityId);
     pushStr(state.activeActivity.invitationId);
+  }
+
+  // Everyday Gameplay GA-1 — Community Projects (WorldState v12)
+  const cp = state.communityProjects ?? {};
+  const cpKeys = Object.keys(cp).sort();
+  pushNum(cpKeys.length);
+  for (let i = 0; i < cpKeys.length; i++) {
+    const proj = cp[cpKeys[i]];
+    pushStr(cpKeys[i]);
+    pushNum(proj?.completedDay ?? 0);
+    const contrib = proj?.contributed ?? {};
+    const contribKeys = Object.keys(contrib).sort();
+    pushNum(contribKeys.length);
+    for (let j = 0; j < contribKeys.length; j++) {
+      pushStr(contribKeys[j]);
+      pushNum(contrib[contribKeys[j] as keyof typeof contrib] ?? 0);
+    }
   }
 
   return `${h1.toString(36)}-${h2.toString(36)}`;

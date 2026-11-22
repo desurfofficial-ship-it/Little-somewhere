@@ -75,7 +75,20 @@ export interface GreenhousePlotState {
   stage: GreenhouseGrowthStage;
   /** True when watered at the rain barrel today (growth only advances on watered nights). */
   wateredToday: boolean;
+  /** Consecutive watered nights of steady care while actively growing (GA-2; resets on harvest, missed nights, and winter rest). */
+  waterStreak: number;
 }
+
+// Everyday Gameplay GA-1 — Community Projects contribution shelves (WorldState v12)
+export interface CommunityProjectProgress {
+  /** Item totals tucked into the contribution basket so far (only accepted item ids appear). */
+  contributed: Partial<Record<PersonalItemId, number>>;
+  /** In-game day the project was completed (0 = still open). */
+  completedDay: number;
+}
+
+/** Per-project community shelf state, keyed by project id (unknown ids are dropped by the sanitizer). */
+export type CommunityProjectsState = Record<string, CommunityProjectProgress>;
 
 export interface GreenhouseState {
   plots: GreenhousePlotState[];
@@ -787,6 +800,8 @@ export interface WorldState {
   occupancy: InteriorOccupant | null;
   teaching: TeachingState;
   activeActivity: ActiveSharedActivity | null;
+  // Everyday Gameplay GA-1 — Community Projects (WorldState v12)
+  communityProjects: CommunityProjectsState;
 }
 
 export type DialogueCategory =

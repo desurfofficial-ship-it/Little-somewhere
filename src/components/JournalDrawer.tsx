@@ -844,6 +844,63 @@ export const JournalDrawer: React.FC<JournalDrawerProps> = ({
                 </ul>
               </section>
 
+              {/* Everyday Gameplay GA-3 — Daily Practices participation card */}
+              <section
+                aria-labelledby="journal-heading-practices"
+                className="p-4 rounded-xl bg-card-warm border border-parchment"
+              >
+                <h3
+                  id="journal-heading-practices"
+                  className="font-display text-lg font-semibold text-espresso mb-2"
+                >
+                  Daily Practices
+                </h3>
+                <p className="font-display text-base font-semibold text-sage mb-2.5">
+                  {journal.dailyPractices.keeperTitle}
+                </p>
+                <ul className="text-sm text-[#3D3128] space-y-1.5">
+                  {journal.dailyPractices.practices.map((practice) => (
+                    <li key={practice.id}>
+                      {practice.label} —{' '}
+                      <strong className="font-mono-nums">{practice.count}</strong> —{' '}
+                      {practice.tierLabel}
+                    </li>
+                  ))}
+                </ul>
+                <p className="mt-2.5 pt-2 border-t border-[#E5D9C7] text-xs text-umber leading-snug">
+                  {journal.dailyPractices.touchedTodayLine}
+                </p>
+              </section>
+
+              {/* Everyday Gameplay GA-1 — community contribution shelves card */}
+              <section
+                aria-labelledby="journal-heading-community"
+                className="p-4 rounded-xl bg-card-warm border border-parchment"
+              >
+                <h3
+                  id="journal-heading-community"
+                  className="font-display text-lg font-semibold text-espresso mb-2"
+                >
+                  Community Shelves
+                </h3>
+                <p className="text-xs text-umber mb-2 leading-snug">
+                  {journal.communityProjects.headline}
+                </p>
+                <ul className="text-sm text-[#3D3128] space-y-1.5">
+                  {journal.communityProjects.lines.map((line) => (
+                    <li key={line.projectId}>
+                      {line.title} ({line.venueLabel}) —{' '}
+                      <strong className="font-mono-nums">
+                        {line.contributed}/{line.goal}
+                      </strong>
+                      {line.completed && (
+                        <span className="font-semibold text-[#4B6B4F]"> — finished</span>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              </section>
+
               {/* Places & Landmarks */}
               <section aria-labelledby="journal-heading-landmarks" className="space-y-3">
                 <h3

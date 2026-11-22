@@ -619,7 +619,7 @@ test('Milestone 3 Build 6: sunbeam_greenhouse discovery tracks the shared growin
     greenhouseState: {
       ...base.greenhouseState,
       plots: base.greenhouseState.plots.map((p, i) =>
-        i === 0 ? { cropId: 'chamomile', plantedDay: 1, nightsGrown: 1, stage: 1, wateredToday: true } : p,
+        i === 0 ? { cropId: 'chamomile', plantedDay: 1, nightsGrown: 1, stage: 1, wateredToday: true, waterStreak: 0 } : p,
       ),
     },
   };
@@ -633,7 +633,7 @@ test('Milestone 3 Build 6: sunbeam_greenhouse discovery tracks the shared growin
     greenhouseState: {
       ...base.greenhouseState,
       plots: base.greenhouseState.plots.map((p, i) =>
-        i === 0 ? { cropId: 'lavender', plantedDay: 1, nightsGrown: 2, stage: 3, wateredToday: false } : p,
+        i === 0 ? { cropId: 'lavender', plantedDay: 1, nightsGrown: 2, stage: 3, wateredToday: false, waterStreak: 0 } : p,
       ),
     },
   };

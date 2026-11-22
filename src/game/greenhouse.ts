@@ -220,6 +220,8 @@ export function createInitialGreenhousePlot(): GreenhousePlotState {
     nightsGrown: 0,
     stage: 0,
     wateredToday: false,
+    // GA-2 care streak — consecutive watered nights while actively growing.
+    waterStreak: 0,
   };
 }
 
@@ -233,9 +235,25 @@ export function createInitialGreenhouseState(): GreenhouseState {
 }
 
 /**
+ * Consecutive watered nights of steady care needed for a lush harvest (GA-2).
+ * A cozy streak, not a grind: missing a night just waits, nothing ever dies.
+ */
+export const LUSH_WATER_STREAK_MIN = 3;
+
+/** True when a plot's care streak has ripened into a lush harvest (streak ≥ 3). */
+export function isLushStreak(waterStreak: number): boolean {
+  return Number.isFinite(waterStreak) && waterStreak >= LUSH_WATER_STREAK_MIN;
+}
+
+/**
  * Nightly growth advance applied inside `advanceToNextDay`.
  * A watered pot grows one stage-step per night (see `stageForNights`); an unwatered pot
  * simply waits — nothing ever withers. In winter all growth rests until spring.
+ *
+ * GA-2 care streaks: each actively-growing plot remembers its consecutive watered nights.
+ * A missed night resets the streak (the pot waits, nothing dies), and winter rest starts a
+ * fresh streak for spring. Ready pots (stage 3) keep their accumulated streak until harvest
+ * so a lazy final day does not erase the care — but winter still resets it.
  */
 export function advanceGreenhouseNightlyGrowthInPlace(
   state: GreenhouseState,
@@ -243,15 +261,28 @@ export function advanceGreenhouseNightlyGrowthInPlace(
 ): GreenhouseState {
   for (const plot of state.plots) {
     if (!plot.cropId) continue;
-    if (plot.stage < 3) {
-      if (nextSeason !== 'winter' && plot.wateredToday) {
-        plot.nightsGrown += 1;
-        plot.stage = stageForNights(plot.nightsGrown, GREENHOUSE_CROP_MAP[plot.cropId].growthNights);
-      }
+    if (nextSeason === 'winter') {
+      // Pots rest through winter; a fresh streak is a patient streak.
+      plot.waterStreak = 0;
+    } else if (plot.stage < 3 && plot.wateredToday) {
+      plot.nightsGrown += 1;
+      plot.stage = stageForNights(plot.nightsGrown, GREENHOUSE_CROP_MAP[plot.cropId].growthNights);
+      plot.waterStreak += 1;
+    } else if (plot.stage < 3 && !plot.wateredToday) {
+      // A missed night resets care; the pot simply waits until the next gentle watering.
+      plot.waterStreak = 0;
     }
     plot.wateredToday = false;
   }
   return state;
+}
+
+/** Warm prose for a plot's current care streak (GA-2). Deterministic, stateless. */
+export function describeCareStreak(waterStreak: number): string {
+  if (!(waterStreak > 0)) return 'the pot waits patiently for the next gentle watering';
+  if (waterStreak === 1) return 'one night of steady care so far';
+  if (waterStreak === 2) return 'two nights of steady care — one more brings a lush harvest';
+  return `${waterStreak} nights of steady care — a lush harvest is ripening`;
 }
 
 /** Deterministic stage mapping: sprout → leafy → ready, paced by the crop's growth nights. */

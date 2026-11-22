@@ -86,6 +86,10 @@ import {
   sipBeverageAtTableAction,
   waterGreenhousePlotsAction,
 } from './game/actions';
+import {
+  COMMUNITY_REASON_LABELS,
+  contributeToCommunityProject,
+} from './game/community';
 import { interruptSocialEncounter } from './game/simulation';
 import {
   SUBJECT_IMAGE_KEYS,
@@ -111,6 +115,7 @@ import { JournalDrawer } from './components/JournalDrawer';
 import { CottageStationMode, InventoryDrawer } from './components/InventoryDrawer';
 import { CottageStationModal } from './components/CottageStationModal';
 import { GreenhousePanel, GreenhousePanelMode } from './components/GreenhousePanel';
+import { CommunityProjectsPanel } from './components/CommunityProjectsPanel';
 import { PauseModal } from './components/PauseModal';
 
 interface SceneErrorBoundaryProps {
@@ -197,6 +202,8 @@ export default function App() {
   const [inventoryOpen, setInventoryOpen] = useState<boolean>(false);
   const [cottageStationMode, setCottageStationMode] = useState<CottageStationMode | null>(null);
   const [greenhousePanelMode, setGreenhousePanelMode] = useState<GreenhousePanelMode | null>(null);
+  // Everyday Gameplay GA-5 — plaza noticeboard community contribution shelf.
+  const [communityProjectsOpen, setCommunityProjectsOpen] = useState<boolean>(false);
   const [muted, setMuted] = useState<boolean>(false);
   const [bellRingCounter, setBellRingCounter] = useState<number>(0);
   const [fountainWishCounter, setFountainWishCounter] = useState<number>(0);
@@ -317,6 +324,7 @@ export default function App() {
     setInventoryOpen(false);
     setCottageStationMode(null);
     setGreenhousePanelMode(null);
+    setCommunityProjectsOpen(false);
     setIntroTipDismissed(false);
     if (document.activeElement instanceof HTMLElement) {
       document.activeElement.blur();
@@ -803,6 +811,32 @@ export default function App() {
     showToast(res.body);
   }, [commitWorld, showToast, triggerPlayerPulse]);
 
+  // Everyday Gameplay GA-1/GA-5 — plaza noticeboard contribution handler.
+  // The CommunityProjectsPanel stays view-only; this callback owns the reducer,
+  // world commit, toast, and memory chime. Panel stays open: state updates flow
+  // through commitWorld.
+  const handleContribute = useCallback(
+    (projectId: string, itemId: PersonalItemId, amount: number) => {
+      const res = contributeToCommunityProject(worldRef.current, projectId, itemId, amount);
+      if (!res.ok) {
+        cozyAudio.playUiTap(0.9);
+        showToast(COMMUNITY_REASON_LABELS[res.reason!] ?? 'The basket holds still.');
+        return;
+      }
+      commitWorld(res.world);
+      triggerPlayerPulse('interact');
+      if (res.memoryUnlockedTitle) {
+        cozyAudio.playMemoryChime();
+      } else {
+        cozyAudio.playUiTap(1.12);
+      }
+      if (res.toast) {
+        showToast(res.toast);
+      }
+    },
+    [commitWorld, showToast, triggerPlayerPulse],
+  );
+
   const handlePropAction = useCallback(
     (actionType: NonNullable<PropInteractionResult['actionType']>) => {
       if (actionType === 'rest_next_day') {
@@ -931,6 +965,10 @@ export default function App() {
         setActivePropId(null);
         setPropCard(null);
         setGreenhousePanelMode('harvest');
+      } else if (actionType === 'community_projects_panel') {
+        setActivePropId(null);
+        setPropCard(null);
+        setCommunityProjectsOpen(true);
       } else if (actionType === 'ring_bell') {
         const res = performRingBellAction(worldRef.current);
         commitWorld(res.nextWorld);
@@ -1040,6 +1078,10 @@ export default function App() {
           setGreenhousePanelMode(null);
           return;
         }
+        if (communityProjectsOpen) {
+          setCommunityProjectsOpen(false);
+          return;
+        }
         if (inventoryOpen) {
           setInventoryOpen(false);
           return;
@@ -1059,6 +1101,7 @@ export default function App() {
         setInventoryOpen(false);
         setCottageStationMode(null);
         setGreenhousePanelMode(null);
+        setCommunityProjectsOpen(false);
         setJournalOpen((o) => !o);
         return;
       }
@@ -1068,6 +1111,7 @@ export default function App() {
         setJournalOpen(false);
         setCottageStationMode(null);
         setGreenhousePanelMode(null);
+        setCommunityProjectsOpen(false);
         setInventoryOpen((o) => !o);
         return;
       }
@@ -1080,7 +1124,8 @@ export default function App() {
         !journalOpen &&
         !inventoryOpen &&
         !cottageStationMode &&
-        !greenhousePanelMode
+        !greenhousePanelMode &&
+        !communityProjectsOpen
       ) {
         e.preventDefault();
         openTargetInteraction(nearestTarget);
@@ -1095,7 +1140,8 @@ export default function App() {
         !journalOpen &&
         !inventoryOpen &&
         !cottageStationMode &&
-        !greenhousePanelMode
+        !greenhousePanelMode &&
+        !communityProjectsOpen
       ) {
         e.preventDefault();
         handlePlaceHeldItem();
@@ -1105,6 +1151,7 @@ export default function App() {
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [
+    communityProjectsOpen,
     cottageStationMode,
     dialogueSession,
     greenhousePanelMode,
@@ -1230,7 +1277,8 @@ export default function App() {
     journalOpen ||
     inventoryOpen ||
     Boolean(cottageStationMode) ||
-    Boolean(greenhousePanelMode);
+    Boolean(greenhousePanelMode) ||
+    communityProjectsOpen;
 
   return (
     <main className="relative w-full h-full overflow-hidden">
@@ -1310,6 +1358,7 @@ export default function App() {
                   setJournalOpen(false);
                   setCottageStationMode(null);
                   setGreenhousePanelMode(null);
+                  setCommunityProjectsOpen(false);
                   setInventoryOpen(true);
                 }}
                 aria-label="Open Satchel"
@@ -1327,6 +1376,7 @@ export default function App() {
                   setInventoryOpen(false);
                   setCottageStationMode(null);
                   setGreenhousePanelMode(null);
+                  setCommunityProjectsOpen(false);
                   setJournalOpen(true);
                 }}
                 aria-label="Open Pocket Journal"
@@ -1526,6 +1576,14 @@ export default function App() {
         onWaterAll={handleWaterAll}
       />
 
+      {/* Community Contribution Shelf — opened from the plaza noticeboard (GA-5) */}
+      <CommunityProjectsPanel
+        open={communityProjectsOpen}
+        world={worldSnapshot}
+        onClose={() => setCommunityProjectsOpen(false)}
+        onContribute={handleContribute}
+      />
+
       {/* Pocket Journal Drawer */}
       <JournalDrawer
         open={journalOpen}
@@ -1557,6 +1615,7 @@ export default function App() {
           setInventoryOpen(false);
           setCottageStationMode(null);
           setGreenhousePanelMode(null);
+          setCommunityProjectsOpen(false);
           setScreenState('title');
         }}
       />

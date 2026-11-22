@@ -55,6 +55,7 @@ import {
   GREENHOUSE_WATER_MINUTES,
   createInitialGreenhouseState,
   getGreenhouseCropBySeed,
+  isLushStreak,
   summarizeGreenhousePlots,
 } from './greenhouse';
 import {
@@ -87,6 +88,7 @@ import {
   NEIGHBOR_KEEPSAKE_REWARDS,
   PERSONAL_ITEM_MAP,
   addItemToInventory,
+  applyItemGrants,
   canCraftRecipe,
   consumeItemFromInventory,
   getFirstSipableItem,
@@ -106,7 +108,8 @@ import {
   createInitialCopperwheelState,
   getProjectForDay,
 } from './copperwheel';
-import { DAY_END_MINUTE } from './time';
+import { DAY_END_MINUTE, EVENING_SLIPPED_NOTE, isDoneToday, spendMinutes } from './time';
+import { describeCommunityNoticeboard } from './community';
 import {
   ACOUSTIC_BELL_RADIUS,
   LOCAL_WITNESS_RADIUS,
@@ -187,6 +190,7 @@ export interface PropInteractionResult {
     | 'exit_copperwheel'
     | 'greenhouse_planting_panel'
     | 'greenhouse_harvest_panel'
+    | 'community_projects_panel'
     | 'share_featured_reading';
   memoryUnlockedTitle?: string;
   /** Explicit item-gain readout rendered as chips above the prose (everyday-life polish). */
@@ -1346,31 +1350,26 @@ export function interactWithProp(
         body: 'You watered and clipped today’s fresh chamomile blossoms. New buds will open by tomorrow morning.',
       };
     }
-    let invRes = addItemToInventory(world.inventory, world.discoveredItemIds, 'chamomile_blossom', 1);
+    // GA-4 honesty: one grant path — chips reflect only what truly entered the satchel.
     const bonusLavender = world.day % 2 === 0;
-    if (bonusLavender) {
-      invRes = addItemToInventory(invRes.inventory, invRes.discoveredItemIds, 'lavender_sprig', 1);
-    }
-    const gainedItems: GainedItemChip[] = bonusLavender
-      ? [
-          { itemId: 'chamomile_blossom', count: 1 },
-          { itemId: 'lavender_sprig', count: 1 },
-        ]
-      : [{ itemId: 'chamomile_blossom', count: 1 }];
-    const nextMin = Math.min(DAY_END_MINUTE, world.minuteOfDay + 12);
+    const invRes = applyItemGrants(world.inventory, world.discoveredItemIds, [
+      { itemId: 'chamomile_blossom', amount: 1 },
+      ...(bonusLavender ? [{ itemId: 'lavender_sprig' as const, amount: 1 }] : []),
+    ]);
+    const spend = spendMinutes(world, 12);
     return {
       nextWorld: {
         ...world,
-        minuteOfDay: nextMin,
+        minuteOfDay: spend.minuteOfDay,
         inventory: invRes.inventory,
         discoveredItemIds: invRes.discoveredItemIds,
         dailyActivities: { ...da, cottagePlanterTendedToday: true },
       },
       title: 'Porch Herb & Chamomile Box',
       body: bonusLavender
-        ? 'You brushed morning soil aside and clipped fresh Chamomile Blossoms alongside Sweet Lavender for your satchel (+12m).'
-        : 'Warm sunlight scents the sill as you gather a handful of Chamomile Blossoms for your tea kettle or table vase (+12m).',
-      gainedItems,
+        ? `You brushed morning soil aside and clipped fresh Chamomile Blossoms alongside Sweet Lavender for your satchel (+12m).${spend.eveningSlippedAway ? ` ${EVENING_SLIPPED_NOTE}` : ''}`
+        : `Warm sunlight scents the sill as you gather a handful of Chamomile Blossoms for your tea kettle or table vase (+12m).${spend.eveningSlippedAway ? ` ${EVENING_SLIPPED_NOTE}` : ''}`,
+      gainedItems: invRes.gainedItems,
     };
   }
 
@@ -1383,23 +1382,30 @@ export function interactWithProp(
         body: 'The terracotta herb trays beside Mina’s greenhouse are freshly watered for the day.',
       };
     }
-    let invRes = addItemToInventory(world.inventory, world.discoveredItemIds, 'lemon_thyme', 1);
-    invRes = addItemToInventory(invRes.inventory, invRes.discoveredItemIds, 'lavender_sprig', 1);
-    const nextMin = Math.min(DAY_END_MINUTE, world.minuteOfDay + 15);
+    // GA-2: the one-time seed sachet — lavender's only legitimate acquisition path.
+    // GA-4 honesty: one grant path — chips reflect only what truly entered the satchel.
+    const sf = world.sideFlags ?? {};
+    const foundLavenderSeeds = !sf.foundLavenderSeeds;
+    const invRes = applyItemGrants(world.inventory, world.discoveredItemIds, [
+      { itemId: 'lemon_thyme', amount: 1 },
+      { itemId: 'lavender_sprig', amount: 1 },
+      ...(foundLavenderSeeds ? [{ itemId: 'lavender_seeds' as const, amount: 1 }] : []),
+    ]);
+    const spend = spendMinutes(world, 15);
     return {
       nextWorld: {
         ...world,
-        minuteOfDay: nextMin,
+        minuteOfDay: spend.minuteOfDay,
         inventory: invRes.inventory,
         discoveredItemIds: invRes.discoveredItemIds,
         dailyActivities: { ...da, greenhousePlantersTendedToday: true },
+        sideFlags: foundLavenderSeeds ? { ...sf, foundLavenderSeeds: true } : sf,
       },
       title: 'Sunbeam Herb Planters',
-      body: 'Mina left snipping shears out by the warm glasshouse trays. Gathered Lemon Thyme Sprig and Sweet Lavender (+15m).',
-      gainedItems: [
-        { itemId: 'lemon_thyme', count: 1 },
-        { itemId: 'lavender_sprig', count: 1 },
-      ],
+      body: foundLavenderSeeds
+        ? 'Mina left snipping shears out by the warm glasshouse trays. Gathered Lemon Thyme Sprig and Sweet Lavender — and found a folded paper sachet of Lavender Seeds tucked between the pots, clearly saved for a neighbor (+15m).'
+        : 'Mina left snipping shears out by the warm glasshouse trays. Gathered Lemon Thyme Sprig and Sweet Lavender (+15m).',
+      gainedItems: invRes.gainedItems,
     };
   }
 
@@ -1412,8 +1418,10 @@ export function interactWithProp(
         body: 'Today’s ripe crabapples and wild honeycomb have been gathered cleanly beneath the orchard boughs.',
       };
     }
-    let invRes = addItemToInventory(world.inventory, world.discoveredItemIds, 'crabapple', 2);
-    invRes = addItemToInventory(invRes.inventory, invRes.discoveredItemIds, 'wild_honey', 1);
+    const invRes = applyItemGrants(world.inventory, world.discoveredItemIds, [
+      { itemId: 'crabapple', amount: 2 },
+      { itemId: 'wild_honey', amount: 1 },
+    ]);
     const phase = getTimePhase(world.minuteOfDay);
     const memId = 'mem_orchard_harvest';
     const hasMem = world.memories.some((m) => m.id === memId);
@@ -1430,11 +1438,11 @@ export function interactWithProp(
           },
           ...world.memories,
         ];
-    const nextMin = Math.min(DAY_END_MINUTE, world.minuteOfDay + 20);
+    const spend = spendMinutes(world, 20);
     return {
       nextWorld: {
         ...world,
-        minuteOfDay: nextMin,
+        minuteOfDay: spend.minuteOfDay,
         inventory: invRes.inventory,
         discoveredItemIds: invRes.discoveredItemIds,
         dailyActivities: { ...da, orchardHarvestedToday: true },
@@ -1443,10 +1451,7 @@ export function interactWithProp(
       title: 'Fern Hollow Harvest Crates',
       body: 'Dappled shade smells of warm apples and clover. Gathered 2 Orchard Crabapples and 1 Orchard Honeycomb into your satchel (+20m).',
       memoryUnlockedTitle: hasMem ? undefined : 'Sunlit Boughs at Fern Hollow',
-      gainedItems: [
-        { itemId: 'crabapple', count: 2 },
-        { itemId: 'wild_honey', count: 1 },
-      ],
+      gainedItems: invRes.gainedItems,
     };
   }
 
@@ -1456,7 +1461,9 @@ export function interactWithProp(
     const sf = world.sideFlags ?? {};
     const phase = getTimePhase(world.minuteOfDay);
     if (!sf.foundFoxgloveSeeds) {
-      let invRes = addItemToInventory(world.inventory, world.discoveredItemIds, 'foxglove_seeds', 1);
+      const invRes = applyItemGrants(world.inventory, world.discoveredItemIds, [
+        { itemId: 'foxglove_seeds', amount: 1 },
+      ]);
       const memId = 'mem_old_well_seeds';
       const hasMem = world.memories.some((m) => m.id === memId);
       const nextMemories = hasMem
@@ -1472,10 +1479,11 @@ export function interactWithProp(
             },
             ...world.memories,
           ];
+      const wellSpend = spendMinutes(world, 8);
       return {
         nextWorld: {
           ...world,
-          minuteOfDay: Math.min(DAY_END_MINUTE, world.minuteOfDay + 8),
+          minuteOfDay: wellSpend.minuteOfDay,
           inventory: invRes.inventory,
           discoveredItemIds: invRes.discoveredItemIds,
           sideFlags: { ...sf, foundFoxgloveSeeds: true },
@@ -1485,7 +1493,7 @@ export function interactWithProp(
         body:
           'Peering in, you count silent ripples below and catch a paper corner in the stonework — a mouse-nibbled seed packet, foxgloves from a garden remembered by no one. You pocket the seeds (+8m). Maybe Mina\u2019s greenhouse could wake them.',
         memoryUnlockedTitle: hasMem ? undefined : 'Seeds of the Forgotten Garden',
-        gainedItems: [{ itemId: 'foxglove_seeds', count: 1 }],
+        gainedItems: invRes.gainedItems,
       };
     }
     const composed = composeEnvironmentState(world);
@@ -1565,7 +1573,9 @@ export function interactWithProp(
           'You already tied today\u2019s little nosegay. The rest of the blooms sway on, saving themselves for tomorrow\u2019s passer-by.',
       };
     }
-    let invRes = addItemToInventory(world.inventory, world.discoveredItemIds, 'meadow_posy', 1);
+    const invRes = applyItemGrants(world.inventory, world.discoveredItemIds, [
+      { itemId: 'meadow_posy', amount: 1 },
+    ]);
     const memId = 'mem_meadow_posy';
     const hasMem = world.memories.some((m) => m.id === memId);
     const nextMemories = hasMem
@@ -1582,10 +1592,11 @@ export function interactWithProp(
           ...world.memories,
         ];
     const posies = Number(sf.meadowPosiesPicked ?? 0) + 1;
+    const posySpend = spendMinutes(world, 10);
     return {
       nextWorld: {
         ...world,
-        minuteOfDay: Math.min(DAY_END_MINUTE, world.minuteOfDay + 10),
+        minuteOfDay: posySpend.minuteOfDay,
         inventory: invRes.inventory,
         discoveredItemIds: invRes.discoveredItemIds,
         sideFlags: { ...sf, posyPickedDay: world.day, meadowPosiesPicked: posies },
@@ -1594,7 +1605,7 @@ export function interactWithProp(
       title: 'Wildflower Bank',
       body: `Marigolds, cornflowers and sweet alyssum crowd the bank. You tie a small nosegay while ${composed.season.season === 'winter' ? 'frost-crisped' : 'bees drowse'} nearby (+10m).`,
       memoryUnlockedTitle: hasMem ? undefined : 'A Posy From the Lane',
-      gainedItems: [{ itemId: 'meadow_posy', count: 1 }],
+      gainedItems: invRes.gainedItems,
     };
   }
 
@@ -1676,19 +1687,21 @@ export function interactWithProp(
     const pool: PersonalItemId[] = ['smooth_river_glass', 'heron_feather', 'pressed_fern', 'cedar_shaving_rose'];
     const foundId = pool[(world.day + Math.floor(world.minuteOfDay / 60)) % pool.length];
     const foundDef = PERSONAL_ITEM_MAP[foundId];
-    const invRes = addItemToInventory(world.inventory, world.discoveredItemIds, foundId, 1);
-    const nextMin = Math.min(DAY_END_MINUTE, world.minuteOfDay + 15);
+    const invRes = applyItemGrants(world.inventory, world.discoveredItemIds, [
+      { itemId: foundId, amount: 1 },
+    ]);
+    const pondSpend = spendMinutes(world, 15);
     return {
       nextWorld: {
         ...world,
-        minuteOfDay: nextMin,
+        minuteOfDay: pondSpend.minuteOfDay,
         inventory: invRes.inventory,
         discoveredItemIds: invRes.discoveredItemIds,
         dailyActivities: { ...da, pondCombedToday: true },
       },
       title: 'Mirror Pond Driftwood Nook',
       body: `While listening to water lap against the driftwood bank, you spotted ${foundDef.label} nestled beside the reeds and tucked it into your satchel (+15m).`,
-      gainedItems: [{ itemId: foundId, count: 1 }],
+      gainedItems: invRes.gainedItems,
     };
   }
 
@@ -1842,7 +1855,8 @@ export function interactWithProp(
     };
   }
 
-  // plaza_noticeboard (or fallback)
+  // plaza_noticeboard (or fallback) — Everyday Gameplay GA-1: the noticeboard
+  // now lists live community shelves and opens the contribution panel.
   if (propId === 'plaza_noticeboard') {
     const composed = composeEnvironmentState(world);
     const notes: string[] = [
@@ -1861,10 +1875,13 @@ export function interactWithProp(
     if (env.orchardGatheringOutcome && env.orchardGatheringOutcome !== 'none') {
       notes.push('• Fern Hollow Orchard: Tasting Table open daily under the north lanterns!');
     }
+    notes.push(...describeCommunityNoticeboard(world));
     return {
       nextWorld: world,
       title: 'Neighborhood Noticeboard',
       body: notes.join('  '),
+      actionLabel: 'Check the Community Shelf',
+      actionType: 'community_projects_panel',
     };
   }
 
@@ -2293,13 +2310,10 @@ export function interactWithCottageProp(
 
   if (cottagePropId === 'cottage_desk') {
     const reading = getSeasonalAlmanacReading(world.season, world.day);
-    const nextMin = cottage.almanacReadToday
-      ? world.minuteOfDay
-      : Math.min(DAY_END_MINUTE, world.minuteOfDay + 10);
+    const almanacSpend = cottage.almanacReadToday ? { nextWorld: world } : spendMinutes(world, 10);
     return {
       nextWorld: {
-        ...world,
-        minuteOfDay: nextMin,
+        ...almanacSpend.nextWorld,
         cottageState: {
           ...cottage,
           almanacReadToday: true,
@@ -2318,19 +2332,21 @@ export function interactWithCottageProp(
       body: 'Your indoor sill planter is watered and blooming softly in the afternoon sun.',
     };
   }
-  const invRes = addItemToInventory(world.inventory, world.discoveredItemIds, 'chamomile_blossom', 1);
-  const nextMin = Math.min(DAY_END_MINUTE, world.minuteOfDay + 10);
+  const invRes = applyItemGrants(world.inventory, world.discoveredItemIds, [
+    { itemId: 'chamomile_blossom', amount: 1 },
+  ]);
+  const sillSpend = spendMinutes(world, 10);
   return {
     nextWorld: {
       ...world,
-      minuteOfDay: nextMin,
+      minuteOfDay: sillSpend.minuteOfDay,
       inventory: invRes.inventory,
       discoveredItemIds: invRes.discoveredItemIds,
       dailyActivities: { ...da, cottagePlanterTendedToday: true },
     },
     title: 'Sunlit Sill Planter',
     body: 'Clipped fresh Chamomile Blossoms from the warm wooden sill box and tucked them into your satchel (+10m).',
-    gainedItems: [{ itemId: 'chamomile_blossom', count: 1 }],
+    gainedItems: invRes.gainedItems,
   };
 }
 
@@ -2441,10 +2457,12 @@ export function waterGreenhousePlotsAction(world: WorldState): PropInteractionRe
         : 'The rain barrel glimmers with cool water. There are no sown pots to water just yet — Mina’s planting notes by the worktable explain how the shared corner works.',
     };
   }
-  const nextMin = Math.min(DAY_END_MINUTE, world.minuteOfDay + GREENHOUSE_WATER_MINUTES);
+  // GA-2 environment connection: on rain days the rain chain carries the water —
+  // watering costs no minutes (the weather does the walking; the care still counts).
+  const rainDay = world.weather === 'light_rain';
+  const waterSpend = rainDay ? { nextWorld: world, minuteOfDay: world.minuteOfDay, eveningSlippedAway: false } : spendMinutes(world, GREENHOUSE_WATER_MINUTES);
   const nextWorld: WorldState = {
-    ...world,
-    minuteOfDay: nextMin,
+    ...waterSpend.nextWorld,
     greenhouseState: {
       ...gh,
       plots: gh.plots.map((p) =>
@@ -2455,7 +2473,9 @@ export function waterGreenhousePlotsAction(world: WorldState): PropInteractionRe
   return {
     nextWorld,
     title: 'Rain Barrel & Watering Can',
-    body: `You tipped the copper watering can along the shelf until every thirsty pot drank its fill (+${GREENHOUSE_WATER_MINUTES}m). Tonight they will grow a little stronger.`,
+    body: rainDay
+      ? 'Rain drums softly on the glass roof and the rain chain does the carrying — every thirsty pot drank its fill without a single trip of the can. Tonight they will grow a little stronger.'
+      : `You tipped the copper watering can along the shelf until every thirsty pot drank its fill (+${GREENHOUSE_WATER_MINUTES}m). Tonight they will grow a little stronger.`,
   };
 }
 
@@ -2524,6 +2544,7 @@ export function plantSeedAtPlotAction(
                 nightsGrown: 0,
                 stage: 0 as const,
                 wateredToday: true,
+                waterStreak: 0,
               }
             : p,
         ),
@@ -2565,10 +2586,19 @@ export function harvestPlotAction(
     return { ok: false, nextWorld: world, toast: 'That pot holds an unfamiliar seedling.' };
   }
 
-  let invRes = addItemToInventory(world.inventory, world.discoveredItemIds, crop.cropItemId, crop.harvestCount);
-  invRes = addItemToInventory(invRes.inventory, invRes.discoveredItemIds, crop.seedItemId, 1);
+  // GA-2: steady care is rewarded — a lush harvest when the pot was watered at
+  // least LUSH_WATER_STREAK_MIN nights in a row (deterministic, no RNG, no grind:
+  // missing a day simply waits instead of punishing).
+  const lush = isLushStreak(plot.waterStreak ?? 0);
+  const yieldCount = crop.harvestCount + (lush ? 1 : 0);
 
-  const nextMin = Math.min(DAY_END_MINUTE, world.minuteOfDay + GREENHOUSE_HARVEST_MINUTES);
+  const invRes = applyItemGrants(world.inventory, world.discoveredItemIds, [
+    { itemId: crop.cropItemId, amount: yieldCount },
+    { itemId: crop.seedItemId, amount: 1 },
+  ]);
+
+  const harvestSpend = spendMinutes(world, GREENHOUSE_HARVEST_MINUTES);
+  const nextMin = harvestSpend.minuteOfDay;
   const phase = getTimePhase(nextMin);
   const memId = 'mem_greenhouse_first_harvest';
   const hasMem = world.memories.some((m) => m.id === memId);
@@ -2599,7 +2629,7 @@ export function harvestPlotAction(
         totalHarvests: gh.totalHarvests + 1,
         plots: gh.plots.map((p, idx) =>
           idx === plotIndex
-            ? { cropId: null, plantedDay: 0, nightsGrown: 0, stage: 0 as const, wateredToday: false }
+            ? { cropId: null, plantedDay: 0, nightsGrown: 0, stage: 0 as const, wateredToday: false, waterStreak: 0 }
             : p,
         ),
       },
@@ -2609,12 +2639,11 @@ export function harvestPlotAction(
       },
       memories: nextMemories,
     },
-    toast: `Harvested ${cropDef.label} ×${crop.harvestCount} and kept one seed fold for the next sowing (+${GREENHOUSE_HARVEST_MINUTES}m).`,
+    toast: lush
+      ? `Harvested ${cropDef.label} ×${yieldCount} — especially lush, thanks to your steady care (+${GREENHOUSE_HARVEST_MINUTES}m). Kept one seed fold for the next sowing.`
+      : `Harvested ${cropDef.label} ×${yieldCount} and kept one seed fold for the next sowing (+${GREENHOUSE_HARVEST_MINUTES}m).`,
     memoryUnlockedTitle: hasMem ? undefined : 'First Glasshouse Harvest',
-    gainedItems: [
-      { itemId: crop.cropItemId, count: crop.harvestCount },
-      { itemId: crop.seedItemId, count: 1 },
-    ],
+    gainedItems: invRes.gainedItems,
   };
 }
 
@@ -3610,17 +3639,28 @@ export function cookRecipeAction(
     nextInv = consumed.inventory;
   }
 
-  const addedRes = addItemToInventory(
+  const addedRes = applyItemGrants(
     nextInv,
     world.discoveredItemIds,
-    recipe.outputItemId,
-    recipe.outputCount,
+    [{ itemId: recipe.outputItemId, amount: recipe.outputCount }],
   );
   const outDef = PERSONAL_ITEM_MAP[recipe.outputItemId];
   const cottage = world.cottageState ?? createInitialCottageState();
   const da = world.dailyActivities ?? createInitialDailyActivities();
-  const nextMin = Math.min(DAY_END_MINUTE, world.minuteOfDay + recipe.minutesRequired);
+  const spend = spendMinutes(world, recipe.minutesRequired);
+  const nextMin = spend.minuteOfDay;
   const phase = getTimePhase(nextMin);
+  const overflowNote =
+    addedRes.overflowIds.length > 0
+      ? ' Your satchel was already full of that treat, so the extras stayed on the hearthstone for later.'
+      : '';
+
+  // GA-4 coherence repair: brewing chamomile tea at the hearth finally agrees with
+  // the dialogue-side quest gate (flags.brewedChamomileTea was dialogue-only before).
+  const nextFlags: WorldState['flags'] =
+    recipe.id === 'recipe_chamomile_tea' && !world.flags.brewedChamomileTea
+      ? { ...world.flags, brewedChamomileTea: true }
+      : world.flags;
 
   const memId = 'mem_cottage_hearth';
   const hasMem = world.memories.some((m) => m.id === memId);
@@ -3645,6 +3685,7 @@ export function cookRecipeAction(
       minuteOfDay: nextMin,
       inventory: addedRes.inventory,
       discoveredItemIds: addedRes.discoveredItemIds,
+      flags: nextFlags,
       cottageState: {
         ...cottage,
         hearthLit: true,
@@ -3656,7 +3697,7 @@ export function cookRecipeAction(
       },
       memories: nextMemories,
     },
-    toast: `Prepared ${outDef.label} at the hearth (+${recipe.minutesRequired}m)!`,
+    toast: `Prepared ${outDef.label} at the hearth (+${recipe.minutesRequired}m)!${overflowNote}`,
     memoryUnlockedTitle: hasMem ? undefined : 'First Hearth Bake at Willow Step',
   };
 }
