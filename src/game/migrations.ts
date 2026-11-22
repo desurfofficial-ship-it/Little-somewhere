@@ -742,11 +742,21 @@ function sanitizeNpcRelations(
       sanitizedRel.lastGossipEventId = entry.lastGossipEventId;
     }
     // C3: familiarity / encounterCount are optional accumulation counters.
-    if (typeof entry.familiarity === 'number' && Number.isFinite(entry.familiarity)) {
-      sanitizedRel.familiarity = Math.max(0, Math.floor(entry.familiarity));
+    // A v11 save written before these fields existed carries no familiarity —
+    // inherit the baseline default (def) so existing closeness is preserved
+    // (HANDOVER §20). Lazy pairs with no default stay at 0, matching the
+    // getNpcRelation lazy default and the fresh-game seeding.
+    const familiarityRaw = entry.familiarity;
+    const encounterCountRaw = entry.encounterCount;
+    if (typeof familiarityRaw === 'number' && Number.isFinite(familiarityRaw)) {
+      sanitizedRel.familiarity = Math.max(0, Math.floor(familiarityRaw));
+    } else if (def && typeof def.familiarity === 'number') {
+      sanitizedRel.familiarity = def.familiarity;
     }
-    if (typeof entry.encounterCount === 'number' && Number.isFinite(entry.encounterCount)) {
-      sanitizedRel.encounterCount = Math.max(0, Math.floor(entry.encounterCount));
+    if (typeof encounterCountRaw === 'number' && Number.isFinite(encounterCountRaw)) {
+      sanitizedRel.encounterCount = Math.max(0, Math.floor(encounterCountRaw));
+    } else if (def && typeof def.encounterCount === 'number') {
+      sanitizedRel.encounterCount = def.encounterCount;
     }
     if (writtenKeys.has(key)) {
       collapsedDuplicatePairs++;

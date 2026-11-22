@@ -54,6 +54,14 @@ test('1. schedule reliability: every resident transitions through all 4 phases e
         }
       }
     }
+    // Aggregate dusk engagement across residents — at least half the cast must
+    // engage dusk each day (a regression that broke dusk entirely, e.g. the
+    // evening_home wind-down at minuteOfDay>=1225 firing too aggressively,
+    // would slip past a per-resident >=3-of-4 threshold but not this one).
+    let duskEngagers = 0;
+    for (const id of RESIDENT_ORDER) {
+      if (seenPhases.get(id)!.has('dusk')) duskEngagers++;
+    }
     for (const id of RESIDENT_ORDER) {
       const seen = seenPhases.get(id)!;
       // A resident should engage with at least 3 of the 4 phases per day
@@ -77,6 +85,10 @@ test('1. schedule reliability: every resident transitions through all 4 phases e
         );
       }
     }
+    assert.ok(
+      duskEngagers >= Math.ceil(RESIDENT_ORDER.length / 2),
+      `dusk engagement collapsed on day ${day}: only ${duskEngagers}/${RESIDENT_ORDER.length} residents engaged dusk`,
+    );
     if (day < 5) world = advanceToNextDay(world);
   }
 });

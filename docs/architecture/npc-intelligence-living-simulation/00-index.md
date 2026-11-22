@@ -130,14 +130,75 @@ interruption, social interaction (variety + friction), persistence
 ## 3. Coordination Notes
 
 - **Shared interfaces**: new optional fields on `NpcRuntimeState`
-  (`lastEmotionReason`, `targetUnreachableUntilMinute`, `blockedActivityIds`)
-  and `NpcNpcRelation` (`familiarity`, `encounterCount`) are coordinated with
-  the migration/sanitizer layer (`migrations.ts`) so persistence stays robust.
-- **Determinism contract**: every new RNG draw (friction roll, witness
-  distortion) uses `hashSeed(simSeed, day, encounterId, …)` to preserve the
-  twin-replay invariant.
+  (`blockedActivityIds?: string[]`, cap 4) and `NpcNpcRelation` (`familiarity?: number`,
+  `encounterCount?: number`) are coordinated with the migration/sanitizer layer
+  (`migrations.ts`) so persistence stays robust. An ephemeral per-resident
+  free-movement timer lives in module-scope scratch (`_unstuckSeconds`) so it
+  never touches the persisted `NpcRuntimeState` shape.
+- **Determinism contract**: every new RNG draw (friction roll, witness/participant
+  memory ids) uses `hashSeed(simSeed, day, encounterId, …)` to preserve the
+  twin-replay invariant. RNG call count and order in `selectActivityForResident`
+  are preserved (1 anchor draw + 1 per evaluated extra + 1 duration draw).
 - **No schema bump required**: new fields are optional and defaulted by the
-  existing sanitizers, so v11 saves load and run without migration.
+  existing sanitizers, so v11 saves load and run without migration. The sanitizer
+  inherits the baseline `familiarity` default for v11 saves that predate the field,
+  preserving existing closeness (see §4 ADV-1 Finding 1).
 
-Detailed per-workstream evidence and insertion points were captured by the six
-parallel subagent audits performed during Phase 0.
+---
+
+## 4. Adversarial Review (ADV-1) — Findings & Disposition
+
+An independent hostile reviewer (subagent ADV-1) attempted to disprove the
+implementation's correctness. Verdict: **PASS WITH CONCERNS** — one MAJOR
+backward-compatibility defect confirmed and fixed; several MINOR gaps addressed
+or documented. The reviewer ran repro scripts, the full test suite, and the
+long-run stress harness.
+
+### Confirmed defects — FIXED
+- **ADV-1 Finding 1 (MAJOR)**: A v11 save written before `familiarity`/`encounterCount`
+  existed loaded with `familiarity: undefined` for baseline bonds, silently dropping
+  `clara:mina` from `confidant` → `warm` (a binding-contract violation per HANDOVER §20).
+  **Fixed**: `sanitizeNpcRelations` now inherits `def?.familiarity`/`def?.encounterCount`
+  when the raw entry lacks the field. `computeWorldSaveRevision` now tracks the fields.
+  Regression test added (`relationships.test.ts`).
+- **ADV-1 Finding 4 (MINOR)**: The `stripAcousticOnly` round-trip fix was correct but
+  untested by the behavioral suite. **Fixed**: regression test added (`memories.test.ts`)
+  that seeds an `acousticOnly: true` bell memory, gossips it, and asserts byte-identical
+  round-trip.
+- **ADV-1 Finding 5 (MINOR)**: Test 1 (schedule reliability) threshold was lax — a dusk
+  collapse would slip past `>= 3 of 4 phases`. **Fixed**: added an aggregate assertion
+  that ≥ half the cast engages dusk each day.
+- **ADV-1 Finding 7 (MINOR)**: `blockedActivityIds` never cleared within a day, so a
+  transient obstruction could blacklist an activity for ~14 in-game hours. **Fixed**:
+  a module-scope free-movement timer clears the list after 8s of unobstructed motion.
+- **ADV-1 Finding 8 (MINOR)**: `getNpcRelation` allocated a default object per lazy pair,
+  breaking the zero-GC tick claim. **Fixed**: added `getNpcRelationTierFast`
+  (zero-allocation) for the per-tick companion-bias loop.
+- **ADV-1 Finding 9 (MINOR)**: `computeWorldSaveRevision` did not track `familiarity`/
+  `encounterCount`. **Fixed** alongside Finding 1.
+
+### Documented as deferred (content-authoring, not correctness)
+- **ADV-1 Finding 2**: `encounterCount` has no consumer — kept as future-telemetry
+  hook (wired into the fingerprint so it's tracked if consumed later).
+- **ADV-1 Finding 3**: `encounter_friction`/`witnessed_chat`/`witnessed_friction`
+  memory tags are recorded but no dialogue topic queries them yet — they are
+  future-authoring hooks for content designers, not correctness defects.
+- **ADV-1 Finding 6**: Test 8's `perTickUs < 2000` assertion is redundant with
+  `elapsedMs < 400` — cosmetic, left in place (harmless).
+- **ADV-1 Finding 10**: `NpcMemoryDetail` key order is an undocumented invariant for
+  byte-identical round-trip — documented here as a contract.
+
+### Verified safe (NON-ISSUES)
+Determinism integrity (RNG call count/order preserved; twin-replay byte-identical);
+`blockedActivityIds` mechanism (cap-4 FIFO, anchor excluded, sanitizer-matched);
+emotion cascade B1 (no existing topic gates on `emotions:['happy']` AND `bellRestored`);
+friction path (separate RNG instance, emotion persists via hysteresis, no death-spiral —
+estrangement caps further friction); witness propagation (O(N) per encounter, no
+participant/witness collision, low-importance witnesses evict first); `findSpeakerMemory`
+recency (no topic relied on the inverted behavior; negative scores handled);
+`requiresRecentEventKind/Tag` knowledge gate (no existing topic uses the bare condition);
+scope control (no `invitations.ts` / LR-3 / `offerPhases` changes — directive §8 respected).
+
+Full reviewer report captured in the session transcript; this section is the
+authoritative disposition record.
+

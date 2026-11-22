@@ -28,6 +28,7 @@ import {
   getNpcPairKey,
   getNpcRelation,
   getNpcRelationTier,
+  getNpcRelationTierFast,
   getRelationshipTier,
   isResidentGuarded,
   pushNpcActivityHistoryInPlace,
@@ -68,6 +69,15 @@ const GREETING_COOLDOWN_MINUTES = 65;
 
 // Pre-allocated scratch buffer so stepSimulationInPlace stays zero-GC in browser tick()
 const _otherPositions: Vec2[] = [];
+// A1 (Finding 7): per-resident free-movement timer (ephemeral, not persisted).
+// Cleared when an activity is blocked; accumulates while moving freely; once it
+// exceeds the grace window, blockedActivityIds is cleared. Module-scope so it
+// never touches the persisted NpcRuntimeState shape.
+const _unstuckSeconds: Record<string, number> = {};
+function resetUnstuckTimers(): void {
+  for (const id of RESIDENT_ORDER) _unstuckSeconds[id] = 0;
+}
+resetUnstuckTimers();
 
 function normalizeAngleDiff(target: number, current: number): number {
   let diff = target - current;
@@ -452,11 +462,13 @@ function selectActivityForResident(
   // C5: companion bias — collect current positions of confidant-tier partners
   // so candidates near a close friend get a small gravitation bonus (residents
   // drift toward friends rather than only repelling via the crowding penalty).
+  // Uses getNpcRelationTierFast (zero-GC) to avoid per-tick allocation for the
+  // ~9 lazy pairs each resident checks.
   const confidantPositions: Vec2[] = [];
   for (let k = 0; k < RESIDENT_ORDER.length; k++) {
     const oid = RESIDENT_ORDER[k];
     if (oid === id) continue;
-    if (getNpcRelationTier(getNpcRelation(world.npcRelations, id, oid)) === 'confidant') {
+    if (getNpcRelationTierFast(world.npcRelations, id, oid) === 'confidant') {
       confidantPositions.push(world.npcRuntime[oid].position);
     }
   }
@@ -1072,6 +1084,7 @@ export function stepSimulationInPlace(
             rt.animState = getDefaultPoseForSlot(id, phase);
             rt.activityUntilMinute = world.minuteOfDay;
             rt.goalCommittedUntilMinute = world.minuteOfDay;
+            _unstuckSeconds[id] = 0;
             if (rt.currentActivityId && !rt.currentActivityId.endsWith(':anchor')) {
               rt.blockedActivityIds = pushBounded(
                 rt.blockedActivityIds,
@@ -1083,7 +1096,21 @@ export function stepSimulationInPlace(
             rt.waypoints = computeWaypointPath(rt.position, rt.targetPos, 0.38) ?? [];
           }
         } else {
+          // A1 (Finding 7): the NPC is moving freely. Once it has been unstuck
+          // for a few seconds, clear the blocked-activity list so a transient
+          // obstruction (another NPC walking through) doesn't blacklist a now-
+          // reachable activity for the rest of the day. Tracked in module-scope
+          // scratch so it never touches the persisted NpcRuntimeState shape.
           rt.stuckSeconds = 0;
+          if (rt.blockedActivityIds && rt.blockedActivityIds.length > 0) {
+            _unstuckSeconds[id] = (_unstuckSeconds[id] ?? 0) + dt;
+            if (_unstuckSeconds[id] > 8) {
+              rt.blockedActivityIds = [];
+              _unstuckSeconds[id] = 0;
+            }
+          } else {
+            _unstuckSeconds[id] = 0;
+          }
         }
       }
     } else {

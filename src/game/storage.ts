@@ -376,6 +376,11 @@ export function computeWorldSaveRevision(state: WorldState): string {
     pushStr(r.lastGossipEventId ?? '');
     pushNum(r.sharedTags.length);
     for (let t = 0; t < r.sharedTags.length; t++) pushStr(r.sharedTags[t]);
+    // C3: track familiarity/encounterCount so the fingerprint reflects the
+    // actual persisted relation state (HANDOVER §20). Encounter count drives
+    // no behavior today but is persisted; familiarity gates the confidant tier.
+    pushNum(r.familiarity ?? -1);
+    pushNum(r.encounterCount ?? -1);
   }
 
   const encs = state.activeEncounters ?? [];

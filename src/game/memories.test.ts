@@ -16,7 +16,7 @@ import {
   pruneExpiredNpcMemoriesInPlace,
   recordNpcMemoryInPlace,
 } from './memories';
-import { createFreshWorldState } from './storage';
+import { createFreshWorldState, serializeWorldState, deserializeWorldState } from './storage';
 import {
   applyDialogueChoice,
   deliverHeldItemAction,
@@ -508,3 +508,47 @@ test('Step 3.5: applyDialogueChoice records friction, tier breakthroughs, and su
   );
 });
 
+
+// --- Adversarial-review regression test (ADV-1 Finding 4) ---
+
+test('ADV-1 Finding 4: gossip transfer of an acousticOnly bell memory round-trips byte-identical through serialize/deserialize', () => {
+  // The pre-fix code set `acousticOnly: undefined` on the transferred detail,
+  // which JSON.stringify drops — breaking save/load round-trip equality whenever
+  // gossip propagated a bell memory. stripAcousticOnly now cleanly omits the key.
+  let world = createFreshWorldState();
+  // Seed a firsthand acousticOnly bell memory on Clara (the only producer of
+  // acousticOnly detail is performRingBellAction, used in-game).
+  recordNpcMemoryInPlace(
+    world.npcMemories,
+    'clara',
+    createNpcMemoryEntry({
+      id: 'bell_chime_acoustic_clara',
+      eventId: 'bell_chime_acoustic',
+      tag: 'bell_chime',
+      category: 'event',
+      subjectPlayer: false,
+      subjectResidents: [],
+      provenance: 'firsthand',
+      sourceKind: 'participant',
+      createdDay: world.day,
+      createdMinute: Math.round(world.minuteOfDay),
+      importance: 4,
+      retention: 'durable',
+      valence: 'warm',
+      emotionalWeight: 70,
+      detail: { placeName: 'Old Bell Gazebo', acousticOnly: true },
+    }),
+    world.day,
+  );
+  // Clara & Mina are baseline confidants (affinity 65) — gossip can propagate.
+  // Run the gossip transfer directly (the canonical encounter path).
+  propagateEncounterGossipInPlace(world, ['clara', 'mina'], 'enc_acoustic_test');
+  // Mina should now hold a secondhand copy without acousticOnly.
+  const minaCopy = world.npcMemories.mina.find((m) => m.eventId === 'bell_chime_acoustic');
+  assert.ok(minaCopy, 'gossip transferred the bell memory to Mina');
+  assert.equal(minaCopy!.detail?.acousticOnly, undefined, 'transferred memory drops acousticOnly (listener did not hear it)');
+  // The round-trip must be byte-identical: no stray `acousticOnly: undefined` key
+  // survives in memory that JSON would drop on serialize.
+  const reloaded = deserializeWorldState(serializeWorldState(world)).state;
+  assert.deepEqual(reloaded.npcMemories, world.npcMemories, 'gossip-transferred bell memory round-trips byte-identical');
+});

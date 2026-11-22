@@ -261,6 +261,35 @@ export function getNpcRelation(
 }
 
 /**
+ * ADV-1 Finding 8: zero-GC tier lookup. `getNpcRelation` allocates a fresh
+ * default object for every non-baseline (lazy) pair, which the per-tick
+ * companion-bias and encounter loops called ~70×/tick. This fast path reads
+ * the persisted entry directly (or the lazy-default affinity/tension/
+ * familiarity constants) without allocating, so the tick stays zero-GC.
+ * Returns the same tier `getNpcRelationTier(getNpcRelation(...))` would.
+ */
+export function getNpcRelationTierFast(
+  npcRelations: Record<string, NpcNpcRelation>,
+  a: ResidentId,
+  b: ResidentId,
+): NpcRelationTier {
+  const key = getNpcPairKey(a, b);
+  const rel = npcRelations[key];
+  if (rel) {
+    return getNpcRelationTier(rel);
+  }
+  // Lazy-default: arthur pairs start colder (affinity 10, tension 10); others 24/0.
+  // familiarity 0 -> never confidant; affinity 24 -> acquainted; never estranged/guarded.
+  const isArthurPair = a === 'arthur' || b === 'arthur';
+  const affinity = isArthurPair ? 10 : 24;
+  const tension = isArthurPair ? 10 : 0;
+  if (affinity < 0 || tension >= 55) return 'estranged';
+  if (tension >= 25 || affinity < 15) return 'guarded';
+  if (affinity >= 40 && tension < 20) return 'warm';
+  return 'acquainted';
+}
+
+/**
  * Generalized rule checking whether tension or estrangement prevents autonomous socializing.
  */
 export function shouldSuppressNpcSocial(relation: NpcNpcRelation): boolean {
