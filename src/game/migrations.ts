@@ -592,6 +592,11 @@ function sanitizeNpcRuntime(
           ? { x: entry.targetLookPos.x, z: entry.targetLookPos.z }
           : null,
       currentSpeed: Math.max(0, asFiniteNumber(entry.currentSpeed, 0)),
+      blockedActivityIds: Array.isArray(entry.blockedActivityIds)
+        ? entry.blockedActivityIds
+            .filter((s): s is string => typeof s === 'string' && s.length > 0)
+            .slice(-4)
+        : [],
     };
   }
   return out;
@@ -735,6 +740,13 @@ function sanitizeNpcRelations(
     }
     if (typeof entry.lastGossipEventId === 'string' && entry.lastGossipEventId.length > 0) {
       sanitizedRel.lastGossipEventId = entry.lastGossipEventId;
+    }
+    // C3: familiarity / encounterCount are optional accumulation counters.
+    if (typeof entry.familiarity === 'number' && Number.isFinite(entry.familiarity)) {
+      sanitizedRel.familiarity = Math.max(0, Math.floor(entry.familiarity));
+    }
+    if (typeof entry.encounterCount === 'number' && Number.isFinite(entry.encounterCount)) {
+      sanitizedRel.encounterCount = Math.max(0, Math.floor(entry.encounterCount));
     }
     if (writtenKeys.has(key)) {
       collapsedDuplicatePairs++;

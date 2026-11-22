@@ -76,6 +76,13 @@ function clampNeed(v: number): number {
   return Math.max(0, Math.min(100, v));
 }
 
+/** Bounded append: returns a new array keeping at most `cap` most-recent entries. */
+function pushBounded<T>(arr: T[] | undefined, value: T, cap: number): T[] {
+  const next = arr ? [...arr, value] : [value];
+  if (next.length > cap) next.splice(0, next.length - cap);
+  return next;
+}
+
 function getDefaultPoseForSlot(id: ResidentId, phase: TimePhase): NpcAnimationState {
   if (id === 'sora' && (phase === 'afternoon' || phase === 'dusk')) return 'music';
   if (id === 'toby') return 'sketch_read';
@@ -438,6 +445,9 @@ function selectActivityForResident(
     if (cand.requiresSideFlag && !world.sideFlags?.[cand.requiresSideFlag]) continue;
     if (cand.onlyWeathers && !cand.onlyWeathers.includes(weather)) continue;
     if (cand.seatId && isSeatClaimed(world, cand.seatId, id)) continue;
+    // A1: skip activities recently found unreachable via stuck-recovery.
+    const candActivityId = `${phase}:${cand.id}`;
+    if (rt.blockedActivityIds?.includes(candActivityId)) continue;
 
     const candGoalKind = cand.goalKind ?? null;
 
@@ -453,7 +463,6 @@ function selectActivityForResident(
     }
 
     // A5: dampen recently-repeated activities so routines stay varied.
-    const candActivityId = `${phase}:${cand.id}`;
     if (recentActivityIds.includes(candActivityId)) {
       weight *= 0.45;
     }
@@ -645,6 +654,7 @@ export function createInitialNpcRuntime(
       activeBubbleUntilMinute: 0,
       targetLookPos: null,
       currentSpeed: 0,
+      blockedActivityIds: [],
     };
   }
   return out;
@@ -663,6 +673,7 @@ export function cloneNpcRuntime(
       waypoints: r.waypoints.map((w) => ({ x: w.x, z: w.z })),
       needs: { ...r.needs },
       targetLookPos: r.targetLookPos ? { x: r.targetLookPos.x, z: r.targetLookPos.z } : null,
+      blockedActivityIds: r.blockedActivityIds ? [...r.blockedActivityIds] : [],
     };
   }
   return out;
@@ -897,7 +908,18 @@ export function stepSimulationInPlace(
       const dwellExpired =
         world.minuteOfDay >= rt.activityUntilMinute && world.minuteOfDay >= rt.goalCommittedUntilMinute;
 
-      if (phaseChanged || needsReconciledOverride || seatStolenByPlayer || dwellExpired) {
+      // A2: event-driven re-evaluation — an urgent need (exhaustion or hunger)
+      // past the goal-commit window lets a resident abandon a non-addressing
+      // activity before its full dwell expires, so an NPC doesn't keep "admiring
+      // the fountain" while starving. Bounded by goalCommittedUntilMinute so it
+      // can't thrash; currentGoalKind derived from the live anim state.
+      const currentGk = effectiveGoalKindForActivity(id, phase, rt.currentActivityId, rt.animState);
+      const urgentNeedUnmet =
+        world.minuteOfDay >= rt.goalCommittedUntilMinute &&
+        ((rt.needs.energy < 30 && currentGk !== 'rest') ||
+          (rt.needs.hunger < 30 && currentGk !== 'eat'));
+
+      if (phaseChanged || needsReconciledOverride || seatStolenByPlayer || dwellExpired || urgentNeedUnmet) {
         const chosen = selectActivityForResident(world, id, phase, rt);
         const goalChanged =
           chosen.id !== rt.currentActivityId ||
@@ -964,7 +986,11 @@ export function stepSimulationInPlace(
       // from the player instead of walking straight through them.
       _otherPositions.push(world.playerPos);
       const sep = computeSeparationVector(rt.position, _otherPositions, 0.95);
-      const step = stepAlongWaypoints(rt.position, rt.waypoints, npcSpeed, dt, sep, 0.38);
+      // A4: per-resident walk speed scaled by morning-lark energy — energetic
+      // residents (Pip, Jun) stride a little quicker, contemplative ones
+      // (Arthur, Toby) amble. Deterministic; bounded to +/-~10%.
+      const residentSpeed = npcSpeed * (0.9 + def.traits.morningLark * 0.2);
+      const step = stepAlongWaypoints(rt.position, rt.waypoints, residentSpeed, dt, sep, 0.38);
 
       rt.position.x = step.nextPos.x;
       rt.position.z = step.nextPos.z;
@@ -1006,15 +1032,28 @@ export function stepSimulationInPlace(
         }
         rt.targetLookPos = null;
 
-        const expectedMin = npcSpeed * dt * 0.12;
+        const expectedMin = residentSpeed * dt * 0.12;
         if (step.movedDist < expectedMin) {
           rt.stuckSeconds += dt;
           if (rt.stuckSeconds > 2.8) {
-            // Hard recovery: drop stale waypoints so NPC never jitters indefinitely
+            // A1: hard recovery used to drop waypoints but leave the NPC frozen
+            // for up to ~33 real seconds holding a stale activity label (the
+            // next re-selection only fired on dwell-expiry). Now force an
+            // immediate re-selection by expiring both timers, and suppress the
+            // unreachable target so the resident picks a reachable alternative.
             rt.stuckSeconds = 0;
             rt.waypoints.length = 0;
             rt.currentSpeed = 0;
             rt.animState = getDefaultPoseForSlot(id, phase);
+            rt.activityUntilMinute = world.minuteOfDay;
+            rt.goalCommittedUntilMinute = world.minuteOfDay;
+            if (rt.currentActivityId && !rt.currentActivityId.endsWith(':anchor')) {
+              rt.blockedActivityIds = pushBounded(
+                rt.blockedActivityIds,
+                rt.currentActivityId,
+                4,
+              );
+            }
           } else if (rt.stuckSeconds > 1.2) {
             rt.waypoints = computeWaypointPath(rt.position, rt.targetPos, 0.38) ?? [];
           }

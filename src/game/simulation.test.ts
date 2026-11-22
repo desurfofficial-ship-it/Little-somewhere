@@ -75,25 +75,31 @@ test('headless simulation is strictly deterministic and navigates NPCs smoothly 
   assert.deepEqual(simA, simB);
   assert.equal(getTimePhase(simA.minuteOfDay), 'afternoon');
 
-  // Verify every resident stayed walkable (or properly seated on a real bench) and arrived near their targetPos
+  // Verify every resident stayed walkable (or properly seated on a real bench).
+  // Residents now follow need/emotion-driven detours (a hungry resident may
+  // pause to eat mid-phase) rather than beelining to the afternoon anchor, so a
+  // resident is considered to have navigated smoothly if it has arrived at its
+  // target OR is actively en route (waypoints pending, not stuck, walkable).
   for (const id of RESIDENT_ORDER) {
     const rt = simA.npcRuntime[id];
     const seat = rt.posture === 'sitting' ? getSeatById(rt.reservedSeatId) : undefined;
     if (seat) {
       assert.equal(distance2D(rt.position, seat.seatPos) < 0.1, true, `${id} seated cleanly on ${seat.id}`);
       assert.equal(isPointWalkable(rt.targetPos.x, rt.targetPos.z, 0.35), true, `${id} bench approachPos walkable`);
-    } else {
-      assert.equal(
-        isPointWalkable(rt.position.x, rt.position.z, 0.35),
-        true,
-        `${id} remained walkable at (${rt.position.x.toFixed(2)}, ${rt.position.z.toFixed(2)})`,
-      );
-      assert.equal(
-        distance2D(rt.position, rt.targetPos) < 0.75,
-        true,
-        `${id} arrived near afternoon target (${rt.currentActivityId})`,
-      );
+      continue;
     }
+    assert.equal(
+      isPointWalkable(rt.position.x, rt.position.z, 0.35),
+      true,
+      `${id} remained walkable at (${rt.position.x.toFixed(2)}, ${rt.position.z.toFixed(2)})`,
+    );
+    const arrived = distance2D(rt.position, rt.targetPos) < 0.75;
+    const enRoute = rt.waypoints.length > 0 && rt.stuckSeconds < 3.0;
+    assert.equal(
+      arrived || enRoute,
+      true,
+      `${id} must arrive at or be en route to afternoon target (activity=${rt.currentActivityId}, dist=${distance2D(rt.position, rt.targetPos).toFixed(2)}, wp=${rt.waypoints.length}, stuck=${rt.stuckSeconds.toFixed(2)})`,
+    );
   }
 });
 
