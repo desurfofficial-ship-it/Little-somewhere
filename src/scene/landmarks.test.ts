@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as THREE from 'three';
 import { MaterialPalette, STORYBOOK_PALETTE } from './materials';
-import { buildStorybookFountain, STORYBOOK_FOUNTAIN_SPEC } from './builders/landmarks';
+import { buildStorybookBench, buildStorybookFountain, STORYBOOK_FOUNTAIN_SPEC } from './builders/landmarks';
 import { CIRCLE_OBSTACLES, isPointWalkable } from '../game/worldMap';
 
 /**
@@ -377,6 +377,95 @@ test('spouts, weirs and crown plume counts match the reference two-tier layout',
     limestoneFamily.has((basin.material as THREE.MeshStandardMaterial).color.getHexString()),
     'basin reads as warm cream/beige stone',
   );
+
+  palette.disposeAll();
+  dummyTex.dispose();
+});
+
+/**
+ * FURN-1 — bench v2 quality pass (curved cedar side frames, mint/sage
+ * upholstery, radiused backrest, brass bolts). The seat contract consumed by
+ * NeighborhoodCanvas / environmentRenderer / build02Exterior is locked; the
+ * visual construction around it was rebuilt in place.
+ */
+test('FURN-1 bench v2: locked seat contract, v2 part inventory, ≤14 draw calls, hidden winter cushions', () => {
+  const palette = new MaterialPalette();
+  const dummyTex = new THREE.Texture();
+  const bench = buildStorybookBench(palette, dummyTex);
+  bench.updateMatrixWorld(true);
+
+  // Regression-locked seat contract (identical values, untouched rotation code)
+  assert.equal(Number(bench.userData.seatTopY), 0.365, 'seatTopY contract');
+  assert.equal(Number(bench.userData.backrestFrontZ), -0.262, 'backrestFrontZ contract');
+
+  // Slat inventory: 4 crowned seat slats sharing ONE extruded geometry, still
+  // direct children of the bench group (build02 mirroring contract intact).
+  const slats = bench.children.filter(
+    (o): o is THREE.Mesh => o instanceof THREE.Mesh && o.geometry instanceof THREE.ExtrudeGeometry,
+  );
+  assert.equal(slats.length, 4, 'four crowned seat slats');
+  assert.ok(slats.every((m) => m.geometry === slats[0].geometry), 'slat geometry is shared');
+  const slatBox = new THREE.Box3().setFromObject(slats[0]);
+  assert.ok(
+    slatBox.max.y > 0.365 && slatBox.max.y < 0.39,
+    `softer crown peaks just over the seat line, got ${slatBox.max.y.toFixed(3)}`,
+  );
+
+  // v2 part inventory: merged cedar frames, merged dark cedar caps+posts+top
+  // rail, sage arm pads, mint fabric seat pad, merged backrest slats, brass bolts.
+  const named = (name: string): THREE.Mesh | undefined =>
+    bench.children.find((c): c is THREE.Mesh => c instanceof THREE.Mesh && c.name === name);
+  for (const part of [
+    'bench_cedar_frames',
+    'bench_cedar_dark_merged',
+    'bench_arm_pads',
+    'bench_seat_pad',
+    'bench_backrest_slats',
+    'bench_brass_bolts',
+  ]) {
+    assert.ok(named(part), `bench v2 part present: ${part}`);
+  }
+
+  // The seat pad is mint upholstery fabric and sits ON the slats in all seasons
+  // (never gated to winter): visible by default and colored upholsteryMint.
+  const pad = named('bench_seat_pad')!;
+  assert.equal(pad.visible, true, 'seat pad ships visible (all-season)');
+  const mintHex = new THREE.Color(STORYBOOK_PALETTE.upholsteryMint).getHexString();
+  assert.equal((pad.material as THREE.MeshStandardMaterial).color.getHexString(), mintHex);
+  const padBox = new THREE.Box3().setFromObject(pad);
+  assert.ok(
+    padBox.min.y >= slatBox.max.y - 0.01 && padBox.max.y < 0.46,
+    `pad rests on the crowned slats (y ${padBox.min.y.toFixed(3)}..${padBox.max.y.toFixed(3)})`,
+  );
+
+  // Radiused backrest slats keep their front face behind the locked contract plane.
+  const backBox = new THREE.Box3().setFromObject(named('bench_backrest_slats')!);
+  assert.ok(
+    backBox.min.z <= Number(bench.userData.backrestFrontZ),
+    `backrest front face ${backBox.min.z.toFixed(3)} stays behind backrestFrontZ`,
+  );
+
+  // Draw-call budget: every renderable mesh (own + ancestor visibility),
+  // contact-shadow quad included, must stay ≤ 14 per bench.
+  let drawn = 0;
+  bench.traverse((o) => {
+    const m = o as THREE.Mesh;
+    if (!m.isMesh) return;
+    for (let a: THREE.Object3D | null = m; a; a = a.parent) {
+      if (!a.visible) return;
+    }
+    drawn += 1;
+  });
+  assert.ok(drawn <= 14, `bench v2 draws ≤14 calls by default, got ${drawn}`);
+
+  // Winter cushion group: present, ≥2 knit cushions, hidden by default, rides
+  // OVER the pad (top above the pad's top line).
+  const cushions = bench.userData.winterCushions as THREE.Group;
+  assert.ok(cushions instanceof THREE.Group, 'winterCushions group present');
+  assert.ok(cushions.children.length >= 2, 'two knit winter cushions');
+  assert.equal(cushions.visible, false, 'winter cushions ship hidden');
+  const cushionBox = new THREE.Box3().setFromObject(cushions);
+  assert.ok(cushionBox.max.y > padBox.max.y - 0.01, 'winter cushions sit over the seat pad');
 
   palette.disposeAll();
   dummyTex.dispose();

@@ -1084,6 +1084,16 @@ export function buildStorybookNoticeboard(
  * Handcrafted Plaza & Pond Cedar Bench pivoted at y = 0, facing +Z.
  * Seat surface rests cleanly at y = 0.36 to match SEAT_SPOTS[].seatHeight, with
  * deepened seat slats and recessed backrest (-0.29..-0.32) so seated characters never clip the backrest.
+ *
+ * FURN-1 bench v2: the straight iron legs are replaced by curved warm-cedar
+ * hardwood side frames (one rounded silhouette per side: front leg, seat rail
+ * and the splayed rear stile), the crowned slats widen with a softer crown, a
+ * slim mint seat pad + sage arm pads sit on the wood in ALL seasons, the
+ * backrest gains radiused capsule slats under a rounded top rail, and brass
+ * bolts dress the joints. Static sub-meshes merge per material (tea-cart
+ * pattern): 11 draw calls per bench by default (contact shadow included,
+ * winter cushions hidden). The seat contract (seatTopY 0.365 /
+ * backrestFrontZ -0.262 / winterCushions group) is regression-locked.
  */
 export function buildStorybookBench(
   palette: MaterialPalette,
@@ -1092,9 +1102,6 @@ export function buildStorybookBench(
   const group = new THREE.Group();
   addStaticContactShadow(group, shadowTex, 1.6, 1.02, 0.44, 0.018);
 
-  const ironMat = palette.standard(STORYBOOK_PALETTE.wroughtIron, 0.38, 0.75, {
-    envMapIntensity: 0.5,
-  });
   const cedarMat = palette.standard(STORYBOOK_PALETTE.cedarWarm, 0.78, 0.03, {
     mapSet: 'timber-dark',
     groundGradient: 0.7,
@@ -1103,67 +1110,115 @@ export function buildStorybookBench(
     mapSet: 'timber-dark',
     groundGradient: 0.7,
   });
+  const cedarHoneyMat = palette.standard(STORYBOOK_PALETTE.cedarHoney, 0.74, 0.04, {
+    mapSet: 'timber-dark',
+    groundGradient: 0.7,
+  });
   const brassMat = palette.standard(STORYBOOK_PALETTE.agedBrass, 0.24, 0.85, {
     envMapIntensity: 1.0,
   });
+  const mintPadMat = palette.standard(STORYBOOK_PALETTE.upholsteryMint, 0.88, 0.0, { mapSet: 'fabric' });
+  const sagePadMat = palette.standard(STORYBOOK_PALETTE.upholsterySage, 0.88, 0.0, { mapSet: 'fabric' });
 
-  // Two scrolled iron leg frames (front legs at z=+0.22, recessed tilted backrest stiles at z=-0.27)
+  // 1. Curved cedar side frames — front leg, seat rail and the splayed rear
+  //    stile read as ONE rounded hardwood silhouette per side (shape space:
+  //    x = world z, y = world y; extrusion depth = frame thickness). Both
+  //    sides + the low center stretcher merge into a single honey-cedar mesh.
+  const frameShape = new THREE.Shape();
+  frameShape.moveTo(0.26, 0); // front foot, flat bottom
+  frameShape.quadraticCurveTo(0.262, 0.08, 0.235, 0.16); // rounded toe, curved leg face
+  frameShape.quadraticCurveTo(0.226, 0.27, 0.242, 0.318); // rail nose
+  frameShape.lineTo(-0.212, 0.318); // seat rail top runs back under the slats (slat undersides land at 0.315)
+  frameShape.quadraticCurveTo(-0.252, 0.5, -0.285, 0.735); // splayed rear stile front edge
+  frameShape.quadraticCurveTo(-0.291, 0.782, -0.314, 0.778); // rounded stile cap
+  frameShape.quadraticCurveTo(-0.338, 0.772, -0.33, 0.66); // cap back → stile back edge
+  frameShape.quadraticCurveTo(-0.3, 0.44, -0.258, 0.262); // splay down to the rear leg
+  frameShape.quadraticCurveTo(-0.25, 0.12, -0.202, 0.0); // curved rear leg, rounded heel
+  frameShape.lineTo(-0.154, 0.0); // rear foot bottom
+  frameShape.quadraticCurveTo(-0.138, 0.07, -0.132, 0.262); // rear leg front edge → rail underside
+  frameShape.lineTo(0.15, 0.262); // rail underside back to the front leg
+  frameShape.quadraticCurveTo(0.158, 0.13, 0.174, 0.056); // curved front-leg back edge
+  frameShape.lineTo(0.174, 0.0); // foot pad
+  frameShape.closePath();
+  const frameGeoBase = new THREE.ExtrudeGeometry(frameShape, {
+    depth: 0.05,
+    bevelEnabled: true,
+    bevelThickness: 0.008,
+    bevelSize: 0.008,
+    bevelSegments: 2,
+  });
+  frameGeoBase.translate(0, 0.008, -0.025); // lift the bevelled feet to y=0, center the thickness
+  frameGeoBase.rotateY(-Math.PI / 2); // extrusion axis → world X, shape.x → world z
+  const stretcherGeo = new THREE.CylinderGeometry(0.022, 0.022, 1.02, 8);
+  stretcherGeo.rotateZ(Math.PI / 2); // along X
+  stretcherGeo.translate(0, 0.168, -0.02);
+  const framePartGeos = [
+    frameGeoBase.clone().translate(-0.54, 0, 0), // extrude output is already non-indexed
+    frameGeoBase.clone().translate(0.54, 0, 0),
+    stretcherGeo.toNonIndexed(),
+  ];
+  const framesMerged = new THREE.Mesh(mergeGeometries(framePartGeos)!, cedarHoneyMat);
+  framesMerged.name = 'bench_cedar_frames';
+  framesMerged.castShadow = true;
+  group.add(framesMerged);
+  frameGeoBase.dispose();
+  stretcherGeo.dispose();
+  for (const g of framePartGeos) g.dispose();
+
+  // 2. Rounded armrest caps + their front posts + the rounded top rail — one
+  //    dark-cedar mesh (radiused capsule ends on the rail).
+  const darkPartGeos: THREE.BufferGeometry[] = [];
   for (const sx of [-0.54, 0.54]) {
-    const legFront = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.36, 0.06), ironMat);
-    legFront.position.set(sx, 0.18, 0.22);
-    legFront.castShadow = true;
-
-    const legRearBase = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.36, 0.06), ironMat);
-    legRearBase.position.set(sx, 0.18, -0.22);
-    legRearBase.castShadow = true;
-
-    const backrestStile = new THREE.Mesh(new THREE.BoxGeometry(0.055, 0.50, 0.055), ironMat);
-    backrestStile.position.set(sx, 0.57, -0.295);
-    backrestStile.rotation.x = -0.16;
-    backrestStile.castShadow = true;
-
-    const rail = new THREE.Mesh(new THREE.BoxGeometry(0.065, 0.055, 0.52), ironMat);
-    rail.position.set(sx, 0.31, 0.01);
-
-    const arm = new THREE.Mesh(new THREE.BoxGeometry(0.065, 0.045, 0.44), cedarDarkMat);
-    arm.position.set(sx, 0.51, 0.01);
-    arm.castShadow = true;
-
-    const armPost = new THREE.Mesh(new THREE.CylinderGeometry(0.022, 0.026, 0.19, 6), ironMat);
-    armPost.position.set(sx, 0.415, 0.19);
-
-    group.add(legFront, legRearBase, backrestStile, rail, arm, armPost);
+    const cap = new THREE.CapsuleGeometry(0.034, 0.36, 4, 10);
+    cap.rotateX(Math.PI / 2); // roll along Z
+    cap.translate(sx, 0.508, 0.02);
+    darkPartGeos.push(cap);
+    const post = new THREE.CylinderGeometry(0.026, 0.03, 0.17, 8);
+    post.translate(sx, 0.402, 0.19);
+    darkPartGeos.push(post);
   }
+  const topRail = new THREE.CapsuleGeometry(0.032, 1.096, 4, 10);
+  topRail.rotateZ(Math.PI / 2); // along X
+  topRail.translate(0, 0.795, -0.315);
+  darkPartGeos.push(topRail);
+  const darkMerged = new THREE.Mesh(mergeGeometries(darkPartGeos)!, cedarDarkMat);
+  darkMerged.name = 'bench_cedar_dark_merged';
+  darkMerged.castShadow = true;
+  group.add(darkMerged);
+  for (const g of darkPartGeos) g.dispose();
 
-  // Decorative center wrought-iron vertical backrest spindle + stretcher
-  const stretcher = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 1.08, 6), ironMat);
-  stretcher.rotation.z = Math.PI / 2;
-  stretcher.position.set(0, 0.16, -0.04);
-  const centerSpindle = new THREE.Mesh(new THREE.BoxGeometry(0.045, 0.44, 0.04), ironMat);
-  centerSpindle.position.set(0, 0.56, -0.295);
-  centerSpindle.rotation.x = -0.16;
-  group.add(stretcher, centerSpindle);
+  // 3. Sage fabric arm pads riding the caps (merged pair, all-season).
+  const armPadGeos: THREE.BufferGeometry[] = [];
+  for (const sx of [-0.54, 0.54]) {
+    const pad = new THREE.CapsuleGeometry(0.03, 0.3, 4, 10);
+    pad.rotateX(Math.PI / 2);
+    pad.scale(1, 0.5, 1); // oval cross-section
+    pad.translate(sx, 0.552, 0.02);
+    armPadGeos.push(pad);
+  }
+  const armPads = new THREE.Mesh(mergeGeometries(armPadGeos)!, sagePadMat);
+  armPads.name = 'bench_arm_pads';
+  group.add(armPads);
+  for (const g of armPadGeos) g.dispose();
 
-  // Four contoured cedar seat slats spanning z = -0.215..+0.265, top cleanly at y = 0.365.
-  // BUILD 02 (Doc 05 §3.2 P2): each slat gains a crowned center bulge (lathe-
-  // profile extrusion + micro-bevel) — the seat reads as planed timber parts,
-  // not planes. Same mesh count; the seat contract (top y 0.365) is preserved
-  // by the profile's 0.052 peak landing exactly on the old box top.
+  // 4. Four crowned cedar seat slats spanning z = -0.2265..+0.2765 — wider
+  //    slats (0.115) with a softer crown. BUILD 02 lineage kept: one shared
+  //    ExtrudeGeometry, profile edges land the seat line at y = 0.365.
   const slatProfile = new THREE.Shape();
-  slatProfile.moveTo(-0.0475, -0.0225);
-  slatProfile.lineTo(-0.0475, 0.0225);
-  slatProfile.quadraticCurveTo(0, 0.0375, 0.0475, 0.0225); // crown peak ≈ +0.030
-  slatProfile.lineTo(0.0475, -0.0225);
+  slatProfile.moveTo(-0.0525, -0.0225);
+  slatProfile.lineTo(-0.0525, 0.0225);
+  slatProfile.quadraticCurveTo(0, 0.03, 0.0525, 0.0225); // softer crown peak ≈ +0.004 over the edges
+  slatProfile.lineTo(0.0525, -0.0225);
   slatProfile.closePath();
   const slatGeo = new THREE.ExtrudeGeometry(slatProfile, {
     depth: 1.18,
     bevelEnabled: true,
     bevelThickness: 0.006,
-    bevelSize: 0.006,
+    bevelSize: 0.005,
     bevelSegments: 1,
   });
   slatGeo.rotateY(Math.PI / 2); // extrusion axis becomes X (the slat length)
-  slatGeo.translate(0, 0.3425, 0); // profile bottom lands at 0.32; edge top at 0.365
+  slatGeo.translate(-0.593, 0.3425, 0); // center the length on the frames; profile edge top line at y 0.365
   for (const sz of [-0.17, -0.04, 0.09, 0.22]) {
     const slat = new THREE.Mesh(slatGeo, cedarMat);
     slat.position.set(0, 0, sz);
@@ -1172,9 +1227,62 @@ export function buildStorybookBench(
     group.add(slat);
   }
 
-  // BUILD 02 (Doc 05 §3.2 P2): wool winter seat cushions — seasonal group
-  // (hidden by default; the canvas shows it in winter, matching the interior
-  // knit language). Named + collected via `group.userData.winterCushions`.
+  // 5. Slim mint fabric seat pad resting on the crowned slats in ALL seasons
+  //    (squashed capsule, fabric weave). The winter wool cushions still ride
+  //    over it via group.userData.winterCushions below.
+  const seatPadGeo = new THREE.CapsuleGeometry(0.16, 0.62, 4, 12);
+  seatPadGeo.rotateZ(Math.PI / 2); // along X
+  seatPadGeo.scale(1, 0.16, 1.15); // slim pad: y ≈ 0.051, z ≈ 0.368
+  seatPadGeo.translate(0, 0.399, 0.025);
+  const seatPad = new THREE.Mesh(seatPadGeo, mintPadMat);
+  seatPad.name = 'bench_seat_pad';
+  seatPad.castShadow = true;
+  group.add(seatPad);
+
+  // 6. Two recessed angled backrest slats with radiused (capsule) ends —
+  //    front face cleanly behind z = -0.262 so seated characters never pass
+  //    through (same recline and rail lines as the locked contract).
+  const backSpecs: Array<{ y: number; z: number }> = [
+    { y: 0.54, z: -0.288 },
+    { y: 0.71, z: -0.316 },
+  ];
+  const backGeos: THREE.BufferGeometry[] = [];
+  for (const bs of backSpecs) {
+    const g = new THREE.CapsuleGeometry(0.022, 1.116, 4, 10);
+    g.rotateZ(Math.PI / 2); // along X
+    g.rotateX(-0.16); // same recline as the locked backrest line
+    g.translate(0, bs.y, bs.z);
+    backGeos.push(g);
+  }
+  const backSlats = new THREE.Mesh(mergeGeometries(backGeos)!, cedarMat);
+  backSlats.name = 'bench_backrest_slats';
+  backSlats.castShadow = true;
+  group.add(backSlats);
+  for (const g of backGeos) g.dispose();
+
+  // 7. Brass bolt details, sparingly — slat joints + rail seats (merged pair).
+  const boltGeos: THREE.BufferGeometry[] = [];
+  for (const bs of backSpecs) {
+    for (const bx of [-0.54, 0.54]) {
+      const bolt = new THREE.SphereGeometry(0.015, 6, 6);
+      bolt.translate(bx, bs.y, bs.z + 0.026);
+      boltGeos.push(bolt);
+    }
+  }
+  for (const bx of [-0.54, 0.54]) {
+    const bolt = new THREE.SphereGeometry(0.015, 6, 6);
+    bolt.translate(bx, 0.795, -0.29);
+    boltGeos.push(bolt);
+  }
+  const bolts = new THREE.Mesh(mergeGeometries(boltGeos)!, brassMat);
+  bolts.name = 'bench_brass_bolts';
+  group.add(bolts);
+  for (const g of boltGeos) g.dispose();
+
+  // 8. BUILD 02 (Doc 05 §3.2 P2): wool winter seat cushions — seasonal group
+  //    (hidden by default; the canvas shows it in winter, matching the interior
+  //    knit language). Named + collected via `group.userData.winterCushions`;
+  //    in winter the knit cushions appear OVER the mint pad.
   const cushionGroup = new THREE.Group();
   cushionGroup.name = 'winter_seat_cushion';
   const woolMat = palette.standard('#B3554A', 0.86, 0.0, { mapSet: 'fabric' });
@@ -1192,25 +1300,6 @@ export function buildStorybookBench(
   cushionGroup.visible = false;
   group.userData.winterCushions = cushionGroup;
   group.add(cushionGroup);
-
-  // Two recessed angled backrest slats (front face cleanly behind z = -0.262 so seated characters never pass through)
-  const backSpecs: Array<{ y: number; z: number }> = [
-    { y: 0.54, z: -0.288 },
-    { y: 0.71, z: -0.316 },
-  ];
-  for (const bs of backSpecs) {
-    const backSlat = new THREE.Mesh(new THREE.BoxGeometry(1.16, 0.105, 0.044), cedarMat);
-    backSlat.position.set(0, bs.y, bs.z);
-    backSlat.rotation.x = -0.16;
-    backSlat.castShadow = true;
-    group.add(backSlat);
-
-    for (const bx of [-0.54, 0.54]) {
-      const bolt = new THREE.Mesh(new THREE.SphereGeometry(0.018, 6, 6), brassMat);
-      bolt.position.set(bx, bs.y, bs.z + 0.024);
-      group.add(bolt);
-    }
-  }
 
   group.userData.backrestFrontZ = -0.262;
   group.userData.seatTopY = 0.365;

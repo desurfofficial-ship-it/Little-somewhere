@@ -196,59 +196,83 @@ export function buildCopperwheelInterior(
   // ---------------------------------------------------------------------
   // 2. Room shell: tall north/west walls, cutaway south/east wainscot
   // ---------------------------------------------------------------------
+  // Overhaul Phase 3 (E-6): shell tags for the yaw-aware cutaway (mirrors the
+  // cottage builder). The full north/west assembly (+ window, sill pot and the
+  // wall-mounted pegboard/loupe behind the workbench) hides when the camera
+  // rotates to that side; the low east/south wainscot curbs never hide.
+  // Furniture (workbench, bed, shelf, stove, armchair) and curb-side dressing
+  // stay untagged so they always render.
+  const tagShell = (obj: THREE.Object3D, side: 'N' | 'E' | 'S' | 'W', full: boolean) => {
+    obj.userData.shellSide = side;
+    obj.userData.shellFull = full;
+  };
   const wallHeight = 2.72;
   // North wall (z = -2.5) behind the workbench and bed alcove
   const northWall = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(6.1, wallHeight, 0.16)), plasterMat);
   northWall.position.set(0, 0.8 + wallHeight / 2, -2.52);
   group.add(northWall);
+  tagShell(northWall, 'N', true);
   const northWainscot = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(6.1, 0.72, 0.18)), cedarWarmMat);
   northWainscot.position.set(0, 0.42, -2.5);
   northWainscot.castShadow = true;
   group.add(northWainscot);
+  tagShell(northWainscot, 'N', true);
   const northCrown = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(6.1, 0.1, 0.24)), trimMat);
   northCrown.position.set(0, 2.6, -2.44);
   group.add(northCrown);
+  tagShell(northCrown, 'N', true);
 
   // West wall (x = -3.0) with a tall window above the mended shelf
   const westWall = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(0.16, wallHeight, 5.1)), plasterMat);
   westWall.position.set(-3.02, 0.8 + wallHeight / 2, 0);
   group.add(westWall);
+  tagShell(westWall, 'W', true);
   const westWainscot = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(0.18, 0.72, 5.1)), cedarWarmMat);
   westWainscot.position.set(-3.0, 0.42, 0);
   westWainscot.castShadow = true;
   group.add(westWainscot);
+  tagShell(westWainscot, 'W', true);
   const westWindow = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(0.08, 1.15, 1.3)), windowGlassMat);
   westWindow.position.set(-2.93, 1.85, 0.1);
   group.add(westWindow);
+  tagShell(westWindow, 'W', true);
   const westWindowTrim = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(0.14, 1.31, 1.46)), creamMat);
   westWindowTrim.position.set(-2.94, 1.85, 0.1);
   group.add(westWindowTrim);
+  tagShell(westWindowTrim, 'W', true);
   const westWindowMuntinV = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(0.1, 1.15, 0.05)), creamMat);
   westWindowMuntinV.position.set(-2.92, 1.85, 0.1);
   group.add(westWindowMuntinV);
+  tagShell(westWindowMuntinV, 'W', true);
   const westWindowMuntinH = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(0.1, 0.05, 1.3)), creamMat);
   westWindowMuntinH.position.set(-2.92, 1.85, 0.1);
   group.add(westWindowMuntinH);
+  tagShell(westWindowMuntinH, 'W', true);
   const westSill = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(0.26, 0.08, 1.52)), limestoneMat);
   westSill.position.set(-2.96, 1.22, 0.1);
   group.add(westSill);
+  tagShell(westSill, 'W', true);
   // Little chamomile pot on the sill (Arthur's favorite bloom)
   const sillPot = new THREE.Mesh(trackGeo(new THREE.CylinderGeometry(0.09, 0.07, 0.12, 8)), ceramicMat);
   sillPot.position.set(-2.93, 1.32, -0.25);
   group.add(sillPot);
+  tagShell(sillPot, 'W', true); // sits on the tagged west sill — hides with it
   const sillBloom = new THREE.Mesh(trackGeo(new THREE.SphereGeometry(0.06, 7, 6)), creamMat);
   sillBloom.position.set(-2.93, 1.43, -0.25);
   group.add(sillBloom);
+  tagShell(sillBloom, 'W', true);
 
   // East wall (x = +3.0) — cutaway dwarf wainscot + header; stove flue rises into it
   const eastWainscotNorth = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(0.18, 0.72, 1.65)), cedarWarmMat);
   eastWainscotNorth.position.set(3.0, 0.42, -1.68);
   eastWainscotNorth.castShadow = true;
   group.add(eastWainscotNorth);
+  tagShell(eastWainscotNorth, 'E', false);
   const eastWainscotSouth = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(0.18, 0.72, 1.6)), cedarWarmMat);
   eastWainscotSouth.position.set(3.0, 0.42, 1.7);
   eastWainscotSouth.castShadow = true;
   group.add(eastWainscotSouth);
+  tagShell(eastWainscotSouth, 'E', false);
   const eastHeader = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(0.16, 0.8, 5.1)), plasterMat);
   eastHeader.position.set(3.02, 2.92, 0);
   group.add(eastHeader);
@@ -261,10 +285,12 @@ export function buildCopperwheelInterior(
   southWainscotWest.position.set(-1.75, 0.42, 2.5);
   southWainscotWest.castShadow = true;
   group.add(southWainscotWest);
+  tagShell(southWainscotWest, 'S', false);
   const southWainscotDoorSide = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(1.5, 0.72, 0.18)), cedarWarmMat);
   southWainscotDoorSide.position.set(2.25, 0.42, 2.5);
   southWainscotDoorSide.castShadow = true;
   group.add(southWainscotDoorSide);
+  tagShell(southWainscotDoorSide, 'S', false);
   const southHeader = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(6.1, 0.8, 0.2)), plasterMat);
   southHeader.position.set(0, 2.86, 2.52);
   group.add(southHeader);
@@ -364,21 +390,25 @@ export function buildCopperwheelInterior(
   pegboard.position.set(0, 1.86, -0.42);
   pegboard.castShadow = true;
   benchGroup.add(pegboard);
+  tagShell(pegboard, 'N', true); // wall-mounted on the tagged north wall
   const toolGeo = trackGeo(new THREE.BoxGeometry(0.04, 0.3, 0.03));
   for (let ti = 0; ti < 6; ti++) {
     const tool = new THREE.Mesh(toolGeo, ti % 2 === 0 ? ironMat : brassMat);
     tool.position.set(-0.75 + ti * 0.3, 1.82 + (ti % 3) * 0.03, -0.38);
     tool.rotation.z = (ti % 3) * 0.14 - 0.14;
     benchGroup.add(tool);
+    tagShell(tool, 'N', true); // hang on the tagged pegboard wall
   }
   // The magnifier loupe hanging on its hook (west end)
   const loupeRim = new THREE.Mesh(trackGeo(new THREE.TorusGeometry(0.09, 0.025, 6, 14)), brassMat);
   loupeRim.position.set(-1.32, 1.62, -0.36);
   benchGroup.add(loupeRim);
+  tagShell(loupeRim, 'N', true);
   const loupeGlass = new THREE.Mesh(trackGeo(new THREE.CylinderGeometry(0.075, 0.075, 0.02, 12)), windowGlassMat);
   loupeGlass.rotation.x = Math.PI / 2;
   loupeGlass.position.set(-1.32, 1.62, -0.36);
   benchGroup.add(loupeGlass);
+  tagShell(loupeGlass, 'N', true);
   benchGroup.position.z = -1.97;
 
   // Hanging brass bench lamp over the workbench (pendant from the ceiling beam)
@@ -726,6 +756,45 @@ export function buildCopperwheelInterior(
   chairGroup.position.set(-1.38, 0, 1.55);
   chairGroup.rotation.y = 0.5; // angled toward the room / kettle corner
   addStaticContactShadow(chairGroup, shadowTex, 1.5, 1.4, 0.5, 0.018);
+
+  // FURN-1 soft-seating pass: plush mint upholstery layered onto the existing
+  // rig. Parented INSIDE chairGroup so the seat anchor, CW_ARMCHAIR facing and
+  // the seat-proxy contract stay exactly where they are.
+  const mintFabric = palette.standard(STORYBOOK_PALETTE.upholsteryMint, 0.86, 0.0, { mapSet: 'fabric' });
+  const sageFabric = palette.standard(STORYBOOK_PALETTE.upholsterySage, 0.88, 0.0, { mapSet: 'fabric' });
+  const plushSeatGeo = trackGeo(new THREE.CapsuleGeometry(0.16, 0.5, 4, 10));
+  plushSeatGeo.rotateZ(Math.PI / 2); // length along X
+  plushSeatGeo.scale(1, 0.45, 2.3); // squashed plush topper over the linen cushion
+  const plushSeat = new THREE.Mesh(plushSeatGeo, mintFabric);
+  plushSeat.position.set(0, 0.585, 0);
+  chairGroup.add(plushSeat);
+  const plushBackGeo = trackGeo(new THREE.CapsuleGeometry(0.17, 0.44, 4, 10));
+  plushBackGeo.rotateZ(Math.PI / 2);
+  plushBackGeo.scale(1, 1.3, 0.42); // upright rounded back cushion
+  const plushBack = new THREE.Mesh(plushBackGeo, mintFabric);
+  plushBack.position.set(0, 0.86, -0.3);
+  plushBack.rotation.x = 0.14; // matches the existing backRest tilt
+  chairGroup.add(plushBack);
+  // Rounded shell armrests: swooping half-torus rolls along each quilted arm
+  const armRollGeo = trackGeo(new THREE.TorusGeometry(0.3, 0.058, 7, 14, 2.6));
+  armRollGeo.rotateY(Math.PI / 2); // ring plane → YZ, so the roll runs front-to-back
+  for (const ax of [-0.42, 0.42]) {
+    const armRoll = new THREE.Mesh(armRollGeo, sageFabric);
+    armRoll.position.set(ax, 0.4, 0.02);
+    chairGroup.add(armRoll);
+  }
+  // Small turned wood feet sleeves around the existing stubby legs
+  const footGeo = trackGeo(new THREE.CylinderGeometry(0.048, 0.056, 0.05, 8));
+  for (const [fx, fz] of [
+    [-0.34, -0.28],
+    [0.34, -0.28],
+    [-0.34, 0.28],
+    [0.34, 0.28],
+  ] as Array<[number, number]>) {
+    const foot = new THREE.Mesh(footGeo, walnutMat);
+    foot.position.set(fx, 0.025, fz);
+    chairGroup.add(foot);
+  }
 
   const seatBase = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(0.86, 0.32, 0.8)), quiltMat);
   seatBase.position.set(0, 0.28, 0);
