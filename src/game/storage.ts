@@ -42,8 +42,23 @@ export function createFreshWorldState(): WorldState {
   return createDefaultWorldState();
 }
 
-export function serializeWorldState(state: WorldState): string {
-  return JSON.stringify(sanitizeWorldState(state));
+export function serializeWorldState(state: WorldState, warnings?: string[]): string {
+  // AR-5 (systemic-reliability doc 09): the save path runs the same sanitizer
+  // as the load path, but its repair decisions were constructed and discarded.
+  // An explicit sink collects them; without one they surface on console.warn
+  // with the same classified prefix as the load path (doc 03 §7).
+  const saveWarnings: string[] = [];
+  const json = JSON.stringify(sanitizeWorldState(state, saveWarnings));
+  if (saveWarnings.length > 0) {
+    if (warnings) {
+      warnings.push(...saveWarnings);
+    } else {
+      for (const w of saveWarnings) {
+        console.warn(`[little-somewhere save] ${w}`);
+      }
+    }
+  }
+  return json;
 }
 
 export function deserializeWorldState(rawJson: string): MigrationResult {
@@ -54,7 +69,7 @@ export function deserializeWorldState(rawJson: string): MigrationResult {
     return {
       state: createDefaultWorldState(),
       migratedFromVersion: null,
-      warnings: ['corrupt JSON payload; created fresh WorldState v7'],
+      warnings: [`corrupt JSON payload; created fresh WorldState v${CURRENT_SCHEMA_VERSION}`],
     };
   }
 }
@@ -67,10 +82,29 @@ export function loadWorldState(): WorldState {
     const raw = window.localStorage.getItem(STORAGE_KEY);
     if (!raw) return createDefaultWorldState();
     const res = deserializeWorldState(raw);
-    if (res.migratedFromVersion !== null && res.migratedFromVersion < CURRENT_SCHEMA_VERSION) {
+    // Surface every load-path decision on the console: repairs, normalizations,
+    // drops and rejections are observable without any gameplay UI dependency
+    // (systemic-reliability doc 03 §7).
+    if (res.warnings.length > 0) {
+      for (const w of res.warnings) {
+        console.warn(`[little-somewhere save] ${w}`);
+      }
+    }
+    const legacy =
+      res.migratedFromVersion !== null && res.migratedFromVersion < CURRENT_SCHEMA_VERSION;
+    const future =
+      res.migratedFromVersion !== null && res.migratedFromVersion > CURRENT_SCHEMA_VERSION;
+    if (legacy || future || res.warnings.length > 0) {
       try {
+        // Tombstone the raw payload BEFORE any rewrite so a repair that later
+        // proves wrong is recoverable (systemic-reliability doc 03 §2).
         window.localStorage.setItem(STORAGE_BACKUP_KEY, raw);
-        window.localStorage.setItem(STORAGE_KEY, serializeWorldState(res.state));
+        if (!future) {
+          // Version upgrades and same-version self-heals re-persist the
+          // sanitized state; future-version payloads are never rewritten
+          // (the runtime view is degraded, the stored payload stays intact).
+          window.localStorage.setItem(STORAGE_KEY, serializeWorldState(res.state));
+        }
       } catch {
         // Ignore quota errors on backup/upgrade write
       }
