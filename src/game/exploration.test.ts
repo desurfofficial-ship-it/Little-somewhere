@@ -149,9 +149,9 @@ test('new wild seats keep a walkable approach anchor outside the bench exclusion
 
 test('new wild interactable stand spots are walkable', () => {
   const wildProps = PROP_INTERACTABLES.filter((p) =>
-    ['old_stone_well', 'rise_vista', 'marigold_bank', 'wild_bee_log'].includes(p.id),
+    ['old_stone_well', 'rise_vista', 'marigold_bank', 'wild_bee_log', 'sorrel_garden_bed'].includes(p.id),
   );
-  assert.equal(wildProps.length, 4);
+  assert.equal(wildProps.length, 5);
   for (const p of wildProps) {
     assert.equal(
       isPointWalkable(p.x, p.z, 0.42),

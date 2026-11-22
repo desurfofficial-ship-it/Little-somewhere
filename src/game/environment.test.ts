@@ -100,3 +100,48 @@ test('five-layer composition increments revision when flags or NPC touches evolv
   assert.notEqual(tartOrchard.revision, c2.revision);
   assert.notEqual(picnicOrchard.revision, tartOrchard.revision);
 });
+
+// ---------------------------------------------------------------------------
+// WP-3 (world-environment initiative, audit-1d): counter→visual world echoes.
+// ---------------------------------------------------------------------------
+
+test('WP-3: well pebble stack and posy bank echoes derive purely and bump the revision', () => {
+  const fresh = createFreshWorldState();
+
+  // Baseline: empty echoes.
+  const base = composeEnvironmentState(fresh);
+  assert.equal(base.worldEchoes.wellPebbleStack, 0);
+  assert.equal(base.worldEchoes.posyBankPickedToday, false);
+
+  // Pebbles: count grows, caps at 5, and each change bumps the static revision
+  // so the render block reacts on the commit frame.
+  const p1 = composeEnvironmentState({ ...fresh, sideFlags: { wellPebblesCount: 3 } });
+  assert.equal(p1.worldEchoes.wellPebbleStack, 3);
+  assert.notEqual(p1.revision, base.revision);
+  const p2 = composeEnvironmentState({ ...fresh, sideFlags: { wellPebblesCount: 9 } });
+  assert.equal(p2.worldEchoes.wellPebbleStack, 5, 'pebble stack caps at 5');
+  assert.notEqual(p2.revision, p1.revision);
+
+  // Posy: picked today -> stub shows; yesterday (or any other day) -> fresh bank.
+  const pickedToday = composeEnvironmentState({
+    ...fresh,
+    sideFlags: { posyPickedDay: fresh.day, meadowPosiesPicked: 1 },
+  });
+  assert.equal(pickedToday.worldEchoes.posyBankPickedToday, true);
+  assert.notEqual(pickedToday.revision, base.revision);
+  const pickedYesterday = composeEnvironmentState({
+    ...fresh,
+    sideFlags: { posyPickedDay: fresh.day - 1, meadowPosiesPicked: 1 },
+  });
+  assert.equal(pickedYesterday.worldEchoes.posyBankPickedToday, false);
+  assert.equal(pickedYesterday.revision, base.revision, 'stale pick days must not move the revision');
+
+  // Day rollover regrows the bank automatically (the stub is day-keyed): same
+  // sideFlags composed on the next morning resolve fresh.
+  const regrown = composeEnvironmentState({
+    ...fresh,
+    day: fresh.day + 1,
+    sideFlags: { posyPickedDay: fresh.day, meadowPosiesPicked: 1 },
+  });
+  assert.equal(regrown.worldEchoes.posyBankPickedToday, false);
+});

@@ -351,6 +351,8 @@ export function subjectKeyForPropId(propId: PropInteractableId): string {
       return SUBJECT_IMAGE_KEYS.wildflower;
     case 'wild_bee_log':
       return SUBJECT_IMAGE_KEYS.bee_log;
+    case 'sorrel_garden_bed':
+      return SUBJECT_IMAGE_KEYS.wildflower;
   }
 }
 

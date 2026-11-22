@@ -61,7 +61,12 @@ export function computeEnvironmentState(
     fountainFlowing: flags.repairedFountain,
     ivyCleared: flags.clearedGazeboIvy,
     bellGleaming: flags.bellRestored,
-    festoonLanterns: flags.lanternsLit || flags.bellRestored,
+    // WP-2 (audit-1d): 'festival_ring' — the plaza's lantern-festival mediation — now
+    // crowns the square with the festoon string itself, giving the mediation style a
+    // world-visible signature instead of rendering identically to 'gentle_truth'.
+    // 'gentle_truth' stays intentionally quiet (a private truth needs no set dressing).
+    festoonLanterns:
+      flags.lanternsLit || flags.bellRestored || flags.mediationStyle === 'festival_ring',
     bakeryTablesOpen: flags.claraArthurReconciled || flags.mediationStyle === 'shared_baking',
     reconciledTogether: flags.claraArthurReconciled,
     noticeboardUpdated:

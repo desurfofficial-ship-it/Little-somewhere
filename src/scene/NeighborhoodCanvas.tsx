@@ -98,6 +98,7 @@ import type {
   CopperwheelInteractableId,
 } from '../game/types';
 import { computeWaypointPath } from '../game/navigation';
+import { EXPLORATION_DISCOVERIES } from '../game/exploration';
 import { getResidentAvailableQuestCue } from '../game/narrative';
 import { composeEnvironmentState } from '../game/environment';
 import { cozyAudio } from '../game/audio';
@@ -220,6 +221,11 @@ export interface NeighborhoodCanvasProps {
     weather: WeatherType;
     season: SeasonType;
   }) => void;
+  /**
+   * WP-3 (audit-1e F-UX-1): fires once per newly-granted Wild Hollows discovery so
+   * the HUD can surface the world's best beat instead of granting it silently.
+   */
+  onDiscoveryFound?: (discoveryName: string) => void;
   onSelectTarget: (target: InteractiveTarget) => void;
 }
 
@@ -365,6 +371,7 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
   activePropId = null,
   playerActionPulse = null,
   onHudSync,
+  onDiscoveryFound,
   onSelectTarget,
 }) => {
   const mountRef = useRef<HTMLDivElement | null>(null);
@@ -374,6 +381,7 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
   const activePropIdRef = useRef<PropInteractableId | null>(activePropId);
   const playerActionPulseRef = useRef<PlayerActionPulse | null>(playerActionPulse);
   const onHudSyncRef = useRef(onHudSync);
+  const onDiscoveryFoundRef = useRef(onDiscoveryFound);
   const onSelectTargetRef = useRef(onSelectTarget);
   const bellSwingVelRef = useRef(0);
   const lastBellCountRef = useRef(bellRingCounter);
@@ -386,6 +394,7 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
   activePropIdRef.current = activePropId;
   playerActionPulseRef.current = playerActionPulse;
   onHudSyncRef.current = onHudSync;
+  onDiscoveryFoundRef.current = onDiscoveryFound;
   onSelectTargetRef.current = onSelectTarget;
 
   useEffect(() => {
@@ -1383,7 +1392,18 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
     let lastSyncedLocation: PlayerLocation | null = null;
     let prevWorldLocation: PlayerLocation = worldRef.current.playerLocation ?? 'exterior';
     let hearthAmbienceActive = false; // Pass 7: crackle room-tone evaluated on transitions only
-    let rainAmbienceActive = false; // Pass 9: rain patter room-tone, same transition-only gate
+    let rainAmbienceActive = false; // Pass 9 + WP-2: rain patter room-tone, transition-only gate
+    let rainAmbienceOutdoor = false; // WP-2: which voicing the active rain bed carries
+    let breezeAmbienceActive = false; // WP-2: outdoor breeze / winter-wind room-tone
+    let breezeAmbienceWinter = false; // WP-2: which wind voicing the active breeze bed carries
+
+    // WP-3 (F-UX-1): mount-time discovery snapshot — a veteran save's existing
+    // discoveries stay silent; only fresh sim-tick grants voice the toast+chime.
+    const seenDiscoveries = new Set<string>(
+      EXPLORATION_DISCOVERIES.filter((d) => worldRef.current.sideFlags?.[d.sideFlag]).map(
+        (d) => d.id,
+      ),
+    );
 
     // Overhaul Phase 1 — camera & input state:
     //   simAcc: fixed-timestep accumulator for the world simulation (D-6/G-5)
@@ -2122,16 +2142,41 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
         cozyAudio.playHearthAmbience(hearthAmbienceDesired);
       }
 
-      // Pass 9: soft rain patter room-tone while indoors on rainy days — also
-      // evaluated on transitions only, layered under the hearth crackle.
+      // Pass 9 + WP-2 (audit-1d): soft rain patter room-tone now follows the weather
+      // BOTH indoors (cozy roof patter, layered under the hearth crackle) and outdoors
+      // (lighter open-air shower) — previously the world outside the windows was silent.
       const rainAmbienceDesired =
-        isIndoors &&
         composed.weather.effective === 'light_rain' &&
         screenStateRef.current === 'playing' &&
         !cozyAudio.isMuted();
-      if (rainAmbienceDesired !== rainAmbienceActive) {
+      const rainAmbienceOutdoorDesired = !isIndoors;
+      if (
+        rainAmbienceDesired !== rainAmbienceActive ||
+        (rainAmbienceDesired && rainAmbienceOutdoorDesired !== rainAmbienceOutdoor)
+      ) {
         rainAmbienceActive = rainAmbienceDesired;
-        cozyAudio.playRainAmbience(rainAmbienceDesired);
+        rainAmbienceOutdoor = rainAmbienceOutdoorDesired;
+        cozyAudio.playRainAmbience(rainAmbienceDesired, rainAmbienceOutdoor);
+      }
+
+      // WP-2 (audit-1d): outdoor breeze & winter-wind room-tone — the open air finally
+      // has a voice. Breezy days breathe with a leaf-shimmer bed; calm winter days get
+      // a colder, softer wind. Excluded indoors (rooms keep their own acoustic world).
+      const breezeAmbienceDesired =
+        !isIndoors &&
+        (composed.weather.effective === 'breezy' ||
+          (composed.season.season === 'winter' && composed.weather.effective !== 'light_rain')) &&
+        screenStateRef.current === 'playing' &&
+        !cozyAudio.isMuted();
+      const breezeAmbienceWinterDesired =
+        composed.season.season === 'winter' && composed.weather.effective !== 'breezy';
+      if (
+        breezeAmbienceDesired !== breezeAmbienceActive ||
+        (breezeAmbienceDesired && breezeAmbienceWinterDesired !== breezeAmbienceWinter)
+      ) {
+        breezeAmbienceActive = breezeAmbienceDesired;
+        breezeAmbienceWinter = breezeAmbienceWinterDesired;
+        cozyAudio.playBreezeAmbience(breezeAmbienceActive, breezeAmbienceWinter);
       }
 
       // Update chime sparkle particles
@@ -2563,6 +2608,21 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
         simAcc -= SIM_STEP;
         simSteps += 1;
         stepSimulationInPlace(world, SIM_STEP, simOpts);
+      }
+
+      // WP-3 (audit-1e F-UX-1): never grant a discovery silently. A 4-entry flag
+      // sweep against the mount-time snapshot catches sim-tick grants the action
+      // toast pipeline cannot see, then voices them: memory chime + chime sparkle
+      // burst + HUD toast via onDiscoveryFound.
+      for (let dIdx = 0; dIdx < EXPLORATION_DISCOVERIES.length; dIdx++) {
+        const discovery = EXPLORATION_DISCOVERIES[dIdx];
+        if (seenDiscoveries.has(discovery.id)) continue;
+        if (world.sideFlags?.[discovery.sideFlag]) {
+          seenDiscoveries.add(discovery.id);
+          cozyAudio.playMemoryChime();
+          spawnChimeBurst(world.playerPos.x, 1.4, world.playerPos.z);
+          onDiscoveryFoundRef.current?.(discovery.name);
+        }
       }
 
       // Update triggered player gesture pulses (wave / interact / talk)

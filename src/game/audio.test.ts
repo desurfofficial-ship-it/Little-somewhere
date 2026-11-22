@@ -22,3 +22,29 @@ test('Pass 9: rain and hearth room-tones start/stop idempotently without an Audi
   });
   assert.doesNotThrow(() => cozyAudio.setMuted(false));
 });
+
+// WP-2 (world-environment initiative, audit-1d): outdoor weather ambience.
+test('WP-2: outdoor rain voicing flips idempotently and the breeze/winter wind bed is safe', () => {
+  // Headless-safe: no window -> ensureContext() returns null; every transition
+  // (start, mode flip, stop, mute) must stay throw-free and never stack state.
+  assert.doesNotThrow(() => cozyAudio.playRainAmbience(true, false));
+  assert.doesNotThrow(() => cozyAudio.playRainAmbience(true, true)); // mode flip
+  assert.doesNotThrow(() => cozyAudio.playRainAmbience(true, true)); // idempotent
+  assert.doesNotThrow(() => cozyAudio.playRainAmbience(false));
+  assert.doesNotThrow(() => cozyAudio.playRainAmbience(false));
+
+  assert.doesNotThrow(() => cozyAudio.playBreezeAmbience(true));
+  assert.doesNotThrow(() => cozyAudio.playBreezeAmbience(true));
+  assert.doesNotThrow(() => cozyAudio.playBreezeAmbience(true, true)); // winter flip
+  assert.doesNotThrow(() => cozyAudio.playBreezeAmbience(false));
+  assert.doesNotThrow(() => cozyAudio.playBreezeAmbience(false));
+
+  // Muting must stop the breeze bed too, and stay safe when nothing is playing.
+  assert.doesNotThrow(() => cozyAudio.setMuted(true));
+  assert.equal(cozyAudio.isMuted(), true);
+  assert.doesNotThrow(() => {
+    cozyAudio.playRainAmbience(true, true);
+    cozyAudio.playBreezeAmbience(true, true);
+  });
+  assert.doesNotThrow(() => cozyAudio.setMuted(false));
+});

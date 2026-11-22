@@ -110,6 +110,7 @@ import {
 } from './copperwheel';
 import { DAY_END_MINUTE, EVENING_SLIPPED_NOTE, isDoneToday, spendMinutes } from './time';
 import { describeCommunityNoticeboard } from './community';
+import { COMMUNITY_PROJECTS, getNextCommunityStageLabel } from './communityProjects';
 import {
   ACOUSTIC_BELL_RADIUS,
   LOCAL_WITNESS_RADIUS,
@@ -1645,6 +1646,72 @@ export function interactWithProp(
       title: 'Wild Bee Log',
       body: `${logLine} You keep a respectful distance and let them work (+5m).`,
       memoryUnlockedTitle: hasMem ? undefined : 'The Wild Hive Log',
+    };
+  }
+
+  // WP-4 (Workstream E): the Sorrel Hollow garden bed — the first community project.
+  // Three unhurried tending visits persistently transform the hollow; stage state
+  // rides sideFlags (sanitizer-safe, zero schema bump) and the registry owns the copy
+  // contract. The completed garden is visible world-side via the environment composer.
+  if (propId === 'sorrel_garden_bed') {
+    const sf = world.sideFlags ?? {};
+    const project = COMMUNITY_PROJECTS.find((p) => p.id === 'sorrel_garden')!;
+    const stage = Math.min(project.stageCount, Math.floor(Number(sf[project.stageSideFlag] ?? 0)));
+    const phase = getTimePhase(world.minuteOfDay);
+    const composed = composeEnvironmentState(world);
+    const season = composed.season.season;
+
+    if (stage >= project.stageCount) {
+      const bloomLine =
+        season === 'winter'
+          ? 'Frost-crusted seed heads rattle softly over the tilled beds — the garden sleeps, but the garden is here now.'
+          : 'Foxglove bells sway between the marigold crowns and the old stone well hums with bees. The forgotten garden is forgotten no more.';
+      return {
+        nextWorld: world,
+        title: 'The Sorrel Hollow Garden',
+        body: `${bloomLine} You straighten a crooked marker stone and admire what a few quiet afternoons grew.`,
+      };
+    }
+
+    const nextStage = stage + 1;
+    const stageLine =
+      nextStage === 1
+        ? season === 'winter'
+          ? 'You pry the frost-hardened brambles loose and turn the first dark ribbons of soil. The old bed frames were waiting under the tangle all along.'
+          : 'You pry the stubborn brambles loose and turn the first dark ribbons of soil. The old bed frames were waiting under the tangle all along.'
+        : nextStage === 2
+        ? 'Foxglove seedlings and rows of marigold starts go into the dark soil — the same seeds the old well once slipped into your pocket.'
+        : season === 'winter'
+        ? 'Winter mulch goes down over the beds to tuck the seedlings in; come spring the hollow will ring with bells and color.'
+        : 'The first foxglove bells open between the marigold crowns. Somewhere behind you, a bee already found the way in.';
+
+    const done = nextStage >= project.stageCount;
+    const mem = project.completionMemory;
+    const hasMem = world.memories.some((m) => m.id === mem.id);
+    const nextMemories = done && !hasMem
+      ? [
+          {
+            id: mem.id,
+            day: world.day,
+            phase,
+            title: mem.title,
+            summary: mem.summary,
+          },
+          ...world.memories,
+        ]
+      : world.memories;
+    const stageLabel = getNextCommunityStageLabel('sorrel_garden', stage);
+
+    return {
+      nextWorld: {
+        ...world,
+        minuteOfDay: Math.min(DAY_END_MINUTE, world.minuteOfDay + 8),
+        sideFlags: { ...sf, [project.stageSideFlag]: nextStage },
+        memories: nextMemories,
+      },
+      title: 'The Sorrel Hollow Garden',
+      body: `${stageLine} ${done ? 'The hollow feels less forgotten now.' : `Today: ${stageLabel}.`} (+8m)`,
+      memoryUnlockedTitle: done && !hasMem ? mem.title : undefined,
     };
   }
 
