@@ -1430,8 +1430,8 @@ export default function App() {
             </div>
           </div>
 
-          {/* Gentle Memory / Story Toast or Lightweight Nearby Neighbor Whisper */}
-          {toastText ? (
+          {/* Gentle Memory / Story Toast (the nearby whisper bubble moved to the bottom controls to avoid obstructing the scene focal point) */}
+          {toastText && (
             <div
               role="status"
               aria-live="polite"
@@ -1440,26 +1440,25 @@ export default function App() {
               <Sparkles className="w-3.5 h-3.5 text-terracotta shrink-0" />
               <span>{toastText}</span>
             </div>
-          ) : (
-            nearbyBubble &&
-            !anyModalOpen &&
-            screenState === 'playing' && (
-              <div
-                role="status"
-                aria-live="polite"
-                className="self-center mt-1.5 max-w-[300px] sm:max-w-sm bg-linen/88 border border-stone-line/80 rounded-xl px-3 py-1 shadow-sm text-[11px] sm:text-xs text-espresso text-center"
-              >
-                <span className="font-display font-semibold text-terracotta">
-                  {nearbyBubble.name}:
-                </span>{' '}
-                <span>“{nearbyBubble.text}”</span>
-              </div>
-            )
           )}
 
-          {/* Bottom Controls: Left Thumbstick (touch devices only) + Contextual Interact & Held Item CTA */}
+          {/* Bottom Controls: Nearby Whisper Bubble (moved from mid-screen) + Left Thumbstick + Contextual Interact & Held Item CTA */}
           {!anyModalOpen && screenState === 'playing' && (
-            <div className="flex items-end justify-between gap-3 sm:gap-4 pb-1">
+            <div className="flex flex-col items-center gap-1.5 sm:gap-2 pb-1">
+              {/* Lightweight Nearby Neighbor Whisper — docked at the bottom to keep the scene focal point unobstructed */}
+              {nearbyBubble && !toastText && (
+                <div
+                  role="status"
+                  aria-live="polite"
+                  className="max-w-[300px] sm:max-w-sm bg-linen/88 border border-stone-line/80 rounded-xl px-3 py-1 shadow-sm text-[11px] sm:text-xs text-espresso text-center"
+                >
+                  <span className="font-display font-semibold text-terracotta">
+                    {nearbyBubble.name}:
+                  </span>{' '}
+                  <span>“{nearbyBubble.text}”</span>
+                </div>
+              )}
+              <div className="flex items-end justify-between gap-3 sm:gap-4 w-full">
               {hasTouchInput ? (
                 <VirtualJoystick vectorRef={joystickVectorRef} />
               ) : (
@@ -1508,6 +1507,7 @@ export default function App() {
                     </button>
                   )
                 )}
+              </div>
               </div>
             </div>
           )}
