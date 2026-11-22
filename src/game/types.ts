@@ -528,6 +528,54 @@ export interface NpcNpcRelation {
   encounterCount?: number;
 }
 
+/**
+ * S4 (directional perception overlay): A's subjective attitude toward B,
+ * layered on the bilateral `NpcNpcRelation`. The bilateral record stays the
+ * shared observable truth (what an outside observer would say); this overlay
+ * holds A's individual perception — which may diverge from B's.
+ *
+ * Effective tier/affinity used by A's behavior = bilateral + A→B overlay.
+ * Persisted as `world.npcPerceptions[A][B]`. Optional — old saves load with
+ * empty overlays and behave exactly as today (zero divergence).
+ */
+export interface NpcPerception {
+  perceiverId: ResidentId;
+  targetId: ResidentId;
+  /** Subjective affinity delta [-30..+30] applied atop bilateral.affinity. */
+  affinityDelta: number;
+  /** Subjective tension delta [-20..+20] applied atop bilateral.tension. */
+  tensionDelta: number;
+  /** Directional tags (cap 4) — what only A believes about B. */
+  perceptionTags?: string[];
+  /** Last day A's perception of B shifted (for atrophy). */
+  lastShiftDay?: number | null;
+}
+
+/**
+ * S6 (social groups): a named group of 3+ residents with a shared identity.
+ * Derived friend-circles form from pairwise perceived-confidant closure;
+ * authored shared-interest groups seed from baseline bonds.
+ */
+export type SocialGroupKind = 'friend_circle' | 'shared_interest' | 'regular_gathering';
+
+export interface SocialGroupMembership {
+  residentId: ResidentId;
+  joinedDay: number;
+  /** This resident's standing in the group [0..1]. */
+  cohesion: number;
+}
+
+export interface SocialGroup {
+  id: string;
+  label: string;
+  kind: SocialGroupKind;
+  members: SocialGroupMembership[];
+  anchorPlace?: string;
+  anchorPhase?: TimePhase;
+  authored: boolean;
+  recognizedDay?: number;
+}
+
 export type NpcMemoryProvenance = 'firsthand' | 'secondhand' | 'rumor';
 
 export type NpcMemorySourceKind =
@@ -818,6 +866,11 @@ export interface WorldState {
   activeActivity: ActiveSharedActivity | null;
   // Everyday Gameplay GA-1 — Community Projects (WorldState v12)
   communityProjects: CommunityProjectsState;
+  // NPC Intelligence Evolution — directional perception overlay (S4) and
+  // emergent social groups (S6). Optional; old saves load with empty overlays
+  // and behave exactly as today (schema stays v12 — no migration required).
+  npcPerceptions?: Partial<Record<ResidentId, Partial<Record<ResidentId, NpcPerception>>>>;
+  npcSocialGroups?: SocialGroup[];
 }
 
 export type DialogueCategory =

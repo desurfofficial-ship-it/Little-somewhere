@@ -36,6 +36,11 @@ import {
   shouldSuppressNpcSocial,
 } from './relationships';
 import {
+  adjustNpcPerceptionInPlace,
+  cloneNpcPerceptions,
+  getPerceivedTierFast,
+} from './perceptions';
+import {
   computeSeparationVector,
   computeWaypointPath,
   stepAlongWaypoints,
@@ -542,13 +547,13 @@ function selectActivityForResident(
   // C5: companion bias — collect current positions of confidant-tier partners
   // so candidates near a close friend get a small gravitation bonus (residents
   // drift toward friends rather than only repelling via the crowding penalty).
-  // Uses getNpcRelationTierFast (zero-GC) to avoid per-tick allocation for the
-  // ~9 lazy pairs each resident checks.
+  // Uses getPerceivedTierFast (S4 directional, zero-GC) so A gravitates toward
+  // B based on A's OWN perception of B, not just the bilateral ledger.
   const confidantPositions: Vec2[] = [];
   for (let k = 0; k < RESIDENT_ORDER.length; k++) {
     const oid = RESIDENT_ORDER[k];
     if (oid === id) continue;
-    if (getNpcRelationTierFast(world.npcRelations, id, oid) === 'confidant') {
+    if (getPerceivedTierFast(world.npcRelations, world.npcPerceptions, id, oid) === 'confidant') {
       confidantPositions.push(world.npcRuntime[oid].position);
     }
   }
@@ -1464,6 +1469,12 @@ export function stepSimulationInPlace(
           if (topic.tag === 'helped_chore') {
             rt.needs.fulfillment = clampNeed(rt.needs.fulfillment + 8);
           }
+          // S4: friction writes a directional perception — this participant now
+          // subjectively distrusts the other (independent of the bilateral
+          // tension delta). Enables "A avoids B even after B forgives A."
+          if (isFriction) {
+            adjustNpcPerceptionInPlace(world, pid, nextPartner, world.day, -3, +4, 'friction_encounter');
+          }
         }
 
         // C4: friction inverts the affinity/tension deltas so the pair drifts
@@ -1603,6 +1614,16 @@ export function stepSimulation(
     }, {} as WorldState['residents']),
     npcRuntime: cloneNpcRuntime(world.npcRuntime),
     npcRelations: { ...world.npcRelations },
+    // S4/S6: clone the directional perception overlay and social groups so the
+    // pure stepSimulation path and the in-place path share the same view
+    // (twin-determinism when perceptions/groups are non-empty).
+    npcPerceptions: cloneNpcPerceptions(world.npcPerceptions),
+    npcSocialGroups: world.npcSocialGroups
+      ? world.npcSocialGroups.map((g) => ({
+          ...g,
+          members: g.members.map((m) => ({ ...m })),
+        }))
+      : world.npcSocialGroups,
     activeEncounters: world.activeEncounters.map((e) => ({
       ...e,
       participants: [...e.participants],

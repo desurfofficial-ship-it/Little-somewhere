@@ -33,6 +33,7 @@ import {
   createInitialCopperwheelState,
 } from './copperwheel';
 import { reconcileLivingRelationshipsOnDayAdvance } from './invitations';
+import { driftNpcPerceptionsInPlace, reconcileSocialGroupsInPlace, cloneNpcPerceptions } from './perceptions';
 import { WorldState } from './types';
 
 export const STORAGE_KEY = 'little_somewhere_world_v1';
@@ -562,6 +563,36 @@ export function computeWorldSaveRevision(state: WorldState): string {
     }
   }
 
+  // NPC Intelligence Evolution — S4/S6: track directional perception overlay
+  // and social groups so the dirty-save fingerprint reflects them.
+  const perceptions = state.npcPerceptions ?? {};
+  const perceiverKeys = Object.keys(perceptions).sort();
+  pushNum(perceiverKeys.length);
+  for (let i = 0; i < perceiverKeys.length; i++) {
+    const perceiver = perceiverKeys[i];
+    const inner = perceptions[perceiver as keyof typeof perceptions] ?? {};
+    const targetKeys = Object.keys(inner).sort();
+    pushStr(perceiver);
+    pushNum(targetKeys.length);
+    for (let j = 0; j < targetKeys.length; j++) {
+      const p = inner[targetKeys[j] as keyof typeof inner];
+      pushStr(targetKeys[j]);
+      pushNum(p?.affinityDelta ?? 0);
+      pushNum(p?.tensionDelta ?? 0);
+      pushNum(p?.lastShiftDay ?? -1);
+    }
+  }
+  const groups = state.npcSocialGroups ?? [];
+  pushNum(groups.length);
+  for (let i = 0; i < groups.length; i++) {
+    pushStr(groups[i].id);
+    pushNum(groups[i].members.length);
+    for (let j = 0; j < groups[i].members.length; j++) {
+      pushStr(groups[i].members[j].residentId);
+      pushNum(Math.round(groups[i].members[j].cohesion * 100));
+    }
+  }
+
   return `${h1.toString(36)}-${h2.toString(36)}`;
 }
 
@@ -746,5 +777,11 @@ export function advanceToNextDay(state: WorldState): WorldState {
     copperwheelState: prevCopperwheel,
   };
 
-  return reconcileLivingRelationshipsOnDayAdvance(rolled);
+  const reconciled = reconcileLivingRelationshipsOnDayAdvance(rolled);
+  // S5/S6: drift directional perceptions toward neutrality after 7 days of no
+  // shift, and re-derive emergent social groups for the new day. Both are
+  // idempotent and operate only on the optional overlay/group fields.
+  driftNpcPerceptionsInPlace(reconciled, nextDay);
+  reconcileSocialGroupsInPlace(reconciled);
+  return reconciled;
 }
