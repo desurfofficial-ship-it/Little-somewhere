@@ -1,4 +1,4 @@
-import { Component, ErrorInfo, ReactNode, useCallback, useEffect, useRef, useState } from 'react';
+import { Component, ErrorInfo, ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   BookOpen,
   Clock,
@@ -45,6 +45,7 @@ import { formatClock, getTimePhase } from './game/residents';
 import { advanceClockAndReconcile } from './game/invitations';
 import { completeSharedActivity } from './game/activities';
 import { buildMorningWakeLine, buildResidentDialogue } from './game/narrative';
+import { countJournalUnread, loadJournalReadKeys } from './game/journal';
 import {
   composeEnvironmentState,
   getSeasonLabel,
@@ -141,7 +142,11 @@ class SceneErrorBoundary extends Component<SceneErrorBoundaryProps, SceneErrorBo
     if (this.state.hasError) {
       return (
         <div className="absolute inset-0 bg-[#DCEBF2] flex items-center justify-center p-6">
-          <div className="bg-linen border border-stone-line rounded-2xl p-6 max-w-sm text-center shadow-elevation-sheet">
+          {/* WP3: failures must be announced, not just drawn. */}
+          <div
+            role="alert"
+            className="bg-linen border border-stone-line rounded-2xl p-6 max-w-sm text-center shadow-elevation-sheet"
+          >
             <h2 className="font-display text-lg font-semibold text-espresso mb-2">
               Willow Lane Needs a Fresh Breeze
             </h2>
@@ -151,7 +156,7 @@ class SceneErrorBoundary extends Component<SceneErrorBoundaryProps, SceneErrorBo
             <button
               type="button"
               onClick={() => window.location.reload()}
-              className="min-h-[44px] px-5 py-2.5 rounded-xl bg-terracotta hover:bg-terracotta-deep text-linen text-sm font-semibold cursor-pointer transition-colors"
+              className="min-h-[44px] px-5 py-2.5 rounded-xl bg-terracotta-deep hover:bg-terracotta text-linen text-sm font-semibold cursor-pointer transition-colors"
             >
               Reload Neighborhood
             </button>
@@ -248,8 +253,21 @@ export default function App() {
     setPlayerActionPulse({ kind, seq: pulseSeqRef.current, focusPos });
   }, []);
 
+  // WP4: two-deep toast queue — rapid chains (e.g. "Stepped inside…" +
+  // "Memory saved: …") no longer clobber each other, identical strings restart
+  // the timer, and every event gets its full confirmation window.
+  const toastTextRef = useRef<string | null>(null);
+  const pendingToastRef = useRef<string | null>(null);
+  const [toastSeq, setToastSeq] = useState(0);
+
   const showToast = useCallback((msg: string) => {
+    if (toastTextRef.current !== null) {
+      pendingToastRef.current = msg;
+      return;
+    }
+    toastTextRef.current = msg;
     setToastText(msg);
+    setToastSeq((s) => s + 1);
   }, []);
 
   // Fade to a warm linen veil, run the transition at the covered midpoint, then release.
@@ -262,17 +280,55 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    toastTextRef.current = toastText;
     if (!toastText) return;
-    const t = window.setTimeout(() => setToastText(null), 3400);
+    const t = window.setTimeout(() => {
+      const next = pendingToastRef.current;
+      pendingToastRef.current = null;
+      if (next) {
+        toastTextRef.current = next;
+        setToastText(next);
+        setToastSeq((s) => s + 1);
+      } else {
+        toastTextRef.current = null;
+        setToastText(null);
+      }
+    }, 3400);
     return () => window.clearTimeout(t);
-  }, [toastText]);
+  }, [toastText, toastSeq]);
 
-  // Brief intro tip auto-dismisses so the play screen never holds an idle box forever
+  // Brief intro tip auto-dismisses so the play screen never holds an idle box forever.
+  // WP4: generous window — the tip now teaches the core surfaces, so it stays
+  // until the player's first real interaction or 14s, never on mere movement.
   useEffect(() => {
     if (screenState !== 'playing' || introTipDismissed) return;
-    const timer = window.setTimeout(() => setIntroTipDismissed(true), 5000);
+    const timer = window.setTimeout(() => setIntroTipDismissed(true), 14000);
     return () => window.clearTimeout(timer);
   }, [screenState, introTipDismissed]);
+
+  // WP4: the tip has done its job once the player actually talks/inspects
+  // something — opening any narrative surface is the strongest "they get it"
+  // signal (movement is NOT a dismissal trigger; targets exist at spawn).
+  useEffect(() => {
+    if (dialogueSession || propCard) {
+      setIntroTipDismissed(true);
+    }
+  }, [dialogueSession, propCard]);
+
+  // WP1: reward/status toasts render above every modal layer, so recompute
+  // the journal unread badge when the journal closes (the drawer persists its
+  // read-state on close/tab-switch) and on each discrete world commit.
+  const [journalReadVersion, setJournalReadVersion] = useState(0);
+  useEffect(() => {
+    if (!journalOpen) {
+      setJournalReadVersion((v) => v + 1);
+    }
+  }, [journalOpen]);
+  const journalUnreadCount = useMemo(() => {
+    return countJournalUnread(worldSnapshot, loadJournalReadKeys());
+    // journalReadVersion: re-read persisted read-state when the journal closes
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [worldSnapshot, journalReadVersion]);
 
   // Keep document.body.dataset.state in sync
   useEffect(() => {
@@ -1064,12 +1120,9 @@ export default function App() {
 
       if (e.code === 'Escape' || e.code === 'KeyP') {
         e.preventDefault();
-        if (dialogueSession || propCard) {
-          setDialogueSession(null);
-          setActivePropId(null);
-          setPropCard(null);
-          return;
-        }
+        // WP1 (UI/UX program): unwind the visually top-most surface first.
+        // Journal/satchel/station panels render above the dialogue sheet
+        // (z-40 > z-30), so they close before a conversation underneath them.
         if (cottageStationMode) {
           setCottageStationMode(null);
           return;
@@ -1090,13 +1143,22 @@ export default function App() {
           setJournalOpen(false);
           return;
         }
+        if (dialogueSession || propCard) {
+          setDialogueSession(null);
+          setActivePropId(null);
+          setPropCard(null);
+          return;
+        }
         setScreenState((prev) => (prev === 'playing' ? 'paused' : 'playing'));
         return;
       }
 
       if (screenState !== 'playing') return;
 
-      if (e.code === 'KeyJ') {
+      // WP1: conversations are protected surfaces — the journal/satchel must
+      // never stack a second role="dialog" over an active dialogue sheet or
+      // prop inspection (keyboard users could otherwise act on hidden UI).
+      if (e.code === 'KeyJ' && !dialogueSession && !propCard) {
         e.preventDefault();
         setInventoryOpen(false);
         setCottageStationMode(null);
@@ -1106,7 +1168,7 @@ export default function App() {
         return;
       }
 
-      if (e.code === 'KeyI') {
+      if (e.code === 'KeyI' && !dialogueSession && !propCard) {
         e.preventDefault();
         setJournalOpen(false);
         setCottageStationMode(null);
@@ -1235,17 +1297,11 @@ export default function App() {
       setNearbyBubble(snap.nearbyBubble);
       setHudWeather(snap.weather);
       setHudSeason(snap.season);
-      if (!introTipDismissed) {
-        const moved = Math.hypot(
-          snap.playerPos.x - spawnPosRef.current.x,
-          snap.playerPos.z - spawnPosRef.current.z,
-        );
-        if (moved > 0.35 || snap.nearestTarget) {
-          setIntroTipDismissed(true);
-        }
-      }
+      // WP4: the intro tip is no longer movement/target-dismissed — targets
+      // exist at spawn (cottage door), which previously erased onboarding for
+      // 100% of fresh saves. Dismissal now happens on first interaction only.
     },
-    [introTipDismissed],
+    [],
   );
 
   const phase = getTimePhase(hudClock);
@@ -1345,10 +1401,10 @@ export default function App() {
                 onClick={handleAdvanceTwoHours}
                 aria-label="Advance time 2 hours"
                 title="Advance time 2 hours"
-                className="hidden sm:flex min-h-[44px] px-3 py-2 rounded-xl bg-linen/95 hover:bg-linen-deep border border-stone-line text-espresso text-xs font-semibold items-center gap-1.5 shadow-sm transition-colors cursor-pointer whitespace-nowrap"
+                className="flex min-h-[44px] min-w-[44px] sm:min-w-0 px-3 py-2 justify-center rounded-xl bg-linen/95 hover:bg-linen-deep border border-stone-line text-espresso text-xs font-semibold items-center gap-1.5 shadow-sm transition-colors cursor-pointer whitespace-nowrap"
               >
                 <Clock className="w-4 h-4 text-terracotta" />
-                <span>+2h</span>
+                <span className="hidden sm:inline">+2h</span>
               </button>
 
               <button
@@ -1379,12 +1435,25 @@ export default function App() {
                   setCommunityProjectsOpen(false);
                   setJournalOpen(true);
                 }}
-                aria-label="Open Pocket Journal"
+                aria-label={
+                  journalUnreadCount > 0
+                    ? `Open Pocket Journal — ${journalUnreadCount} new ${journalUnreadCount === 1 ? 'entry' : 'entries'}`
+                    : 'Open Pocket Journal'
+                }
                 title="Pocket Journal [J]"
-                className="min-h-[44px] min-w-[44px] px-2.5 sm:px-3.5 py-2 rounded-xl bg-linen/95 hover:bg-linen-deep border border-stone-line text-espresso text-xs sm:text-sm font-semibold flex items-center justify-center gap-1.5 sm:gap-2 shadow-sm transition-colors cursor-pointer whitespace-nowrap"
+                className="relative min-h-[44px] min-w-[44px] px-2.5 sm:px-3.5 py-2 rounded-xl bg-linen/95 hover:bg-linen-deep border border-stone-line text-espresso text-xs sm:text-sm font-semibold flex items-center justify-center gap-1.5 sm:gap-2 shadow-sm transition-colors cursor-pointer whitespace-nowrap"
               >
                 <BookOpen className="w-4 h-4 text-terracotta shrink-0" />
                 <span className="hidden sm:inline">Journal</span>
+                {journalUnreadCount > 0 && (
+                  <span
+                    data-testid="journal-unread-badge"
+                    aria-hidden="true"
+                    className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-terracotta-deep text-linen text-[10px] font-bold font-mono-nums flex items-center justify-center shadow-sm"
+                  >
+                    {journalUnreadCount > 99 ? '99+' : journalUnreadCount}
+                  </span>
+                )}
               </button>
 
               <div className="hidden sm:flex items-center gap-1 bg-linen/95 border border-stone-line rounded-xl p-0.5 shadow-sm">
@@ -1421,7 +1490,18 @@ export default function App() {
 
               <button
                 type="button"
-                onClick={() => setScreenState('paused')}
+                onClick={() => {
+                  // WP1: pausing is a hard interrupt — deterministically unwind
+                  // every open surface so Play always resumes into clean HUD.
+                  setDialogueSession(null);
+                  setActivePropId(null);
+                  setPropCard(null);
+                  setJournalOpen(false);
+                  setInventoryOpen(false);
+                  setCottageStationMode(null);
+                  setGreenhousePanelMode(null);
+                  setScreenState('paused');
+                }}
                 aria-label="Pause game"
                 className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-xl bg-linen/95 hover:bg-linen-deep border border-stone-line text-espresso shadow-sm transition-colors cursor-pointer"
               >
@@ -1466,6 +1546,32 @@ export default function App() {
               )}
 
               <div className="ml-auto flex flex-col items-end gap-2 pointer-events-auto min-w-0 max-w-[240px] sm:max-w-none">
+                {/* WP4: seated-with-a-drink no longer traps the HUD on one option —
+                    an explicit Stand Up escape hatch always accompanies the sip CTA. */}
+                {nearestTarget?.kind === 'seat' && nearestTarget.sipItemId && (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      openTargetInteraction({ ...nearestTarget, sipItemId: undefined })
+                    }
+                    className="min-h-[44px] px-3.5 py-2 rounded-xl bg-linen/95 hover:bg-linen-deep border border-stone-line text-espresso text-xs sm:text-sm font-semibold flex items-center gap-1.5 shadow-sm transition-colors cursor-pointer whitespace-nowrap"
+                  >
+                    Stand Up
+                  </button>
+                )}
+                {!introTipDismissed && (
+                  <button
+                    type="button"
+                    data-testid="intro-control-tip"
+                    onClick={() => setIntroTipDismissed(true)}
+                    className="min-h-[44px] bg-linen/90 hover:bg-linen border border-stone-line rounded-xl px-3.5 py-2 text-[11px] sm:text-xs text-umber shadow-sm text-right leading-snug cursor-pointer transition-opacity"
+                  >
+                    <span>Walk or tap neighbors to talk</span>
+                    <span className="hidden sm:inline"> · Shift sprints · Journal [J] · Satchel [I]</span>
+                    <span className="sm:hidden"> · Your Journal & Satchel are up top</span>
+                  </button>
+                )}
+
                 {playerHeldItem && worldSnapshot.worldProps?.[playerHeldItem] && (
                   <button
                     type="button"
@@ -1484,7 +1590,7 @@ export default function App() {
                   <button
                     type="button"
                     onClick={() => openTargetInteraction(nearestTarget)}
-                    className="min-h-[48px] max-w-full px-4 sm:px-5 py-3 rounded-2xl bg-terracotta hover:bg-terracotta-deep active:scale-[0.98] text-linen font-semibold text-sm sm:text-base shadow-elevation-sheet flex items-center gap-2 sm:gap-2.5 transition-all cursor-pointer"
+                    className="min-h-[48px] max-w-full px-4 sm:px-5 py-3 rounded-2xl bg-terracotta-deep hover:bg-terracotta active:scale-[0.98] text-linen font-semibold text-sm sm:text-base shadow-elevation-sheet flex items-center gap-2 sm:gap-2.5 transition-all cursor-pointer"
                   >
                     {nearestTarget.kind === 'resident' ? (
                       <MessageCircle className="w-4 h-4 shrink-0" />
@@ -1494,23 +1600,29 @@ export default function App() {
                     <span className="truncate">{nearestTarget.actionLabel}</span>
                     <span className="hidden sm:inline text-xs opacity-80 font-mono-nums shrink-0">[E]</span>
                   </button>
-                ) : (
-                  !introTipDismissed && (
-                    <button
-                      type="button"
-                      data-testid="intro-control-tip"
-                      onClick={() => setIntroTipDismissed(true)}
-                      className="min-h-[44px] bg-linen/90 hover:bg-linen border border-stone-line rounded-xl px-3.5 py-2 text-[11px] sm:text-xs text-umber shadow-sm text-right leading-snug cursor-pointer transition-opacity"
-                    >
-                      <span>Walk or tap neighbors to talk</span>
-                      <span className="hidden sm:inline"> · Shift sprints</span>
-                    </button>
-                  )
-                )}
+                ) : null}
               </div>
               </div>
             </div>
           )}
+        </div>
+      )}
+
+      {/* Reward & status toasts — hoisted ABOVE every modal layer (UI/UX program WP1):
+          the game's core reward signal ("Memory saved", gift results) must never be
+          dimmed underneath an espresso backdrop. pointer-events-none keeps the world
+          input path untouched. */}
+      {screenState !== 'title' && toastText && (
+        <div
+          role="status"
+          aria-live="polite"
+          data-testid="hud-toast"
+          className="fixed inset-x-0 top-16 sm:top-[78px] z-[60] pointer-events-none flex justify-center px-4"
+        >
+          <div className="bg-linen/95 border border-terracotta/40 rounded-xl px-3.5 py-1.5 shadow-elevation-card flex items-center gap-2 text-xs sm:text-sm font-medium text-espresso">
+            <Sparkles className="w-3.5 h-3.5 text-terracotta shrink-0" />
+            <span>{toastText}</span>
+          </div>
         </div>
       )}
 
@@ -1596,6 +1708,7 @@ export default function App() {
       <div
         aria-hidden="true"
         data-testid="scene-veil"
+        data-scene-veil="true"
         className={`fixed inset-0 z-[45] pointer-events-none bg-[#F6EEDF] transition-opacity duration-300 ${
           veilActive ? 'opacity-100' : 'opacity-0'
         }`}

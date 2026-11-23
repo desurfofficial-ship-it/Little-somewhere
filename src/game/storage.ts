@@ -35,6 +35,7 @@ import {
 import { reconcileLivingRelationshipsOnDayAdvance } from './invitations';
 import { driftNpcPerceptionsInPlace, reconcileSocialGroupsInPlace, cloneNpcPerceptions } from './perceptions';
 import { WorldState } from './types';
+import { JOURNAL_READ_STORAGE_KEY } from './journal';
 
 export const STORAGE_KEY = 'little_somewhere_world_v1';
 export const STORAGE_BACKUP_KEY = 'little_somewhere_world_v1_backup';
@@ -622,6 +623,12 @@ export function resetWorldState(): WorldState {
   futureSchemaSaveDetected = false;
   const fresh = createDefaultWorldState();
   saveWorldState(fresh);
+  // UI/UX program (WP5): the Pocket Journal's read-state cache (owned by
+  // journal.ts) is derived UI state keyed to the CURRENT world — resetting the
+  // world must restart its "New" markers, or a fresh Day 1 opens pre-read.
+  if (typeof window !== 'undefined') {
+    window.localStorage.removeItem(JOURNAL_READ_STORAGE_KEY);
+  }
   return fresh;
 }
 

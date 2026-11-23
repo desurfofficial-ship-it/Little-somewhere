@@ -6,6 +6,7 @@ import {
   ResidentId,
   Vec2,
   WorldState,
+  PropInteractableId,
 } from './types';
 import {
   resolveAnySeatById,
@@ -430,6 +431,39 @@ export function isSeatOccupiedByNpc(world: WorldState, seatId: string): Resident
 }
 
 /**
+ * UI/UX program (WP4): single source of truth for world-prop contextual CTA
+ * labels. Previously duplicated (and already drifting) between
+ * `selectBestInteractiveTarget` and the canvas tap-picking path — both now
+ * call this. Verb-first phrasing matches the prop card's own action verbs.
+ */
+export function getWorldPropActionLabel(
+  propId: PropInteractableId,
+  bellRestored: boolean,
+  propName: string,
+): string {
+  if (propId === 'gazebo_bell' && bellRestored) return 'Ring the Brass Bell';
+  if (propId === 'player_door') return 'Enter Cottage';
+  if (
+    propId === 'greenhouse_door' ||
+    propId === 'bakery_door' ||
+    propId === 'nook_door' ||
+    propId === 'copperwheel_door'
+  ) {
+    return 'Step Inside';
+  }
+  if (
+    propId === 'cottage_window_box' ||
+    propId === 'greenhouse_planters' ||
+    propId === 'orchard_harvest' ||
+    propId === 'orchard_skep' ||
+    propId === 'pond_driftwood'
+  ) {
+    return propName;
+  }
+  return `Inspect ${propName}`;
+}
+
+/**
  * Selects the highest-priority interactive target (resident, carryable prop, world landmark prop, or bench seat)
  * weighted by distance + player facing cone so aiming feels crisp and intentional.
  */
@@ -664,22 +698,11 @@ export function selectBestInteractiveTarget(
   for (const prop of PROP_INTERACTABLES) {
     const metrics = getPropInteractionMetrics(prop.id, world.playerPos);
     if (metrics.inRange) {
-      const actionLabel =
-        prop.id === 'gazebo_bell' && world.flags.bellRestored
-          ? 'Ring Bell'
-          : prop.id === 'player_door'
-          ? 'Enter Cottage'
-          : prop.id === 'greenhouse_door'
-          ? 'Step Inside'
-          : prop.id === 'bakery_door' || prop.id === 'nook_door' || prop.id === 'copperwheel_door'
-          ? 'Step Inside'
-          : prop.id === 'cottage_window_box' ||
-            prop.id === 'greenhouse_planters' ||
-            prop.id === 'orchard_harvest' ||
-            prop.id === 'orchard_skep' ||
-            prop.id === 'pond_driftwood'
-          ? prop.name
-          : `Inspect ${prop.name}`;
+      const actionLabel = getWorldPropActionLabel(
+        prop.id,
+        world.flags.bellRestored,
+        prop.name,
+      );
       evaluateCandidate(
         {
           kind: 'prop',

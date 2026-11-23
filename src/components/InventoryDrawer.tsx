@@ -1,8 +1,9 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import { PackageOpen, X } from 'lucide-react';
 import { KeepsakeIcon, SproutIcon } from './icons';
 import { SubjectCanvas } from './DialogueVisuals';
 import { subjectForItem } from '../game/dialogue/assets';
+import { useDialogA11y } from './useDialogA11y';
 import {
   PERSONAL_ITEMS,
   PERSONAL_ITEM_CATEGORY_LABELS,
@@ -56,6 +57,11 @@ export const InventoryDrawer: React.FC<InventoryDrawerProps> = ({
     return rows;
   }, [world.inventory, filter]);
 
+  // UI/UX program (WP3): shared focus kit for the satchel surface.
+  // Declared BEFORE the early return so hook order stays stable across open/close.
+  const dialogRef = useRef<HTMLDivElement | null>(null);
+  useDialogA11y(dialogRef, open);
+
   if (!open) return null;
 
   const discoveredCount = world.discoveredItemIds?.length ?? 0;
@@ -68,7 +74,9 @@ export const InventoryDrawer: React.FC<InventoryDrawerProps> = ({
       onClick={onClose}
     >
       <div
+        ref={dialogRef}
         role="dialog"
+        aria-modal="true"
         aria-label="Personal Satchel & Keepsakes"
         onClick={(e) => e.stopPropagation()}
         className="w-full max-w-2xl max-h-[85vh] bg-linen border border-stone-line rounded-2xl shadow-elevation-drawer flex flex-col overflow-hidden"
@@ -115,7 +123,7 @@ export const InventoryDrawer: React.FC<InventoryDrawerProps> = ({
                 onClick={() => setFilter(tab.id)}
                 className={`min-h-[44px] min-w-[44px] px-3 sm:px-3.5 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
                   active
-                    ? 'bg-terracotta text-linen'
+                    ? 'bg-terracotta-deep text-linen'
                     : 'bg-linen-deep text-[#4E4036] hover:bg-[#E7DAC5]'
                 }`}
               >
@@ -126,7 +134,7 @@ export const InventoryDrawer: React.FC<InventoryDrawerProps> = ({
         </div>
 
         {/* Item List */}
-        <div className="flex-1 overflow-y-auto storybook-scroll p-4 sm:p-5 space-y-3">
+        <div tabIndex={0} className="flex-1 overflow-y-auto storybook-scroll p-4 sm:p-5 space-y-3">
           {ownedItems.length === 0 ? (
             <div className="p-5 rounded-xl bg-card-warm border border-parchment text-center space-y-2">
               <PackageOpen className="w-6 h-6 text-[#8C7D6F] mx-auto" />

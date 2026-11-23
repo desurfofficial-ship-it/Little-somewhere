@@ -19,6 +19,7 @@ import {
 import { WorldState } from '../game/types';
 import { PortraitCanvas } from './DialogueVisuals';
 import { resolvePortrait } from '../game/dialogue/assets';
+import { useDialogA11y } from './useDialogA11y';
 
 interface JournalDrawerProps {
   open: boolean;
@@ -50,6 +51,10 @@ export const JournalDrawer: React.FC<JournalDrawerProps> = ({
   const [seenKeys, setSeenKeys] = useState<Set<string>>(() => loadJournalReadKeys());
   const wasOpenRef = useRef<boolean>(false);
   const bodyScrollRef = useRef<HTMLDivElement | null>(null);
+  // UI/UX program (WP3): shared focus kit — focus lands in the journal on
+  // open, stays inside while open, and returns to the trigger on close.
+  const dialogRef = useRef<HTMLDivElement | null>(null);
+  useDialogA11y(dialogRef, open);
 
   const journal = useMemo(
     () => buildPocketJournalView(world, seenKeys),
@@ -166,7 +171,9 @@ export const JournalDrawer: React.FC<JournalDrawerProps> = ({
       onClick={handleClose}
     >
       <div
+        ref={dialogRef}
         role="dialog"
+        aria-modal="true"
         aria-label="Pocket Journal"
         onClick={(e) => e.stopPropagation()}
         className="w-full max-w-3xl max-h-[86vh] bg-linen border border-stone-line rounded-2xl shadow-elevation-drawer flex flex-col overflow-hidden"
@@ -228,7 +235,7 @@ export const JournalDrawer: React.FC<JournalDrawerProps> = ({
                 onKeyDown={(e) => handleTabKeyDown(e, idx)}
                 className={`min-w-0 w-full sm:w-auto min-h-[44px] px-3 sm:px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold flex items-center justify-center gap-1.5 sm:gap-2 cursor-pointer whitespace-nowrap sm:shrink-0 ${
                   active
-                    ? 'bg-terracotta text-linen'
+                    ? 'bg-terracotta-deep text-linen'
                     : 'bg-linen-deep text-[#4E4036] hover:bg-[#E7DAC5]'
                 }`}
               >
@@ -237,7 +244,7 @@ export const JournalDrawer: React.FC<JournalDrawerProps> = ({
                 {unreadCount > 0 && (
                   <span
                     className={`font-mono-nums text-[11px] font-semibold ${
-                      active ? 'text-linen/90' : 'text-terracotta-deep'
+                      active ? 'text-linen' : 'text-terracotta-deep'
                     }`}
                     aria-label={`${unreadCount} new`}
                   >
@@ -255,6 +262,7 @@ export const JournalDrawer: React.FC<JournalDrawerProps> = ({
           id="journal-tabpanel"
           role="tabpanel"
           aria-labelledby={`journal-tab-${tab}`}
+          tabIndex={0}
           className="flex-1 overflow-y-auto overflow-x-hidden storybook-scroll p-4 sm:p-5 space-y-6"
         >
           {/* ================= 1. NEIGHBORHOOD STORIES ================= */}
@@ -341,7 +349,7 @@ export const JournalDrawer: React.FC<JournalDrawerProps> = ({
                             </p>
                             <span className="text-[11px] font-medium text-espresso-muted shrink-0">
                               {step.isNew ? (
-                                <span className="text-terracotta-deep font-semibold">New · </span>
+                                <span className="text-clay-ink font-semibold">New · </span>
                               ) : null}
                               {isCompleted ? 'Completed' : 'Ongoing'}
                             </span>
@@ -395,7 +403,7 @@ export const JournalDrawer: React.FC<JournalDrawerProps> = ({
                           </h4>
                           <span className="text-xs text-espresso-muted shrink-0">
                             {story.isNew ? (
-                              <span className="text-terracotta-deep font-semibold">New · </span>
+                              <span className="text-clay-ink font-semibold">New · </span>
                             ) : null}
                             Ongoing ·{' '}
                             <span className="font-mono-nums">
@@ -476,7 +484,7 @@ export const JournalDrawer: React.FC<JournalDrawerProps> = ({
                           </div>
                           <span className="text-xs text-[#4B6B4F] shrink-0">
                             {story.isNew ? (
-                              <span className="text-terracotta-deep font-semibold">New · </span>
+                              <span className="text-clay-ink font-semibold">New · </span>
                             ) : null}
                             Completed
                             {story.completedDay !== undefined ? (
@@ -549,7 +557,7 @@ export const JournalDrawer: React.FC<JournalDrawerProps> = ({
                         </h4>
                         <span className="text-xs text-espresso-muted shrink-0">
                           {mem.isNew ? (
-                            <span className="text-terracotta-deep font-semibold">New · </span>
+                            <span className="text-clay-ink font-semibold">New · </span>
                           ) : (
                             <span>Read · </span>
                           )}
@@ -634,7 +642,8 @@ export const JournalDrawer: React.FC<JournalDrawerProps> = ({
                         {person.met && (
                           <div
                             className="flex items-center gap-0.5 shrink-0 pt-1"
-                            aria-label={`Trust ${person.trust} of 5`}
+                            role="img"
+                            aria-label={`Friendship ${person.trust} of 5`}
                           >
                             {[0, 1, 2, 3, 4].map((idx) => (
                               <Heart
@@ -642,7 +651,7 @@ export const JournalDrawer: React.FC<JournalDrawerProps> = ({
                                 className={`w-3.5 h-3.5 ${
                                   idx < person.trust
                                     ? 'fill-terracotta text-terracotta'
-                                    : 'fill-transparent text-[#C7B7A2]'
+                                    : 'fill-transparent text-heart-empty'
                                 }`}
                               />
                             ))}
@@ -746,7 +755,7 @@ export const JournalDrawer: React.FC<JournalDrawerProps> = ({
                     onAdvanceTime();
                     onClose();
                   }}
-                  className="w-full sm:w-auto min-h-[44px] px-4 py-2 rounded-xl bg-sage hover:bg-[#4F6E53] text-sm font-semibold text-linen flex items-center justify-center gap-2 transition-colors cursor-pointer whitespace-nowrap shrink-0"
+                  className="w-full sm:w-auto min-h-[44px] px-4 py-2 rounded-xl bg-sage-deep hover:bg-sage text-sm font-semibold text-linen flex items-center justify-center gap-2 transition-colors cursor-pointer whitespace-nowrap shrink-0"
                 >
                   <Clock className="w-4 h-4" />
                   <span>Advance 2 Hours</span>
@@ -933,7 +942,7 @@ export const JournalDrawer: React.FC<JournalDrawerProps> = ({
                           }`}
                         >
                           {lm.isNew ? (
-                            <span className="text-terracotta-deep font-semibold">New · </span>
+                            <span className="text-clay-ink font-semibold">New · </span>
                           ) : null}
                           {lm.statusLabel}
                         </span>
@@ -971,7 +980,7 @@ export const JournalDrawer: React.FC<JournalDrawerProps> = ({
                       >
                         <p className="text-xs sm:text-sm text-[#3D3128] leading-snug">
                           {ev.isNew ? (
-                            <span className="text-terracotta-deep font-semibold">New · </span>
+                            <span className="text-clay-ink font-semibold">New · </span>
                           ) : null}
                           {ev.summary}
                         </p>

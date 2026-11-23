@@ -56,6 +56,7 @@ import {
   selectBestInteractiveTarget,
   stepPlayerMovement,
   wrapAngleDelta,
+  getWorldPropActionLabel,
 } from '../game/playerController';
 import {
   COTTAGE_BOUNDS,
@@ -1635,20 +1636,12 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
             tPos = metrics.focusPos;
             walkDest = metrics.approachPos;
             label = prop.name;
-            actionLabel =
-              pid === 'gazebo_bell' && worldRef.current.flags.bellRestored
-                ? 'Ring Bell'
-                : pid === 'player_door'
-                ? 'Enter Cottage'
-                : pid === 'greenhouse_door' || pid === 'bakery_door' || pid === 'nook_door' || pid === 'copperwheel_door'
-                ? 'Step Inside'
-                : pid === 'cottage_window_box' ||
-                  pid === 'greenhouse_planters' ||
-                  pid === 'orchard_harvest' ||
-                  pid === 'orchard_skep' ||
-                  pid === 'pond_driftwood'
-                ? prop.name
-                : `Inspect ${prop.name}`;
+            // WP4: shared label source with selectBestInteractiveTarget (no drift).
+            actionLabel = getWorldPropActionLabel(
+              pid,
+              worldRef.current.flags.bellRestored,
+              prop.name,
+            );
             scoreDist = metrics.scoreDistance;
             isImmediate = metrics.inRange;
           }
@@ -3125,6 +3118,8 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
     <div
       ref={mountRef}
       data-testid="neighborhood-canvas"
+      role="img"
+      aria-label="3D neighborhood view. Move with WASD or touch, press E to interact with the nearest thing."
       className="fixed inset-0 w-full h-full overflow-hidden"
     />
   );

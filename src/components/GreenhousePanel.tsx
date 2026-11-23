@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useRef } from 'react';
 import { Droplets, Leaf, Scissors, Sprout, X } from 'lucide-react';
 import {
   GREENHOUSE_CROPS,
@@ -9,6 +9,7 @@ import {
 } from '../game/greenhouse';
 import { PERSONAL_ITEM_MAP } from '../game/inventory';
 import { GreenhouseState, WorldState } from '../game/types';
+import { useDialogA11y } from './useDialogA11y';
 
 export type GreenhousePanelMode = 'planting' | 'harvest';
 
@@ -54,6 +55,11 @@ export const GreenhousePanel: React.FC<GreenhousePanelProps> = ({
     [world.inventory],
   );
 
+  // UI/UX program (WP3): shared focus kit. Declared BEFORE the early return so
+  // hook order stays stable across open/close.
+  const dialogRef = useRef<HTMLDivElement | null>(null);
+  useDialogA11y(dialogRef, Boolean(mode));
+
   if (!mode) return null;
 
   const title =
@@ -65,7 +71,9 @@ export const GreenhousePanel: React.FC<GreenhousePanelProps> = ({
       onClick={onClose}
     >
       <div
+        ref={dialogRef}
         role="dialog"
+        aria-modal="true"
         aria-label={title}
         onClick={(e) => e.stopPropagation()}
         className="w-full max-w-2xl max-h-[85vh] bg-linen border border-stone-line rounded-2xl shadow-elevation-drawer flex flex-col overflow-hidden"
@@ -113,7 +121,7 @@ export const GreenhousePanel: React.FC<GreenhousePanelProps> = ({
         </div>
 
         {/* Body */}
-        <div className="flex-1 overflow-y-auto storybook-scroll p-4 sm:p-5 space-y-3">
+        <div tabIndex={0} className="flex-1 overflow-y-auto storybook-scroll p-4 sm:p-5 space-y-3">
           {/* Everyday Gameplay GA-2 — rain-day hint: the rain chain waters for you. */}
           {world.weather === 'light_rain' && (
             <p className="text-xs sm:text-sm font-medium text-[#3E5A44] bg-[#EAF0EA] border border-[#A7C0A8] rounded-lg px-3.5 py-2.5">
@@ -171,7 +179,7 @@ export const GreenhousePanel: React.FC<GreenhousePanelProps> = ({
                               key={idx}
                               type="button"
                               onClick={() => onPlantSeed(crop.seedItemId, idx)}
-                              className="min-h-[44px] px-3.5 py-2 rounded-xl bg-sage hover:bg-[#4F6E53] text-xs sm:text-sm font-semibold text-linen transition-colors cursor-pointer"
+                              className="min-h-[44px] px-3.5 py-2 rounded-xl bg-sage-deep hover:bg-sage text-xs sm:text-sm font-semibold text-linen transition-colors cursor-pointer"
                             >
                               Sow in Pot {idx + 1}
                             </button>
@@ -220,7 +228,7 @@ export const GreenhousePanel: React.FC<GreenhousePanelProps> = ({
                       <button
                         type="button"
                         onClick={() => onHarvestPlot(idx)}
-                        className="min-h-[44px] px-4 py-2 rounded-xl bg-terracotta hover:bg-terracotta-deep text-xs sm:text-sm font-semibold text-linen transition-colors cursor-pointer whitespace-nowrap shrink-0"
+                        className="min-h-[44px] px-4 py-2 rounded-xl bg-terracotta-deep hover:bg-terracotta text-xs sm:text-sm font-semibold text-linen transition-colors cursor-pointer whitespace-nowrap shrink-0"
                       >
                         Harvest Gently
                       </button>
