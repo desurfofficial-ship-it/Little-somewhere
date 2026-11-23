@@ -1,3 +1,5 @@
+> **STATUS: OBSOLETE** — this audit targeted the original 94-line prototype `GAME_DESIGN.md`. The revision landed; the current `GAME_DESIGN.md` is the 347-line, 12-section authoritative baseline. Preserved here as the historical record of the pre-revision GDD audit. Do not read as current; see `/GAME_DESIGN.md` and `docs/MASTER-ROADMAP.md` for the as-built product state.
+
 # GAME_DESIGN_AUDIT.md — LITTLE SOMEWHERE GDD Audit & Consistency Matrix
 
 **Audit Phase**: Phase 1 — Expanded Audit & Revision Planning (No Code or `/GAME_DESIGN.md` Edits)  

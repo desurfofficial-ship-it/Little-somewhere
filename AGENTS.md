@@ -124,3 +124,43 @@ Available entry points:
 - `skills/earshot/` — sound generation & evaluation
 - `skills/polyhaven/` — CC0 reference / optional assets from Poly Haven
 - `skills/mengto/` — pointers into the MengTo design & Three.js skill library
+
+---
+
+## 7. Master Roadmap & Mandatory Development Rules
+
+**Authoritative product vision & roadmap:** [`docs/MASTER-ROADMAP.md`](docs/MASTER-ROADMAP.md) is the single source of truth for the product vision, the six pillars, product boundaries (what the game IS and IS NOT), implementation status, the milestone sequence, and the strategic development order. Read it before beginning any new feature. The audit evidence is in [`docs/roadmap/REPOSITORY-ALIGNMENT-AUDIT.md`](docs/roadmap/REPOSITORY-ALIGNMENT-AUDIT.md).
+
+**Product identity — preserve at all costs:** LITTLE SOMEWHERE is a cozy neighborhood life simulation — single-player-first, character-driven, living-world, persistent, peaceful. It is NOT a business tycoon, shop-management sim, farming grind, quest checklist, relationship-number grind, competitive multiplayer game, or a game where NPCs exist only to give quests. Do not let future development drift toward these categories.
+
+**The six pillars** (full text in `docs/MASTER-ROADMAP.md` §1): (1) A Living Neighborhood; (2) Everyday Activities; (3) Actual Resident Personalities; (4) The Neighborhood Remembers; (5) Seasons and Atmosphere; (6) No Stressful Progression. Pillar 6 governs the entire game: no real-world timers, no energy depletion, no grinding, no punishment for breaks.
+
+### Mandatory development rules
+
+Every coding agent must follow these rules. They are mirrored in `docs/MASTER-ROADMAP.md` §11 and `docs/architecture/master-architecture/10-operating-directive.md`.
+
+1. Read the master roadmap (`docs/MASTER-ROADMAP.md`) before beginning a new feature.
+2. Inspect the existing implementation before designing a replacement.
+3. Identify existing owners and active branches before touching a system (`docs/architecture/master-architecture/04` §1).
+4. Never duplicate an existing system without a documented reason.
+5. Do not implement deferred features (`docs/MASTER-ROADMAP.md` §7) without approval.
+6. Preserve the original cozy neighborhood identity (product boundaries above).
+7. Do not introduce real-world progression timers — simulation time governs all progression.
+8. Keep the simulation driven by in-game time.
+9. Preserve save compatibility and implement safe migrations when required (`docs/architecture/master-architecture/07` §2 schema-bump protocol).
+10. Fix relevant existing bugs before adding unrelated features.
+11. Use clear integration contracts for parallel agents (`docs/architecture/master-architecture/06`).
+12. Provide evidence for implementation claims — a design doc is not proof of implementation.
+13. Run relevant tests, typecheck, and production build (`docs/architecture/master-architecture/08` §2 gates).
+14. Verify gameplay behavior where applicable.
+15. Update the appropriate documentation after completing work.
+16. Report incomplete work honestly.
+17. Do not mark work complete before integration and verification — use the 6-state vocabulary (`docs/architecture/master-architecture/07` §6: Proposed → In progress → Implemented locally → Tested → Merged → Verified in integrated build).
+18. **Subagents may not launch further subagents** (directive §1) — the lead owns synthesis.
+19. **File an 11-field implementation proposal** (`docs/architecture/master-architecture/03` §8) before any substantial feature; lead + neighbor-team review required (directive §3).
+20. **Every major implementation receives independent adversarial review** (directive §5, `docs/architecture/master-architecture/08` §2) — reviewers actively attempt to disprove correctness; reproducible findings must be addressed.
+21. **Maintain a consolidated team report** per merge cycle (directive §7, `docs/architecture/master-architecture/07` §11) — completed / active / subagents / files / deps / blockers / test evidence / decisions / risks / next.
+
+**Feature authorization:** distinguish between Approved active work, Approved future work, Proposed ideas, and Deferred work. A feature appearing in the original vision does NOT automatically authorize an agent to implement it immediately. The active milestone (`docs/MASTER-ROADMAP.md` §5) and its scope govern execution.
+
+**LR-3 scope control (directive §8):** LR-3 (Clara's Morning Pastry Invitation) is owned by the LR team; design is READY but implementation is gated on 5 clearance items (`docs/architecture/lr3-qa/lr3-integration-readiness.md`). Other teams coordinate with the LR team — do not create a competing implementation, branch, or proposal.

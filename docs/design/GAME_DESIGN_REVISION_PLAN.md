@@ -1,3 +1,5 @@
+> **STATUS: OBSOLETE** — the revision this plan proposed was executed; `GAME_DESIGN.md` is now the revised 347-line, 12-section authoritative baseline. Preserved as the historical record of the revision plan. Do not read as current.
+
 # GAME_DESIGN_REVISION_PLAN.md — LITTLE SOMEWHERE GDD Revision Blueprint
 
 **Audit Phase**: Phase 1 — Expanded Audit & Revision Planning (Awaiting Approval Before Revising `/GAME_DESIGN.md`)  
