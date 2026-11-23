@@ -75,6 +75,7 @@ test('A* routes cleanly around Mirror Pond and central obstacles without cutting
   const pondWest = { x: -4.4, z: 13.8 }; // Toby morning at Mirror Pond Bank
   const eastWoodshop = { x: 7.5, z: 11.8 }; // Barnaby morning at Pinecone Woodshop
   const path = computeWaypointPath(pondWest, eastWoodshop, 0.38)!;
+  assert.ok(path, 'computeWaypointPath returned null for a reachable goal (G-8 null-return adaptation)');
 
   assert.ok(path.length >= 2, 'Should route via bridge/south or plaza nodes around Mirror Pond');
 
@@ -177,6 +178,7 @@ test('every landmark zone center routes to every other at the player radius', ()
       const from = endpointOf(fromZone.id, fromZone.x, fromZone.z);
       const to = endpointOf(toZone.id, toZone.x, toZone.z);
       const path = computeWaypointPath(from, to, PLAYER_RADIUS);
+      assert.ok(path, 'computeWaypointPath returned null for a reachable goal (G-8 null-return adaptation)');
       assert.ok(
         path.length >= 1,
         `No path from ${fromZone.id} to ${toZone.id} at player radius`,
@@ -209,6 +211,7 @@ test('rise deck, bridge deck and west lawn are reachable at the player radius', 
   ];
   for (const [label, to] of targets) {
     const path = computeWaypointPath(plaza, to, PLAYER_RADIUS);
+    assert.ok(path, 'computeWaypointPath returned null for a reachable goal (G-8 null-return adaptation)');
     let prev = plaza;
     for (const wp of path) {
       assert.equal(
