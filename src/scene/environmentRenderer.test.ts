@@ -6,7 +6,11 @@ import { computeSitGroundY } from '../game/playerController';
 import { RESIDENTS } from '../game/residents';
 import { createFreshWorldState } from '../game/storage';
 import { getGroundHeightAt, isPointWalkable } from '../game/worldMap';
-import { EnvironmentVisualController } from './environmentRenderer';
+import {
+  EnvironmentVisualController,
+  computeSunPlacement,
+  shouldShowAmbientDrift,
+} from './environmentRenderer';
 import { animateCharacterRig, buildStorybookCharacter } from './builders/characters';
 import { buildStorybookBench, buildStorybookFountain } from './builders/landmarks';
 import { buildMirrorPondAndBridge } from './builders/vegetation';
@@ -724,4 +728,51 @@ test('R5 Pass 17: golden hour lifts a lit home and dims a cold one; daytime keep
     'Morning parity is hearth-independent',
   );
   h.dispose();
+});
+
+// ---------------------------------------------------------------------------
+// WP-2 (world-environment initiative, audit-1d): pure weather/sun contracts.
+// ---------------------------------------------------------------------------
+
+test('WP-2: ambient drift rule — calm winter days finally get snowfall, rain stays exclusive', () => {
+  // Winter: flurries on every calm weather...
+  assert.equal(shouldShowAmbientDrift('sunlit', 'winter'), true);
+  assert.equal(shouldShowAmbientDrift('misty_morning', 'winter'), true);
+  assert.equal(shouldShowAmbientDrift('breezy', 'winter'), true);
+  // ...but never while the rain streaks are up (no double precipitation).
+  assert.equal(shouldShowAmbientDrift('light_rain', 'winter'), false);
+  // Non-winter contract unchanged: breezy drift + the signature sunlit spring petals.
+  assert.equal(shouldShowAmbientDrift('breezy', 'summer'), true);
+  assert.equal(shouldShowAmbientDrift('sunlit', 'spring'), true);
+  assert.equal(shouldShowAmbientDrift('sunlit', 'summer'), false);
+  assert.equal(shouldShowAmbientDrift('sunlit', 'autumn'), false);
+  assert.equal(shouldShowAmbientDrift('misty_morning', 'spring'), false);
+  assert.equal(shouldShowAmbientDrift('light_rain', 'spring'), false);
+});
+
+test('WP-2: sun placement derives from the composer sunElevation/sunAzimuth outputs', () => {
+  // Composer outputs: elevation = max(0.18, sin(tNorm*PI)*1.12), azimuth = 0.5 + tNorm*1.9.
+  const elevationAt = (tNorm: number) => Math.max(0.18, Math.sin(tNorm * Math.PI) * 1.12);
+  const azimuthAt = (tNorm: number) => 0.5 + tNorm * 1.9;
+
+  // Morning (tNorm 0.1): elevation 0.346 rad -> a low ~10.2-unit morning sun, east-ish.
+  const morning = computeSunPlacement(elevationAt(0.1), azimuthAt(0.1));
+  assert.ok(Math.abs(morning.y - Math.sin(elevationAt(0.1)) * 30) < 1e-9);
+  assert.ok(Math.abs(morning.x - Math.cos(azimuthAt(0.1)) * 26) < 1e-9);
+  assert.equal(morning.z, 16);
+  assert.ok(morning.y < 16, 'morning sun must stay low');
+
+  // Midday (tNorm 0.5): the sun crowns the arc — sin(1.12)*30 ≈ 27.0, due-west sweep.
+  const noon = computeSunPlacement(elevationAt(0.5), azimuthAt(0.5));
+  assert.ok(Math.abs(noon.y - Math.sin(1.12) * 30) < 1e-9);
+  assert.ok(noon.y > 24, 'midday sun must clear the rooftops');
+
+  // Dusk (tNorm 1.0): elevation hits the 0.18 rad composer floor and the 8-unit light
+  // floor clamps the height; azimuth reaches the R-01 sweep end (2.4).
+  const dusk = computeSunPlacement(elevationAt(1.0), azimuthAt(1.0));
+  assert.equal(dusk.y, 8, 'dusk sun clamps to the 8-unit floor');
+  assert.ok(Math.abs(dusk.x - Math.cos(2.4) * 26) < 1e-9);
+
+  // The floor is total: even a degenerate elevation can never dip below 8.
+  assert.equal(computeSunPlacement(-0.5, 1).y, 8);
 });

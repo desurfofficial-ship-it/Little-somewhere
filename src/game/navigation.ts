@@ -21,6 +21,17 @@ export const NAV_NODES: readonly NavNode[] = [
   { id: 'pond_west_top', pos: { x: -5.2, z: 9.8 } },
   { id: 'bridge_north', pos: { x: -4.35, z: 11.45 } },
   { id: 'pond_bank_sw', pos: { x: -4.35, z: 14.2 } },
+  // Cedar bridge deck lane (WP-1/WQA-02): the rail inflated band fully separates the west
+  // bank lane from the deck strip (walkable x -3.10..-2.68 @ r0.48), so the deck gets its
+  // own vertical chain with dedicated entry/exit nodes clear of the rail corners.
+  { id: 'bridge_deck_entry_n', pos: { x: -2.9, z: 10.6 } },
+  { id: 'bridge_deck_north', pos: { x: -2.9, z: 12.0 } },
+  { id: 'bridge_deck_mid', pos: { x: -2.9, z: 14.0 } },
+  { id: 'bridge_deck_south', pos: { x: -2.9, z: 16.0 } },
+  { id: 'bridge_deck_exit_s', pos: { x: -2.9, z: 17.0 } },
+  // West-bank lane corner relief (WP-1/WQA-02): keeps the pond_south_w leg clear of the
+  // rail's south-west inflated corner (z 16.76).
+  { id: 'rail_corner_sw', pos: { x: -4.35, z: 16.9 } },
   { id: 'pond_south_w', pos: { x: -4.0, z: 17.8 } },
 
   // North promenade & Plaza north
@@ -35,9 +46,15 @@ export const NAV_NODES: readonly NavNode[] = [
   // Fern Hollow Orchard (north district)
   { id: 'orchard_gate', pos: { x: -2.4, z: -13.9 } },
   { id: 'orchard_south', pos: { x: -2.3, z: -17.1 } },
-  { id: 'orchard_west', pos: { x: -6.2, z: -17.6 } },
+  // Nudged north-east (WP-1): keeps the orchard_south leg clear of orchard_tree_mid.
+  { id: 'orchard_west', pos: { x: -6.35, z: -17.15 } },
   { id: 'orchard_bench', pos: { x: -9.2, z: -20.0 } },
   { id: 'orchard_east', pos: { x: 3.8, z: -18.6 } },
+  // Orchard south fringe (WP-1/WQA-03): covers the previously unreachable strip south of
+  // the tree rows. A hook node east of orchard_ladder keeps both legs clear of the
+  // ladder/crates obstacle corridor.
+  { id: 'orchard_south_hook', pos: { x: -5.0, z: -19.2 } },
+  { id: 'orchard_south_fr', pos: { x: -4.9, z: -21.8 } },
 
   // Plaza flanks & South promenade
   { id: 'plaza_west', pos: { x: -3.6, z: 1.5 } },
@@ -61,13 +78,22 @@ export const NAV_NODES: readonly NavNode[] = [
   { id: 'marigold_mid', pos: { x: 20.6, z: 9.0 } },
   { id: 'marigold_south', pos: { x: 20.9, z: 14.0 } },
   { id: 'rise_base', pos: { x: 21.3, z: 16.3 } },
-  { id: 'rise_deck', pos: { x: 21.6, z: 18.45 } },
+  // Moved onto the deck's walkable east strip (WP-1/WQA-01) — the former (21.6, 18.45)
+  // sat inside the ramp-mound inflated shadow at player radius.
+  { id: 'rise_deck', pos: { x: 21.85, z: 18.65 } },
 
   // The Wild Hollows — south-west: Sorrel Hollow trail (Build 10)
   { id: 'wilds_w1', pos: { x: -9.0, z: 18.3 } },
   { id: 'wilds_w2', pos: { x: -13.5, z: 18.4 } },
   { id: 'wilds_w3', pos: { x: -17.5, z: 18.2 } },
   { id: 'sorrel_hollow', pos: { x: -19.6, z: 18.9 } },
+
+  // West-margin lawn nodes (WP-1/WQA-03): shrink the walkable-but-unroutable ghost band
+  // along x -25..-17 (book_nook/cottage facades block direct LOS to town lanes).
+  { id: 'west_far_n', pos: { x: -22.0, z: -6.5 } },
+  { id: 'west_bakery_lawn', pos: { x: -20.0, z: -10.5 } },
+  { id: 'west_far_s', pos: { x: -22.0, z: 10.0 } },
+  { id: 'west_south_lawn', pos: { x: -22.0, z: 15.5 } },
 
   // The Wild Hollows — north-east: The Bee Line (Build 10)
   { id: 'beeline_w', pos: { x: 7.4, z: -17.9 } },
@@ -93,7 +119,17 @@ export const NAV_EDGES: ReadonlyArray<readonly [string, string]> = [
   ['pond_west_top', 'bridge_north'],
   ['pond_west_top', 'south_prom_mid'],
   ['bridge_north', 'pond_bank_sw'],
-  ['pond_bank_sw', 'pond_south_w'],
+  // Cedar bridge deck chain (WP-1/WQA-02)
+  ['pond_west_top', 'bridge_deck_entry_n'],
+  ['bridge_deck_entry_n', 'bridge_deck_north'],
+  ['bridge_deck_north', 'bridge_deck_mid'],
+  ['bridge_deck_mid', 'bridge_deck_south'],
+  ['bridge_deck_south', 'bridge_deck_exit_s'],
+  ['bridge_deck_exit_s', 'pond_south_w'],
+  // West-bank lane corner relief (WP-1/WQA-02) — replaces the former
+  // pond_bank_sw -> pond_south_w leg that corner-cut the rail
+  ['pond_bank_sw', 'rail_corner_sw'],
+  ['rail_corner_sw', 'pond_south_w'],
   ['pond_south_w', 'pond_south_e'],
 
   // North promenade & Gazebo ring
@@ -112,6 +148,8 @@ export const NAV_EDGES: ReadonlyArray<readonly [string, string]> = [
   ['orchard_south', 'orchard_west'],
   ['orchard_south', 'orchard_east'],
   ['orchard_west', 'orchard_bench'],
+  ['orchard_west', 'orchard_south_hook'],
+  ['orchard_south_hook', 'orchard_south_fr'],
 
   // Plaza perimeter around Fountain
   ['plaza_nw', 'plaza_ne'],
@@ -149,6 +187,13 @@ export const NAV_EDGES: ReadonlyArray<readonly [string, string]> = [
   ['wilds_w2', 'wilds_w3'],
   ['wilds_w3', 'sorrel_hollow'],
 
+  // West-margin lawn (WP-1/WQA-03): the z ≈ -6.5 lane threads between the book nook and
+  // bakery footprints; the south lawn chains around the cottage to the Sorrel trail.
+  ['west_far_n', 'bakery_porch'],
+  ['west_far_n', 'west_bakery_lawn'],
+  ['west_far_s', 'west_south_lawn'],
+  ['west_south_lawn', 'wilds_w1'],
+
   // The Wild Hollows — Bee Line & Copperwheel east return (Build 10)
   ['orchard_east', 'beeline_w'],
   ['beeline_w', 'beeline_mid'],
@@ -161,6 +206,9 @@ export const NAV_EDGES: ReadonlyArray<readonly [string, string]> = [
 
 const nodeById = new Map<string, NavNode>();
 const adjacency = new Map<string, string[]>();
+
+/** Bounded diagnostic counter for the A*-exhaustion warning (WP-1/WQA-04). */
+let exhaustionWarnings = 0;
 
 for (const node of NAV_NODES) {
   nodeById.set(node.id, node);

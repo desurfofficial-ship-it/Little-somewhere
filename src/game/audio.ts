@@ -8,6 +8,18 @@ class CozyAudioEngine {
   private hearthPopTimer: number | null = null;
   // Rain room-tone state (Pass 9): one looped patter bed, idempotent like the hearth loop.
   private rainBed: { source: AudioBufferSourceNode; hiss: AudioBufferSourceNode } | null = null;
+  // WP-2 (audit-1d): which mode the active rain bed was built for (indoors = cozy roof
+  // patter, outdoors = lighter open-air shower). A mode flip while active restarts the bed.
+  private rainBedOutdoor = false;
+  // WP-2: outdoor breeze / winter-wind room-tone — a looped filtered noise bed with a
+  // slow LFO swell (and a leaf-shimmer hiss layer on lively days). One bed, idempotent.
+  private breezeBed: {
+    source: AudioBufferSourceNode;
+    hiss: AudioBufferSourceNode | null;
+    lfo: OscillatorNode;
+    bedGain: GainNode;
+    winter: boolean;
+  } | null = null;
 
   private ensureContext(): AudioContext | null {
     if (this.muted) return null;
@@ -28,6 +40,7 @@ class CozyAudioEngine {
     if (muted) {
       this.playHearthAmbience(false);
       this.playRainAmbience(false);
+      this.playBreezeAmbience(false);
     }
   }
 
@@ -320,11 +333,13 @@ class CozyAudioEngine {
   }
 
   /**
-   * Soft rain room-tone (Pass 9): a looped low rumble bed plus a faint high patter
-   * hiss, so a rainy day is audible inside the cottage. Idempotent — calling start
-   * twice keeps one bed. Stops immediately when muted, unstarted, or back outdoors.
+   * Soft rain patter room-tone (Pass 9 + WP-2 outdoor mode). One looped bed,
+   * idempotent — calling start twice keeps one bed. `outdoor` selects the lighter
+   * open-air gains (the indoor bed reads as cozy roof patter); flipping the mode
+   * while active restarts the bed so the transition is always audible-correct.
+   * Stops immediately when muted or unstarted.
    */
-  public playRainAmbience(start: boolean): void {
+  public playRainAmbience(start: boolean, outdoor = false): void {
     if (!start) {
       if (this.rainBed) {
         try {
@@ -341,7 +356,12 @@ class CozyAudioEngine {
       }
       return;
     }
+    if (this.rainBed && this.rainBedOutdoor !== outdoor) {
+      // Mode flip: rebuild the bed with the new indoor/outdoor voicing.
+      this.playRainAmbience(false);
+    }
     if (this.rainBed || this.muted) return;
+    this.rainBedOutdoor = outdoor;
     const ctx = this.ensureContext();
     if (!ctx) return;
     const now = ctx.currentTime;
@@ -362,7 +382,7 @@ class CozyAudioEngine {
     lowFilter.frequency.value = 720;
     const lowGain = ctx.createGain();
     lowGain.gain.setValueAtTime(0.001, now);
-    lowGain.gain.linearRampToValueAtTime(0.016, now + 1.4);
+    lowGain.gain.linearRampToValueAtTime(outdoor ? 0.009 : 0.016, now + 1.4);
     src.connect(lowFilter);
     lowFilter.connect(lowGain);
     lowGain.connect(ctx.destination);
@@ -383,12 +403,108 @@ class CozyAudioEngine {
     hissFilter.Q.value = 0.8;
     const hissGain = ctx.createGain();
     hissGain.gain.setValueAtTime(0.001, now);
-    hissGain.gain.linearRampToValueAtTime(0.007, now + 1.8);
+    hissGain.gain.linearRampToValueAtTime(outdoor ? 0.0042 : 0.007, now + 1.8);
     hiss.connect(hissFilter);
     hissFilter.connect(hissGain);
     hissGain.connect(ctx.destination);
     hiss.start(now);
     this.rainBed = { source: src, hiss };
+  }
+
+  /**
+   * WP-2 (audit-1d): outdoor breeze / winter-wind room-tone. A looped low-passed
+   * noise bed with a slow deterministic LFO swell so the wind breathes instead of
+   * droning, plus a faint leaf-shimmer hiss layer on lively (non-winter) days.
+   * Idempotent like the rain bed; a winter-mode flip while active restarts it.
+   * Stops immediately when muted or unstarted.
+   */
+  public playBreezeAmbience(start: boolean, winter = false): void {
+    if (!start) {
+      if (this.breezeBed) {
+        try {
+          this.breezeBed.source.stop();
+        } catch {
+          // already stopped
+        }
+        if (this.breezeBed.hiss) {
+          try {
+            this.breezeBed.hiss.stop();
+          } catch {
+            // already stopped
+          }
+        }
+        try {
+          this.breezeBed.lfo.stop();
+        } catch {
+          // already stopped
+        }
+        this.breezeBed = null;
+      }
+      return;
+    }
+    if (this.breezeBed && this.breezeBed.winter !== winter) {
+      this.playBreezeAmbience(false);
+    }
+    if (this.breezeBed || this.muted) return;
+    const ctx = this.ensureContext();
+    if (!ctx) return;
+    const now = ctx.currentTime;
+    // Layer 1: breathing wind bed — smooth noise, low-passed colder in winter
+    const bedSize = Math.floor(ctx.sampleRate * 3);
+    const bedBuf = ctx.createBuffer(1, bedSize, ctx.sampleRate);
+    const bedData = bedBuf.getChannelData(0);
+    let last = 0;
+    for (let i = 0; i < bedSize; i++) {
+      last = (last + (Math.random() * 2 - 1) * 0.05) * 0.988;
+      bedData[i] = last;
+    }
+    const src = ctx.createBufferSource();
+    src.buffer = bedBuf;
+    src.loop = true;
+    const bedFilter = ctx.createBiquadFilter();
+    bedFilter.type = 'lowpass';
+    bedFilter.frequency.value = winter ? 300 : 520;
+    const bedGain = ctx.createGain();
+    bedGain.gain.setValueAtTime(0.001, now);
+    bedGain.gain.linearRampToValueAtTime(winter ? 0.008 : 0.011, now + 2.0);
+    src.connect(bedFilter);
+    bedFilter.connect(bedGain);
+    bedGain.connect(ctx.destination);
+    src.start(now);
+    // Slow LFO swell on the bed gain — the wind inhales and exhales (0.11 Hz).
+    const lfo = ctx.createOscillator();
+    lfo.type = 'sine';
+    lfo.frequency.value = 0.11;
+    const lfoDepth = ctx.createGain();
+    lfoDepth.gain.value = winter ? 0.0032 : 0.0048;
+    lfo.connect(lfoDepth);
+    lfoDepth.connect(bedGain.gain);
+    lfo.start(now);
+    // Layer 2 (lively days only): faint leaf shimmer high in the branches
+    let hiss: AudioBufferSourceNode | null = null;
+    if (!winter) {
+      const hissSize = Math.floor(ctx.sampleRate * 1.5);
+      const hissBuf = ctx.createBuffer(1, hissSize, ctx.sampleRate);
+      const hissData = hissBuf.getChannelData(0);
+      for (let i = 0; i < hissSize; i++) {
+        hissData[i] = Math.random() * 2 - 1;
+      }
+      hiss = ctx.createBufferSource();
+      hiss.buffer = hissBuf;
+      hiss.loop = true;
+      const hissFilter = ctx.createBiquadFilter();
+      hissFilter.type = 'bandpass';
+      hissFilter.frequency.value = 3400;
+      hissFilter.Q.value = 0.7;
+      const hissGain = ctx.createGain();
+      hissGain.gain.setValueAtTime(0.001, now);
+      hissGain.gain.linearRampToValueAtTime(0.0026, now + 2.4);
+      hiss.connect(hissFilter);
+      hissFilter.connect(hissGain);
+      hissGain.connect(ctx.destination);
+      hiss.start(now);
+    }
+    this.breezeBed = { source: src, hiss, lfo, bedGain, winter };
   }
 
   /**

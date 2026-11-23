@@ -5,6 +5,7 @@ import {
   NAV_NODES,
   computeSeparationVector,
   computeWaypointPath,
+  findNearestNavNode,
   hasLineOfSight,
 } from './navigation';
 import {
@@ -12,7 +13,13 @@ import {
   RESIDENT_ORDER,
   getResidentScheduleSlot,
 } from './residents';
-import { distance2D, isPointWalkable } from './worldMap';
+import {
+  LANDMARK_ZONES,
+  PROP_INTERACTABLES,
+  distance2D,
+  getPropInteractionMetrics,
+  isPointWalkable,
+} from './worldMap';
 
 test('all navigation graph nodes and edges are strictly walkable with actor clearance', () => {
   const byId = new Map(NAV_NODES.map((n) => [n.id, n]));
@@ -68,6 +75,7 @@ test('A* routes cleanly around Mirror Pond and central obstacles without cutting
   const pondWest = { x: -4.4, z: 13.8 }; // Toby morning at Mirror Pond Bank
   const eastWoodshop = { x: 7.5, z: 11.8 }; // Barnaby morning at Pinecone Woodshop
   const path = computeWaypointPath(pondWest, eastWoodshop, 0.38)!;
+  assert.ok(path, 'computeWaypointPath returned null for a reachable goal (G-8 null-return adaptation)');
 
   assert.ok(path.length >= 2, 'Should route via bridge/south or plaza nodes around Mirror Pond');
 
@@ -122,5 +130,131 @@ test('all autonomous resident extra activities are walkable and A*-reachable', (
       const path = computeWaypointPath(start, act.target, 0.38)!;
       assert.ok(path.length >= 1);
     }
+  }
+});
+
+// ---------------------------------------------------------------------------
+// WP-1 guard tests (world-environment initiative, WQA-01/02/03/07):
+// the graph historically validated only the NPC radius (0.38/0.42) while the
+// player walks at 0.48 — the Foxglove Rise pinch and bridge corner-cut were
+// invisible to the suite. These guards pin the player radius everywhere.
+// ---------------------------------------------------------------------------
+
+const PLAYER_RADIUS = 0.48;
+
+test('every nav node stays walkable at the player radius (0.48)', () => {
+  for (const node of NAV_NODES) {
+    assert.equal(
+      isPointWalkable(node.pos.x, node.pos.z, PLAYER_RADIUS),
+      true,
+      `NavNode ${node.id} (${node.pos.x}, ${node.pos.z}) must be walkable at player radius ${PLAYER_RADIUS}`,
+    );
+  }
+});
+
+test('every nav edge keeps line of sight at the player radius (0.48)', () => {
+  const byId = new Map(NAV_NODES.map((n) => [n.id, n]));
+  for (const [aId, bId] of NAV_EDGES) {
+    const a = byId.get(aId)!;
+    const b = byId.get(bId)!;
+    assert.equal(
+      hasLineOfSight(a.pos, b.pos, PLAYER_RADIUS),
+      true,
+      `NavEdge ${aId} <-> ${bId} must stay clear at player radius ${PLAYER_RADIUS}`,
+    );
+  }
+});
+
+test('every landmark zone center routes to every other at the player radius', () => {
+  // Endpoint resolution: zone centers that sit inside their own building/feature
+  // footprint (fountain basin, gazebo plinth, cottage walls...) use their nearest
+  // nav node; walkable centers (plaza, wilds, orchard) route center-to-center.
+  const endpointOf = (zoneId: string, x: number, z: number): { x: number; z: number } =>
+    isPointWalkable(x, z, PLAYER_RADIUS) ? { x, z } : findNearestNavNode({ x, z }, PLAYER_RADIUS).pos;
+
+  for (const fromZone of LANDMARK_ZONES) {
+    for (const toZone of LANDMARK_ZONES) {
+      if (fromZone.id === toZone.id) continue;
+      const from = endpointOf(fromZone.id, fromZone.x, fromZone.z);
+      const to = endpointOf(toZone.id, toZone.x, toZone.z);
+      const path = computeWaypointPath(from, to, PLAYER_RADIUS);
+      assert.ok(path, 'computeWaypointPath returned null for a reachable goal (G-8 null-return adaptation)');
+      assert.ok(
+        path.length >= 1,
+        `No path from ${fromZone.id} to ${toZone.id} at player radius`,
+      );
+      let prev = from;
+      for (const wp of path) {
+        assert.equal(
+          isPointWalkable(wp.x, wp.z, PLAYER_RADIUS),
+          true,
+          `${fromZone.id} -> ${toZone.id}: waypoint (${wp.x.toFixed(2)}, ${wp.z.toFixed(2)}) unwalkable at player radius`,
+        );
+        prev = wp;
+      }
+      assert.ok(
+        distance2D(path[path.length - 1], to) < 0.15,
+        `${fromZone.id} -> ${toZone.id} path must terminate at target`,
+      );
+    }
+  }
+});
+
+test('rise deck, bridge deck and west lawn are reachable at the player radius', () => {
+  const plaza = { x: -3.6, z: 1.5 }; // plaza_west node
+  const targets: Array<[string, { x: number; z: number }]> = [
+    ['foxglove rise deck', { x: 21.85, z: 18.65 }],
+    ['bridge deck mid', { x: -2.9, z: 14.0 }],
+    ['west far lawn north', { x: -22.0, z: -6.5 }],
+    ['west south lawn', { x: -22.0, z: 15.5 }],
+    ['orchard south fringe', { x: -4.9, z: -21.8 }],
+  ];
+  for (const [label, to] of targets) {
+    const path = computeWaypointPath(plaza, to, PLAYER_RADIUS);
+    assert.ok(path, 'computeWaypointPath returned null for a reachable goal (G-8 null-return adaptation)');
+    let prev = plaza;
+    for (const wp of path) {
+      assert.equal(
+        isPointWalkable(wp.x, wp.z, PLAYER_RADIUS),
+        true,
+        `${label}: waypoint (${wp.x.toFixed(2)}, ${wp.z.toFixed(2)}) unwalkable`,
+      );
+      prev = wp;
+    }
+    assert.ok(distance2D(path[path.length - 1], to) < 0.15, `${label} path must terminate at target`);
+  }
+});
+
+test('door, mailbox and driftwood stand spots are walkable at the player radius', () => {
+  const standSpots: Array<[string, number, number]> = [
+    ['bakery_door', -12.4, -6.75],
+    ['copperwheel_door', 13.1, -7.55],
+    ['player_mailbox approach', -9.0, 7.2],
+    ['pond_driftwood approach', 6.55, 14.6],
+  ];
+  for (const [label, x, z] of standSpots) {
+    assert.equal(
+      isPointWalkable(x, z, PLAYER_RADIUS),
+      true,
+      `${label} stand spot (${x}, ${z}) must be walkable at player radius`,
+    );
+  }
+  // The metrics layer must steer walkers to those same clear stand spots.
+  for (const propId of ['player_mailbox', 'pond_driftwood', 'bakery_door', 'copperwheel_door'] as const) {
+    const metrics = getPropInteractionMetrics(propId, { x: 0, z: 0 });
+    assert.equal(
+      isPointWalkable(metrics.approachPos.x, metrics.approachPos.z, PLAYER_RADIUS),
+      true,
+      `${propId} approachPos (${metrics.approachPos.x}, ${metrics.approachPos.z}) must be walkable`,
+    );
+  }
+  // Tap proxies stay glued to their visuals: every prop def keeps an in-reach focus
+  // target (gazebo_bell legitimately looks 2.7 m deeper at the spire — cap at 3.0).
+  for (const prop of PROP_INTERACTABLES) {
+    const metrics = getPropInteractionMetrics(prop.id, { x: prop.x, z: prop.z });
+    assert.ok(
+      distance2D(metrics.focusPos, { x: prop.x, z: prop.z }) <= 3.0,
+      `${prop.id} focusPos drifted from its tap proxy`,
+    );
   }
 });

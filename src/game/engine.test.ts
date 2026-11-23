@@ -145,3 +145,28 @@ test('branching storyline progresses from Pip mystery to restored bell and envir
   assert.equal(day2.residents.arthur.talkedToday, false);
   assert.equal(day2.memories.length, world.memories.length);
 });
+
+// WP-2 (world-environment initiative, audit-1d): the mediation styles must produce
+// distinct world outcomes — 'festival_ring' lights the plaza festoon string;
+// 'gentle_truth' stays intentionally quiet (a private truth needs no set dressing);
+// 'shared_baking' keeps opening Clara's café tables.
+test('WP-2: mediation styles carry distinct environmental world signatures', () => {
+  const base = createFreshWorldState();
+  assert.equal(computeEnvironmentState(base.flags).festoonLanterns, false);
+  assert.equal(computeEnvironmentState(base.flags).bakeryTablesOpen, false);
+
+  const festivalFlags = { ...base.flags, mediationStyle: 'festival_ring' as const };
+  const festivalEnv = computeEnvironmentState(festivalFlags);
+  assert.equal(festivalEnv.festoonLanterns, true, 'festival_ring must light the festoon string');
+  assert.equal(festivalEnv.bakeryTablesOpen, false);
+
+  const gentleFlags = { ...base.flags, mediationStyle: 'gentle_truth' as const };
+  const gentleEnv = computeEnvironmentState(gentleFlags);
+  assert.equal(gentleEnv.festoonLanterns, false, 'gentle_truth stays quiet');
+  assert.equal(gentleEnv.bakeryTablesOpen, false);
+
+  const bakingFlags = { ...base.flags, mediationStyle: 'shared_baking' as const };
+  const bakingEnv = computeEnvironmentState(bakingFlags);
+  assert.equal(bakingEnv.bakeryTablesOpen, true, 'shared_baking opens the café tables');
+  assert.equal(bakingEnv.festoonLanterns, false);
+});

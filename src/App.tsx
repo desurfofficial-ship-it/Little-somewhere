@@ -270,6 +270,15 @@ export default function App() {
     setToastSeq((s) => s + 1);
   }, []);
 
+  // WP-3 (audit-1e F-UX-1): sim-tick Wild Hollows discoveries now surface in the HUD.
+  // The canvas owns the chime + sparkle burst; App owns the toast copy.
+  const handleDiscoveryFound = useCallback(
+    (discoveryName: string) => {
+      showToast(`Discovered ${discoveryName}`);
+    },
+    [showToast],
+  );
+
   // Fade to a warm linen veil, run the transition at the covered midpoint, then release.
   const playSceneVeil = useCallback((midpoint: () => void) => {
     for (const t of veilTimersRef.current) window.clearTimeout(t);
@@ -1353,6 +1362,7 @@ export default function App() {
           activePropId={propCard ? activePropId : null}
           playerActionPulse={playerActionPulse}
           onHudSync={handleHudSync}
+          onDiscoveryFound={handleDiscoveryFound}
           onSelectTarget={openTargetInteraction}
         />
       </SceneErrorBoundary>

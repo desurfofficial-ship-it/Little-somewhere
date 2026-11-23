@@ -19,6 +19,45 @@ import { CANOPY_DRIFT_TARGETS } from '../game/progressionVisuals';
 import type { ProgressionPresentationRigs } from './progressionPresentation';
 import type { MeadowDressingRig } from './builders/botanicalDressing';
 
+// ---------------------------------------------------------------------------
+// WP-2 (world-environment initiative, audit-1d): pure weather/sun visual
+// contracts, exported for deterministic headless tests. The composer's
+// timeOfDay.sunElevation / sunAzimuth outputs are the declared source of truth
+// for the sun arc; the petal/flurry rule owns the "when does ambient drift
+// fall" decision including the previously-missing calm-winter snowfall.
+// ---------------------------------------------------------------------------
+
+/**
+ * Resolves the sun light placement from the composed time-of-day outputs.
+ * - azimuth sweeps 0.5 -> 2.4 across the sunlit day (the R-01 contract).
+ * - elevation (radians, 0.18 floor) maps onto the light rig's height with an
+ *   8-unit floor so golden hour keeps raking shadows and dusk stays twilight.
+ */
+export function computeSunPlacement(
+  sunElevation: number,
+  sunAzimuth: number,
+): { x: number; y: number; z: number } {
+  const sunHeight = Math.max(8, Math.sin(Math.max(0, sunElevation)) * 30);
+  return { x: Math.cos(sunAzimuth) * 26, y: sunHeight, z: 16 };
+}
+
+/**
+ * When does the ambient drift mesh (petals / leaves / flurries) fall?
+ * - breezy: always (wind-borne drift)
+ * - sunlit spring: the signature petal drift
+ * - winter (WP-2): gentle flurries on ANY calm weather — snow was previously
+ *   gated on `breezy` only, so a calm winter day had no snowfall at all.
+ *   Rain stays exclusive to the rain streaks (no double precipitation).
+ */
+export function shouldShowAmbientDrift(
+  effectiveWeather: 'sunlit' | 'breezy' | 'misty_morning' | 'light_rain',
+  season: 'spring' | 'summer' | 'autumn' | 'winter',
+): boolean {
+  if (effectiveWeather === 'light_rain') return false;
+  if (season === 'winter') return true;
+  return effectiveWeather === 'breezy' || (effectiveWeather === 'sunlit' && season === 'spring');
+}
+
 // Pre-allocated scratch helpers (zero per-frame heap allocations)
 const _skyMorning = new THREE.Color('#DCEBF2');
 const _skyAfternoon = new THREE.Color('#D9ECF5');
@@ -280,6 +319,16 @@ export class EnvironmentVisualController {
       bakeryTablesGroup.visible = env.bakeryTablesOpen;
       oakGlint.visible = !world.flags.foundBrassClapper;
       mbFlag.rotation.z = world.mailboxUnread ? 0 : -1.2;
+      // WP-3 (audit-1d): counter→visual echoes — the well lip pebble stack grows
+      // with each dropped pebble and the wildflower bank shows today's nosegay
+      // stub until the next morning. The composer folds both into its revision
+      // via a dedicated echo mask, so this reacts on the commit frame.
+      if (this.deps.wildsRig) {
+        this.deps.wildsRig.setWellPebbleStack(composed.worldEchoes.wellPebbleStack);
+        this.deps.wildsRig.setPosyBankPickedToday(composed.worldEchoes.posyBankPickedToday);
+        // WP-4 (Workstream E): the Sorrel garden's persistent community transformation.
+        this.deps.wildsRig.setGardenStage(composed.worldEchoes.sorrelGardenStage);
+      }
       fountainRig.waterMesh.visible = env.fountainFlowing;
       fountainRig.spoutParticles.visible = env.fountainFlowing;
       if (fountainRig.clogDebrisGroup) {
@@ -667,9 +716,7 @@ export class EnvironmentVisualController {
     }
 
     // Pooled instanced drifting petals / autumn leaves / winter flurries
-    const showPetals =
-      effWeather === 'breezy' ||
-      (effWeather === 'sunlit' && composed.season.season === 'spring');
+    const showPetals = shouldShowAmbientDrift(effWeather, composed.season.season);
     if (showPetals) {
       this.petalMesh.visible = true;
       const windSpeed = effWeather === 'breezy' ? 0.52 : 0.22;

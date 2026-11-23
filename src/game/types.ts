@@ -34,7 +34,8 @@ export type PropInteractableId =
   | 'old_stone_well'
   | 'rise_vista'
   | 'marigold_bank'
-  | 'wild_bee_log';
+  | 'wild_bee_log'
+  | 'sorrel_garden_bed';
 
 export type PlayerLocation =
   | 'exterior'

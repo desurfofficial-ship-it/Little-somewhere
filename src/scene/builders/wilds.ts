@@ -41,6 +41,19 @@ export interface WildsRig {
     crownBase: THREE.Color;
     crownTop: THREE.Color;
   };
+  /**
+   * WP-3 counter→visual echoes (audit-1d): the well lip remembers every pebble you
+   * listen to (0..5 visible), and the wildflower bank shows where today's nosegay
+   * was tied until the next morning regrows it. Both are pure visibility writes.
+   */
+  setWellPebbleStack(count: number): void;
+  setPosyBankPickedToday(picked: boolean): void;
+  /**
+   * WP-4 (Workstream E): the Sorrel Hollow garden's persistent community-project
+   * stage (0 = forgotten brambles … 3 = blooming again). Pure visibility writes
+   * over prebuilt stage sub-groups; the transformation persists across days.
+   */
+  setGardenStage(stage: number): void;
   dispose(): void;
 }
 
@@ -124,7 +137,8 @@ export function buildWildHollows(
 
   // ------------------------------------------------------------------
   // 1. Foxglove Rise — terraced knoll + stair + lookout deck (SE)
-  //    Deck rect x 20.4..22.5 / z 18.0..20.2 @ y 0.62; ramp 20.8..22.0 / 16.7..18.0.
+  //    Deck rect x 20.4..22.5 / z 18.0..20.2 @ y 0.62; ramp 20.44..22.36 / 16.7..18.0
+  //    (widened in WP-1/WQA-01 to give the player radius a clear stair lane).
   // ------------------------------------------------------------------
   const RISE = new THREE.Group();
   RISE.position.set(21.4, 0, 19.2);
@@ -186,14 +200,16 @@ export function buildWildHollows(
   copingMeshB.castShadow = castShadows;
   RISE.add(copingMeshA, copingMeshB);
 
-  // Timber stair cutting the north face (ramp x 20.8..22.0, z 16.7..18.0 world
-  // => local x -0.6..0.6, z -2.5..-1.2; top of stair meets deck y 0.62)
+  // Timber stair cutting the north face (ramp x 20.44..22.36, z 16.7..18.0 world
+  // => local x -0.96..0.96, z -2.5..-1.2; top of stair meets deck y 0.62).
+  // WP-1/WQA-01: widened from ±0.58 to ±0.85 (treads) so the walkable stair lane
+  // (player radius 0.48) sits between the stringers instead of pinching at 0.24 m.
   const stairTreads: THREE.BufferGeometry[] = [];
   const TREADS = 7;
   for (let s = 0; s < TREADS; s++) {
     const zLocal = -2.5 + (s + 0.5) * (1.3 / TREADS);
     const y = 0.62 * ((zLocal + 2.5) / 1.3);
-    const tread = new THREE.BoxGeometry(1.16, 0.07, 1.3 / TREADS + 0.015);
+    const tread = new THREE.BoxGeometry(1.7, 0.07, 1.3 / TREADS + 0.015);
     tread.translate(0, y - 0.035, zLocal);
     stairTreads.push(tread);
   }
@@ -206,7 +222,7 @@ export function buildWildHollows(
   RISE.add(treadsMesh);
 
   const stairSides: THREE.BufferGeometry[] = [];
-  for (const sx of [-0.63, 0.63]) {
+  for (const sx of [-0.85, 0.85]) {
     const stringer = new THREE.BoxGeometry(0.09, 0.6, 1.42);
     stringer.rotateX(-Math.atan2(0.62, 1.3));
     stringer.translate(sx, 0.58, -1.85);
@@ -220,7 +236,7 @@ export function buildWildHollows(
   RISE.add(stringersMesh);
 
   const stairEdging: THREE.BufferGeometry[] = [];
-  for (const sx of [-0.74, 0.74]) {
+  for (const sx of [-0.92, 0.92]) {
     for (const [sz, h, w] of [
       [-2.42, 0.3, 0.16],
       [-1.75, 0.42, 0.16],
@@ -820,6 +836,149 @@ export function buildWildHollows(
   clovers.instanceMatrix.needsUpdate = true;
   group.add(clovers);
 
+  // ------------------------------------------------------------------
+  // WP-3 counter→visual echo rigs (EnvironmentVisualController static block
+  // applies them from composed.worldEchoes). Mobile discipline: one
+  // InstancedMesh for the pebbles (hidden instances collapse to zero scale —
+  // still a single draw call) and one merged stem mesh for the nosegay stub.
+  // ------------------------------------------------------------------
+  // Well lip pebble stack: the well remembers every dropped pebble (cap 5).
+  const PEBBLE_STACK_CAP = 5;
+  const pebbleGeo = own(rockGeoA(0.09));
+  const pebbleInst = new THREE.InstancedMesh(pebbleGeo, stoneMat, PEBBLE_STACK_CAP);
+  pebbleInst.castShadow = castShadows;
+  const pebbleAngles = [0.35, 1.28, 2.4, 3.45, 4.6];
+  for (let i = 0; i < PEBBLE_STACK_CAP; i++) {
+    const a = pebbleAngles[i];
+    dummy.position.set(Math.cos(a) * 0.78, 0.8 + (i % 3) * 0.015, Math.sin(a) * 0.78);
+    dummy.rotation.set(0.4 + i * 0.37, i * 1.7, 0.2);
+    dummy.scale.setScalar(0.0001);
+    dummy.updateMatrix();
+    pebbleInst.setMatrixAt(i, dummy.matrix);
+  }
+  pebbleInst.instanceMatrix.needsUpdate = true;
+  well.add(pebbleInst);
+  // Wildflower bank nosegay stub: the picked-today marker at the bank heart —
+  // short cut stems + a whisper of twine, hidden again on the next morning.
+  const posyStubble = new THREE.Group();
+  posyStubble.position.set(20.3, 0, 2.5);
+  const stubStemGeos: THREE.BufferGeometry[] = [];
+  for (let i = 0; i < 5; i++) {
+    const a = (i / 5) * Math.PI * 2 + 0.4;
+    const stub = new THREE.CylinderGeometry(0.012, 0.02, 0.1, 4);
+    stub.translate(0, 0.05, 0);
+    stub.translate(Math.cos(a) * 0.12, 0, Math.sin(a) * 0.12);
+    stub.rotateZ((rand() - 0.5) * 0.6);
+    stubStemGeos.push(stub);
+  }
+  const stubStemsMesh = new THREE.Mesh(
+    own(mergeGeometries(stubStemGeos, false) ?? stubStemGeos[0]),
+    stemMatShared,
+  );
+  const stubTwine = new THREE.Mesh(own(new THREE.TorusGeometry(0.09, 0.012, 5, 10)), cedarDarkMat);
+  stubTwine.rotation.x = Math.PI / 2;
+  stubTwine.position.y = 0.05;
+  posyStubble.add(stubStemsMesh, stubTwine);
+  posyStubble.visible = false;
+  group.add(posyStubble);
+
+  // ------------------------------------------------------------------
+  // WP-4 (Workstream E): Sorrel Hollow garden bed — the first community project
+  // anchor (registry: src/game/communityProjects.ts). Four prebuilt stage sub-groups
+  // toggled by setGardenStage; the completed transformation persists world-side.
+  // Bed visual at (-21.0, 21.3); the interactable stand spot (-20.9, 21.0) stays clear.
+  // ------------------------------------------------------------------
+  const gardenBed = new THREE.Group();
+  gardenBed.position.set(-21.0, 0, 21.3);
+  addStaticContactShadow(gardenBed, shadowTex, 1.5, 1.1, 0.5, 0.02);
+
+  const gardenSoilMat = palette.get('wilds_garden_soil', { color: '#5C4636', roughness: 0.94, metalness: 0.0 });
+  const brambleMat = palette.get('wilds_bramble', { color: '#46523C', roughness: 0.9, metalness: 0.0 });
+  const foxgloveMat = palette.get('wilds_foxglove_bloom', { color: '#C97BA4', roughness: 0.58, metalness: 0.0 });
+
+  // Shared bed frame + soil (stages 1+): cedar frame boards merged into one mesh.
+  const frameGeos: THREE.BufferGeometry[] = [];
+  for (const [fx, fz, w, d] of [
+    [-0.7, 0, 0.14, 1.0],
+    [0.7, 0, 0.14, 1.0],
+    [0, -0.5, 1.4, 0.14],
+    [0, 0.5, 1.4, 0.14],
+  ] as const) {
+    const board = new THREE.BoxGeometry(w, 0.18, d);
+    board.translate(fx, 0.09, fz);
+    frameGeos.push(board);
+  }
+  const frameMesh = new THREE.Mesh(own(mergeGeometries(frameGeos, false) ?? frameGeos[0]), cedarMat);
+  frameMesh.castShadow = castShadows;
+  frameMesh.receiveShadow = true;
+  const soilMesh = new THREE.Mesh(own(new THREE.BoxGeometry(1.3, 0.1, 0.9)), gardenSoilMat);
+  soilMesh.position.y = 0.12;
+  soilMesh.receiveShadow = true;
+
+  // Stage 0 — forgotten: a bramble tangle swallowing the old bed (merged). The
+  // collapsed frame boards hide inside the tangle — no separate mesh needed.
+  const gardenForgotten = new THREE.Group();
+  const brambleGeos: THREE.BufferGeometry[] = [];
+  for (let i = 0; i < 8; i++) {
+    const h = 0.55 + rand() * 0.3;
+    const arc = new THREE.CylinderGeometry(0.016, 0.024, h, 4);
+    // Rotate FIRST (geometry centered), then lift so the rotated extent stays above ground.
+    arc.rotateZ((rand() - 0.5) * 1.5);
+    arc.rotateX((rand() - 0.5) * 1.2);
+    arc.translate((rand() - 0.5) * 1.3, h / 2 + 0.04, (rand() - 0.5) * 0.75);
+    brambleGeos.push(arc);
+  }
+  const brambleMesh = new THREE.Mesh(own(mergeGeometries(brambleGeos, false) ?? brambleGeos[0]), brambleMat);
+  brambleMesh.castShadow = castShadows;
+  gardenForgotten.add(brambleMesh);
+
+  // Stage 1 — tilled: frame + dark soil ribbons (soil gets raised row ridges via scale).
+  const gardenTilled = new THREE.Group();
+  gardenTilled.add(frameMesh, soilMesh);
+
+  // Stage 2 — sprouting: young green spikes (merged with the shared stem material).
+  const gardenSprouts = new THREE.Group();
+  const sproutGeos: THREE.BufferGeometry[] = [];
+  for (let i = 0; i < 9; i++) {
+    const spike = new THREE.ConeGeometry(0.035, 0.16 + rand() * 0.1, 5);
+    spike.translate(-0.5 + rand() * 1.0, 0.2, -0.3 + rand() * 0.6);
+    sproutGeos.push(spike);
+  }
+  const sproutMesh = new THREE.Mesh(own(mergeGeometries(sproutGeos, false) ?? sproutGeos[0]), stemMatShared);
+  gardenSprouts.add(sproutMesh);
+
+  // Stage 3 — blooming: foxglove bells + marigold crowns (one merged mesh per color).
+  const gardenBloom = new THREE.Group();
+  const foxStemGeos: THREE.BufferGeometry[] = [];
+  const foxBellGeos: THREE.BufferGeometry[] = [];
+  for (let i = 0; i < 5; i++) {
+    const sx = -0.5 + i * 0.24;
+    const sz = -0.28 + (i % 2) * 0.5;
+    const stemH = 0.34 + (i % 3) * 0.08;
+    const stem = new THREE.CylinderGeometry(0.018, 0.024, stemH, 4);
+    stem.translate(sx, 0.16 + stemH / 2, sz);
+    foxStemGeos.push(stem);
+    for (let b = 0; b < 3; b++) {
+      const bell = new THREE.DodecahedronGeometry(0.05, 0);
+      bell.scale(1, 1.25, 1);
+      bell.translate(sx + (rand() - 0.5) * 0.05, 0.22 + stemH * 0.55 + b * 0.07, sz + (rand() - 0.5) * 0.05);
+      foxBellGeos.push(bell);
+    }
+  }
+  const foxStemMesh = new THREE.Mesh(own(mergeGeometries(foxStemGeos, false) ?? foxStemGeos[0]), stemMatShared);
+  const foxBellMesh = new THREE.Mesh(own(mergeGeometries(foxBellGeos, false) ?? foxBellGeos[0]), foxgloveMat);
+  const marigoldGeos: THREE.BufferGeometry[] = [];
+  for (let i = 0; i < 6; i++) {
+    const head = new THREE.IcosahedronGeometry(0.055, 0);
+    head.translate(-0.55 + rand() * 1.1, 0.2, -0.35 + rand() * 0.7);
+    marigoldGeos.push(head);
+  }
+  const marigoldMesh = new THREE.Mesh(own(mergeGeometries(marigoldGeos, false) ?? marigoldGeos[0]), flowerMatSpecs[0].mat);
+  gardenBloom.add(foxStemMesh, foxBellMesh, marigoldMesh);
+
+  gardenBed.add(gardenForgotten, gardenTilled, gardenSprouts, gardenBloom);
+  group.add(gardenBed);
+
   return {
     group,
     moundMat,
@@ -829,6 +988,27 @@ export function buildWildHollows(
       mound: new THREE.Color('#7CA85F'),
       crownBase: new THREE.Color('#6B9556'),
       crownTop: new THREE.Color('#82AC68'),
+    },
+    setWellPebbleStack(count: number) {
+      const n = Math.max(0, Math.min(PEBBLE_STACK_CAP, Math.floor(count)));
+      for (let i = 0; i < PEBBLE_STACK_CAP; i++) {
+        dummy.position.set(Math.cos(pebbleAngles[i]) * 0.78, 0.8 + (i % 3) * 0.015, Math.sin(pebbleAngles[i]) * 0.78);
+        dummy.rotation.set(0.4 + i * 0.37, i * 1.7, 0.2);
+        dummy.scale.setScalar(i < n ? 1 : 0.0001);
+        dummy.updateMatrix();
+        pebbleInst.setMatrixAt(i, dummy.matrix);
+      }
+      pebbleInst.instanceMatrix.needsUpdate = true;
+    },
+    setPosyBankPickedToday(picked: boolean) {
+      posyStubble.visible = picked;
+    },
+    setGardenStage(stage: number) {
+      const s = Math.max(0, Math.min(3, Math.floor(stage)));
+      gardenForgotten.visible = s === 0;
+      gardenTilled.visible = s >= 1;
+      gardenSprouts.visible = s >= 2;
+      gardenBloom.visible = s >= 3;
     },
     dispose() {
       group.removeFromParent();

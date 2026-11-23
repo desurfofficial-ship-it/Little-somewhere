@@ -801,6 +801,20 @@ export const RESIDENT_EXTRA_ACTIVITIES: Record<ResidentId, readonly ActivityCand
   ],
   mina: [
     {
+      // WP-4 (Workstream E): once the Sorrel garden tending begins (sideFlag truthy
+      // from stage 1), Mina walks down to keep her promise to the hollow's garden.
+      id: 'mina_sorrel_garden_tend',
+      phases: ['afternoon', 'golden'],
+      target: { x: -20.5, z: 20.9 },
+      placeName: 'Sorrel Hollow Garden',
+      activity: 'Kneeling at the hollow garden beds, coaxing foxglove seedlings along',
+      facingAngle: 2.6,
+      animState: 'work',
+      goalKind: 'work',
+      baseWeight: 1.12,
+      requiresSideFlag: 'project_sorrel_garden_stage',
+    },
+    {
       id: 'mina_willow_planters',
       phases: ['morning', 'afternoon'],
       target: { x: -8.8, z: 6.2 },

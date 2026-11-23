@@ -1,4 +1,5 @@
 import { computeEnvironmentState } from './narrative';
+import { getCommunityProjectStage } from './communityProjects';
 import { composeProgressionVisualState } from './progressionVisuals';
 import type { ProgressionVisualState } from './progressionVisuals';
 import { hashSeed, mulberry32 } from './rng';
@@ -45,6 +46,15 @@ export interface NpcEnvironmentTouches {
   arthurEarlyPorchLamp: boolean;
 }
 
+export interface WorldEchoesState {
+  /** WP-3 (audit-1d): pebbles the well lip remembers (0..5, capped). */
+  wellPebbleStack: number;
+  /** WP-3: true until the next morning — the bank shows today's nosegay stub. */
+  posyBankPickedToday: boolean;
+  /** WP-4: Sorrel Hollow garden stage (0 = forgotten … 3 = blooming again). */
+  sorrelGardenStage: number;
+}
+
 export interface ComposedEnvironmentState {
   revision: number;
   timeOfDay: TimeOfDayState;
@@ -52,6 +62,12 @@ export interface ComposedEnvironmentState {
   season: SeasonState;
   playerChanges: EnvironmentalState;
   npcTouches: NpcEnvironmentTouches;
+  /**
+   * WP-3: pure counter→visual echoes (pebble stack, nosegay stub). Derived from
+   * sideFlags + day with zero schema impact; folded into the revision through a
+   * dedicated high-bit mask so the static render block reacts immediately.
+   */
+  worldEchoes: WorldEchoesState;
   /**
    * BUILD 03 — additive derived progression signals (Doc 07 Phase 5; pure,
    * schema-free). Carries its own revision integer so the renderer's static
@@ -250,12 +266,29 @@ export function composeEnvironmentState(
       ? 2
       : 0;
 
+  // WP-3 (audit-1d): counter→visual echoes — the world remembers small gestures.
+  const echoSideFlags = world.sideFlags ?? {};
+  const wellPebbleStack = Math.max(0, Math.min(5, Math.floor(Number(echoSideFlags.wellPebblesCount ?? 0))));
+  const posyBankPickedToday = Number(echoSideFlags.posyPickedDay ?? -1) === world.day;
+  // WP-4 (Workstream E): the Sorrel garden's persistent transformation stage.
+  const sorrelGardenStage = getCommunityProjectStage(
+    { sideFlags: world.sideFlags ?? {} },
+    'sorrel_garden',
+  );
+
   const revision =
     (world.day & 1023) * 8388608 +
     orchardOutcomeCode * 2097152 +
     (seasonIdx << 19) +
     (weatherIdx << 17) +
-    staticFlagsMask;
+    staticFlagsMask +
+    // Echo mask rides ABOVE the day term (day contributes < 2^33) so pebble/pick
+    // changes re-run the static render block immediately, with zero bit collisions.
+    // Bits: 0-2 pebble stack · 3 nosegay stub · 4-5 Sorrel garden stage.
+    ((wellPebbleStack & 7) |
+      ((posyBankPickedToday ? 1 : 0) << 3) |
+      ((sorrelGardenStage & 3) << 4)) *
+      8589934592;
 
   return {
     revision,
@@ -284,6 +317,11 @@ export function composeEnvironmentState(
       groveTopTintHex: seasonPalette.groveTopTintHex,
     },
     playerChanges,
+    worldEchoes: {
+      wellPebbleStack,
+      posyBankPickedToday,
+      sorrelGardenStage,
+    },
     npcTouches: {
       claraPastryBasketVisible,
       minaGreenhouseStage,

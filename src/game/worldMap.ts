@@ -83,9 +83,11 @@ export const BOX_OBSTACLES: BoxObstacle[] = [
   // Cedar bridge west handrail & culvert mouth barrier (keeps walkers inside bridge deck or west lawn without clipping rails/brook)
   { id: 'bridge_west_rail', minX: -3.7, maxX: -3.58, minZ: 11.72, maxZ: 16.28 },
   // Foxglove Rise terraced knoll (SE) — mound body framing the walkable ramp (north, z 16.7..18.0) and deck (20.4..22.5 × 18.0..20.2);
-  // deck itself stays walkable and is elevated via getGroundHeightAt (same pattern as the cedar bridge)
-  { id: 'rise_mound_west_of_ramp', minX: 18.1, maxX: 20.8, minZ: 16.6, maxZ: 18.0 },
-  { id: 'rise_mound_east_of_ramp', minX: 22.0, maxX: 24.6, minZ: 16.6, maxZ: 18.0 },
+  // deck itself stays walkable and is elevated via getGroundHeightAt (same pattern as the cedar bridge).
+  // Ramp corridor widened (WP-1/WQA-01): mound edges 20.42/22.38 give the player radius (0.48) a ~1.0 m
+  // clear stair lane (20.9..21.9) instead of the former 0.24 m pinch that snagged tap-walks.
+  { id: 'rise_mound_west_of_ramp', minX: 18.1, maxX: 20.42, minZ: 16.6, maxZ: 18.0 },
+  { id: 'rise_mound_east_of_ramp', minX: 22.38, maxX: 24.6, minZ: 16.6, maxZ: 18.0 },
   { id: 'rise_mound_west_of_deck', minX: 18.1, maxX: 20.4, minZ: 18.0, maxZ: 20.2 },
   { id: 'rise_mound_east_of_deck', minX: 22.5, maxX: 24.6, minZ: 18.0, maxZ: 20.2 },
   { id: 'rise_mound_south_of_deck', minX: 18.1, maxX: 24.6, minZ: 20.2, maxZ: 21.9 },
@@ -107,6 +109,15 @@ export const CIRCLE_OBSTACLES: CircleObstacle[] = [
   { id: 'willow_tree_south', x: -15.5, z: 15.0, radius: 0.65 },
   { id: 'willow_tree_nw', x: -16.8, z: 5.2, radius: 0.62 },
   { id: 'willow_signpost', x: -12.5, z: 5.7, radius: 0.42 },
+  // Collision twins for previously walk-through props (WP-1/WQA-05, audit-1c M2/M3/M4).
+  // NOTE: pond_driftwood_log deliberately has NO circle twin — the thin drift log (r≈0.16)
+  // lies along the shoreline with its west body inside the pond_water inflated exclusion
+  // and its east tip IS the designed comb stand-spot (same stand-on contract as the
+  // south viewing pier); a center obstacle would wall off the interaction.
+  { id: 'willow_mailbox_post', x: -9.8, z: 7.2, radius: 0.25 },
+  { id: 'gh_planter_bench', x: 11.1, z: 1.7, radius: 0.45 },
+  { id: 'lane_signpost', x: 21.5, z: 0.8, radius: 0.35 },
+  { id: 'beeline_cairn', x: 8.2, z: -19.9, radius: 0.4 },
   // Fern Hollow Orchard (north district landmark)
   { id: 'orchard_tree_nw', x: -9.6, z: -17.2, radius: 0.52 },
   { id: 'orchard_tree_w', x: -6.6, z: -20.1, radius: 0.52 },
@@ -289,6 +300,9 @@ export const POND_CENTER: Vec2 = { x: 1.6, z: 14.0 };
 export const PROP_INTERACTABLES: PropInteractable[] = [
   { id: 'player_door', name: 'Cottage Porch Door', x: -10.3, z: 10.0, interactRadius: 2.5 },
   { id: 'player_mailbox', name: 'Willow Mailbox', x: -9.8, z: 7.2, interactRadius: 2.3 },
+  // NOTE (WP-1): player_mailbox/pond_driftwood get walkable approachPos overrides in
+  // getPropInteractionMetrics below so the tap-proxy stays glued to the visual while the
+  // stand spot sits outside the new collision twins.
   { id: 'gazebo_bell', name: 'Gazebo Bell Spire', x: 0, z: -6.8, interactRadius: 2.8 },
   { id: 'fountain_plaza', name: 'Mossy Stone Fountain', x: FOUNTAIN_CENTER.x, z: FOUNTAIN_CENTER.z, interactRadius: 2.6 },
   { id: 'hollow_oak', name: 'Hollow Oak Root', x: -6.2, z: 14.0, interactRadius: 2.5 },
@@ -298,15 +312,19 @@ export const PROP_INTERACTABLES: PropInteractable[] = [
   { id: 'greenhouse_planters', name: 'Sunbeam Herb Planters', x: 10.0, z: 1.7, interactRadius: 2.4 },
   { id: 'orchard_harvest', name: 'Orchard Harvest Crates', x: -4.2, z: -19.2, interactRadius: 2.4 },
   { id: 'orchard_skep', name: 'Orchard Bee Skep', x: 3.9, z: -16.3, interactRadius: 2.3 },
-  { id: 'pond_driftwood', name: 'Mirror Pond Driftwood Nook', x: 6.5, z: 13.8, interactRadius: 2.4 },
+  { id: 'pond_driftwood', name: 'Mirror Pond Driftwood Nook', x: 5.95, z: 13.8, interactRadius: 2.4 },
   { id: 'greenhouse_door', name: 'Sunbeam Greenhouse Door', x: 10.15, z: 3.2, interactRadius: 2.1 },
-  { id: 'bakery_door', name: 'Hearth & Crumb Bakery Door', x: -12.4, z: -7.05, interactRadius: 2.2 },
+  { id: 'bakery_door', name: 'Hearth & Crumb Bakery Door', x: -12.4, z: -6.75, interactRadius: 2.2 },
   { id: 'nook_door', name: 'Linden Book Nook Door', x: -11.8, z: -1.0, interactRadius: 2.2 },
-  { id: 'copperwheel_door', name: 'Copperwheel Cottage Door', x: 13.1, z: -7.85, interactRadius: 2.2 },
+  { id: 'copperwheel_door', name: 'Copperwheel Cottage Door', x: 13.1, z: -7.55, interactRadius: 2.2 },
   { id: 'old_stone_well', name: 'Old Stone Well', x: -20.2, z: 18.3, interactRadius: 2.5 },
   { id: 'rise_vista', name: 'Foxglove Rise Panorama', x: 22.0, z: 19.3, interactRadius: 2.6 },
   { id: 'marigold_bank', name: 'Wildflower Bank', x: 20.3, z: 3.3, interactRadius: 2.4 },
   { id: 'wild_bee_log', name: 'Wild Bee Log', x: 11.0, z: -18.6, interactRadius: 2.3 },
+  // WP-4 (Workstream E): the Sorrel Hollow garden bed — the world's first community
+  // project anchor. Tending it across three unhurried visits persistently transforms
+  // the hollow (registry: src/game/communityProjects.ts).
+  { id: 'sorrel_garden_bed', name: 'Forgotten Garden Bed', x: -20.9, z: 21.0, interactRadius: 2.3 },
 ];
 
 export interface PropInteractionMetrics {
@@ -412,6 +430,30 @@ export function getPropInteractionMetrics(
     };
   }
 
+  if (propId === 'player_mailbox') {
+    const def = PROP_INTERACTABLES.find((p) => p.id === propId)!;
+    const dist = distance2D(fromPos, { x: def.x, z: def.z });
+    return {
+      inRange: dist <= def.interactRadius,
+      scoreDistance: dist,
+      focusPos: { x: def.x, z: def.z },
+      approachPos: { x: -9.0, z: 7.2 },
+      splashPos: { x: def.x, z: def.z },
+    };
+  }
+
+  if (propId === 'pond_driftwood') {
+    const def = PROP_INTERACTABLES.find((p) => p.id === propId)!;
+    const dist = distance2D(fromPos, { x: def.x, z: def.z });
+    return {
+      inRange: dist <= def.interactRadius,
+      scoreDistance: dist,
+      focusPos: { x: 5.85, z: 13.8 },
+      approachPos: { x: 6.55, z: 14.6 },
+      splashPos: { x: 5.85, z: 13.8 },
+    };
+  }
+
   const def = PROP_INTERACTABLES.find((p) => p.id === propId)!;
   const dist = distance2D(fromPos, { x: def.x, z: def.z });
   const focusPos: Vec2 =
@@ -439,8 +481,6 @@ export function getPropInteractionMetrics(
       ? { x: -3.7, z: -20.3 }
       : propId === 'orchard_skep'
       ? { x: 4.9, z: -16.3 }
-      : propId === 'pond_driftwood'
-      ? { x: 5.85, z: 13.8 }
       : propId === 'old_stone_well'
       ? { x: -21.4, z: 19.0 }
       : propId === 'rise_vista'
@@ -485,14 +525,14 @@ export function getGroundHeightAt(x: number, z: number): number {
     const edgeFeather = Math.max(0, Math.min(1, (2.6 - Math.abs(z - 14.0)) / 0.35));
     return arch * edgeFeather;
   }
-  // Foxglove Rise lookout (SE, Build 10): ramp (20.8..22.0 × 16.7..18.0) climbs to the
-  // cedar deck (20.4..22.5 × 18.0..20.2) at 0.62 — every other edge of the terraced
-  // mound is guarded by `rise_mound_*` obstacle boxes, so the discontinuities are
-  // unreachable (same walk-elevation contract as the bridge).
+  // Foxglove Rise lookout (SE, Build 10): ramp (20.44..22.36 × 16.7..18.0, widened in WP-1
+  // to match the stair visual) climbs to the cedar deck (20.4..22.5 × 18.0..20.2) at 0.62 —
+  // every other edge of the terraced mound is guarded by `rise_mound_*` obstacle boxes, so
+  // the discontinuities are unreachable (same walk-elevation contract as the bridge).
   if (x >= 20.4 && x <= 22.5 && z >= 18.0 && z <= 20.2) {
     return 0.62;
   }
-  if (x >= 20.8 && x <= 22.0 && z >= 16.7 && z < 18.0) {
+  if (x >= 20.44 && x <= 22.36 && z >= 16.7 && z < 18.0) {
     return 0.62 * ((z - 16.7) / 1.3);
   }
   return getCobbleSurfaceHeight(x, z);

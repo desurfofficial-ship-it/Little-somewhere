@@ -103,6 +103,89 @@ test('software GL build keeps wilds mesh count modest (mobile draw budget)', () 
     if ((o as THREE.Mesh).isMesh) meshes += 1;
   });
   assert.ok(meshes > 20, `expected a substantial wilds set, got ${meshes}`);
-  assert.ok(meshes <= 80, `wilds must stay within draw budget, got ${meshes}`);
+  // WP-3/WP-4 (world-environment initiative): the budget rises 80 -> 88 to carry the
+  // counter→visual echo rigs (1 instanced pebble mesh + 2 merged stub meshes) and the
+  // Sorrel community-garden stage groups (6 aggressively merged meshes). Every new
+  // feature follows the mobile discipline: merged geometry, shared materials, no
+  // loose per-instance meshes.
+  assert.ok(meshes <= 88, `wilds must stay within draw budget, got ${meshes}`);
+  rig.dispose();
+});
+
+// WP-3 (world-environment initiative): counter→visual echo setters.
+test('well pebble stack and nosegay stub setters write pure visibility state', () => {
+  const palette = new MaterialPalette();
+  const rig = buildWildHollows(palette, new THREE.Texture(), true);
+  rig.group.updateMatrixWorld(true);
+
+  const wellGroup = rig.group.children.find(
+    (c) => c instanceof THREE.Group && Math.abs(c.position.x - -21.4) < 0.01,
+  ) as THREE.Group | undefined;
+  assert.ok(wellGroup, 'well group must exist at (-21.4, 19.0)');
+  // Pebbles ride exactly one InstancedMesh (single draw call, mobile discipline);
+  // the instance transforms carry the lip positions.
+  const inst = wellGroup.children.find(
+    (c) => c instanceof THREE.InstancedMesh && (c as THREE.InstancedMesh).count === 5,
+  ) as THREE.InstancedMesh | undefined;
+  assert.ok(inst, 'well pebbles must ride a single 5-instance InstancedMesh');
+  const countVisible = () => {
+    let n = 0;
+    const m = new THREE.Matrix4();
+    for (let i = 0; i < inst.count; i++) {
+      inst.getMatrixAt(i, m);
+      // Column-0 length equals scale.x even under rotation (rotations preserve length).
+      const sx = Math.hypot(m.elements[0], m.elements[1], m.elements[2]);
+      if (sx > 0.5) n += 1; // shown instances keep scale 1; hidden collapse to 0.0001
+    }
+    return n;
+  };
+  rig.setWellPebbleStack(0);
+  assert.equal(countVisible(), 0);
+  rig.setWellPebbleStack(3);
+  assert.equal(countVisible(), 3);
+  rig.setWellPebbleStack(99);
+  assert.equal(countVisible(), 5, 'pebble stack caps at 5 visible stones');
+  rig.setWellPebbleStack(-4);
+  assert.equal(countVisible(), 0);
+
+  // Nosegay stub: visibility toggles without touching any other object.
+  const stubGroup = rig.group.children.find(
+    (c) => c instanceof THREE.Group && Math.abs(c.position.x - 20.3) < 0.01,
+  ) as THREE.Group | undefined;
+  assert.ok(stubGroup, 'posy stub group must exist at (20.3, 2.5)');
+  assert.equal(stubGroup.visible, false);
+  rig.setPosyBankPickedToday(true);
+  assert.equal(stubGroup.visible, true);
+  rig.setPosyBankPickedToday(false);
+  assert.equal(stubGroup.visible, false);
+  rig.dispose();
+});
+
+// WP-4 (world-environment initiative): the Sorrel community garden stage groups.
+test('garden bed stage groups write pure visibility state across all four stages', () => {
+  const palette = new MaterialPalette();
+  const rig = buildWildHollows(palette, new THREE.Texture(), true);
+  rig.group.updateMatrixWorld(true);
+
+  const gardenGroup = rig.group.children.find(
+    (c) => c instanceof THREE.Group && Math.abs(c.position.x - -21.0) < 0.01 &&
+      Math.abs(c.position.z - 21.3) < 0.01,
+  ) as THREE.Group | undefined;
+  assert.ok(gardenGroup, 'garden bed group must exist at (-21.0, 21.3)');
+  const stageGroups = gardenGroup.children.filter((c) => c instanceof THREE.Group);
+  assert.equal(stageGroups.length, 4, 'four prebuilt stage groups (forgotten/tilled/sprouts/bloom)');
+
+  const stageAt = (s: number) => {
+    rig.setGardenStage(s);
+    return stageGroups.map((g) => g.visible);
+  };
+  // [forgotten, tilled, sprouts, bloom]
+  assert.deepEqual(stageAt(0), [true, false, false, false], 'stage 0: only the forgotten tangle');
+  assert.deepEqual(stageAt(1), [false, true, false, false], 'stage 1: tilled beds');
+  assert.deepEqual(stageAt(2), [false, true, true, false], 'stage 2: tilled + sprouting');
+  assert.deepEqual(stageAt(3), [false, true, true, true], 'stage 3: the blooming garden');
+  // Corruption fails closed to the forgotten state.
+  assert.deepEqual(stageAt(-1), [true, false, false, false]);
+  assert.deepEqual(stageAt(9), [false, true, true, true]);
   rig.dispose();
 });
