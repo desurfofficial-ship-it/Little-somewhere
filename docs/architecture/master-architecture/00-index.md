@@ -20,6 +20,7 @@
 | `docs/architecture/systemic-reliability{,-integration}/` | Reliability + integration audits | Evidence base; deferred findings tracked here where they remain open. |
 | `docs/architecture/build10-lr-recovery/` | Build-10 recovery record | Historical; the lost-branch lesson is formalized here in doc 08. |
 | `docs/audits/`, `docs/milestones/`, `docs/research/` | Per-initiative analyses | Unchanged. |
+| `docs/MASTER-ROADMAP.md` | Strategic product vision + 6-pillar roadmap + milestone sequence | **Complementary.** This directory governs *engineering* (ownership, contracts, protocol, gates); MASTER-ROADMAP governs *product* (vision, pillars, boundaries, status, sequence). Both obey the operating directive (doc 10). Audit evidence: `docs/roadmap/REPOSITORY-ALIGNMENT-AUDIT.md`. |
 
 **Principle:** this directory does not rewrite working systems. It extracts, formalizes, and machine-checks the contracts that already exist implicitly in the code.
 

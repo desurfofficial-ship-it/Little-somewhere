@@ -32,7 +32,7 @@
 ┌───────────────────────────────────────────────────────────────────────────┐
 │               Headless Game Engine (src/game/* — Zero UI/3D)              │
 │                                                                           │
-│  • types.ts      — WorldState v10, GreenhouseState, CottageHomeState,      │
+│  • types.ts      — WorldState v12, GreenhouseState, CottageHomeState,      │
 │                    BakeryState/NookState/CopperwheelState, Memory,         │
 │                    Storyline, DialogueSession                              │
 │  • time.ts/rng.ts— Unified 360–1290 clock, 10-day seasons, deterministic PRNG│
@@ -43,7 +43,7 @@
 │  • bakery.ts /   — Visitable neighbor interiors (Builds 7-9): bounds,     │
 │    bookNook.ts,    stations, day-cycle registries, seats, walkability,    │
 │    copperwheel.ts  hub waypoints per room                                 │
-│  • inventory.ts  — 21 personal items, 4 hearth recipes, resident gift prefs│
+│  • inventory.ts  — 22 personal items, 4 hearth recipes, resident gift prefs│
 │  • navigation.ts — 33-node A* lane graph, LOS smoothing, stuck recovery   │
 │  • residents.ts  — 10 founding residents, traits, 4-phase slots & tasks   │
 │  • simulation.ts — Needs, emotions, autonomous encounters & gossip hooks   │
@@ -58,7 +58,7 @@
 │                    next-day reducers                                      │
 │  • environment.ts— 5-layer Environment Composer (time/weather/season/props)│
 │  • playerController.ts — Locomotion, bridge Y, bench sit, prop targeting   │
-│  • migrations.ts — v1 -> v2 -> ...  -> v10 save migration   │
+│  • migrations.ts — v1 -> v2 -> ...  -> v12 save migration   │
 │  • storage.ts    — localStorage persistence ('little_somewhere_world_v1')  │
 │  • audio.ts      — Procedural Web Audio API SFX (footsteps, chimes, bell)  │
 └────────────────────────────────────────────────────────────────────────────┘
@@ -146,7 +146,7 @@ computeEnvironmentState(world.flags)
 | `src/game/dialogue/` (20 modules + `index.ts`), `narrative.ts` / `dialogueEngine.ts` | Dialogue content modules (79 topics: quest, personal arcs, events, interiors incl. `copperwheel.ts`, everyday) aggregated in original order; `narrative.ts` re-exports `DIALOGUE_TOPICS` + quest cues & `computeEnvironmentState()`; `dialogueEngine.ts` = declarative selector, knowledge-based gossip & reactions |
 | `src/game/actions.ts`, `playerController.ts` | Pure state transition reducers (cottage cooking/vase/keepsakes, greenhouse sow/water/harvest/notes, bakery/nook/copperwheel rituals, gifting, gathering, water), the all-interiors sit-and-sip ritual, locomotion & bench logic |
 | `src/game/environment.ts` | Pure 5-Layer Environment Composer (time, seeded weather, season, flags, NPC touches) |
-| `src/game/migrations.ts`, `storage.ts`, `audio.ts` | `v1 -> … -> v10` migrations, `localStorage` autosave + revision hash + interior-aware day rollover, Web Audio SFX |
+| `src/game/migrations.ts`, `storage.ts`, `audio.ts` | `v1 -> … -> v12` migrations, `localStorage` autosave + revision hash + interior-aware day rollover, Web Audio SFX |
 | `src/game/exploration.ts` | Build 10 Wild Hollows discovery registry — deterministic exterior-only grants (`sideFlags` + journal memory) hooked into the sim step; centers/radii mirror `LANDMARK_ZONES` |
 | `src/scene/builders/wilds.ts` | The Wild Hollows exterior geography (Foxglove Rise terraced lookout, Old Stone Well, Sorrel Hollow birches/brooklet, Marigold Lane drifts, wild bee log) with base × season-wash materials |
 | `src/game/*.test.ts`, `src/scene/*.test.ts` | Deterministic `node:test` suites covering engine rules, cottage interior, satchel/gifting, journal knowledge boundaries, saves, exploration discoveries, and 3D contracts |

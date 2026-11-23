@@ -287,7 +287,8 @@ Every player action connects across four mutually reinforcing pillars rather tha
                     ▼  inspires collaboration & lasting neighborhood care
   4. NEIGHBORHOOD EVOLUTION & WEEKLY/SEASONAL RHYTHMS
      • Visible Diorama Reactivity & NPC Micro-Touches (`IMPLEMENTED`)
-     • Orchard Care, Enterable Interiors & Community Projects (`PLANNED`)
+     • Orchard Care, Enterable Interiors & Community Projects (`PLANNED`)  
+      *[Reconciled 2026-11-23: Community Projects shipped (everyday gameplay GA-1, `WorldState` v12 — `marigold_garland`, `orchard_lanterns`, `pond_mosaic`); enterable interiors shipped (Builds 6–9). The `PLANNED` tag above is preserved as the historical record; see `docs/MASTER-ROADMAP.md` §4 + §6 Pillar 4 for the as-built status.]*
      • Optional Sunday Market, Seasonal Gatherings, Districts & Companions (`VISION`)
 ```
 
@@ -335,7 +336,8 @@ While the currency-free philosophy, inventory split, and qualitative unlocks are
 | **Visitable Neighbor Interiors: Hearth & Crumb Bakery (`Build 7`), Linden Book Nook (`Build 8`), Copperwheel Cottage (`Build 9`) — all with deterministic daily ritual cycles, indoor seats, dialogue check-ins & journal rows** | **`IMPLEMENTED`** | The full §12.2 neighbor-interior arc: bake-and-share, browse-and-read, tinker-and-mend; knowledge-bounded NPC check-ins |
 | **Fern Hollow Orchard (Scenery, Nav, Bench, Rowan, `orchard_skep`, Gathering Story, Songbirds & Petal Drift)** | **`IMPLEMENTED`** | Complete district with dual Tasting Table transformation & seasonal micro-life |
 | **The Wild Hollows (Build 10): Marigold Lane, Foxglove Rise lookout deck, Sorrel Hollow & Old Stone Well, The Bee Line — discovery grants, knowledge-bounded journal rows, foxglove 4th greenhouse crop, 3 resident routines, 2 exploration dialogues** | **`IMPLEMENTED`** | First-visit discoveries ride `sideFlags` (save-safe); deck elevation via the bridge `getGroundHeightAt` pattern; no schema/migration impact |
-| **Additional Neighbor Interiors, Tier Gameplay Unlocks & Post-Bell Community Projects** | **`PLANNED`** | Visitable neighbor shops/cottages shipped (Builds 7–9); remaining scope is hobby teaching/invitations and collaborative square improvements |
+| **Additional Neighbor Interiors, Tier Gameplay Unlocks & Post-Bell Community Projects** | **`PLANNED`** | Visitable neighbor shops/cottages shipped (Builds 7–9); remaining scope is hobby teaching/invitations and collaborative square improvements  
+  *[Reconciled 2026-11-23: Community Projects shipped (GA-1, v12). The `PLANNED` tag reflects the remaining tier-unlock/teaching scope only. See `docs/MASTER-ROADMAP.md` §6 Pillar 2-3 for the authoritative remaining-work breakdown.]*
 | **Broader Everyday Hobbies: Fishing, Decorating & Photography** | **`PLANNED` / `LONG-TERM VISION`** | Calm Mirror Pond catches, expanded arrangement, framing storybook memories |
 | **The Sunday Market & Seasonal Festivals** | **`LONG-TERM VISION`** | Separate 7-day cadence preserving 10-day seasons; 100% optional, zero-FOMO, currency-free |
 | **Neighborhood Expansion (`REGIONS`), Pets & Optional Cloud Saves** | **`LONG-TERM VISION`** | Connected districts, future animal companions, strictly optional cross-device JSON/account backup |
