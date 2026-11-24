@@ -70,6 +70,8 @@ export const INVITATION_REASON_LABELS: Readonly<Record<string, string>> = {
   spacing_cooldown: 'You shared a moment recently — let it breathe for a day or two.',
   host_guarded: 'They seem guarded today; maybe a kind word first.',
   tier_too_low: 'You are still getting to know each other.',
+  // LR-3 D10 (offerPhases gate — doc 05 §7.2; QA-04 label-slot obligation)
+  offer_phase_closed: 'That plan only happens in the morning — catch them earlier in the day.',
   host_unavailable: 'They are away from home right now.',
   // accept / decline / expiry transitions (invitations.ts)
   no_offered_invitation: 'There is no open invitation to answer.',
