@@ -45,14 +45,22 @@ export interface BakeryInteriorBoxObstacle {
 }
 
 export const BAKERY_INTERIOR_OBSTACLES: readonly BakeryInteriorBoxObstacle[] = [
-  // Brick dome bake oven with hearthstone ledge along the north-west wall
-  { id: 'bakery_oven', minX: -2.92, maxX: -0.85, minZ: -2.36, maxZ: -1.5 },
-  // Cedar service counter with loaf display along the west wall
-  { id: 'bakery_counter', minX: -2.96, maxX: -2.2, minZ: -0.85, maxZ: 1.3 },
-  // Flour-dusted prep table along the north-east wall
-  { id: 'bakery_prep', minX: 0.85, maxX: 2.6, minZ: -2.36, maxZ: -1.55 },
-  // Round café table with two bentwood chairs near the south-east corner
-  { id: 'bakery_table', minX: 0.75, maxX: 1.95, minZ: 0.85, maxZ: 2.05 },
+  // Brick dome bake oven with hearthstone ledge along the north-west wall.
+  // East edge pulled back to -1.15 so the north passage keeps a 1.36 m clear
+  // walk band at z=-1.7 (spatial-comfort contract: secondary paths ≥ 1.2 m).
+  { id: 'bakery_oven', minX: -2.92, maxX: -1.15, minZ: -2.36, maxZ: -1.5 },
+  // Cedar service counter with loaf display along the west wall, now running
+  // through to the south wall (maxZ 2.4) — seals the counter-end scrape slot.
+  { id: 'bakery_counter', minX: -2.96, maxX: -2.2, minZ: -0.85, maxZ: 2.4 },
+  // Flour-dusted prep table along the north-east wall; west edge pulled to 1.05
+  // to share the widened north passage with the oven.
+  { id: 'bakery_prep', minX: 1.05, maxX: 2.6, minZ: -2.36, maxZ: -1.55 },
+  // Round café table with two bentwood chairs near the south-east corner, with
+  // the window-settle nook filling the corner to the east wall (maxX 3.0) —
+  // seals the table-east sliver and keeps the host seat ≥ 0.95 m from any
+  // walkable floor. West edge at 0.9 keeps the 0.8 m turning disc at the
+  // central aisle clear of the inflated edge.
+  { id: 'bakery_table', minX: 0.9, maxX: 3.0, minZ: 0.85, maxZ: 2.05 },
 ];
 
 export interface BakeryInteractable {
@@ -227,12 +235,13 @@ export function resolveBakeryInteriorMovement(
 }
 
 const BAKERY_INTERIOR_HUBS: readonly Vec2[] = [
-  { x: -0.35, z: 0.35 }, // Central aisle between counter and café table
+  { x: -0.35, z: 0.35 }, // Central aisle between counter and café table (turning-disc center)
   { x: -1.5, z: -0.6 }, // West aisle between counter and oven corner
   { x: 1.5, z: -0.75 }, // East aisle between prep table and notes shelf
   { x: 0.0, z: -1.35 }, // North passage below the oven / prep gap
   { x: -0.45, z: 1.6 }, // South passage beside the door mat
-  { x: 2.1, z: 0.9 }, // South-east pocket by the notes shelf and table end
+  { x: 2.1, z: -0.2 }, // East-aisle pocket by the notes shelf (below the café corner)
+  { x: -0.5, z: -1.0 }, // North-passage west mouth, where the oven z-range ends
 ];
 
 function isBakerySegmentWalkable(a: Vec2, b: Vec2, actorRadius = 0.42): boolean {
