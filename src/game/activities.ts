@@ -95,6 +95,10 @@ export const SHARED_ACTIVITIES: Readonly<Record<string, SharedActivityDef>> = {
     npcMemoryTag: 'shared_featured_reading',
     knowledgeGranted: 'nora_featured_reading',
     activityNoun: 'reading',
+    // D5 byte-identity: the helper composes the enter toast from the def's
+    // arrival line; Nora carries the historic nook sentence verbatim so the
+    // enterNookAction refactor cannot shift a single character (LR2 suite).
+    arrivalLine: (hostName) => `${hostName} looks up from the reading chair.`,
     summaryCompose: (world) => {
       const book = getFeaturedBookForDay(world.day);
       return {

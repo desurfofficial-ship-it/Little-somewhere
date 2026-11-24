@@ -1781,10 +1781,29 @@ function sanitizeLivingRelationships(
           ? (item.hostId as ResidentId)
           : null;
       const invitationId = typeof item.invitationId === 'string' ? item.invitationId : null;
-      const activityId =
+      // F-REC-8 (doc 05 §12 / doc 09 §5.4): the historic literal default
+      // ('share_featured_reading') silently mislabeled a hand-edited Clara row
+      // as a reading. Recovery is now def-driven: a registry-valid id is kept
+      // as-is (historic behavior); a missing id on a row with a valid host
+      // infers the unique def that host owns; an ambiguous/unresolvable case
+      // drops the row with a classified warning instead of fabricating a label.
+      const rawActivityId =
         typeof item.activityId === 'string' && item.activityId.length > 0
           ? item.activityId
-          : 'share_featured_reading';
+          : null;
+      let resolvedActivityId: string | null = rawActivityId;
+      if (!resolvedActivityId && hostId) {
+        const hostedDefs = Object.values(SHARED_ACTIVITIES).filter((d) => d.hostId === hostId);
+        if (hostedDefs.length === 1) {
+          resolvedActivityId = hostedDefs[0].id;
+        } else {
+          warnings.push(
+            'invitation history row dropped on load: missing activityId with no unique host def',
+          );
+          continue;
+        }
+      }
+      const activityId = resolvedActivityId ?? 'share_featured_reading';
       const entryDay =
         typeof item.day === 'number' && Number.isFinite(item.day) && item.day >= 1
           ? Math.floor(item.day)

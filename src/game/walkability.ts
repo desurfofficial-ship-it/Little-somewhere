@@ -1,10 +1,11 @@
 import { PlayerLocation, SeatSpot, Vec2 } from './types';
 import { isInteriorPointWalkable } from './cottage';
-import { isBakeryInteriorWalkable } from './bakery';
+import { BAKERY_SEAT_SPOTS, isBakeryInteriorWalkable } from './bakery';
 import { isNookInteriorWalkable } from './bookNook';
 import { isCopperwheelInteriorWalkable } from './copperwheel';
 import { isGreenhouseInteriorWalkable } from './greenhouse';
 import { isPointWalkable } from './worldMap';
+import { NOOK_OCCUPANT_APPROACH_POS } from './occupancy';
 
 /**
  * Location-aware walkability dispatch.
@@ -55,6 +56,24 @@ export function seatLocation(seat: SeatSpot): PlayerLocation {
       return seat.zoneId;
     default:
       return 'exterior';
+  }
+}
+
+/**
+ * Walk destination when the player clicks a seated interior occupant (D8,
+ * doc 05 §8.3): their venue seat's approach position, resolved per location
+ * instead of a hardcoded module constant. Nook returns the historic
+ * `NOOK_OCCUPANT_APPROACH_POS` (byte-identical routing); bakery returns the
+ * café seat's authored approach. `null` for venues without hosted activities.
+ */
+export function occupantApproachPos(location: PlayerLocation): Vec2 | null {
+  switch (location) {
+    case 'nook_interior':
+      return { ...NOOK_OCCUPANT_APPROACH_POS };
+    case 'bakery_interior':
+      return { ...BAKERY_SEAT_SPOTS[0].approachPos };
+    default:
+      return null;
   }
 }
 
