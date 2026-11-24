@@ -191,6 +191,19 @@ export function canOfferInvitation(
     return { eligible: false, reason: 'tier_too_low' };
   }
 
+  // D10 (doc 05 §7.2; USER APPROVED 2026-11-21, registered verbatim in
+  // systemic-reliability-integration/08): optional def-level offer-phase
+  // constraint, checked after the tier gate and before availability. Clara's
+  // def carries ['morning'] — a "morning pastry" is not offered at 8:30 PM
+  // even though her golden/dusk slots pass the generic gate. Nora's def has
+  // no field, so her eligibility is byte-identical (LR3-86 field-absence pass).
+  if (
+    activity.offerPhases &&
+    !activity.offerPhases.includes(getTimePhase(world.minuteOfDay))
+  ) {
+    return { eligible: false, reason: 'offer_phase_closed' };
+  }
+
   if (!isHostAvailableForActivity(world, hostId)) {
     return { eligible: false, reason: 'host_unavailable' };
   }

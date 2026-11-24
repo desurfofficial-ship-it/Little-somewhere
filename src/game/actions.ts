@@ -906,7 +906,13 @@ export function applyDialogueChoice(
     const accRes = acceptInvitation(nextWorld);
     if (accRes.ok) {
       nextWorld = accRes.world;
-      invitationToast = `Invitation accepted — meet ${RESIDENTS[residentId].name} inside Linden Book Nook.`;
+      // D6 (doc 05 §4/:901 fix): derive the venue from the host's homeName so
+      // the accept toast is venue-true for every host (LR3-87). Nora's string
+      // is byte-identical (homeName === 'Linden Book Nook'); Clara's names
+      // Hearth & Crumb Bakery instead of lying about a book-nook meeting.
+      const activeNow = nextWorld.invitations?.active ?? null;
+      const toastHostId = activeNow?.hostId ?? residentId;
+      invitationToast = `Invitation accepted — meet ${RESIDENTS[toastHostId].name} inside ${RESIDENTS[toastHostId].homeName ?? 'their home'}.`;
     } else if (accRes.reason === 'invitation_expired') {
       const expRes = expireInvitationsAt(nextWorld, nextWorld.day, nextWorld.minuteOfDay);
       nextWorld = expRes.world;

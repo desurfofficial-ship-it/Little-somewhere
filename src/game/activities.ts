@@ -2,6 +2,7 @@ import { cloneNpcMemories, createNpcMemoryEntry, recordNpcMemoryInPlace } from '
 import { getRelationshipTier, pushWorldEventInPlace } from './relationships';
 import { RESIDENTS, getTimePhase } from './residents';
 import { getFeaturedBookForDay } from './bookNook';
+import { BAKERY_SEAT_SPOTS, getBakeForDay } from './bakery';
 import {
   InteriorLocation,
   JournalMemory,
@@ -9,6 +10,7 @@ import {
   RelationshipTier,
   ResidentId,
   TeachingState,
+  TimePhase,
   Vec2,
   WorldState,
 } from './types';
@@ -47,6 +49,30 @@ export interface SharedActivityDef {
   npcMemoryTag: string;
   /** Stored for future LR-4 teaching milestone; LR-2 does not grant knowledge. */
   knowledgeGranted?: string;
+  /**
+   * [LR-3, D10 — USER APPROVED 2026-11-21] Optional offer-phase constraint:
+   * when present, `canOfferInvitation` refuses with `offer_phase_closed` outside
+   * these phases. Absence (Nora) leaves the generic gates untouched (LR3-86).
+   */
+  offerPhases?: readonly TimePhase[];
+  /**
+   * [LR-3, doc 05 §5.1] Optional venue-voiced arrival line, composed by the
+   * enter reducer when the helper places the occupant. Absent = generic line.
+   */
+  arrivalLine?: (hostName: string) => string;
+  /**
+   * [LR-3, D9 / F1] Optional venue-aware completion text. When present, the
+   * completion transaction uses these instead of the book-nook composition so
+   * a second venue cannot lie in the journal or world events. Absent = the
+   * historic composition (byte-identical for Nora).
+   */
+  summaryCompose?: (world: WorldState) => { memorySummary: string; eventSummary: string };
+  /**
+   * [LR-3, D9 scope] Venue noun for the host-unavailable completion refusal
+   * ("the shared <noun> can't finish right now"). Absent = the historic nook
+   * noun (byte-identical for Nora).
+   */
+  activityNoun?: string;
 }
 
 export const SHARED_ACTIVITIES: Readonly<Record<string, SharedActivityDef>> = {
@@ -68,6 +94,45 @@ export const SHARED_ACTIVITIES: Readonly<Record<string, SharedActivityDef>> = {
     memoryTitle: 'Shared Pages by Lamplight',
     npcMemoryTag: 'shared_featured_reading',
     knowledgeGranted: 'nora_featured_reading',
+    activityNoun: 'reading',
+    summaryCompose: (world) => {
+      const book = getFeaturedBookForDay(world.day);
+      return {
+        memorySummary: `Read through ${book.title} together with ${RESIDENTS.nora.name} inside Linden Book Nook — quiet pages, shared marginal notes, and easy company.`,
+        eventSummary: `Shared ${book.title} with ${RESIDENTS.nora.name} at Linden Book Nook.`,
+      };
+    },
+  },
+  // LR-3 (doc 05 §6.1): Clara's morning pastry invitation at Hearth & Crumb.
+  // Seat data is IMPORTED from the pinned seat spot (no re-typed literals),
+  // the offer window resolves through computeOfferWindow (morning cap 719 by
+  // the away-afternoon rule — Clara's afternoon slot sits 8.938 m out), and
+  // NO knowledgeGranted is present: teaching is LR-4 (doc 14 §10; LR3-48).
+  share_morning_pastry: {
+    id: 'share_morning_pastry',
+    hostId: 'clara',
+    title: 'Shared Morning Pastry',
+    location: 'bakery_interior',
+    stationId: BAKERY_SEAT_SPOTS[0].id,
+    seatPos: { ...BAKERY_SEAT_SPOTS[0].seatPos },
+    seatFacing: BAKERY_SEAT_SPOTS[0].facingAngle,
+    minTier: 'friendly',
+    minAffinity: 45,
+    defaultDurationMinutes: 180,
+    minutesSpent: 15,
+    affinityDelta: 6,
+    reliabilityDelta: 2,
+    memoryId: 'mem_lr_clara_morning_pastry',
+    memoryTitle: 'First Crackles at the Café Corner',
+    npcMemoryTag: 'shared_morning_pastry',
+    activityNoun: 'pastry',
+    offerPhases: ['morning'],
+    arrivalLine: (hostName) =>
+      `${hostName} has set today’s bake on the café corner and saved you the seat across from her.`,
+    summaryCompose: (world) => ({
+      memorySummary: `Split ${getBakeForDay(world.day).label.toLowerCase()} with ${RESIDENTS.clara.name} at the café corner of Hearth & Crumb — first crackles, two cups, and a slow morning kept going.`,
+      eventSummary: `Shared the morning pastry with ${RESIDENTS.clara.name} at Hearth & Crumb.`,
+    }),
   },
 };
 
@@ -211,7 +276,7 @@ export function completeSharedActivity(
       ok: false,
       world,
       reason: 'host_unavailable',
-      toast: `${RESIDENTS[def.hostId].name} had to step out — the shared reading can't finish right now.`,
+      toast: `${RESIDENTS[def.hostId].name} had to step out — the shared ${def.activityNoun ?? 'reading'} can't finish right now.`,
     };
   }
 
@@ -223,12 +288,22 @@ export function completeSharedActivity(
   const featuredBook = getFeaturedBookForDay(world.day);
   const phase = getTimePhase(world.minuteOfDay);
 
+  // D9/F1 (doc 05 §6.2): venue-aware completion text. The def composition wins
+  // when present (Clara, grounded in the day's bake roster); the historic nook
+  // composition is the fallback so Nora's visible strings stay byte-identical.
+  const composed = def.summaryCompose
+    ? def.summaryCompose(world)
+    : {
+        memorySummary: `Read through ${featuredBook.title} together with ${RESIDENTS[def.hostId].name} inside Linden Book Nook — quiet pages, shared marginal notes, and easy company.`,
+        eventSummary: `Shared ${featuredBook.title} with ${RESIDENTS[def.hostId].name} at Linden Book Nook.`,
+      };
+
   const memoryRecord: JournalMemory = {
     id: def.memoryId,
     day: world.day,
     phase,
     title: def.memoryTitle,
-    summary: `Read through ${featuredBook.title} together with ${RESIDENTS[def.hostId].name} inside Linden Book Nook — quiet pages, shared marginal notes, and easy company.`,
+    summary: composed.memorySummary,
     residentId: def.hostId,
   };
 
@@ -278,7 +353,7 @@ export function completeSharedActivity(
     minuteOfDay: Math.round(world.minuteOfDay),
     kind: 'shared_activity',
     actors: [def.hostId],
-    summary: `Shared ${featuredBook.title} with ${RESIDENTS[def.hostId].name} at Linden Book Nook.`,
+    summary: composed.eventSummary,
     summaryTag: def.npcMemoryTag,
   });
 
