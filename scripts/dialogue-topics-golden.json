@@ -1,5 +1,5 @@
 {
- "count": 86,
+ "count": 90,
  "topics": [
   {
    "index": 0,
@@ -1313,6 +1313,70 @@
   },
   {
    "index": 85,
+   "id": "inv_clara_indoor_pastry",
+   "residentId": "clara",
+   "category": "invitation",
+   "priority": 40,
+   "historyScope": null,
+   "condition": {
+    "requiresActiveInvitation": {
+     "hostId": "clara",
+     "activityId": "share_morning_pastry",
+     "status": "accepted",
+     "requireLive": true,
+     "requireIndoors": true
+    }
+   }
+  },
+  {
+   "index": 86,
+   "id": "inv_clara_pending_offer",
+   "residentId": "clara",
+   "category": "invitation",
+   "priority": 10,
+   "historyScope": null,
+   "condition": {
+    "requiresActiveInvitation": {
+     "hostId": "clara",
+     "activityId": "share_morning_pastry",
+     "status": "offered",
+     "requireLive": true
+    }
+   }
+  },
+  {
+   "index": 87,
+   "id": "inv_clara_offer_pastry",
+   "residentId": "clara",
+   "category": "invitation",
+   "priority": 8,
+   "historyScope": null,
+   "condition": {
+    "requiresMet": true,
+    "requiresInvitationEligible": {
+     "hostId": "clara",
+     "activityId": "share_morning_pastry"
+    }
+   }
+  },
+  {
+   "index": 88,
+   "id": "inv_clara_accepted_reminder",
+   "residentId": "clara",
+   "category": "invitation",
+   "priority": 6,
+   "historyScope": null,
+   "condition": {
+    "requiresActiveInvitation": {
+     "hostId": "clara",
+     "activityId": "share_morning_pastry",
+     "status": "accepted",
+     "requireLive": true
+    }
+   }
+  },
+  {
+   "index": 89,
    "id": "everyday_shared_visit_echo",
    "residentId": "any",
    "category": "event_reaction",
