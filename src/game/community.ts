@@ -192,7 +192,13 @@ export function getCommunityShelfStage(
     (s, a) => s + Math.min(a.goal, Math.floor(Number(progress.contributed?.[a.itemId] ?? 0))),
     0,
   );
-  return Math.min(stageCount, Math.floor((totalContributed / totalGoal) * stageCount));
+  // Explicit deterministic threshold policy (H2 fix):
+  // Stage 0: zero contributions. Stage 1: first valid contribution (≥1).
+  // Stage 2: approximately halfway (≥ceil(totalGoal/2)). Stage 3: goal reached.
+  if (totalContributed <= 0) return 0;
+  if (totalContributed >= totalGoal) return stageCount;
+  if (totalContributed >= Math.ceil(totalGoal / 2)) return 2;
+  return 1;
 }
 
 /**
