@@ -1497,3 +1497,27 @@ Chronological log of design decisions, implementation milestones, verification r
 - **Roadmap:** reconciled — Fishing & Photography marked IMPLEMENTED; Community
   activities IMPLEMENTED (keepsake display complete); next milestone =
   Gardening expansion (highest readiness, most underrepresented pillar).
+
+## Stage 3 integration (2026-11-25): main (PR #37) merged into the spatial workstream
+
+- **Merge 0dbec54**: integrated origin/main 4893d56 (PR #37 — fishing v1.1 cherry-pick
+  lineage, photography, keepsake shelf) into `stage3/fishing-v11-west-brook`. The two
+  fishing v1.1 implementations shared the df3e7f1 lineage (cherry-pick), so the code
+  union was small; the real reconciliation was GEOMETRIC: PR #37's `west_brook_bank`
+  spot/rig/anchor/test expectations were pinned to the pre-redesign culvert-mouth lane
+  (-4.45, 13.9) which the redesign turned into the running brook. Resolved in favor of
+  the redesigned watershed — spot/rig/worldMap/nav mirror stay at the north bank
+  (-5.5, 12.35) as one lockstep edit.
+- **New lockstep join discovered by the merge**: PHOTO-18 pins photography subject
+  anchors to worldMap rows — `west_brook_bank` photo subject moved with the fishing
+  spot (photography.ts), a join PR #37 could not have known about.
+- **Gates at the merge commit**: **997/997** tests, tsc clean, build green.
+  Bank-stand contracts re-probed post-merge: walkable @ r 0.48, A* reachable,
+  water edge 0.95u (interactRadius 2.4), oak-trunk clearance 1.97u beyond r 1.35+0.48.
+- **Stale evidence re-captured**: `download/asset-qa/stage3-brook/` (4 shots) showed the
+  pre-redesign culvert-mouth bank; re-captured on the merged world via the updated
+  `scripts/qa_brook_v11.sh` (north-bank rig view + tap projection moved to (-5.5, 12.35)).
+  Live cast verification passed on the merged build: tap → prose card open →
+  "West Brook Bank / +1 Silver Dace" (spot registry, once-per-day gate and catch table
+  intact after the geometry reconciliation). Jetty regression shot re-confirmed the v1
+  rig unmoved.

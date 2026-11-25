@@ -392,7 +392,11 @@ All core simulation, cottage home-life, personal inventory/gifting, dialogue, re
   ("Mirror Po…") is pre-existing UI behavior. (3) SW meadow orphan path slabs are
   pre-existing dressing.
 - **Gates**: 946/946 tests, tsc clean, build green at the branch HEAD; evidence in
-  `download/asset-qa/stage3-spatial/`; record in doc 05.
+  `download/asset-qa/stage3-spatial/`; record in doc 05. Post-integration (main PR #37
+  merged in, commit 0dbec54): **997/997**, tsc clean, build green; the `west_brook_bank`
+  PHOTOGRAPHY subject moved with the relocated fishing spot (PHOTO-18 lockstep join);
+  `download/asset-qa/stage3-brook/` re-captured on the merged world — live cast
+  verified at the north-bank stand ("+1 Silver Dace").
 
 ---
 
