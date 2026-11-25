@@ -325,6 +325,10 @@ export const PROP_INTERACTABLES: PropInteractable[] = [
   // project anchor. Tending it across three unhurried visits persistently transforms
   // the hollow (registry: src/game/communityProjects.ts).
   { id: 'sorrel_garden_bed', name: 'Forgotten Garden Bed', x: -20.9, z: 21.0, interactRadius: 2.3 },
+  // Stage 3: the Willow Jetty — one quiet cast a day on Mirror Pond's south
+  // shore (registry: src/game/fishing.ts). Standing point sits outside the
+  // pond_water exclusion box (maxZ 16.65) and clear of the pond bench approach.
+  { id: 'willow_jetty', name: 'Willow Jetty', x: -0.8, z: 17.6, interactRadius: 2.4 },
 ];
 
 export interface PropInteractionMetrics {

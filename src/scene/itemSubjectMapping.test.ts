@@ -8,8 +8,8 @@ import { SUBJECT_IMAGE_KEYS, subjectForItem } from '../game/dialogue/assets';
  * through the SAME SubjectCanvas painter — no item falls back to the yarn ball,
  * and every parametric item scene is registered.
  */
-test('BUILD 04: all 25 satchel items map to registered, tinted subject scenes', () => {
-  assert.equal(PERSONAL_ITEMS.length, 25, 'the catalog holds exactly 25 items');
+test('BUILD 04: all satchel items map to registered, tinted subject scenes', () => {
+  assert.equal(PERSONAL_ITEMS.length, 30, 'the catalog holds exactly 30 items (25 baseline + 5 pond catches)');
   for (const item of PERSONAL_ITEMS) {
     const desc = subjectForItem(item.id);
     assert.equal(desc.kind, 'procedural', `${item.id} resolves a procedural subject`);

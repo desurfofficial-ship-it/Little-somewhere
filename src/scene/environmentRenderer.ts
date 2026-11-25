@@ -216,6 +216,32 @@ export class EnvironmentVisualController {
       this.petalSeeds[i * 3 + 1] = ((i * 41) % 100) / 100;
       this.petalSeeds[i * 3 + 2] = (((i * 89) % 100) / 100 - 0.5) * 28;
     }
+ 
+    // Stage 3: Willow Jetty fishing spot -- a small static creel-and-rod rig on
+    // Mirror Pond's south shore (worldMap prop 'willow_jetty', logic in
+    // src/game/fishing.ts). Built once here (rain/petal constructor precedent):
+    // zero per-frame work, +5 draw calls on shared color-only materials, no new
+    // shader programs -- within the mobile budget (<=5 draws, 0 programs).
+    const jettyRig = new THREE.Group();
+    jettyRig.name = 'willow_jetty_rig';
+    const jettyWoodMat = new THREE.MeshStandardMaterial({ color: '#8A6844', roughness: 0.88 });
+    const jettyWickerMat = new THREE.MeshStandardMaterial({ color: '#A8845A', roughness: 0.92 });
+    for (let i = 0; i < 3; i++) {
+      const plank = new THREE.Mesh(new THREE.BoxGeometry(0.62, 0.08, 0.5), jettyWoodMat);
+      plank.position.set(-0.35, 0.16 + i * 0.004, 16.95 + i * 0.55);
+      plank.rotation.y = 0.06;
+      plank.rotation.z = -0.012;
+      jettyRig.add(plank);
+    }
+    const creel = new THREE.Mesh(new THREE.CylinderGeometry(0.17, 0.13, 0.22, 7), jettyWickerMat);
+    creel.position.set(-1.05, 0.13, 17.85);
+    jettyRig.add(creel);
+    const rod = new THREE.Mesh(new THREE.CylinderGeometry(0.016, 0.03, 1.5, 5), jettyWoodMat);
+    rod.position.set(-0.62, 0.62, 17.75);
+    rod.rotation.z = 0.38;
+    rod.rotation.x = -0.1;
+    jettyRig.add(rod);
+    (deps.exteriorRoot ?? deps.scene).add(jettyRig);
   }
 
   update(

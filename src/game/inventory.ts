@@ -213,6 +213,44 @@ export const PERSONAL_ITEMS: readonly PersonalItemDef[] = [
     homeDisplayable: 'shelf',
     giftable: false,
   },
+
+  // Mirror Pond catches — Willow Jetty fishing (Stage 3). Giftable field finds;
+  // every species is a quiet, seasonal neighbor of the pond, never a quota.
+  {
+    id: 'silver_dace',
+    label: 'Silver Dace',
+    category: 'field_find',
+    description: 'A palm-sized bright dace that flickered up from the reeds by the willow jetty.',
+    giftable: true,
+  },
+  {
+    id: 'sun_perch',
+    label: 'Sun Perch',
+    category: 'field_find',
+    description: 'A round perch caught at lantern-light, scales still holding the last of the gold.',
+    giftable: true,
+  },
+  {
+    id: 'rain_trout',
+    label: 'Rain Trout',
+    category: 'field_find',
+    description: 'A speckled trout that rose to the rain-rings while the pond kept quiet company.',
+    giftable: true,
+  },
+  {
+    id: 'mirror_carp',
+    label: 'Mirror Carp',
+    category: 'field_find',
+    description: 'The pond’s broad, calm namesake — mirror sides, patient as a held breath.',
+    giftable: true,
+  },
+  {
+    id: 'ice_perch',
+    label: 'Ice Perch',
+    category: 'field_find',
+    description: 'A winter-bright perch nosed up through the kept-open gap beside the frozen jetty.',
+    giftable: true,
+  },
 ];
 
 export const PERSONAL_ITEM_MAP: Record<PersonalItemId, PersonalItemDef> = PERSONAL_ITEMS.reduce(
@@ -347,7 +385,7 @@ export const RESIDENT_GIFT_PREFS: Record<
 > = {
   clara: {
     loved: ['crabapple', 'wild_honey', 'chamomile_pear_tea'],
-    liked: ['lemon_thyme', 'lavender_sprig', 'herb_loaf', 'crabapple_tart'],
+    liked: ['lemon_thyme', 'lavender_sprig', 'herb_loaf', 'crabapple_tart', 'silver_dace'],
   },
   arthur: {
     loved: ['chamomile_pear_tea', 'herb_loaf', 'pressed_fern'],
@@ -358,16 +396,16 @@ export const RESIDENT_GIFT_PREFS: Record<
     liked: ['lemon_thyme', 'wild_honey', 'chamomile_pear_tea', 'crabapple', 'meadow_posy'],
   },
   jun: {
-    loved: ['lavender_shortbread', 'crabapple_tart', 'smooth_river_glass'],
+    loved: ['lavender_shortbread', 'crabapple_tart', 'smooth_river_glass', 'mirror_carp'],
     liked: ['chamomile_pear_tea', 'herb_loaf', 'crabapple'],
   },
   barnaby: {
     loved: ['herb_loaf', 'cedar_shaving_rose', 'crabapple_tart'],
-    liked: ['wild_honey', 'crabapple', 'chamomile_pear_tea'],
+    liked: ['wild_honey', 'crabapple', 'chamomile_pear_tea', 'sun_perch'],
   },
   sora: {
     loved: ['chamomile_pear_tea', 'heron_feather', 'lavender_shortbread', 'meadow_posy'],
-    liked: ['lavender_sprig', 'pressed_fern', 'chamomile_blossom'],
+    liked: ['lavender_sprig', 'pressed_fern', 'chamomile_blossom', 'rain_trout'],
   },
   toby: {
     loved: ['smooth_river_glass', 'heron_feather', 'pressed_fern'],

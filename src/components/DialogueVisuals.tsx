@@ -848,6 +848,36 @@ function paintSubject(
       ctx.stroke();
       break;
     }
+    case 'item_fish': {
+      // Quiet pond-catch vignette: rounded body, tail fan, small fin, one eye.
+      ctx.fillStyle = primary;
+      ctx.beginPath();
+      ctx.ellipse(S * 0.52, S * 0.56, S * 0.24, S * 0.13, -0.08, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.beginPath();
+      ctx.moveTo(S * 0.3, S * 0.56);
+      ctx.lineTo(S * 0.18, S * 0.44);
+      ctx.lineTo(S * 0.18, S * 0.68);
+      ctx.closePath();
+      ctx.fill();
+      ctx.fillStyle = hexWithAlpha(accent, 0.75);
+      ctx.beginPath();
+      ctx.moveTo(S * 0.56, S * 0.52);
+      ctx.quadraticCurveTo(S * 0.68, S * 0.6, S * 0.58, S * 0.68);
+      ctx.closePath();
+      ctx.fill();
+      ctx.fillStyle = UI_PALETTE.umber;
+      ctx.beginPath();
+      ctx.arc(S * 0.68, S * 0.53, S * 0.018, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = hexWithAlpha(UI_PALETTE.linen, 0.55);
+      ctx.lineWidth = Math.max(1.2, S * 0.016);
+      ctx.beginPath();
+      ctx.moveTo(S * 0.24, S * 0.74);
+      ctx.quadraticCurveTo(S * 0.5, S * 0.8, S * 0.78, S * 0.72);
+      ctx.stroke();
+      break;
+    }
     case 'item_feather': {
       ctx.strokeStyle = hexWithAlpha(UI_PALETTE.umber, 0.8);
       ctx.lineWidth = Math.max(1.3, S * 0.02);
