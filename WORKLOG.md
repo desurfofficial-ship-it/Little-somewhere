@@ -1401,3 +1401,17 @@ Chronological log of design decisions, implementation milestones, verification r
 - **Deliberately not built** (roadmap-aligned): collection/photo albums (Stage 5), photography
   UI (LR-3-locked files + Stage 5 display half), garden window-boxes (schema conversation +
   pillar-6 watering-grind watchlist), recipe-teaching (LR-4). Follow-up order in doc 01.
+
+## Stage 3 follow-up (2026-11-25): post-merge re-verification + visual evidence
+
+- Re-ran gates at merge commit `31ae947` (integration of main `42a8c7c`, PRs #26/#27/#28/#32):
+  `tsc --noEmit` clean; **774/774** tests (738 baseline + QA-03 6 + spatial 10 + 20 FISH);
+  `npm run build` green. Merge-conflict resolution in `actions.ts` verified (fishing dispatch
+  `:1970` intact; QA-03 categorical guard co-present; both batteries green together).
+- LR-3 boundary re-confirmed against the live PR #29 diff: hunks disjoint (LR-3 `:42/:906/:990`
+  + `BakeryInteractableId` vs this branch `:46/:1967-1974` + union ends).
+- Browser visual smoke evidence committed (headless production build; desktop 1440x900 + mobile
+  390x844): full cast loop with `+1 Silver Dace` honest grant chip and "Memory saved: A Silver
+  Dart" journal toast; zero mobile overflow. Files: `download/asset-qa/stage3-willow-jetty/`.
+  QA doc 03 gains "Pass 3 -- post-merge re-verification + browser visual smoke".
+- Deliverable F: focused PR opened for owner review (never merged by the author).

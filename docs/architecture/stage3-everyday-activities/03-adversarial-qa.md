@@ -86,3 +86,29 @@ gift has exact precedent in smooth_river_glass).
    thresholds or pools requires a conscious test update.
 5. No new dialogue topics were added (golden-topic file is LR-3-owned); resident reaction to
    catches currently arrives via the existing gift-reaction + witness-memory/gossip machinery.
+
+---
+
+## Pass 3 -- post-merge re-verification + browser visual smoke (2026-11-25, follow-up session)
+
+State under test: merge commit `31ae947` (integration of origin/main `42a8c7c` -- PRs #26/#27/#28/#32
+-- into this branch). The gate runs above predate that merge, so the combined state was re-proven:
+
+1. **Gates re-run at `31ae947`**: `npx tsc --noEmit` clean; `npm test` **774/774 pass, 0 fail**
+   (40.9s) -- 738 baseline-at-`42a8c7c` lineage + QA-03 battery (6) + spatial battery (10) +
+   the 20 FISH cases; `npm run build` green (pre-existing chunk-size warning only).
+2. **Merge conflict resolution verified**: the single conflict (`src/game/actions.ts`) resolved
+   correctly -- fishing dispatch intact (import `:46`, dispatch `:1970-1974`) while QA-03's
+   categorical sit guard from #27 remains present; both batteries pass together.
+3. **LR-3 boundary re-confirmed against the live PR #29 diff**: LR-3's `actions.ts` hunks
+   (`:42` imports, `:906-913` accept toast, `:990-1003` sit guard) and `types.ts` hunk
+   (`BakeryInteractableId` only) remain disjoint from this branch's hunks (`actions.ts`
+   `:46`/`:1967-1974`; `types.ts` union ends `PropInteractableId`/`PersonalItemId`).
+4. **Browser visual smoke** (headless Chrome 158, production `vite build`, software WebGL --
+   NOT real devices): full loop executed -- Begin day -> save staged (playerPos `(-0.8, 18.2)`,
+   day 2, minute 780) -> Continue Day 2 -> in-range jetty prompt click -> cast resolves with the
+   **+1 Silver Dace honest grant chip** and the "Memory saved: A Silver Dart" journal toast
+   (HUD: Day 2 · 13:23 · Afternoon · Spring · Sunlit). Desktop 1440x900 + mobile 390x844: card
+   fits, zero overflow. Evidence committed under `download/asset-qa/stage3-willow-jetty/`
+   (see `metadata.jsonl`). This closes the pre-merge "no screenshots" limitation above at the
+   headless level; the real-device pass remains the owner's standard step.
