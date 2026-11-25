@@ -393,3 +393,21 @@ All core simulation, cottage home-life, personal inventory/gifting, dialogue, re
   pre-existing dressing.
 - **Gates**: 946/946 tests, tsc clean, build green at the branch HEAD; evidence in
   `download/asset-qa/stage3-spatial/`; record in doc 05.
+
+---
+
+## Stage 3 Delivery, Integration & Visual Completion (Campaign 3)
+
+- **Fishing v1.1 + Photography + Community keepsake display** are all shipped on
+  branch `stage3-cont/fishing-photo` (PR #37, CI green, mergeable). The previous
+  campaign's local work was lost to a sandbox reset and reconstructed here.
+- **Shelf architecture evolved:** `shelfKeepsakes: Record<KeepsakeKey, ...>` (5
+  hardcoded keys) → `shelfKeepsakeMeshes: Record<string, THREE.Group>` (9 keepsakes
+  in one unified map). Adding a keepsake = adding a builder + one map entry.
+- **All 9 keepsakes now render:** 5 originals + 3 community (bespoke meshes) +
+  framed photo. The community-keepsake invisibility gap is closed.
+- **Next milestone (roadmap-reconciled):** Gardening expansion (window boxes,
+  outdoor soil beds, orchard tending). Highest readiness, most underrepresented
+  pillar. NPC participation in activities remains deferred (simulation-owner
+  coordination; do not build a second simulation framework).
+- **Gate:** 991/991 tests, tsc clean, boundary intact, build green. WorldState v12.

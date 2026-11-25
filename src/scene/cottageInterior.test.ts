@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import * as THREE from 'three';
 import { COTTAGE_INTERACTABLES, COTTAGE_SEAT_SPOTS } from '../game/cottage';
 import { createFreshWorldState } from '../game/storage';
+import { PersonalItemId } from '../game/types';
 import { MaterialPalette } from './materials';
 import { buildWillowCottageInterior } from './builders/cottageInterior';
 import { applyShellCutaway, AUTHORED_YAW, collectShellSides } from './roomFraming';
@@ -46,8 +47,14 @@ test('cottage interior reactive vase flowers, keepsake shelf items, hearth ember
   assert.equal(rig.vaseFlowers.chamomile_blossom.visible, false);
   assert.equal(rig.vaseFlowers.lavender_sprig.visible, false);
   assert.equal(rig.vaseFlowers.crabapple.visible, false);
-  assert.equal(rig.shelfKeepsakes.willow_zine_copy.visible, false);
-  assert.equal(rig.shelfKeepsakes.brass_pocket_bell.visible, false);
+  assert.equal(rig.shelfKeepsakeMeshes.willow_zine_copy.visible, false);
+  assert.equal(rig.shelfKeepsakeMeshes.brass_pocket_bell.visible, false);
+  // Stage 3 Continuation: the three community keepsakes + framed photo exist and
+  // default hidden, like every shelf keepsake.
+  assert.equal(rig.shelfKeepsakeMeshes.pressed_garland_bloom.visible, false);
+  assert.equal(rig.shelfKeepsakeMeshes.orchard_lantern_charm.visible, false);
+  assert.equal(rig.shelfKeepsakeMeshes.pond_mosaic_shard.visible, false);
+  assert.equal(rig.shelfKeepsakeMeshes.framed_photo_keepsake.visible, false);
 
   // Place lavender & display keepsakes + warm kettle dusk update
   const decorated = {
@@ -56,16 +63,21 @@ test('cottage interior reactive vase flowers, keepsake shelf items, hearth ember
     cottageState: {
       ...base.cottageState,
       placedFlowerId: 'lavender_sprig' as const,
-      displayedKeepsakeIds: ['willow_zine_copy' as const, 'brass_pocket_bell' as const],
+      displayedKeepsakeIds: ['willow_zine_copy' as const, 'brass_pocket_bell' as const, 'pressed_garland_bloom' as PersonalItemId],
       kettleWarmUntilMinute: 1200,
     },
   };
   rig.update(decorated, 'dusk', 2.5);
   assert.equal(rig.vaseFlowers.lavender_sprig.visible, true);
   assert.equal(rig.vaseFlowers.chamomile_blossom.visible, false);
-  assert.equal(rig.shelfKeepsakes.willow_zine_copy.visible, true);
-  assert.equal(rig.shelfKeepsakes.brass_pocket_bell.visible, true);
-  assert.equal(rig.shelfKeepsakes.pond_watercolor_card.visible, false);
+  assert.equal(rig.shelfKeepsakeMeshes.willow_zine_copy.visible, true);
+  assert.equal(rig.shelfKeepsakeMeshes.brass_pocket_bell.visible, true);
+  assert.equal(rig.shelfKeepsakeMeshes.pond_watercolor_card.visible, false);
+  // Stage 3 Continuation: the displayed community keepsake shows; the others stay hidden.
+  assert.equal(rig.shelfKeepsakeMeshes.pressed_garland_bloom.visible, true);
+  assert.equal(rig.shelfKeepsakeMeshes.orchard_lantern_charm.visible, false);
+  assert.equal(rig.shelfKeepsakeMeshes.pond_mosaic_shard.visible, false);
+  assert.equal(rig.shelfKeepsakeMeshes.framed_photo_keepsake.visible, false);
   assert.equal(rig.kettleSteamPuffs[0].visible, true);
   assert.ok(rig.almanacLampMat.emissiveIntensity > 0.7);
 

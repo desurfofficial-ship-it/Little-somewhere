@@ -277,10 +277,13 @@ test('SF4-07: the echo topic is registered at the tail and golden-pinned (anti-f
   // `everyday_shared_visit_echo`; the Community Projects social-afterlife
   // module (COMMUNITY_ECHO_TOPICS, feat/community-social-consequences)
   // appended three topics strictly after REFLECTION_TOPICS, so the pin
-  // migrates to `everyday_community_project_pride`. The existence check
-  // above still pins the SF-4 topic itself; only the tail pin moves. Each
-  // future append must similarly migrate this assertion, never reorder.
-  assert.equal(golden.topics.at(-1)!.id, 'everyday_community_project_pride');
+  // migrated to `everyday_community_project_pride`. The Stage 3 Continuation
+  // Photography workstream (PHOTO_ECHO_TOPICS) appends two more event_reaction
+  // echoes strictly after the community echoes, so the pin migrates again to
+  // `everyday_photo_noticer`. The existence check above still pins the SF-4
+  // topic itself; only the tail pin moves. Each future append must similarly
+  // migrate this assertion, never reorder.
+  assert.equal(golden.topics.at(-1)!.id, 'everyday_photo_noticer');
 });
 
 // ---------------------------------------------------------------------------

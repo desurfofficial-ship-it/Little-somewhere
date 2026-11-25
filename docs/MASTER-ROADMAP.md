@@ -175,14 +175,14 @@ The campaign found **no defect in the chassis that would force a redesign**; the
 ### Pillar 2 — Everyday Activities (the most underrepresented pillar)
 | Item | Status | Evidence / next |
 | :--- | :--- | :--- |
-| **Gardening** (full pillar) | PARTIALLY IMPLEMENTED | Greenhouse-only (4 plots, 4 crops). Cottage window boxes, outdoor soil beds, orchard tending — DESIGNED. |
-| **Fishing** | DESIGNED | `GAME_DESIGN.md:72` "Broader Vision." Zero implementation. |
-| **Photography** | DESIGNED | `GAME_DESIGN.md:74`. Zero implementation (no camera item, no photo album). |
+| **Gardening** (full pillar) | PARTIALLY IMPLEMENTED | Greenhouse-only (4 plots, 4 crops). Cottage window boxes, outdoor soil beds, orchard tending — DESIGNED. **Next milestone candidate** (highest readiness + most underrepresented). |
+| **Fishing** | IMPLEMENTED | Willow Jetty (Stage 3) + West Brook Bank (v1.1, multi-spot `FISHING_SPOTS` registry). `src/game/fishing.ts`. One cast/day, zero-migration, deterministic. |
+| **Photography** | IMPLEMENTED | Stage 3 Continuation. `src/game/photography.ts` (reducer + 13-subject registry) + `src/components/PhotoPanel.tsx` (viewfinder + album). Zero schema bump; first-of-subject journal memories + `framed_photo_keepsake` + `'photo'` witness dialogue echoes. No day-gate, no quota. |
 | **Decorating** (full pillar) | PARTIALLY IMPLEMENTED | Vase flowers + 5-slot keepsake shelf only. Furniture arrangement, wall placement, porch decorating — DESIGNED. |
 | **Cooking & shared meals** | PARTIALLY IMPLEMENTED | Hearth baking + tea brewing + bakery help exist. Recipe discovery, teachable exchange (LR-4), shared cooking — PLANNED. |
 | **Exploration & discoveries** | IMPLEMENTED | 4 wild destinations + journal discoveries |
-| **Collectibles** | PARTIALLY IMPLEMENTED | Satchel (25 items); no collection album |
-| **Community activities** | PARTIALLY IMPLEMENTED | 3 Community Projects (contribute-only); no cooperative building phase |
+| **Collectibles** | PARTIALLY IMPLEMENTED | Satchel (34 items incl. 5 pond catches + 3 community keepsakes + framed photo); photo album implemented (Photography); no general collection album |
+| **Community activities** | IMPLEMENTED | 3 Community Projects (contribute + social consequences + keepsake rewards). Keepsake physical display complete (Stage 3 Continuation: 3 bespoke meshes + unified shelf map). No cooperative building phase. |
 | **Sunday Market** | PLANNED | `GAME_DESIGN.md:211`. Cadence UNDECIDED. Zero implementation. |
 | **Seasonal Festivals** | PLANNED | `GAME_DESIGN.md:214`. No design doc. |
 
@@ -272,12 +272,14 @@ Community progression must remain believable and day-driven.
 
 ### Stage 3 — Everyday Activity Expansion
 Prioritize meaningful, integrated gameplay for (one at a time, not simultaneously):
-1. **Gardening** (expand beyond greenhouse: window boxes, outdoor beds, orchard tending).
-2. **Fishing** (design doc needed first).
-3. **Photography** (design doc needed first).
+1. **Gardening** (expand beyond greenhouse: window boxes, outdoor beds, orchard tending) — **NEXT**.
+2. ~~**Fishing**~~ — SHIPPED (Willow Jetty + West Brook Bank).
+3. ~~**Photography**~~ — SHIPPED (Stage 3 Continuation; see `docs/architecture/stage3-everyday-activities/05-photography-design.md`).
 4. **Home decorating** (furniture placement, wall placement, porch).
 5. **Cooking and shared meals** (recipe discovery, shared cooking).
 6. **Exploration and discoveries** (expand the Wild Hollows).
+
+**Next milestone recommendation: Gardening expansion** (window boxes, outdoor soil beds, orchard tending). Rationale: the most underrepresented pillar (Pillar 2 header); highest readiness (the greenhouse plot/reducer pattern extends directly to window boxes and outdoor beds); lowest risk (no new architecture, no schema movement, reuses the everyday-practice + inventory + witnessing patterns); strengthens the core everyday-activities loop without adding a disconnected mechanic. NPC participation in activities remains deferred pending simulation-owner coordination (do not build a second simulation framework).
 
 Each activity must have a meaningful place in the neighborhood simulation. Do not turn these into repetitive grinding systems.
 

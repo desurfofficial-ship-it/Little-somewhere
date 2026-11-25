@@ -34,8 +34,8 @@ const dump = (name: string, obj: THREE.Object3D): void => {
   );
 };
 
-for (const id of Object.keys(rig.shelfKeepsakes) as Array<keyof typeof rig.shelfKeepsakes>) {
-  dump(`keepsake:${id}`, rig.shelfKeepsakes[id]);
+for (const id of Object.keys(rig.shelfKeepsakeMeshes)) {
+  dump(`keepsake:${id}`, rig.shelfKeepsakeMeshes[id]);
 }
 for (const id of Object.keys(rig.vaseFlowers) as Array<keyof typeof rig.vaseFlowers>) {
   dump(`flower:${id}`, rig.vaseFlowers[id]);

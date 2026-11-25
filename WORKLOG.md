@@ -1468,3 +1468,32 @@ Chronological log of design decisions, implementation milestones, verification r
   clean, **946/946**, build green; review-round fix → tsc clean, 946/946, build green.
   WorldState stays **v12** — geometry/scene only, zero persistence change. Fishing v1.0
   and v1.1 contracts intact (spot registry lockstep; global once-per-day gate unchanged).
+
+## Stage 3 Delivery, Integration & Visual Completion (Campaign 3)
+
+- **Repository truth re-verified:** origin/main = ddf46e0 (PR #36 intact). The
+  previous local clone + branch were lost to a sandbox reset (never pushed).
+  Re-cloned; stage3/fishing-v11-west-brook had advanced to 62942d3 (separate
+  Willow Square spatial redesign workstream), but df3e7f1 (the clean fishing v1.1
+  commit) is still in its history and cherry-picks cleanly onto main.
+- **Fishing v1.1:** cherry-picked df3e7f1 onto origin/main (commit dd4d32a).
+  Multi-spot FISHING_SPOTS registry, shared day-gate, spot-independent RNG salt.
+- **Photography (reconstructed):** the full photography system was rebuilt from
+  the design spec (docs/.../05-photography-design.md) — pure reducer + 13-subject
+  registry + PhotoPanel viewfinder/album + 'photo' dialogue echoes (golden 95) +
+  everyday practice + framed_photo_keepsake + 18 adversarial tests + 3 dialogue
+  acceptance tests (commit 87a86c6).
+- **Community keepsake display gap CLOSED (new):** evolved the cottage shelf from
+  a brittle 5-key KeepsakeKey union to a unified extensible shelfKeepsakeMeshes
+  map (9 keepsakes). 3 bespoke handcrafted meshes: pressed garland bloom, orchard
+  lantern charm, pond mosaic shard. 11 adversarial shelf QA tests (SK-01..20)
+  covering existence, toggle, persistence, corruption, mesh integrity, positions,
+  regression (commit 8b1a051).
+- **Browser verification:** photography capture→album + cottage interior all work,
+  zero errors (screenshots in download/asset-qa/stage3-photo/).
+- **Published:** pushed stage3-cont/fishing-photo; PR #37 opened; CI (GitHub
+  Actions: test+lint+build+boundary) passed success; mergeable=true, clean.
+- **Final gate:** 991/991 tests, tsc clean, boundary intact, build green. WorldState v12.
+- **Roadmap:** reconciled — Fishing & Photography marked IMPLEMENTED; Community
+  activities IMPLEMENTED (keepsake display complete); next milestone =
+  Gardening expansion (highest readiness, most underrepresented pillar).
