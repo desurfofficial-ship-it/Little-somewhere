@@ -865,7 +865,7 @@ export default function App() {
   // M3 Build 6 — Sunbeam Greenhouse shared growing-corner handlers
   const handlePlantSeed = useCallback(
     (
-      seedItemId: 'chamomile_seeds' | 'lavender_seeds' | 'thyme_seeds' | 'foxglove_seeds',
+      seedItemId: PersonalItemId,
       plotIndex: number,
     ) => {
       const res = plantSeedAtPlotAction(worldRef.current, seedItemId, plotIndex);

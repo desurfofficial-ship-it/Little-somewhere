@@ -362,6 +362,13 @@ export function subjectKeyForPropId(propId: PropInteractableId): string {
       return SUBJECT_IMAGE_KEYS.bee_log;
     case 'sorrel_garden_bed':
       return SUBJECT_IMAGE_KEYS.wildflower;
+    // Gardening Expansion — outdoor garden beds use the planter_box subject.
+    case 'bakery_herb_bed':
+    case 'nook_lavender_bed':
+    case 'pond_iris_bed':
+    case 'beeline_pollinator_bed':
+    case 'barnaby_compost_bed':
+      return SUBJECT_IMAGE_KEYS.planter_box;
   }
 }
 
@@ -496,6 +503,11 @@ const ITEM_SUBJECT_SPECS: Record<PersonalItemId, ItemSubjectSpec> = {
   foxglove_seeds: { subject: 'item_seeds', primary: '#C96E93', accent: '#7B9F5C' },
   foxglove_bloom: { subject: 'item_sprig', primary: '#C96E93', accent: '#5E8062' },
   meadow_posy: { subject: 'item_sprig', primary: '#C86446', accent: '#E5A93C' },
+  // Gardening Expansion — new crops.
+  marigold_seeds: { subject: 'item_seeds', primary: '#E8B84B', accent: '#5E8062' },
+  marigold_bloom: { subject: 'item_sprig', primary: '#E8B84B', accent: '#5E8062' },
+  sage_seeds: { subject: 'item_seeds', primary: '#8B9E7E', accent: '#6B4834' },
+  sage_sprig: { subject: 'item_sprig', primary: '#8B9E7E', accent: '#6B4834' },
   // Stage 3 (Willow Jetty fishing): pond catches, tinted per species.
   silver_dace: { subject: 'item_fish', primary: '#B8C6CC', accent: '#5E8062' },
   sun_perch: { subject: 'item_fish', primary: '#E5A93C', accent: '#C86446' },

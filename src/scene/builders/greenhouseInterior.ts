@@ -503,6 +503,8 @@ export function buildSunbeamGreenhouseInterior(
     lavender: [],
     thyme: [],
     foxglove: [],
+    marigold: [],
+    sage: [],
   };
   const soilMeshes: THREE.Mesh[] = [];
   const plotLeafyGroups: THREE.Group[] = [];

@@ -361,6 +361,14 @@ export const PROP_INTERACTABLES: PropInteractable[] = [
   // lane is now the running brook): walkable + A* reachable at r 0.48, on the
   // oak's east lawn with the bridge to the east and the brook to the south.
   { id: 'west_brook_bank', name: 'West Brook Bank', x: -5.5, z: 12.35, interactRadius: 2.4 },
+  // Gardening Expansion — outdoor garden bed interactables. Each bed is a
+  // 2-plot garden registered in src/game/gardens.ts. Positions verified
+  // walkable at 0.48m actor radius, clear of all LOS nav edges.
+  { id: 'bakery_herb_bed', name: "Clara's Herb Garden", x: -12.4, z: -15.5, interactRadius: 2.3 },
+  { id: 'nook_lavender_bed', name: "Nora's Lavender Bed", x: -14.0, z: 3.5, interactRadius: 2.3 },
+  { id: 'pond_iris_bed', name: 'Pond Iris Border', x: 6.5, z: 19.5, interactRadius: 2.3 },
+  { id: 'beeline_pollinator_bed', name: 'Bee Line Pollinator Bed', x: 7.0, z: -16.5, interactRadius: 2.3 },
+  { id: 'barnaby_compost_bed', name: "Barnaby's Compost Garden", x: 17.5, z: 13.0, interactRadius: 2.3 },
 ];
 
 export interface PropInteractionMetrics {

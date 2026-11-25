@@ -2596,7 +2596,7 @@ export function waterGreenhousePlotsAction(world: WorldState): PropInteractionRe
 
 export function plantSeedAtPlotAction(
   world: WorldState,
-  seedItemId: 'chamomile_seeds' | 'lavender_seeds' | 'thyme_seeds' | 'foxglove_seeds',
+  seedItemId: PersonalItemId,
   plotIndex: number,
 ): { ok: boolean; nextWorld: WorldState; toast: string; memoryUnlockedTitle?: string } {
   if (world.playerLocation !== 'greenhouse_interior') {

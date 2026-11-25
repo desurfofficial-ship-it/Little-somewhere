@@ -102,6 +102,36 @@ export const PERSONAL_ITEMS: readonly PersonalItemDef[] = [
     homeDisplayable: 'shelf',
     giftable: true,
   },
+  // Gardening Expansion — new crops for outdoor beds.
+  {
+    id: 'marigold_seeds',
+    label: 'Marigold Seeds',
+    category: 'flora_ingredient',
+    description: 'Slender dark seeds that promise warm golden pom-poms — a border flower that brightens any garden edge.',
+    giftable: false,
+  },
+  {
+    id: 'marigold_bloom',
+    label: 'Marigold Bloom',
+    category: 'flora_ingredient',
+    description: 'A dense golden pom-pom raised from outdoor soil — warm, round, and cheerful in a vase or a gift.',
+    homeDisplayable: 'vase',
+    giftable: true,
+  },
+  {
+    id: 'sage_seeds',
+    label: 'Sage Seeds',
+    category: 'flora_ingredient',
+    description: 'Small grey seeds that become silvery culinary leaves — patient, fragrant, and worth every roast.',
+    giftable: false,
+  },
+  {
+    id: 'sage_sprig',
+    label: 'Sage Sprig',
+    category: 'flora_ingredient',
+    description: 'A cutting of silvery sage leaves from an outdoor bed — warm and savoury for kitchen experiments.',
+    giftable: true,
+  },
 
   // Baked & Brewed at Cottage Hearth
   {

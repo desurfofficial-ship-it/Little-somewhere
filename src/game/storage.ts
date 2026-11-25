@@ -34,6 +34,7 @@ import {
 } from './copperwheel';
 import { reconcileLivingRelationshipsOnDayAdvance } from './invitations';
 import { driftNpcPerceptionsInPlace, reconcileSocialGroupsInPlace, cloneNpcPerceptions } from './perceptions';
+import { cloneGardens, advanceAllGardensNightlyGrowthInPlace } from './gardens';
 import { WorldState } from './types';
 import { JOURNAL_READ_STORAGE_KEY } from './journal';
 
@@ -594,6 +595,26 @@ export function computeWorldSaveRevision(state: WorldState): string {
     }
   }
 
+  // Gardening Expansion (v13): track gardens state in the fingerprint.
+  const gardens = state.gardens ?? {};
+  const gardenIds = Object.keys(gardens).sort();
+  pushNum(gardenIds.length);
+  for (let i = 0; i < gardenIds.length; i++) {
+    const g = gardens[gardenIds[i]];
+    pushStr(gardenIds[i]);
+    pushNum(g?.plots.length ?? 0);
+    for (let j = 0; j < (g?.plots.length ?? 0); j++) {
+      pushStr(g!.plots[j].cropId ?? '');
+      pushNum(g!.plots[j].stage);
+      pushNum(g!.plots[j].nightsGrown);
+      pushNum(g!.plots[j].wateredToday ? 1 : 0);
+      pushNum(g!.plots[j].waterStreak);
+    }
+    pushNum(g?.totalHarvests ?? 0);
+    pushNum(g?.totalPlanted ?? 0);
+    pushNum(g?.lastTendedDay ?? 0);
+  }
+
   return `${h1.toString(36)}-${h2.toString(36)}`;
 }
 
@@ -684,6 +705,14 @@ export function advanceToNextDay(state: WorldState): WorldState {
       ...prevGreenhouse,
       plots: prevGreenhouse.plots.map((p) => ({ ...p })),
     },
+    nextSeason,
+  );
+
+  // Gardening Expansion (v13): advance all outdoor gardens with the same
+  // nightly-growth algorithm. Cloned so the input state is not mutated.
+  const nextGardensState = cloneGardens(state.gardens);
+  advanceAllGardensNightlyGrowthInPlace(
+    { ...state, gardens: nextGardensState } as WorldState,
     nextSeason,
   );
 
@@ -786,6 +815,8 @@ export function advanceToNextDay(state: WorldState): WorldState {
     // the caller's input state. The bilateral npcRelations and npcMemories are
     // already cloned above; the perception overlay must be too.
     npcPerceptions: cloneNpcPerceptions(state.npcPerceptions),
+    // Gardening Expansion (v13): clone gardens so nightly growth doesn't mutate input.
+    gardens: nextGardensState,
   };
 
   const reconciled = reconcileLivingRelationshipsOnDayAdvance(rolled);

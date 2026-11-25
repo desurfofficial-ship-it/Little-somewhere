@@ -40,7 +40,13 @@ export type PropInteractableId =
   | 'willow_jetty'
   // Stage 3 v1.1 (West Brook) — second unhurried cast, at the culvert mouth on the
   // west lawn (FISHING_SPOTS registry in src/game/fishing.ts; one cast per day total).
-  | 'west_brook_bank';
+  | 'west_brook_bank'
+  // Gardening Expansion — outdoor garden bed interactables.
+  | 'bakery_herb_bed'
+  | 'nook_lavender_bed'
+  | 'pond_iris_bed'
+  | 'beeline_pollinator_bed'
+  | 'barnaby_compost_bed';
 
 export type PlayerLocation =
   | 'exterior'
@@ -66,7 +72,7 @@ export type GreenhouseInteractableId =
   | 'greenhouse_water'
   | 'greenhouse_table';
 
-export type GreenhouseCropId = 'chamomile' | 'lavender' | 'thyme' | 'foxglove';
+export type GreenhouseCropId = 'chamomile' | 'lavender' | 'thyme' | 'foxglove' | 'marigold' | 'sage';
 
 export type GreenhouseGrowthStage = 0 | 1 | 2 | 3;
 
@@ -235,6 +241,11 @@ export type PersonalItemId =
   | 'foxglove_seeds'
   | 'foxglove_bloom'
   | 'meadow_posy'
+  // Gardening Expansion — new crops for outdoor beds.
+  | 'marigold_seeds'
+  | 'marigold_bloom'
+  | 'sage_seeds'
+  | 'sage_sprig'
   // Stage 3 (Willow Jetty fishing) — pond catches, giftable field finds.
   | 'silver_dace'
   | 'sun_perch'
@@ -884,6 +895,23 @@ export interface WorldState {
   // and behave exactly as today (schema stays v12 — no migration required).
   npcPerceptions?: Partial<Record<ResidentId, Partial<Record<ResidentId, NpcPerception>>>>;
   npcSocialGroups?: SocialGroup[];
+  // Gardening Expansion (WorldState v13) — per-garden state for outdoor beds.
+  // The Sunbeam greenhouse stays on `greenhouseState` (grandfathered v7);
+  // new gardens persist here. Empty default for v12 saves.
+  gardens: Partial<Record<string, GardenState>>;
+}
+
+/**
+ * Gardening Expansion — per-garden state for outdoor beds.
+ * Reuses the same plot shape as GreenhouseState so the same nightly-growth,
+ * sanitizer, and reducer primitives apply uniformly.
+ */
+export interface GardenState {
+  plots: GreenhousePlotState[];
+  totalHarvests: number;
+  totalPlanted: number;
+  /** Last in-game day any plot was tended (sown, watered, or harvested). */
+  lastTendedDay: number;
 }
 
 export type DialogueCategory =

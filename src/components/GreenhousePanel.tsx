@@ -8,7 +8,7 @@ import {
   summarizeGreenhousePlots,
 } from '../game/greenhouse';
 import { PERSONAL_ITEM_MAP } from '../game/inventory';
-import { GreenhouseState, WorldState } from '../game/types';
+import { GreenhouseState, PersonalItemId, WorldState } from '../game/types';
 import { useDialogA11y } from './useDialogA11y';
 
 export type GreenhousePanelMode = 'planting' | 'harvest';
@@ -18,7 +18,7 @@ interface GreenhousePanelProps {
   world: WorldState;
   onClose: () => void;
   onPlantSeed: (
-    seedItemId: 'chamomile_seeds' | 'lavender_seeds' | 'thyme_seeds' | 'foxglove_seeds',
+    seedItemId: PersonalItemId,
     plotIndex: number,
   ) => void;
   onHarvestPlot: (plotIndex: number) => void;
