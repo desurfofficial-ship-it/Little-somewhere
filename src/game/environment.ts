@@ -56,6 +56,8 @@ export interface WorldEchoesState {
   sorrelGardenStage: number;
   /** Stage 2: Plaza Garlands visual stage (0 = bare … 3 = full garland strung). */
   marigoldGarlandStage: number;
+  orchardLanternsStage: number;
+  pondMosaicStage: number;
 }
 
 export interface ComposedEnvironmentState {
@@ -281,6 +283,8 @@ export function composeEnvironmentState(
   );
   // Stage 2: Plaza Garlands visual stage — derived from GA-1 contribution counts.
   const marigoldGarlandStage = getCommunityShelfStage(world, 'marigold_garland', 3);
+  const orchardLanternsStage = getCommunityShelfStage(world, 'orchard_lanterns', 3);
+  const pondMosaicStage = getCommunityShelfStage(world, 'pond_mosaic', 3);
 
   const revision =
     (world.day & 1023) * 8388608 +
@@ -294,7 +298,9 @@ export function composeEnvironmentState(
     ((wellPebbleStack & 7) |
       ((posyBankPickedToday ? 1 : 0) << 3) |
       ((sorrelGardenStage & 3) << 4) |
-      ((marigoldGarlandStage & 3) << 6)) *
+      ((marigoldGarlandStage & 3) << 6) |
+      ((orchardLanternsStage & 3) << 8) |
+      ((pondMosaicStage & 3) << 10)) *
       8589934592;
 
   return {
@@ -329,6 +335,8 @@ export function composeEnvironmentState(
       posyBankPickedToday,
       sorrelGardenStage,
       marigoldGarlandStage,
+      orchardLanternsStage,
+      pondMosaicStage,
     },
     npcTouches: {
       claraPastryBasketVisible,
