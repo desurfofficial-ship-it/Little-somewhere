@@ -147,6 +147,8 @@ export interface EnvironmentRendererDeps {
   orchardAmbientExtras?: OrchardAmbientExtrasRig;
   /** Optional Wild Hollows rig (Build 10) for seasonal crown/knoll tints. */
   wildsRig?: WildsRig;
+  /** Stage 2: Plaza Garlands progressive visual rig. */
+  garlandRig?: { setGarlandStage(stage: number): void };
   /** BUILD 03: progression presentation rigs (Doc 07 §5 props; revision-gated toggles). */
   progressionRigs?: ProgressionPresentationRigs;
   /** BUILD 03: meadow dressing rig for the within-season drift (5.3b instance re-tint). */
@@ -354,6 +356,7 @@ export class EnvironmentVisualController {
         this.deps.wildsRig.setPosyBankPickedToday(composed.worldEchoes.posyBankPickedToday);
         // WP-4 (Workstream E): the Sorrel garden's persistent community transformation.
         this.deps.wildsRig.setGardenStage(composed.worldEchoes.sorrelGardenStage);
+        this.deps.garlandRig?.setGarlandStage(composed.worldEchoes.marigoldGarlandStage);
       }
       fountainRig.waterMesh.visible = env.fountainFlowing;
       fountainRig.spoutParticles.visible = env.fountainFlowing;

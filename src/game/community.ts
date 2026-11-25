@@ -170,6 +170,32 @@ export function isCommunityProjectComplete(
 }
 
 /**
+ * Stage 2 (Community Projects Evolution): derive a 0..stageCount visual stage
+ * from the GA-1 contribution counts — pure derivation, zero schema impact.
+ * Mirrors the sorrel_garden sideFlags stage pattern but reads the typed slice.
+ * Stage 0 = untouched; stageCount = completed; intermediate = proportional.
+ * Used by composeEnvironmentState to drive progressive visual transformations.
+ */
+export function getCommunityShelfStage(
+  world: { communityProjects?: CommunityProjectsState },
+  projectId: string,
+  stageCount: number = 3,
+): number {
+  const def = COMMUNITY_PROJECTS.find((d) => d.id === projectId);
+  if (!def) return 0;
+  const progress = world.communityProjects?.[projectId];
+  if (!progress) return 0;
+  if (progress.completedDay > 0) return stageCount;
+  const totalGoal = def.accepts.reduce((s, a) => s + a.goal, 0);
+  if (totalGoal <= 0) return 0;
+  const totalContributed = def.accepts.reduce(
+    (s, a) => s + Math.min(a.goal, Math.floor(Number(progress.contributed?.[a.itemId] ?? 0))),
+    0,
+  );
+  return Math.min(stageCount, Math.floor((totalContributed / totalGoal) * stageCount));
+}
+
+/**
  * Save-integrity sanitizer (same contract as every other slice): accept only
  * known projects, only accepted item ids, honest integer counts. Never throws.
  */

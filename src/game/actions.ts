@@ -42,7 +42,7 @@ import {
   getSeasonalAlmanacReading,
   resolveAnySeatById,
 } from './cottage';
-import { resolveSeatStandPos } from './walkability';
+import { resolveSeatStandPos, seatLocation } from './walkability';
 import { performFishingAction } from './fishing';
 import {
   GREENHOUSE_CROPS,
@@ -985,6 +985,20 @@ export function togglePlayerSitAction(
 
   const seat = resolveAnySeatById(seatId);
   if (!seat) return { nextWorld: world, sat: false };
+  // QA-03 (cross-venue sit teleport, categorical fix): a seat belongs to exactly
+  // one location grid — indoor seats to their interior, outdoor seats to the
+  // overworld. Sitting TELEPORTS the player to the seat's LOCAL coordinates, so
+  // a seat from another location must be rejected BEFORE the G-3 range check:
+  // its 3.0 m metric is meaningless across coordinate spaces (a nook-local
+  // playerPos can sit "within 3 m" of a bakery-local seatPos). Probe P5d repro:
+  // from nook_interior, toggling 'bakery_seat_cafe_west' used to teleport
+  // playerPos to the bakery-local chair (0.73, 1.45) while playerLocation
+  // stayed 'nook_interior' — a cross-grid ghost state. Rejection is silent
+  // (same style as G-3): the venue-scoped selector never offers this target,
+  // so the reducer guard is defense-in-depth for stale/captured targets.
+  if (seatLocation(seat) !== world.playerLocation) {
+    return { nextWorld: world, sat: false };
+  }
   // Overhaul G-3 (defense-in-depth): sitting TELEPORTS the player, so the
   // reducer re-validates range — a stale/captured target can no longer
   // teleport-sit from across the map. Selector range 2.35 + arrival slack;
