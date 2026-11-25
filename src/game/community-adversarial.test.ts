@@ -372,7 +372,7 @@ test('AD-4 corrupted data: NaN contributed count should NOT silently produce sta
 
   // Document the defect: NaN currently yields stage 1 (silent under-report of corruption).
   // If this ever returns 0, the defect has been fixed — update this assertion.
-  assert.equal(stage, 1, 'DEFECT: NaN contributed silently yields stage 1 instead of 0');
+  assert.equal(stage, 0, 'D-1 fix: NaN contributed now yields stage 0 via sanitized accessor');
 });
 
 test('AD-4 corrupted data: NaN completedDay silently falls through to contribution math', () => {

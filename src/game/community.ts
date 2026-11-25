@@ -167,8 +167,18 @@ export function getCommunityProjectProgress(
   if (!raw || typeof raw !== 'object') {
     return createEmptyProjectProgress();
   }
+  // D-1 fix (proper): sanitize contributed values too, not just completedDay.
+  // NaN/negative/non-finite counts are clamped to 0 so getCommunityShelfStage
+  // never sees corrupted data through this accessor.
+  const sanitizedContributed: Partial<Record<PersonalItemId, number>> = {};
+  for (const [key, value] of Object.entries(raw.contributed ?? {})) {
+    const num = Number(value);
+    if (Number.isFinite(num) && num > 0) {
+      sanitizedContributed[key as PersonalItemId] = Math.floor(num);
+    }
+  }
   return {
-    contributed: { ...(raw.contributed ?? {}) },
+    contributed: sanitizedContributed,
     completedDay: typeof raw.completedDay === 'number' && Number.isFinite(raw.completedDay)
       ? Math.max(0, Math.floor(raw.completedDay))
       : 0,
