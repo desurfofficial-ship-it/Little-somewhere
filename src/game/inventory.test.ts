@@ -25,7 +25,7 @@ import { RESIDENT_ORDER } from './residents';
 import { PersonalItemId } from './types';
 
 test('personal item catalog, starter inventory, and stack clamping enforce invariants', () => {
-  assert.equal(PERSONAL_ITEMS.length, 30); // 25 baseline + 5 Willow Jetty pond catches (Stage 3)
+  assert.equal(PERSONAL_ITEMS.length, 33); // 25 baseline + 5 Willow Jetty pond catches (Stage 3) + 3 SC-B community-project keepsakes
   const uniqueIds = new Set(PERSONAL_ITEMS.map((item) => item.id));
   assert.equal(uniqueIds.size, PERSONAL_ITEMS.length);
 

@@ -70,6 +70,8 @@ export const INVITATION_REASON_LABELS: Readonly<Record<string, string>> = {
   spacing_cooldown: 'You shared a moment recently — let it breathe for a day or two.',
   host_guarded: 'They seem guarded today; maybe a kind word first.',
   tier_too_low: 'You are still getting to know each other.',
+  // LR-3 D10 (offerPhases gate — doc 05 §7.2; QA-04 label-slot obligation)
+  offer_phase_closed: 'That plan only happens in the morning — catch them earlier in the day.',
   host_unavailable: 'They are away from home right now.',
   // accept / decline / expiry transitions (invitations.ts)
   no_offered_invitation: 'There is no open invitation to answer.',
@@ -219,7 +221,7 @@ export function describeInvitationCapabilities(
 
     rows.push({
       activityId,
-      activityTitle: def.title,
+      activityTitle: def.ledgerTitle ?? def.title,
       hostId: host,
       hostName: RESIDENTS[host].name,
       venueLabel: RESIDENTS[host].homeName,
@@ -353,7 +355,10 @@ export function getInvitationLedger(world: WorldState): InvitationLedger {
         hostName: RESIDENTS[active.hostId]?.name ?? active.hostId,
         venueLabel: RESIDENTS[active.hostId]?.homeName ?? '',
         activityId: active.activityId,
-        activityTitle: SHARED_ACTIVITIES[active.activityId]?.title ?? active.activityId,
+        activityTitle:
+          SHARED_ACTIVITIES[active.activityId]?.ledgerTitle ??
+          SHARED_ACTIVITIES[active.activityId]?.title ??
+          active.activityId,
         live: isInvitationLive(active, world.day, world.minuteOfDay),
         offeredDay: active.offeredDay,
         windowStartMinute: active.windowStartMinute,
@@ -366,7 +371,10 @@ export function getInvitationLedger(world: WorldState): InvitationLedger {
     hostId: entry.hostId,
     hostName: RESIDENTS[entry.hostId]?.name ?? entry.hostId,
     activityId: entry.activityId,
-    activityTitle: SHARED_ACTIVITIES[entry.activityId]?.title ?? entry.activityId,
+    activityTitle:
+      SHARED_ACTIVITIES[entry.activityId]?.ledgerTitle ??
+      SHARED_ACTIVITIES[entry.activityId]?.title ??
+      entry.activityId,
     day: entry.day,
     outcome: entry.outcome,
     outcomeLabel: outcomeLabelFor(entry.outcome, entry.reason),

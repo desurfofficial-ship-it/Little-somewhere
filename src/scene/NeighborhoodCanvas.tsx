@@ -85,6 +85,8 @@ import {
   isNookInteriorWalkable,
 } from '../game/bookNook';
 import { NOOK_OCCUPANT_APPROACH_POS } from '../game/occupancy';
+import { getSharedActivityDef } from '../game/activities';
+import { occupantApproachPos } from '../game/walkability';
 import {
   COPPERWHEEL_BOUNDS,
   COPPERWHEEL_INTERACTABLES,
@@ -136,6 +138,9 @@ import {
 import { flushStaticContactShadows, staticContactShadows } from './contactShadows';
 import { buildMeadowDressing, buildStructureDressing } from './builders/botanicalDressing';
 import { buildWildHollows } from './builders/wilds';
+import { buildPlazaGarlandRig } from './builders/plazaGarland';
+import { buildOrchardLanternsRig } from './builders/orchardLanterns';
+import { buildPondMosaicRig } from './builders/pondMosaic';
 import { disposeAmbientMotion } from './ambientSway';
 import { buildFernHollowOrchard } from './builders/orchard';
 import { buildOrchardAmbientExtras, buildOrchardMicroLife } from './builders/orchardMicroLife';
@@ -917,59 +922,15 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
     festoonGroup.visible = false;
     exteriorRoot.add(festoonGroup);
 
-    // Stage 2 (Community Projects): Plaza Garlands progressive visual rig.
-    // 3 prebuilt sub-groups (twine / partial blooms / full garland) toggled by
-    // setGarlandStage — follows the WildsRig.setGardenStage pattern exactly:
-    // prebuilt at mount, visibility-only writes, zero per-frame allocation.
-    // Garland spans between the two front lamp posts at y≈3.15 (below the festoon).
-    const garlandSageMat = palette.standard('#5E8062', 0.82, 0.0);
-    const garlandMarigoldMat = palette.standard('#E5A93C', 0.5, 0.0);
-    const garlandChamomileMat = palette.standard('#F0E6C8', 0.6, 0.0);
-    const garlandLavenderMat = palette.standard('#9B7FB8', 0.55, 0.0);
-    const garlandY = 3.15;
-    const garlandZ = -5.2;
-    const garlandTwine = new THREE.Group();
-    const garlandPartial = new THREE.Group();
-    const garlandFull = new THREE.Group();
-    // Twine (stage ≥ 1): a sage cord with sag between the front lamp posts
-    for (let i = 0; i < 12; i++) {
-      const t = i / 11;
-      const fx = THREE.MathUtils.lerp(-5.8, 5.8, t);
-      const sag = Math.sin(t * Math.PI) * 0.35;
-      const seg = new THREE.Mesh(new THREE.SphereGeometry(0.035, 4, 3), garlandSageMat);
-      seg.position.set(fx, garlandY - sag, garlandZ);
-      garlandTwine.add(seg);
-    }
-    // Partial blooms (stage ≥ 2): 3 marigold posy clusters
-    for (let i = 0; i < 3; i++) {
-      const t = (i + 1) / 4;
-      const fx = THREE.MathUtils.lerp(-5.8, 5.8, t);
-      const sag = Math.sin(t * Math.PI) * 0.35;
-      const bloom = new THREE.Mesh(new THREE.IcosahedronGeometry(0.11, 0), garlandMarigoldMat);
-      bloom.position.set(fx, garlandY - sag + 0.07, garlandZ);
-      garlandPartial.add(bloom);
-    }
-    // Full garland (stage ≥ 3): 7 dense bloom clusters (marigold/chamomile/lavender)
-    for (let i = 0; i < 7; i++) {
-      const t = i / 6;
-      const fx = THREE.MathUtils.lerp(-5.8, 5.8, t);
-      const sag = Math.sin(t * Math.PI) * 0.35;
-      const bloomMat = i % 3 === 0 ? garlandMarigoldMat : i % 3 === 1 ? garlandChamomileMat : garlandLavenderMat;
-      const bloom = new THREE.Mesh(new THREE.IcosahedronGeometry(0.13, 0), bloomMat);
-      bloom.position.set(fx, garlandY - sag + 0.09, garlandZ);
-      garlandFull.add(bloom);
-    }
-    garlandTwine.visible = false;
-    garlandPartial.visible = false;
-    garlandFull.visible = false;
-    exteriorRoot.add(garlandTwine, garlandPartial, garlandFull);
-    const garlandRig = {
-      setGarlandStage(stage: number): void {
-        garlandTwine.visible = stage >= 1;
-        garlandPartial.visible = stage >= 2;
-        garlandFull.visible = stage >= 3;
-      },
-    };
+    // Stage 2: Plaza Garlands progressive visual rig (extracted to builders/plazaGarland.ts).
+    const garlandRig = buildPlazaGarlandRig(palette);
+    exteriorRoot.add(garlandRig.group);
+    // Stage 2: Orchard Lanterns progressive visual rig (community-project lanterns).
+    const orchardLanternRig = buildOrchardLanternsRig(palette);
+    exteriorRoot.add(orchardLanternRig.group);
+    // Stage 2: Pond Mosaic progressive visual rig (proud-geometry tesserae on pier step).
+    const pondMosaicRig = buildPondMosaicRig(palette);
+    exteriorRoot.add(pondMosaicRig.group);
 
     // BUILD 03 (Doc 07 §5): progression presentation rigs — all storyline props,
     // tokens, echoes, and exploration marks, pre-built hidden and toggled by the
@@ -1033,6 +994,8 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
       orchardAmbientExtras: orchardAmbientExtrasRig,
       wildsRig,
       garlandRig,
+      orchardRig2: orchardLanternRig,
+      pondMosaicRig,
     });
 
     // Willow Step Cottage Interior Cutaway Diorama (toggles cleanly via interiorRoot)
@@ -1078,6 +1041,30 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
     const nookInteractablesWithOccupant: THREE.Object3D[] = [
       ...nookInteriorRig.hitProxies,
       nookOccupantHitProxy,
+    ];
+
+    // LR-3 D8 (doc 05 §8.1): the bakery gains its own occupant rig from the
+    // same venue-agnostic pattern — Clara seated at the café corner during a
+    // live pastry session, hit proxy routing to her with def-derived walk
+    // destination and labels. No second math copy: the per-frame sync below
+    // loops over both (venue, rig) pairs.
+    const bakeryOccupantRig = buildStorybookCharacter(
+      RESIDENTS.clara.appearance,
+      palette,
+      shadowTex,
+      'clara',
+    );
+    bakeryOccupantRig.root.visible = false;
+    const bakeryOccupantHitGeo = new THREE.CylinderGeometry(0.65, 0.65, 1.85, 8);
+    const bakeryOccupantHitMat = new THREE.MeshBasicMaterial({ visible: false });
+    const bakeryOccupantHitProxy = new THREE.Mesh(bakeryOccupantHitGeo, bakeryOccupantHitMat);
+    bakeryOccupantHitProxy.position.y = 0.92;
+    bakeryOccupantHitProxy.userData = { targetKind: 'resident', targetId: 'clara' };
+    bakeryOccupantRig.root.add(bakeryOccupantHitProxy);
+    bakeryInteriorRig.group.add(bakeryOccupantRig.root);
+    const bakeryInteractablesWithOccupant: THREE.Object3D[] = [
+      ...bakeryInteriorRig.hitProxies,
+      bakeryOccupantHitProxy,
     ];
 
     // Copperwheel Cottage Interior Cutaway Diorama (M3 Build 9 — same cutaway contract)
@@ -1535,7 +1522,9 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
         : worldRef.current.playerLocation === 'greenhouse_interior'
         ? greenhouseInteriorRig.hitProxies
         : worldRef.current.playerLocation === 'bakery_interior'
-        ? bakeryInteriorRig.hitProxies
+        ? worldRef.current.occupancy?.location === 'bakery_interior'
+          ? bakeryInteractablesWithOccupant
+          : bakeryInteriorRig.hitProxies
         : worldRef.current.playerLocation === 'nook_interior'
         ? worldRef.current.occupancy?.location === 'nook_interior'
           ? nookInteractablesWithOccupant
@@ -1549,8 +1538,10 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
         // co-hits a stool proxy within a close band, prefer the seat (Pass 5).
         let chosen = hits[0];
         if (
-          worldRef.current.playerLocation === 'nook_interior' &&
-          worldRef.current.occupancy?.location === 'nook_interior'
+          (worldRef.current.playerLocation === 'nook_interior' &&
+            worldRef.current.occupancy?.location === 'nook_interior') ||
+          (worldRef.current.playerLocation === 'bakery_interior' &&
+            worldRef.current.occupancy?.location === 'bakery_interior')
         ) {
           const occupantHit = hits.find((h) => h.object.userData.targetKind === 'resident');
           if (occupantHit) chosen = occupantHit;
@@ -1668,12 +1659,22 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
             occ.location === worldRef.current.playerLocation
           ) {
             tPos = { ...occ.localPos };
-            walkDest = { ...NOOK_OCCUPANT_APPROACH_POS };
+            // D8 (doc 05 §8.3): walk destination resolved from the occupant's
+            // venue seat approach — nook keeps the historic constant (byte-
+            // identical), bakery routes to the café corner approach aisle.
+            walkDest = occupantApproachPos(occ.location) ?? { ...occ.localPos };
             label = RESIDENTS[rid].name;
-            actionLabel =
-              worldRef.current.activeActivity?.activityId === 'share_featured_reading'
-                ? `Share Reading with ${label}`
-                : `Talk to ${label}`;
+            // D8 label truth (doc 05 §8.3): "Share <activity noun> with <host>"
+            // while the occupant's invitation is the live active activity —
+            // derived from the def title (strip the "Shared " prefix), so both
+            // venues are truthful with zero per-venue literals. Historic nook
+            // string byte-identical ("Share Reading with Nora").
+            const activeDef = worldRef.current.activeActivity
+              ? getSharedActivityDef(worldRef.current.activeActivity.activityId)
+              : undefined;
+            actionLabel = activeDef
+              ? `Share ${activeDef.title.replace(/^Shared\s+/, '')} with ${label}`
+              : `Talk to ${label}`;
             immediateRange = 2.6;
             scoreDist = Math.min(distance2D(pPos, tPos), distance2D(pPos, walkDest) + 0.25);
             isImmediate = scoreDist <= immediateRange;
@@ -2487,64 +2488,73 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
         }
       }
 
-      // Sync seated indoor Book Nook occupant (LR-2)
-      const nookOcc =
-        curLoc === 'nook_interior' && world.occupancy?.location === 'nook_interior'
-          ? world.occupancy
-          : null;
-      if (nookOcc) {
-        const occDef = RESIDENTS[nookOcc.residentId];
-        nookOccupantRig.root.visible = true;
-        const occSeatY = computeSitGroundY(0.5, occDef.appearance.heightScale);
-        nookOccupantRig.root.position.set(nookOcc.localPos.x, occSeatY, nookOcc.localPos.z);
-        nookOccupantRig.root.rotation.y = nookOcc.facing;
-        const ldx = world.playerPos.x - nookOcc.localPos.x;
-        const ldz = world.playerPos.z - nookOcc.localPos.z;
-        let occLookYaw = 0;
-        if (ldx * ldx + ldz * ldz > 0.04) {
-          occLookYaw = THREE.MathUtils.clamp(
-            wrapAngleDelta(nookOcc.facing, Math.atan2(ldx, ldz)),
-            -0.95,
-            0.95,
-          );
-        }
-        _npcAnimOpts.emotion = world.npcRuntime?.[nookOcc.residentId]?.emotion ?? 'happy';
-        _npcAnimOpts.lookYaw = occLookYaw;
-        _npcAnimOpts.lookPitch = 0;
-        _npcAnimOpts.bankAngle = 0;
-        _npcAnimOpts.accelLean = 0;
-        _npcAnimOpts.squash = 0;
-        _npcAnimOpts.carrying = false;
-        _npcAnimOpts.isMoving = false;
-        // BUILD 04 fix: reset the intensity too — the scratch options object is
-        // shared with the resident loop above, and a stale value leaked into the
-        // nook occupant's face amplitudes (audit finding, zero-GC scratch rule).
-        _npcAnimOpts.emotionIntensity = 0.75;
-        // Workstream B/D: same scratch discipline for the new fields — the nook
-        // seat is a fixed 0.5-height perch, the occupant never walks, and the
-        // reading layer arms only when a shared invitation is actually active.
-        _npcAnimOpts.seatHeight = 0.5;
-        _npcAnimOpts.speed = undefined;
-        _npcAnimOpts.seatedReading = Boolean(nookOcc.invitationId);
-        animateCharacterRig(nookOccupantRig, 'sit', 0, elapsed, dt, 1.3, _npcAnimOpts);
+      // Sync seated indoor occupants (LR-2 nook + LR-3 bakery — D8 parameterized:
+      // one loop over the (venue, rig) pairs, identical math per venue, no
+      // second copy. BUILD-04's emotionIntensity reset is carried for every rig.)
+      const occupantRigs: Array<[
+        PlayerLocation,
+        ReturnType<typeof buildStorybookCharacter>,
+      ]> = [
+        ['nook_interior', nookOccupantRig],
+        ['bakery_interior', bakeryOccupantRig],
+      ];
+      let activeOccupantSynced = false;
+      for (const [venue, rig] of occupantRigs) {
+        const venueOcc =
+          curLoc === venue && world.occupancy?.location === venue ? world.occupancy : null;
+        if (venueOcc) {
+          activeOccupantSynced = true;
+          const occDef = RESIDENTS[venueOcc.residentId];
+          rig.root.visible = true;
+          const occSeatY = computeSitGroundY(0.5, occDef.appearance.heightScale);
+          rig.root.position.set(venueOcc.localPos.x, occSeatY, venueOcc.localPos.z);
+          rig.root.rotation.y = venueOcc.facing;
+          const ldx = world.playerPos.x - venueOcc.localPos.x;
+          const ldz = world.playerPos.z - venueOcc.localPos.z;
+          let occLookYaw = 0;
+          if (ldx * ldx + ldz * ldz > 0.04) {
+            occLookYaw = THREE.MathUtils.clamp(
+              wrapAngleDelta(venueOcc.facing, Math.atan2(ldx, ldz)),
+              -0.95,
+              0.95,
+            );
+          }
+          _npcAnimOpts.emotion = world.npcRuntime?.[venueOcc.residentId]?.emotion ?? 'happy';
+          _npcAnimOpts.lookYaw = occLookYaw;
+          _npcAnimOpts.lookPitch = 0;
+          _npcAnimOpts.bankAngle = 0;
+          _npcAnimOpts.accelLean = 0;
+          _npcAnimOpts.squash = 0;
+          _npcAnimOpts.carrying = false;
+          _npcAnimOpts.isMoving = false;
+          // BUILD 04 fix carried: reset the intensity too — the scratch options
+          // object is shared with the resident loop above, and a stale value
+          // would leak into the occupant's face amplitudes (zero-GC scratch rule).
+          _npcAnimOpts.emotionIntensity = 0.75;
+          _npcAnimOpts.seatHeight = 0.5;
+          _npcAnimOpts.speed = undefined;
+          _npcAnimOpts.seatedReading = Boolean(venueOcc.invitationId);
+          animateCharacterRig(rig, 'sit', 0, elapsed, dt, 1.3, _npcAnimOpts);
 
-        const occCue = getResidentAvailableQuestCue(nookOcc.residentId, world);
-        nookOccupantRig.questPip.visible = occCue !== 'none';
-        if (nookOccupantRig.questPip.visible) {
-          nookOccupantRig.questPip.rotation.y = elapsed * 2.0;
-          nookOccupantRig.questPip.position.y =
-            (2.05 + Math.sin(elapsed * 3.2) * 0.08) * occDef.appearance.heightScale;
+          const occCue = getResidentAvailableQuestCue(venueOcc.residentId, world);
+          rig.questPip.visible = occCue !== 'none';
+          if (rig.questPip.visible) {
+            rig.questPip.rotation.y = elapsed * 2.0;
+            rig.questPip.position.y =
+              (2.05 + Math.sin(elapsed * 3.2) * 0.08) * occDef.appearance.heightScale;
+          }
+          const occDist = distance2D(world.playerPos, venueOcc.localPos);
+          rig.ringMesh.visible = occDist < 2.9;
+          if (rig.ringMesh.visible) {
+            (rig.ringMesh.material as THREE.MeshBasicMaterial).color.copy(_ringAmber);
+          }
+        } else {
+          rig.root.visible = false;
+          rig.ringMesh.visible = false;
+          rig.questPip.visible = false;
         }
-        const occDist = distance2D(world.playerPos, nookOcc.localPos);
-        nookOccupantRig.ringMesh.visible = occDist < 2.9;
-        if (nookOccupantRig.ringMesh.visible) {
-          (nookOccupantRig.ringMesh.material as THREE.MeshBasicMaterial).color.copy(_ringAmber);
-        }
-      } else {
-        nookOccupantRig.root.visible = false;
-        nookOccupantRig.ringMesh.visible = false;
-        nookOccupantRig.questPip.visible = false;
       }
+      void activeOccupantSynced;
 
       const nearestTarget = selectBestInteractiveTarget(world, RESIDENTS);
 
@@ -2617,6 +2627,7 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
         lastKnitSeason = world.season;
         applyCharacterWinterTint(playerRig, world.season);
         applyCharacterWinterTint(nookOccupantRig, world.season);
+        applyCharacterWinterTint(bakeryOccupantRig, world.season);
         for (const rid of RESIDENT_ORDER) {
           applyCharacterWinterTint(residentRigs[rid], world.season);
         }
@@ -3198,6 +3209,8 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
       nookInteriorRig.dispose();
       nookOccupantHitGeo.dispose();
       nookOccupantHitMat.dispose();
+      bakeryOccupantHitGeo.dispose();
+      bakeryOccupantHitMat.dispose();
       copperwheelInteriorRig.dispose();
       meadowDressing.dispose();
       structureDressing.dispose();

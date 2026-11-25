@@ -150,6 +150,8 @@ export interface EnvironmentRendererDeps {
   wildsRig?: WildsRig;
   /** Stage 2: Plaza Garlands progressive visual rig. */
   garlandRig?: { setGarlandStage(stage: number): void };
+  orchardRig2?: { setLanternStage(stage: number): void };
+  pondMosaicRig?: { setMosaicStage(stage: number): void };
   /** BUILD 03: progression presentation rigs (Doc 07 §5 props; revision-gated toggles). */
   progressionRigs?: ProgressionPresentationRigs;
   /** BUILD 03: meadow dressing rig for the within-season drift (5.3b instance re-tint). */
@@ -345,8 +347,10 @@ export class EnvironmentVisualController {
         this.deps.wildsRig.setPosyBankPickedToday(composed.worldEchoes.posyBankPickedToday);
         // WP-4 (Workstream E): the Sorrel garden's persistent community transformation.
         this.deps.wildsRig.setGardenStage(composed.worldEchoes.sorrelGardenStage);
-        this.deps.garlandRig?.setGarlandStage(composed.worldEchoes.marigoldGarlandStage);
       }
+      this.deps.garlandRig?.setGarlandStage(composed.worldEchoes.marigoldGarlandStage);
+      this.deps.orchardRig2?.setLanternStage(composed.worldEchoes.orchardLanternsStage);
+      this.deps.pondMosaicRig?.setMosaicStage(composed.worldEchoes.pondMosaicStage);
       fountainRig.waterMesh.visible = env.fountainFlowing;
       fountainRig.spoutParticles.visible = env.fountainFlowing;
       if (fountainRig.clogDebrisGroup) {

@@ -106,9 +106,18 @@ All milestones below are **IMPLEMENTED** and merged to `main`, verified by the a
 
 ## 5. Current milestone — LR-3 (Clara's Morning Pastry Invitation)
 
-**Status: DESIGNED — implementation gated on 5 clearance items. Not yet implemented.**
+**Status: IMPLEMENTED + LOCALLY VERIFIED — pending review/merge, browser QA, and independent adversarial sign-off (see the execution record below).**
 
-The LR-3 design verdict is READY, but `docs/architecture/lr3-qa/lr3-integration-readiness.md` records **5 explicit blockers** that must clear before implementation begins:
+> **[Execution record — 2026-11-24]** The five clearance items below were executed on the `docs/lr3-implementation-proposal` → `fix/qa03-cross-venue-sit` → `feat/bakery-spatial-comfort` → `feat/lr3-slice-1` → `feat/lr3-slice-2` branch series (PRs #26–#30, fast-forward only):
+> 1. **Implementation landed** — `share_morning_pastry` def + Clara quartet + golden 86→90 (slice 1); `reconcileInvitedInteriorEntry` shared enter helper + bakery reducers + S3 station guards + scene D8 + dual-surface completion (slice 2). 802/802 tests green (738 pre-existing unmodified + 6 QA-03 + 10 spatial + 19 slice-1 battery + 29 slice-2 battery), `tsc` clean, build green.
+> 2. **QA-02 verification basis** — golden math corrected to 86→90 (QA-05) with committed justification; as-built corrections recorded in-battery for LR3-11 (719-flat window) and LR3-96 (OR-reading floor, QA-08); the doc re-base pass for the remaining v12 anchor drift is the standing docs obligation (non-blocking).
+> 3. **QA-03 FIXED** — categorical cross-venue sit guard (`seatLocation(seat) !== world.playerLocation`) with the full adversarial battery; probe P5d flipped.
+> 4. **QA-10 CLOSED as NOT-REPRODUCIBLE** — three artifact-immune methods prove `branches: [main]` intact (`lr3-qa10-correction.md`); the register entry was an environment display artifact.
+> 5. **11-field proposal FILED** — `docs/architecture/lr3/10-implementation-proposal-11-field.md` (PR #26), with architecture + adversarial review verdicts recorded, filed before any feature code per the governance precondition.
+>
+> State classification (honest register): **Implemented locally / Locally tested** (unit + battery + build on the branch tips). NOT yet: **Merged**, **Remotely CI-verified on the PRs**, **Browser-verified** (desktop/mobile manual QA per doc 06 §11 item 5), or **Independently reviewed** (the post-implementation adversarial re-run of probes P4/P5a/P8 is scripted in the QA-03 battery; the review itself is scheduled). Acceptance therefore remains **pending** until merge + those gates — do not mark the milestone ACCEPTED on the strength of this record alone.
+
+The original clearance list is preserved below for the audit trail. The LR-3 design verdict is READY, and `docs/architecture/lr3-qa/lr3-integration-readiness.md` recorded **5 explicit blockers** that had to clear before implementation could begin:
 
 1. **LR-3 implementation absent** (start-gate) — no `share_morning_pastry` in `SHARED_ACTIVITIES`, no `feat/lr3-implementation` branch.
 2. **QA-02 stale verification basis** — the LR-3 design docs (`docs/architecture/lr3/01-09`) were reconciled against v11; they need a re-base pass onto v12 (anchor drift, golden math 86→90, file-map gaps) before an implementer reads them as current.

@@ -125,6 +125,22 @@ export const BAKERY_INTERACTABLES: readonly BakeryInteractable[] = [
     interactRadius: 1.7,
     actionLabel: 'Read Clara’s Recipe Notes',
   },
+  {
+    // LR-3 card anchor (doc 05 §6.3): when the café station is claimed by a
+    // live accepted pastry invite this card offers the shared session; when
+    // free it is a flavor fixture of the table. Stand spot sits on the west
+    // approach aisle (the old table-center suggestion was inside the
+    // furniture footprint — confirmed against walkability and moved). The
+    // click proxy auto-generates at the focus point.
+    id: 'bakery_cafe_table',
+    name: 'Café Corner Table',
+    x: 0.1,
+    z: 1.45,
+    focusX: 1.35,
+    focusZ: 1.45,
+    interactRadius: 1.9,
+    actionLabel: 'View the Café Corner',
+  },
 ];
 
 // ---------------------------------------------------------------------------
@@ -178,6 +194,20 @@ export const BAKERY_CHECK_MINUTES = 8;
 export const BAKERY_KNEAD_MINUTES = 12;
 export const BAKERY_SHARE_MINUTES = 6;
 export const BAKERY_NOTES_MINUTES = 8;
+
+/**
+ * LR-3 occupancy station id (D3): the as-built café chair doubles as the
+ * station Clara claims during a shared morning pastry. Exported so reducers
+ * and the def never re-type the literal.
+ */
+export const BAKERY_CAFE_STATION_ID: string = 'bakery_seat_cafe_west';
+
+/** Café-corner card anchor labels (exported constants — reducer reads, bakery owns the voice). */
+export const BAKERY_CAFE_TABLE_CARD_TITLE = 'Café Corner — Shared Morning Pastry';
+export const BAKERY_CAFE_TABLE_CARD_LABEL = 'Share Morning Pastry';
+export const BAKERY_CAFE_TABLE_FLAVOR_TITLE = 'Round Café Table';
+export const BAKERY_CAFE_TABLE_FLAVOR_BODY =
+  'A round café table with two bentwood chairs by the south-east window — flour dust on the runner, morning light across the wood.';
 
 export function createInitialBakeryState(): BakeryState {
   return {

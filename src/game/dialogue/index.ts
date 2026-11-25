@@ -32,6 +32,7 @@ import { WEATHER_SEASON_TOPICS } from './everyday/weather';
 import { DAILY_SLICE_TOPICS } from './everyday/smalltalk';
 import { EVERYDAY_HOME_TOPICS } from './everyday/home';
 import { REFLECTION_TOPICS } from './everyday/reflections';
+import { COMMUNITY_ECHO_TOPICS } from './everyday/communityEcho';
 import { GREENHOUSE_TOPICS } from './interiors/greenhouse';
 import { BAKERY_TOPICS } from './interiors/bakery';
 import { BOOK_NOOK_TOPICS } from './interiors/bookNook';
@@ -67,4 +68,11 @@ export const DIALOGUE_TOPICS: readonly DialogueTopic[] = [
   // snapshot regenerated 85 → 86 with justification recorded in
   // docs/architecture/living-relationships/22-social-foundation-contracts.md.
   ...REFLECTION_TOPICS,
+  // Community Projects social afterlife (feat/community-social-consequences):
+  // stage-aware echoes of the GA-1 contribution reducer's witness/participant
+  // memory writes. Appended strictly after REFLECTION_TOPICS per the
+  // append-only ordering contract; the SF4-07 milestone pin migrated to this
+  // module's last topic. Golden snapshot regenerated 90 → 93 with
+  // justification recorded in the SC-A audit report.
+  ...COMMUNITY_ECHO_TOPICS,
 ];

@@ -29,6 +29,7 @@ import {
 import {
   PERSONAL_ITEM_MAP,
   VALID_PERSONAL_ITEM_IDS,
+  addItemToInventory,
   consumeItemFromInventory,
   getItemCount,
 } from './inventory';
@@ -63,6 +64,15 @@ export interface CommunityProjectDef {
   memorySummary: string;
   /** `sideFlags` key set on completion (World team consumes for the visible town reward). */
   worldFlag: string;
+  /**
+   * SC-B — Keepsake item id granted to the player's satchel the moment the
+   * project's final goal is met (idempotent: never duplicates if the satchel
+   * already holds one). The id is a `PersonalItemId` literal cast in
+   * `inventory.ts`'s PERSONAL_ITEMS registry so the wider PersonalItemId union
+   * in `types.ts` stays untouched (SC-B constraint). Every authored
+   * COMMUNITY_PROJECTS row carries one.
+   */
+  keepsakeRewardItemId: PersonalItemId;
 }
 
 /** Hard cap for any single contributed total — well above every authored goal. */
@@ -86,6 +96,7 @@ export const COMMUNITY_PROJECTS: readonly CommunityProjectDef[] = [
     memorySummary:
       'Neighbors gathered at the noticeboard basket while I tucked wild blooms into the plaza garland — by golden hour it hung glowing between the lamps.',
     worldFlag: 'communityGarlandComplete',
+    keepsakeRewardItemId: 'pressed_garland_bloom' as PersonalItemId,
   },
   {
     id: 'orchard_lanterns',
@@ -103,6 +114,7 @@ export const COMMUNITY_PROJECTS: readonly CommunityProjectDef[] = [
     memorySummary:
       'I set crabapples and honeycomb aside in the orchard contribution basket — the tasting-table lanterns will glow warm thanks to a whole neighborhood’s pockets.',
     worldFlag: 'communityOrchardLanternsComplete',
+    keepsakeRewardItemId: 'orchard_lantern_charm' as PersonalItemId,
   },
   {
     id: 'pond_mosaic',
@@ -122,6 +134,7 @@ export const COMMUNITY_PROJECTS: readonly CommunityProjectDef[] = [
     memorySummary:
       'Field finds from my wanderings are now pressed into the Mirror Pond steps for good — a mosaic of river glass and ferns that catches the light at dusk.',
     worldFlag: 'communityPondMosaicComplete',
+    keepsakeRewardItemId: 'pond_mosaic_shard' as PersonalItemId,
   },
 ];
 
@@ -183,7 +196,7 @@ export function getCommunityShelfStage(
 ): number {
   const def = COMMUNITY_PROJECTS.find((d) => d.id === projectId);
   if (!def) return 0;
-  const progress = world.communityProjects?.[projectId];
+  const progress = getCommunityProjectProgress(world, projectId);
   if (!progress) return 0;
   if (progress.completedDay > 0) return stageCount;
   const totalGoal = def.accepts.reduce((s, a) => s + a.goal, 0);
@@ -192,7 +205,13 @@ export function getCommunityShelfStage(
     (s, a) => s + Math.min(a.goal, Math.floor(Number(progress.contributed?.[a.itemId] ?? 0))),
     0,
   );
-  return Math.min(stageCount, Math.floor((totalContributed / totalGoal) * stageCount));
+  // Explicit deterministic threshold policy (H2 fix):
+  // Stage 0: zero contributions. Stage 1: first valid contribution (≥1).
+  // Stage 2: approximately halfway (≥ceil(totalGoal/2)). Stage 3: goal reached.
+  if (totalContributed <= 0) return 0;
+  if (totalContributed >= totalGoal) return stageCount;
+  if (totalContributed >= Math.ceil(totalGoal / 2)) return 2;
+  return 1;
 }
 
 /**
@@ -599,14 +618,40 @@ export function contributeToCommunityProject(
       ...nextWorld,
       sideFlags: { ...(world.sideFlags ?? {}), [def.worldFlag]: true },
     };
+
+    // SC-B — Keepsake reward: a permanent memento of the finished endeavor,
+    // tucked into the satchel so it can be displayed on the cottage oak shelf.
+    // Idempotent guard: never grants a second copy if the satchel already holds
+    // one (defensive against any future re-completion path; today the
+    // `project_completed` refusal upstream already prevents a second burst, but
+    // the guard keeps the grant a pure function of the world it receives).
+    const keepsakeId = def.keepsakeRewardItemId;
+    if (keepsakeId && getItemCount(nextWorld.inventory, keepsakeId) === 0) {
+      const grant = addItemToInventory(
+        nextWorld.inventory,
+        nextWorld.discoveredItemIds,
+        keepsakeId,
+        1,
+      );
+      nextWorld = {
+        ...nextWorld,
+        inventory: grant.inventory,
+        discoveredItemIds: grant.discoveredItemIds,
+      };
+    }
   }
 
   const itemLabel = PERSONAL_ITEM_MAP[itemId]?.label ?? itemId;
+  const keepsakeLabel = completedNow
+    ? PERSONAL_ITEM_MAP[def.keepsakeRewardItemId]?.label
+    : undefined;
   return {
     ok: true,
     world: nextWorld,
     toast: completedNow
-      ? `${def.title} — finished together, thanks to every neighbor who chipped in!`
+      ? keepsakeLabel
+        ? `${def.title} — finished together, thanks to every neighbor who chipped in! Your ${keepsakeLabel} keepsake was tucked into your satchel.`
+        : `${def.title} — finished together, thanks to every neighbor who chipped in!`
       : `Tucked ${
           actualAmount > 1 ? `${actualAmount} ${itemLabel}` : itemLabel
         } into the ${def.venueLabel} basket — the shelf shows ${contributedNow}/${goalDef.goal} now.`,

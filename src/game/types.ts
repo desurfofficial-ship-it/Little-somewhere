@@ -110,7 +110,8 @@ export type BakeryInteractableId =
   | 'bakery_counter'
   | 'bakery_prep'
   | 'bakery_notes'
-  | 'bakery_table';
+  | 'bakery_table'
+  | 'bakery_cafe_table';
 
 export type BakeryBakeId = 'sunflower_sourdough' | 'crabapple_galette' | 'lavender_butter_batch' | 'oven_rest';
 

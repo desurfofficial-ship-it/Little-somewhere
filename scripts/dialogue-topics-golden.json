@@ -1,5 +1,5 @@
 {
- "count": 90,
+ "count": 93,
  "topics": [
   {
    "index": 0,
@@ -1391,6 +1391,67 @@
      "maxDaysOld": 6
     },
     "notSeenToday": true
+   }
+  },
+  {
+   "index": 90,
+   "id": "everyday_community_basket_echo",
+   "residentId": "any",
+   "category": "event_reaction",
+   "priority": 14,
+   "historyScope": null,
+   "condition": {
+    "requiresNpcMemory": {
+     "tags": [
+      "shared_community"
+     ],
+     "unmentionedOnly": true,
+     "maxDaysOld": 6,
+     "subjectPlayer": true
+    },
+    "notSeenToday": true
+   }
+  },
+  {
+   "index": 91,
+   "id": "everyday_community_completion_celebration",
+   "residentId": "any",
+   "category": "event_reaction",
+   "priority": 20,
+   "historyScope": null,
+   "condition": {
+    "requiresWitnessedEvent": {
+     "kinds": [
+      "player_help"
+     ],
+     "tagPrefix": "community_",
+     "maxDaysAgo": 6
+    },
+    "requiresNpcMemory": {
+     "tags": [
+      "shared_community"
+     ],
+     "unmentionedOnly": true,
+     "maxDaysOld": 6,
+     "subjectPlayer": true
+    },
+    "notSeenToday": true
+   }
+  },
+  {
+   "index": 92,
+   "id": "everyday_community_project_pride",
+   "residentId": "any",
+   "category": "event_reaction",
+   "priority": 10,
+   "historyScope": null,
+   "condition": {
+    "requiresRecentEventTag": {
+     "tagPrefix": "community_",
+     "maxDaysAgo": 6
+    },
+    "notSeenToday": true,
+    "maxSeenCount": 2
    }
   }
  ]

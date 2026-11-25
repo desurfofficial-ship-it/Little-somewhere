@@ -1289,7 +1289,7 @@ export function buildPocketJournalView(
             id: activeInvRaw.id,
             hostId: activeInvRaw.hostId,
             hostName,
-            title: def?.title ?? 'Shared Gathering',
+            title: def?.ledgerTitle ?? def?.title ?? 'Shared Gathering',
             locationLabel,
             status: activeInvRaw.status,
             windowLabel: `${formatClock(activeInvRaw.windowStartMinute)} – ${formatClock(activeInvRaw.windowEndMinute)}`,
