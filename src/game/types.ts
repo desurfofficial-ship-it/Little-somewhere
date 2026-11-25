@@ -35,7 +35,9 @@ export type PropInteractableId =
   | 'rise_vista'
   | 'marigold_bank'
   | 'wild_bee_log'
-  | 'sorrel_garden_bed';
+  | 'sorrel_garden_bed'
+  // Stage 3 (Willow Jetty fishing) — quiet rod fishing on Mirror Pond's south shore.
+  | 'willow_jetty';
 
 export type PlayerLocation =
   | 'exterior'
@@ -228,7 +230,13 @@ export type PersonalItemId =
   | 'cedar_music_box'
   | 'foxglove_seeds'
   | 'foxglove_bloom'
-  | 'meadow_posy';
+  | 'meadow_posy'
+  // Stage 3 (Willow Jetty fishing) — pond catches, giftable field finds.
+  | 'silver_dace'
+  | 'sun_perch'
+  | 'rain_trout'
+  | 'mirror_carp'
+  | 'ice_perch';
 
 export type GiftReactionTier = 'loved' | 'liked' | 'neutral';
 

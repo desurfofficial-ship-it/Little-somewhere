@@ -230,7 +230,9 @@ export type SubjectScene =
   | 'item_bell'
   | 'item_watercolor_card'
   | 'item_wreath'
-  | 'item_music_box';
+  | 'item_music_box'
+  // Stage 3 (Willow Jetty fishing): pond catches use the parametric fish scene.
+  | 'item_fish';
 
 export interface SubjectRecipe {
   kind: 'procedural';
@@ -310,6 +312,7 @@ export const SUBJECT_IMAGE_KEYS: Record<SubjectScene, string> = {
   item_watercolor_card: 'subject_item_watercolor_card',
   item_wreath: 'subject_item_wreath',
   item_music_box: 'subject_item_music_box',
+  item_fish: 'subject_item_fish',
 };
 
 /** World-prop interactions → their subject key (Priority 2 task 5 wiring). */
@@ -327,6 +330,9 @@ export function subjectKeyForPropId(propId: PropInteractableId): string {
       return SUBJECT_IMAGE_KEYS.hollow_oak;
     case 'plaza_noticeboard':
       return SUBJECT_IMAGE_KEYS.noticeboard;
+    case 'willow_jetty':
+      // The jetty card borrows the pond vista (same shore, one quiet cast).
+      return SUBJECT_IMAGE_KEYS.mirror_pond;
     case 'mirror_pond':
       return SUBJECT_IMAGE_KEYS.mirror_pond;
     case 'cottage_window_box':
@@ -487,6 +493,12 @@ const ITEM_SUBJECT_SPECS: Record<PersonalItemId, ItemSubjectSpec> = {
   foxglove_seeds: { subject: 'item_seeds', primary: '#C96E93', accent: '#7B9F5C' },
   foxglove_bloom: { subject: 'item_sprig', primary: '#C96E93', accent: '#5E8062' },
   meadow_posy: { subject: 'item_sprig', primary: '#C86446', accent: '#E5A93C' },
+  // Stage 3 (Willow Jetty fishing): pond catches, tinted per species.
+  silver_dace: { subject: 'item_fish', primary: '#B8C6CC', accent: '#5E8062' },
+  sun_perch: { subject: 'item_fish', primary: '#E5A93C', accent: '#C86446' },
+  rain_trout: { subject: 'item_fish', primary: '#6E8C7B', accent: '#E5A93C' },
+  mirror_carp: { subject: 'item_fish', primary: '#C99A5B', accent: '#E5A93C' },
+  ice_perch: { subject: 'item_fish', primary: '#B8D4DC', accent: '#5E8062' },
   chamomile_pear_tea: { subject: 'teacup', primary: '#E5A93C', accent: '#5E8062' },
   lavender_chamomile_tea: { subject: 'teacup', primary: '#9B8BC4', accent: '#E5A93C' },
   herb_loaf: { subject: 'loaf', primary: '#C99A5B', accent: '#7B9F5C' },

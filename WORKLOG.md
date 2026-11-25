@@ -1366,3 +1366,52 @@ Chronological log of design decisions, implementation milestones, verification r
 - **Shared-file touches (additive-only, doc 07 §6)**: `types.ts` (+1 `PropInteractableId` member), `actions.ts` (one `interactWithProp` branch), `residents.ts` (one extra-activity candidate), `narrative.ts` (one derive clause), `audio.ts` (outdoor rain param + breeze bed), scene files per ownership. No schema bump — WorldState stays **v11**; every pre-existing test file unmodified and green except two additive extensions (exploration stand-spot list + wilds draw-budget comment 80→88, both documented inline).
 - **Deferred with rationale** (tracked in plan doc §3/§5): Copperwheel/bakery occupant anchors + invitation graft (LR-3/LR-5 owners), café-table flag-aware collision (scene team), mid-day weather shifts (persistence rollover surface), night epilogue window (design decision), seasonal NPC activities via `onlySeasons` (sim team), season-gated dialogue topics (narrative golden-snapshot protocol), Pinecone Woodshop purpose + region activation + world manifest generator (expansion backlog).
 - **Next**: Gameplay team extends the community-projects registry with contribution cadence; Scene team owns café-table collision; LR team lands LR-3/LR-5 (occupancy grafts); Narrative team adds season-gated topics. The world-side contracts (`worldEchoes`, `communityProjects.ts`, player-radius guards) are stable seams for all of them.
+
+
+## Stage 3 -- Everyday Activity Expansion: Willow Jetty fishing (first vertical slice)
+
+- **Branch**: `stage3/everyday-activities` (commits e6cf83f + 1372b41, base 052e171). Workstream
+  audits (A-F) + adversarial QA record: `docs/architecture/stage3-everyday-activities/00-03`.
+- **What shipped**: one unhurried cast per day at the Willow Jetty (Mirror Pond south shore,
+  worldMap prop `willow_jetty` at (-0.8, 17.6), outside the pond_water exclusion box).
+  Deterministic seasonal catches (5 new giftable field_find items: silver_dace, sun_perch,
+  rain_trout, mirror_carp, ice_perch) or existing pond treasures or a prose quiet day;
+  first-of-species Pocket Journal memories (`mem_fish_first_*`); pond-bank witness NPC memories
+  (tag `fishing`, eventId `ev_fishing_<day>_<n>`, stone-skip discipline); catches feed the
+  existing gift chain (jun.loved mirror_carp; clara.liked silver_dace; sora.liked rain_trout;
+  barnaby.liked sun_perch); Daily Practices card gains `fishing` ("Quiet Waters") wired into
+  touchedToday via the fishingLastDay day-stamp.
+- **Contracts to respect**: `src/game/fishing.ts` (pure headless module; derived RNG streams
+  `mulberry32(hashSeed(simSeed, day, 'fishing_v1', catchIndex))`; NO wall-clock reads;
+  NaN/safe-integer-guarded sideFlags reads); sideFlags keys `fishingCatchesCount` +
+  `fishingLastDay` (sanctioned zero-migration channel; WorldState stays **v12**); honesty law
+  kept (applyItemGrants only; empty chips omitted; overflow releases the catch with truthful
+  prose); `item_fish` SubjectScene (parametric painter arm in DialogueVisuals.tsx; 5 tinted
+  ITEM_SUBJECT_SPECS rows); `subjectKeyForPropId('willow_jetty')` reuses the mirror_pond vista.
+- **Shared-file touches (additive-only)**: types.ts (+5 PersonalItemId, +1 PropInteractableId
+  -- both at union ends, away from the LR-3 BakeryInteractableId hunk); actions.ts (+1 import,
+  +1 `interactWithProp` branch before the generic fallthrough); worldMap.ts (+1 registry row --
+  tap proxy + walk-approach free via the generic loop); inventory.ts (+5 items, +4 gift prefs);
+  everyday.ts (+practice id/order/tiers/def/touchedToday); environmentRenderer.ts (+static
+  creel-and-rod jetty rig: +5 draw calls, 0 new programs, rain/petal constructor precedent,
+  parented to exteriorRoot). Zero edits to App.tsx / NeighborhoodCanvas.tsx / journal.ts /
+  migrations.ts / invitations* / bakery* (LR-3 PR cluster #26-#31 territory).
+- **Gates (local, exact commits)**: tsc clean; 758/758 tests (738 baseline + 20 FISH battery);
+  vite build OK. Adversarial QA verdict MERGE-READY (findings 1-7 fixed in 1372b41; see doc 03).
+- **Deliberately not built** (roadmap-aligned): collection/photo albums (Stage 5), photography
+  UI (LR-3-locked files + Stage 5 display half), garden window-boxes (schema conversation +
+  pillar-6 watering-grind watchlist), recipe-teaching (LR-4). Follow-up order in doc 01.
+
+## Stage 3 follow-up (2026-11-25): post-merge re-verification + visual evidence
+
+- Re-ran gates at merge commit `31ae947` (integration of main `42a8c7c`, PRs #26/#27/#28/#32):
+  `tsc --noEmit` clean; **774/774** tests (738 baseline + QA-03 6 + spatial 10 + 20 FISH);
+  `npm run build` green. Merge-conflict resolution in `actions.ts` verified (fishing dispatch
+  `:1970` intact; QA-03 categorical guard co-present; both batteries green together).
+- LR-3 boundary re-confirmed against the live PR #29 diff: hunks disjoint (LR-3 `:42/:906/:990`
+  + `BakeryInteractableId` vs this branch `:46/:1967-1974` + union ends).
+- Browser visual smoke evidence committed (headless production build; desktop 1440x900 + mobile
+  390x844): full cast loop with `+1 Silver Dace` honest grant chip and "Memory saved: A Silver
+  Dart" journal toast; zero mobile overflow. Files: `download/asset-qa/stage3-willow-jetty/`.
+  QA doc 03 gains "Pass 3 -- post-merge re-verification + browser visual smoke".
+- Deliverable F: focused PR opened for owner review (never merged by the author).

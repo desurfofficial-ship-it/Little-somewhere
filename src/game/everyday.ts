@@ -26,6 +26,7 @@ export type EverydayPracticeId =
   | 'tea_tables'
   | 'mending'
   | 'wilds'
+  | 'fishing'
   | 'friendship'
   | 'community';
 
@@ -60,6 +61,7 @@ export const EVERYDAY_PRACTICE_ORDER: readonly EverydayPracticeId[] = [
   'tea_tables',
   'mending',
   'wilds',
+  'fishing',
   'friendship',
   'community',
 ];
@@ -140,6 +142,13 @@ const COMMUNITY_TIERS: readonly EverydayPracticeTier[] = [
   { minCount: 12, label: 'Pillar of the Plaza', note: 'The town’s shelves hold a little of everything you gathered.' },
 ];
 
+const FISHING_TIERS: readonly EverydayPracticeTier[] = [
+  { minCount: 0, label: 'Untried Water', note: 'The jetty boards are dry; the pond keeps its own counsel.' },
+  { minCount: 1, label: 'First Catch', note: 'The willow jetty knows your footsteps now.' },
+  { minCount: 4, label: 'Patient Angler', note: 'You and the pond have settled into a quiet rhythm.' },
+  { minCount: 9, label: 'Reader of Ripples', note: 'Seasons change the pond, and the pond changes you back.' },
+];
+
 const PRACTICE_DEFS: Record<EverydayPracticeId, EverydayPracticeDef> = {
   gardening: {
     id: 'gardening',
@@ -194,6 +203,14 @@ const PRACTICE_DEFS: Record<EverydayPracticeId, EverydayPracticeDef> = {
       'The wild hollows reward slow steps — every path found is a small discovery to keep.',
     readCount: (world) => safeCounter(countExploredDiscoveries(world)),
     tiers: WILDS_TIERS,
+  },
+  fishing: {
+    id: 'fishing',
+    label: 'Quiet Waters',
+    blurb:
+      'One unhurried cast a day at the willow jetty — the pond offers whatever the season keeps.',
+    readCount: (world) => safeCounter(world.sideFlags?.fishingCatchesCount),
+    tiers: FISHING_TIERS,
   },
   friendship: {
     id: 'friendship',
@@ -312,6 +329,12 @@ function deriveTouchedToday(world: WorldState, day: number): EverydayPracticeId[
     if (isDoneToday(copperwheel.benchCheckedDay, day)) touched.add('mending');
   }
 
+  // Stage 3: the Willow Jetty day-stamp (sideFlags) gates fishing, same
+  // canonical isDoneToday idiom as the interior stamps above.
+  if (isDoneToday(Number(world.sideFlags?.fishingLastDay), day)) {
+    touched.add('fishing');
+  }
+
   // Stable canonical order, deduplicated by the Set above.
   return EVERYDAY_PRACTICE_ORDER.filter((id) => touched.has(id));
 }
@@ -319,8 +342,8 @@ function deriveTouchedToday(world: WorldState, day: number): EverydayPracticeId[
 // --- keeper title ----------------------------------------------------------------------
 
 /**
- * One gentle overall title derived from the sum of tier indices across all eight
- * practices (each 0..4). Buckets: 0 · 1–5 · 6–11 · 12–17 · 18+.
+ * One gentle overall title derived from the sum of tier indices across all nine
+ * practices (tiers run 0..4 except fishing's 0..3). Buckets: 0 · 1–5 · 6–11 · 12–17 · 18+.
  */
 export function deriveKeeperTitle(tierIndexSum: number): string {
   if (tierIndexSum <= 0) return 'A Quiet Start';

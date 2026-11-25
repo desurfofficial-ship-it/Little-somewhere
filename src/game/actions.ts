@@ -43,6 +43,7 @@ import {
   resolveAnySeatById,
 } from './cottage';
 import { resolveSeatStandPos, seatLocation } from './walkability';
+import { performFishingAction } from './fishing';
 import {
   GREENHOUSE_CROPS,
   GREENHOUSE_HARVEST_MINUTES,
@@ -1964,6 +1965,13 @@ export function interactWithProp(
       actionLabel: 'Check the Community Shelf',
       actionType: 'community_projects_panel',
     };
+  }
+
+  if (propId === 'willow_jetty') {
+    // Stage 3: Willow Jetty -- one quiet cast a day on Mirror Pond's south shore.
+    // src/game/fishing.ts owns the full contract (guards, grants, memories);
+    // this branch is pure dispatch and writes nothing itself.
+    return performFishingAction(world);
   }
 
   return {
