@@ -72,7 +72,7 @@ test('navigation graph forms a single connected component', () => {
 });
 
 test('A* routes cleanly around Mirror Pond and central obstacles without cutting corners', () => {
-  const pondWest = { x: -4.4, z: 13.8 }; // Toby morning at Mirror Pond Bank
+  const pondWest = { x: -4.6, z: 12.2 }; // Toby morning at West Brook Bank (Slice W1)
   const eastWoodshop = { x: 7.5, z: 11.8 }; // Barnaby morning at Pinecone Woodshop
   const path = computeWaypointPath(pondWest, eastWoodshop, 0.38)!;
   assert.ok(path, 'computeWaypointPath returned null for a reachable goal (G-8 null-return adaptation)');
@@ -208,8 +208,9 @@ test('rise deck, bridge deck and west lawn are reachable at the player radius', 
     ['west far lawn north', { x: -22.0, z: -6.5 }],
     ['west south lawn', { x: -22.0, z: 15.5 }],
     ['orchard south fringe', { x: -4.9, z: -21.8 }],
-    // Stage 3 v1.1: the West Brook fishing bank is reachable on foot.
-    ['west brook bank', { x: -4.45, z: 13.9 }],
+    // Stage 3 v1.1 (Slice W1): the West Brook fishing bank is reachable on foot
+    // from the stream's north bank.
+    ['west brook bank', { x: -5.5, z: 12.35 }],
   ];
   for (const [label, to] of targets) {
     const path = computeWaypointPath(plaza, to, PLAYER_RADIUS);
@@ -232,10 +233,15 @@ test('door, mailbox and driftwood stand spots are walkable at the player radius'
     ['bakery_door', -12.4, -6.75],
     ['copperwheel_door', 13.1, -7.55],
     ['player_mailbox approach', -9.0, 7.2],
-    ['pond_driftwood approach', 6.55, 14.6],
-    // Stage 3 v1.1: West Brook Bank — the second fishing stand spot (culvert
-    // mouth, west lawn). Must stay clear of the rail band and the hollow oak.
-    ['west_brook_bank stand', -4.45, 13.9],
+    ['pond_driftwood approach', 7.4, 15.1],
+    // Stage 3 v1.1 (Slice W1): West Brook Bank — the second fishing stand spot
+    // on the stream's north bank. Must stay clear of the rail band, the stream
+    // and the hollow oak.
+    ['west_brook_bank stand', -5.5, 12.35],
+    // Slice W1: the relocated nav lane nodes stay walkable (brook reroute).
+    ['pond_bank_sw reroute', -5.0, 12.2],
+    ['bridge_north reroute', -4.65, 11.45],
+    ['rail_corner_sw relief', -4.35, 16.9],
   ];
   for (const [label, x, z] of standSpots) {
     assert.equal(

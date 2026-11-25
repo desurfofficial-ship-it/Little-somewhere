@@ -455,20 +455,33 @@ test('THREE.Box3 clearance verifies zero player-mesh clipping with Fountain and 
   pBox.setFromObject(playerRig.bodyGroup);
   assert.ok(pBox.min.z > maxSouthPierZ + 0.02, `South pier interact (${pBox.min.z.toFixed(3)}) must clear pier shore step/rocks (${maxSouthPierZ.toFixed(3)})`);
 
-  // 3) Cedar bridge deck clearance vs east & west bridge handrails
+  // 3) Cedar bridge deck clearance vs east & west bridge handrails.
+  // Slice W1: the bridge merges per material, so per-mesh Box3 centers can no
+  // longer classify rails. Measure the rail edges from the merged RAIL mesh's
+  // VERTICES instead (top rails + brass caps live in named meshes; the lantern
+  // is a separate mesh and is correctly excluded).
+  const railVertexEdges = (mesh: THREE.Mesh) => {
+    const pos = mesh.geometry.getAttribute('position');
+    let westEdge = -Infinity; // max world-x of west-side rail vertices
+    let eastEdge = Infinity; // min world-x of east-side rail vertices
+    for (let i = 0; i < pos.count; i++) {
+      const wx = pos.getX(i) + (mesh.position.x ?? 0) - 2.9; // bridge group anchor x
+      if (wx < -3.0) westEdge = Math.max(westEdge, wx);
+      if (wx > -2.8) eastEdge = Math.min(eastEdge, wx);
+    }
+    return { westEdge, eastEdge };
+  };
   let westRailMaxX = -Infinity;
   let eastRailMinX = Infinity;
-  bridgeSubGroup.traverse((obj) => {
-    if (obj instanceof THREE.Mesh) {
-      const box = new THREE.Box3().setFromObject(obj);
-      const centerX = (box.min.x + box.max.x) * 0.5;
-      if (box.max.y > 0.7 && centerX < -2.9) {
-        westRailMaxX = Math.max(westRailMaxX, box.max.x);
-      } else if (box.max.y > 0.7 && centerX > -2.9 && box.min.x > -2.5) {
-        eastRailMinX = Math.min(eastRailMinX, box.min.x);
-      }
-    }
-  });
+  for (const name of ['bridge_rails_warm', 'bridge_brass_caps']) {
+    const mesh = bridgeSubGroup.children.find(
+      (c): c is THREE.Mesh => c instanceof THREE.Mesh && c.name === name,
+    );
+    assert.ok(mesh, `expected merged rail mesh '${name}' for the clearance contract`);
+    const { westEdge, eastEdge } = railVertexEdges(mesh);
+    westRailMaxX = Math.max(westRailMaxX, westEdge);
+    eastRailMinX = Math.min(eastRailMinX, eastEdge);
+  }
 
   assert.equal(isPointWalkable(-2.9, 14.0, 0.48), true);
   playerRig.root.position.set(-2.9, getGroundHeightAt(-2.9, 14.0), 14.0);

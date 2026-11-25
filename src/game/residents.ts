@@ -391,7 +391,9 @@ export const RESIDENTS: Record<ResidentId, ResidentDefinition> = {
     name: 'Toby',
     role: 'Sketchbook Artist',
     homeName: 'Linden Loft',
-    homePos: { x: -4.4, z: 13.8 },
+    // Slice W1: the West Brook now runs past the old doorstep (west_brook_run),
+    // so Toby's lean-to moved to the stream's north bank — still under the oak.
+    homePos: { x: -4.6, z: 12.2 },
     personality: 'Quiet observer who notices shiny objects and stray cats.',
     favoriteThing: 'Charcoal sketches and mossy oak roots',
     likedItems: ['chalk_bundle', 'water_pail'],
@@ -418,9 +420,9 @@ export const RESIDENTS: Record<ResidentId, ResidentDefinition> = {
     schedule: {
       morning: {
         phase: 'morning',
-        target: { x: -4.4, z: 13.8 },
-        placeName: 'Mirror Pond Bank',
-        activity: 'Sketching dragonflies near the hollow oak',
+        target: { x: -4.6, z: 12.2 },
+        placeName: 'West Brook Bank',
+        activity: 'Sketching dragonflies over the running brook',
         facingAngle: 2.2,
       },
       afternoon: {
@@ -432,7 +434,7 @@ export const RESIDENTS: Record<ResidentId, ResidentDefinition> = {
       },
       golden: {
         phase: 'golden',
-        target: { x: -4.8, z: 13.4 },
+        target: { x: -4.9, z: 12.6 },
         placeName: 'Hollow Oak',
         activity: 'Peering at a glint inside the old oak root',
         facingAngle: 2.6,

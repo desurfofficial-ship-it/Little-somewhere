@@ -482,8 +482,10 @@ test('diagonal player movement normalizes speed, Alt modifier enforces walk spee
   assert.ok(pipSitY > barnabySitY);
   assert.ok(Math.abs(pipSitY + 0.33 * RESIDENTS.pip.appearance.heightScale - seatHeight) < 0.001);
 
-  // Tap-to-walk across Mirror Pond produces unobstructed A* waypoints
-  const start = { x: -4.2, z: 14.2 };
+  // Tap-to-walk across the watershed produces unobstructed A* waypoints
+  // (Slice W1: the old west-lawn start is the running brook now — begin on
+  // Toby's north-bank lane).
+  const start = { x: -4.6, z: 12.2 };
   const acrossPond = { x: 7.4, z: 11.4 };
   const route = computeWaypointPath(start, acrossPond, 0.48)!;
   assert.ok(route.length >= 2);
@@ -566,7 +568,7 @@ test('fountain and mirror pond support multi-sided perimeter interaction, water 
   // 2. Mirror Pond works on North ledge, East shore, South pier, and Cedar bridge, while excluding west oak lawn
   const pondPositions = [
     { x: 1.8, z: 10.6 }, // North skipping ledge
-    { x: 6.2, z: 14.0 }, // East bank
+    { x: 6.95, z: 14.2 }, // East bank (Slice W1: beside the new east lobe)
     { x: 2.22, z: 17.2 }, // South viewing pier shore step
     { x: -2.88, z: 14.0 }, // Cedar bridge deck
   ];
@@ -579,9 +581,12 @@ test('fountain and mirror pond support multi-sided perimeter interaction, water 
     assert.equal(isPointWalkable(m.approachPos.x, m.approachPos.z, 0.48), true);
   }
 
-  // Hollow oak west lawn (-4.35, 14.2) is walkable and does NOT shadow Hollow Oak with Mirror Pond
-  assert.equal(isPointWalkable(-4.35, 14.2, 0.48), true);
-  assert.equal(getPropInteractionMetrics('mirror_pond', { x: -4.35, z: 14.2 }).inRange, false);
+  // Slice W1: the old west-lawn sample (-4.35, 14.2) is the running brook now.
+  // The brook's north-bank lane (-4.9, 12.4) is walkable and does NOT shadow
+  // Hollow Oak with Mirror Pond (west bank stays mirror_pond-excluded).
+  assert.equal(isPointWalkable(-4.35, 14.2, 0.48), false, 'the brook runs through the old west lawn');
+  assert.equal(isPointWalkable(-4.9, 12.4, 0.48), true);
+  assert.equal(getPropInteractionMetrics('mirror_pond', { x: -4.9, z: 12.4 }).inRange, false);
   // Cedar bridge west rail blocks sideways clipping off bridge into brook culvert
   assert.equal(isPointWalkable(-3.55, 14.0, 0.48), false);
 

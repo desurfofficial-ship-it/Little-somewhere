@@ -80,8 +80,20 @@ export const BOX_OBSTACLES: BoxObstacle[] = [
   { id: 'workshop_barnaby', minX: 9.0, maxX: 15.8, minZ: 9.8, maxZ: 16.2 },
   // Pond basin (walk around or cross bridge on west/east)
   { id: 'pond_water', minX: -2.2, maxX: 5.68, minZ: 11.2, maxZ: 16.65 },
-  // Cedar bridge west handrail & culvert mouth barrier (keeps walkers inside bridge deck or west lawn without clipping rails/brook)
-  { id: 'bridge_west_rail', minX: -3.7, maxX: -3.58, minZ: 11.72, maxZ: 16.28 },
+  // Stage 3 spatial redesign (Slice W1): the pond grows a north-east lobe into
+  // the open meadow east of the water (visual outline and this box move
+  // together; the driftwood nook relocates to the lobe's east bank).
+  { id: 'pond_water_east', minX: 5.68, maxX: 6.3, minZ: 12.3, maxZ: 15.2 },
+  // Stage 3 spatial redesign (Slice W1): the West Brook leaves the culvert and
+  // runs WEST across the oak lawn — a real stream the oak overhangs, instead of
+  // a 1.7u slot under the bridge. The brook-bank fishing stand moves to the
+  // north bank (see FISHING_SPOTS.west_brook_bank); the old south-bank lane
+  // (pond_bank_sw) reroutes along the stream's north side.
+  { id: 'west_brook_run', minX: -9.2, maxX: -4.4, minZ: 13.3, maxZ: 14.9 },
+  // Cedar bridge west handrail & culvert mouth barrier (keeps walkers inside bridge deck or west lawn without clipping rails/brook).
+  // Slice W1: the rail shifts 0.3u WEST with the widened deck so the deck's
+  // logical walk strip grows 0.42u -> 0.72u (still single-file, no longer a squeeze).
+  { id: 'bridge_west_rail', minX: -4.0, maxX: -3.88, minZ: 11.72, maxZ: 16.28 },
   // Foxglove Rise terraced knoll (SE) — mound body framing the walkable ramp (north, z 16.7..18.0) and deck (20.4..22.5 × 18.0..20.2);
   // deck itself stays walkable and is elevated via getGroundHeightAt (same pattern as the cedar bridge).
   // Ramp corridor widened (WP-1/WQA-01): mound edges 20.42/22.38 give the player radius (0.48) a ~1.0 m
@@ -104,6 +116,11 @@ export const CIRCLE_OBSTACLES: CircleObstacle[] = [
   { id: 'west_bench', x: -5.15, z: 3.0, radius: 0.42 },
   { id: 'gazebo_bench', x: 5.2, z: -9.8, radius: 0.42 },
   { id: 'pond_bench', x: 1.8, z: 19.3, radius: 0.42 },
+  // Stage 3 spatial redesign (Slice W1): second pond bench on the new east
+  // lobe's bank — the pond becomes a two-seat destination facing the water.
+  // (set on the south-east shore clear of BOTH the Barnaby yard lane
+  // (barnaby_yard -> pond_south_e) and Barnaby's doorstep (7.5, 11.8))
+  { id: 'pond_bench_east', x: 8.15, z: 17.3, radius: 0.42 },
   // Willow Lane prototype courtyard trees & signpost
   { id: 'willow_tree_sw', x: -19.2, z: 13.6, radius: 0.68 },
   { id: 'willow_tree_south', x: -15.5, z: 15.0, radius: 0.65 },
@@ -178,6 +195,15 @@ export const SEAT_SPOTS: readonly SeatSpot[] = [
     seatPos: { x: 1.8, z: 19.3 },
     approachPos: { x: 1.8, z: 18.2 },
     facingAngle: Math.PI,
+    seatHeight: 0.36,
+    zoneId: 'pond',
+  },
+  {
+    id: 'seat_pond_east',
+    label: 'Pond East Bank Bench',
+    seatPos: { x: 8.15, z: 17.3 },
+    approachPos: { x: 7.2, z: 17.3 },
+    facingAngle: -Math.PI / 2,
     seatHeight: 0.36,
     zoneId: 'pond',
   },
@@ -312,7 +338,7 @@ export const PROP_INTERACTABLES: PropInteractable[] = [
   { id: 'greenhouse_planters', name: 'Sunbeam Herb Planters', x: 10.0, z: 1.7, interactRadius: 2.4 },
   { id: 'orchard_harvest', name: 'Orchard Harvest Crates', x: -4.2, z: -19.2, interactRadius: 2.4 },
   { id: 'orchard_skep', name: 'Orchard Bee Skep', x: 3.9, z: -16.3, interactRadius: 2.3 },
-  { id: 'pond_driftwood', name: 'Mirror Pond Driftwood Nook', x: 5.95, z: 13.8, interactRadius: 2.4 },
+  { id: 'pond_driftwood', name: 'Mirror Pond Driftwood Nook', x: 6.9, z: 14.5, interactRadius: 2.4 },
   { id: 'greenhouse_door', name: 'Sunbeam Greenhouse Door', x: 10.15, z: 3.2, interactRadius: 2.1 },
   { id: 'bakery_door', name: 'Hearth & Crumb Bakery Door', x: -12.4, z: -6.75, interactRadius: 2.2 },
   { id: 'nook_door', name: 'Linden Book Nook Door', x: -11.8, z: -1.0, interactRadius: 2.2 },
@@ -331,10 +357,10 @@ export const PROP_INTERACTABLES: PropInteractable[] = [
   { id: 'willow_jetty', name: 'Willow Jetty', x: -0.8, z: 17.6, interactRadius: 2.4 },
   // Stage 3 v1.1: West Brook Bank — the second quiet cast, at the culvert mouth
   // on the west lawn (same daily cadence, shared day gate — see fishing.ts).
-  // Standing point verified via scripts/probe_brook_spot.ts: walkable + A* reachable
-  // at r 0.48, 0.87u from the culvert water (west tip x -3.58), 2.44u clear of the
-  // hollow-oak circle (-6.2, 15.6, r 1.35 + r 0.48 = 1.83), 0.9u+ from token anchors.
-  { id: 'west_brook_bank', name: 'West Brook Bank', x: -4.45, z: 13.9, interactRadius: 2.4 },
+  // Slice W1 moved the stand to the stream's NORTH bank (the old south-bank
+  // lane is now the running brook): walkable + A* reachable at r 0.48, on the
+  // oak's east lawn with the bridge to the east and the brook to the south.
+  { id: 'west_brook_bank', name: 'West Brook Bank', x: -5.5, z: 12.35, interactRadius: 2.4 },
 ];
 
 export interface PropInteractionMetrics {
@@ -346,7 +372,8 @@ export interface PropInteractionMetrics {
 }
 
 const FOUNTAIN_BASIN_RADIUS = 2.46;
-const POND_SHORE_BOX = { minX: -2.0, maxX: 5.62, minZ: 11.24, maxZ: 16.6 };
+// Slice W1: the shore band tracks the pond's east lobe (maxX 5.68 -> 6.35).
+const POND_SHORE_BOX = { minX: -2.0, maxX: 6.35, minZ: 11.24, maxZ: 16.6 };
 
 /**
  * Computes perimeter-aware interaction reachability, water/feature focus target, walkable approach spot,
@@ -458,9 +485,9 @@ export function getPropInteractionMetrics(
     return {
       inRange: dist <= def.interactRadius,
       scoreDistance: dist,
-      focusPos: { x: 5.85, z: 13.8 },
-      approachPos: { x: 6.55, z: 14.6 },
-      splashPos: { x: 5.85, z: 13.8 },
+      focusPos: { x: 6.8, z: 14.5 },
+      approachPos: { x: 7.4, z: 15.1 },
+      splashPos: { x: 6.8, z: 14.5 },
     };
   }
 
@@ -526,13 +553,16 @@ export function distance2D(a: Vec2, b: Vec2): number {
  * under the plaza; see docs/visual-quality/mobile-floor-flickering-investigation.md R3).
  */
 export function getGroundHeightAt(x: number, z: number): number {
-  // Mirror Pond Cedar Footbridge at x = -2.9, deck width 1.86 (-3.83..-1.97), z = 11.45..16.55
-  if (x >= -3.88 && x <= -1.92 && z >= 11.4 && z <= 16.6) {
-    const t = (z - 14.0) / 4.6; // -0.56..+0.56
+  // Mirror Pond Cedar Footbridge (Slice W1): the deck is now a real arch —
+  // center x -2.9, visual deck x -4.30..-1.70, z 12.25..15.75, peak 0.85 over
+  // the widened culvert/brook channel. The logical height region matches the
+  // walkable deck span (rail inflation west, pond box east).
+  if (x >= -4.35 && x <= -2.0 && z >= 12.25 && z <= 15.75) {
+    const t = (z - 14.0) / 3.5; // -0.5..+0.5
     const normalized = Math.max(-0.5, Math.min(0.5, t));
-    const arch = 0.24 + (1 - 4 * normalized * normalized) * 0.18;
-    // Feather gently onto approach stone abutments at the very tips
-    const edgeFeather = Math.max(0, Math.min(1, (2.6 - Math.abs(z - 14.0)) / 0.35));
+    const arch = 0.24 + (1 - 4 * normalized * normalized) * 0.61;
+    // Feather gently onto the stone abutments at the very tips
+    const edgeFeather = Math.max(0, Math.min(1, (1.75 - Math.abs(z - 14.0)) / 0.4));
     return arch * edgeFeather;
   }
   // Foxglove Rise lookout (SE, Build 10): ramp (20.44..22.36 × 16.7..18.0, widened in WP-1

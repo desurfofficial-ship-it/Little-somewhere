@@ -550,7 +550,7 @@ export function buildProgressionPresentation(
     const paintStroke = new THREE.Mesh(trackGeo(boxAt(0.1, 0.05, 0.004, 0, 0.12, 0.008)), paintMat);
     const easelRail = new THREE.Mesh(trackGeo(cylinderAt(0.012, 0.012, 0.22, 5, 0, 0.11, -0.02, 0.15)), cedarDarkMat);
     tobyCardGroup.add(card, paintStroke, easelRail);
-    tobyCardGroup.position.set(5.85, 0.2, 13.72); // pond driftwood log (canvas :765)
+    tobyCardGroup.position.set(6.9, 0.2, 14.42); // pond driftwood log (Slice W1 shore)
     tobyCardGroup.visible = false;
     group.add(tobyCardGroup);
   }

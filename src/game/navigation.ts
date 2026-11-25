@@ -19,16 +19,19 @@ export const NAV_NODES: readonly NavNode[] = [
   { id: 'willow_mailbox', pos: { x: -8.8, z: 6.8 } },
   { id: 'willow_porch', pos: { x: -8.5, z: 9.8 } },
   { id: 'pond_west_top', pos: { x: -5.2, z: 9.8 } },
-  { id: 'bridge_north', pos: { x: -4.35, z: 11.45 } },
-  { id: 'pond_bank_sw', pos: { x: -4.35, z: 14.2 } },
-  // Cedar bridge deck lane (WP-1/WQA-02): the rail inflated band fully separates the west
-  // bank lane from the deck strip (walkable x -3.10..-2.68 @ r0.48), so the deck gets its
-  // own vertical chain with dedicated entry/exit nodes clear of the rail corners.
-  { id: 'bridge_deck_entry_n', pos: { x: -2.9, z: 10.6 } },
-  { id: 'bridge_deck_north', pos: { x: -2.9, z: 12.0 } },
+  // Slice W1: moved west/out of the old rail-adjacent slot — the node now sits
+  // on the brook's north-bank lane (west_brook_run blocks the old south lane).
+  { id: 'bridge_north', pos: { x: -4.65, z: 11.45 } },
+  { id: 'pond_bank_sw', pos: { x: -5.0, z: 12.2 } },
+  // Cedar bridge deck lane (WP-1/WQA-02; compressed to the Slice W1 arch span
+  // z 12.25..15.75 — walkable strip x -3.40..-2.68 between rail + pond boxes).
+  // Entry node sits NORTH of the rail band (z < 11.24 inflated) so the
+  // pond_west_top -> entry leg keeps line of sight at the player radius.
+  { id: 'bridge_deck_entry_n', pos: { x: -2.9, z: 10.9 } },
+  { id: 'bridge_deck_north', pos: { x: -2.9, z: 12.9 } },
   { id: 'bridge_deck_mid', pos: { x: -2.9, z: 14.0 } },
-  { id: 'bridge_deck_south', pos: { x: -2.9, z: 16.0 } },
-  { id: 'bridge_deck_exit_s', pos: { x: -2.9, z: 17.0 } },
+  { id: 'bridge_deck_south', pos: { x: -2.9, z: 15.2 } },
+  { id: 'bridge_deck_exit_s', pos: { x: -2.9, z: 16.4 } },
   // West-bank lane corner relief (WP-1/WQA-02): keeps the pond_south_w leg clear of the
   // rail's south-west inflated corner (z 16.76).
   { id: 'rail_corner_sw', pos: { x: -4.35, z: 16.9 } },
@@ -118,17 +121,21 @@ export const NAV_EDGES: ReadonlyArray<readonly [string, string]> = [
   ['willow_porch', 'pond_west_top'],
   ['pond_west_top', 'bridge_north'],
   ['pond_west_top', 'south_prom_mid'],
+  // Slice W1: the brook's north-bank lane links the west lane to the bridge
+  // head AND keeps pond_bank_sw reachable after west_brook_run blocked the
+  // old south-bank corner route.
+  ['pond_west_top', 'pond_bank_sw'],
   ['bridge_north', 'pond_bank_sw'],
-  // Cedar bridge deck chain (WP-1/WQA-02)
+  // Cedar bridge deck chain (WP-1/WQA-02; Slice W1 span z 12.25..15.75)
   ['pond_west_top', 'bridge_deck_entry_n'],
   ['bridge_deck_entry_n', 'bridge_deck_north'],
   ['bridge_deck_north', 'bridge_deck_mid'],
   ['bridge_deck_mid', 'bridge_deck_south'],
   ['bridge_deck_south', 'bridge_deck_exit_s'],
   ['bridge_deck_exit_s', 'pond_south_w'],
-  // West-bank lane corner relief (WP-1/WQA-02) — replaces the former
-  // pond_bank_sw -> pond_south_w leg that corner-cut the rail
-  ['pond_bank_sw', 'rail_corner_sw'],
+  // West-bank lane corner relief (WP-1/WQA-02) — Slice W1: pond_bank_sw now
+  // reaches the corner from the NORTH side (brook blocks the direct leg), so
+  // rail_corner_sw is fed from pond_south_w only.
   ['rail_corner_sw', 'pond_south_w'],
   ['pond_south_w', 'pond_south_e'],
 

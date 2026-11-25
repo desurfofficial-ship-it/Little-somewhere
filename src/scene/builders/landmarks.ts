@@ -316,11 +316,19 @@ export const STORYBOOK_FOUNTAIN_SPEC = {
   rimSeatY: 0.84,
   waterY: 0.62,
   basinFloorY: 0.5,
-  lowerBowlRimRadius: 1.15,
-  lowerBowlRimY: 1.56,
-  upperTierRimRadius: 0.72,
-  upperTierRimY: 2.26,
-  finialTipY: 2.86,
+  // Stage 3 spatial redesign (Slice F1): the fountain was measured SHORTER than
+  // every house roof (old finial tip 2.86 vs roof peaks ≈ 4.3) — visually a
+  // birdbath in the plaza's heart. The vertical composition is re-tiered so the
+  // crown reads as the plaza's landmark at every camera zoom while the FOOTPRINT
+  // (basin/coping/apron radii, collision r 2.46) stays byte-identical: all
+  // clearance contracts, wish metrics and NPC circulation are untouched.
+  lowerBowlRimRadius: 1.3,
+  lowerBowlRimY: 2.3,
+  lowerBowlWaterY: 2.24,
+  upperTierRimRadius: 0.85,
+  upperTierRimY: 3.3,
+  upperTierWaterY: 3.24,
+  finialTipY: 4.45,
   weirLandingRadius: 1.22,
   waterColorHex: '#BFE3EF',
   dropletCount: 28,
@@ -461,34 +469,34 @@ export function buildStorybookFountain(
   coping.receiveShadow = true;
   group.add(coping);
 
-  // 4. Sculpted pedestal (LatheGeometry 32-seg): foot r 0.62 -> column -> wide
-  //    lower bowl (rim r 1.15 @ world y 1.56) -> stem -> upper tier (rim r 0.72 @
-  //    world y 2.26) -> centre stub under the crown finial. Origin on basin floor.
+  // 4. Sculpted pedestal (LatheGeometry 32-seg): foot r 0.72 -> column -> wide
+  //    lower bowl (rim r 1.30 @ world y 2.30) -> stem -> upper tier (rim r 0.85 @
+  //    world y 3.30) -> centre stub under the crown finial (top y 3.62). Origin on
+  //    basin floor. Slice F1: re-tiered vertical composition — see SPEC comment.
   const pedestalProfile = [
     new THREE.Vector2(0.0, 0.0),
-    new THREE.Vector2(0.62, 0.0),
-    new THREE.Vector2(0.55, 0.14),
-    new THREE.Vector2(0.3, 0.26),
-    new THREE.Vector2(0.27, 0.7),
-    new THREE.Vector2(0.46, 0.84),
-    new THREE.Vector2(0.55, 0.92),
-    new THREE.Vector2(1.02, 1.0),
-    new THREE.Vector2(1.15, 1.06),
-    new THREE.Vector2(1.06, 1.08),
-    new THREE.Vector2(0.95, 1.0),
-    new THREE.Vector2(0.88, 0.94),
-    new THREE.Vector2(0.36, 0.96),
-    new THREE.Vector2(0.32, 1.06),
-    new THREE.Vector2(0.28, 1.42),
-    new THREE.Vector2(0.5, 1.56),
-    new THREE.Vector2(0.68, 1.7),
-    new THREE.Vector2(0.72, 1.76),
-    new THREE.Vector2(0.68, 1.78),
-    new THREE.Vector2(0.66, 1.72),
-    new THREE.Vector2(0.6, 1.66),
-    new THREE.Vector2(0.3, 1.7),
-    new THREE.Vector2(0.14, 1.86),
-    new THREE.Vector2(0.0, 1.94),
+    new THREE.Vector2(0.72, 0.0),
+    new THREE.Vector2(0.62, 0.16),
+    new THREE.Vector2(0.34, 0.3),
+    new THREE.Vector2(0.3, 0.85),
+    new THREE.Vector2(0.5, 1.0),
+    new THREE.Vector2(0.6, 1.1),
+    new THREE.Vector2(1.16, 1.7),
+    new THREE.Vector2(1.3, 1.8),
+    new THREE.Vector2(1.2, 1.84),
+    new THREE.Vector2(1.06, 1.76),
+    new THREE.Vector2(0.95, 1.68),
+    new THREE.Vector2(0.42, 1.72),
+    new THREE.Vector2(0.38, 1.86),
+    new THREE.Vector2(0.34, 2.24),
+    new THREE.Vector2(0.58, 2.4),
+    new THREE.Vector2(0.8, 2.58),
+    new THREE.Vector2(0.85, 2.8),
+    new THREE.Vector2(0.78, 2.84),
+    new THREE.Vector2(0.68, 2.76),
+    new THREE.Vector2(0.36, 2.78),
+    new THREE.Vector2(0.2, 3.0),
+    new THREE.Vector2(0.0, 3.12),
   ];
   const pedestal = new THREE.Mesh(new THREE.LatheGeometry(pedestalProfile, 32), stoneMat);
   pedestal.name = 'fountain_pedestal_lathe';
@@ -509,11 +517,11 @@ export function buildStorybookFountain(
     [0, Math.PI / 4, 0],
   );
 
-  // 6. Bronze pineapple/lotus crown finial (tip sphere at y 2.86 — the crown
-  //    droplets' animation anchor in environmentRenderer).
-  const finialBase = baked(new THREE.CylinderGeometry(0.16, 0.22, 0.16, 10), [0, 2.48, 0]);
-  const finial = baked(new THREE.ConeGeometry(0.15, 0.36, 10), [0, 2.68, 0]);
-  const finialTip = baked(new THREE.SphereGeometry(0.065, 8, 8), [0, 2.86, 0]);
+  // 6. Bronze pineapple/lotus crown finial (tip sphere at y 4.45 — the crown
+  //    droplets' animation anchor in environmentRenderer reads the SPEC).
+  const finialBase = baked(new THREE.CylinderGeometry(0.18, 0.24, 0.18, 10), [0, 3.66, 0]);
+  const finial = baked(new THREE.ConeGeometry(0.16, 0.72, 10), [0, 4.09, 0]);
+  const finialTip = baked(new THREE.SphereGeometry(0.075, 8, 8), [0, 4.45, 0]);
 
   // 7. 6 tilted brass spouts on the upper-tier rim (30° offsets) + 6 bronze weir
   //    lips on the lower-bowl rim (60° grid). All merged per material.
@@ -524,25 +532,25 @@ export function buildStorybookFountain(
     const ca = Math.cos(a);
     const sa = Math.sin(a);
     brassParts.push(
-      baked(new THREE.CylinderGeometry(0.042, 0.068, 0.26, 8), [ca * 0.62, 2.34, sa * 0.62], [
+      baked(new THREE.CylinderGeometry(0.042, 0.068, 0.26, 8), [ca * 0.74, 3.38, sa * 0.74], [
         sa * 1.05,
         0,
         -ca * 1.05,
       ]),
     );
     brassParts.push(
-      baked(new THREE.TorusGeometry(0.052, 0.015, 6, 10), [ca * 0.72, 2.3, sa * 0.72], [
+      baked(new THREE.TorusGeometry(0.052, 0.015, 6, 10), [ca * 0.84, 3.34, sa * 0.84], [
         0,
         -a + Math.PI / 2,
         0,
       ]),
     );
-    bronzeParts.push(baked(new THREE.SphereGeometry(0.075, 8, 8), [ca * 0.56, 2.32, sa * 0.56]));
+    bronzeParts.push(baked(new THREE.SphereGeometry(0.075, 8, 8), [ca * 0.68, 3.36, sa * 0.68]));
   }
   for (let i = 0; i < STORYBOOK_FOUNTAIN_SPEC.weirCount; i++) {
     const a = (i / STORYBOOK_FOUNTAIN_SPEC.weirCount) * Math.PI * 2;
     bronzeParts.push(
-      baked(new THREE.BoxGeometry(0.16, 0.075, 0.18), [Math.cos(a) * 1.12, 1.58, Math.sin(a) * 1.12], [
+      baked(new THREE.BoxGeometry(0.16, 0.075, 0.18), [Math.cos(a) * 1.26, 2.32, Math.sin(a) * 1.26], [
         0,
         -a + Math.PI / 2,
         0,
@@ -699,12 +707,14 @@ export function buildStorybookFountain(
   // camera-relative sort flips sides during orbit.
   waterMesh.renderOrder = 2;
 
-  const lowerBowlWater = new THREE.Mesh(new THREE.CircleGeometry(0.94, 24), waterMat);
-  lowerBowlWater.position.z = 0.88; // world y 1.50 inside the lower bowl
+  const lowerBowlWater = new THREE.Mesh(new THREE.CircleGeometry(1.1, 24), waterMat);
+  lowerBowlWater.position.z =
+    STORYBOOK_FOUNTAIN_SPEC.lowerBowlWaterY - STORYBOOK_FOUNTAIN_SPEC.waterY; // world y 2.24 inside the lower bowl
   waterMesh.add(lowerBowlWater);
 
-  const upperTierWater = new THREE.Mesh(new THREE.CircleGeometry(0.65, 20), waterMat);
-  upperTierWater.position.z = 1.58; // world y 2.20 inside the upper tier
+  const upperTierWater = new THREE.Mesh(new THREE.CircleGeometry(0.78, 20), waterMat);
+  upperTierWater.position.z =
+    STORYBOOK_FOUNTAIN_SPEC.upperTierWaterY - STORYBOOK_FOUNTAIN_SPEC.waterY; // world y 3.24 inside the upper tier
   waterMesh.add(upperTierWater);
 
   // Expanding concentric splash ripple rings + merged aerated foam collars on the
@@ -762,12 +772,12 @@ export function buildStorybookFountain(
     const a = (i / STORYBOOK_FOUNTAIN_SPEC.spoutCount) * Math.PI * 2 + Math.PI / 6;
     const cx = Math.cos(a);
     const sz = Math.sin(a);
-    // Upper-tier spout jet arcing down into the lower bowl (water y 1.50)
+    // Upper-tier spout jet arcing down into the lower bowl (water y 2.24)
     const jetCurve = new THREE.CatmullRomCurve3([
-      new THREE.Vector3(cx * 0.8, 2.18, sz * 0.8),
-      new THREE.Vector3(cx * 0.92, 1.96, sz * 0.92),
-      new THREE.Vector3(cx * 0.9, 1.72, sz * 0.9),
-      new THREE.Vector3(cx * 0.85, 1.52, sz * 0.85),
+      new THREE.Vector3(cx * 0.92, 3.24, sz * 0.92),
+      new THREE.Vector3(cx * 1.04, 3.02, sz * 1.04),
+      new THREE.Vector3(cx * 1.02, 2.78, sz * 1.02),
+      new THREE.Vector3(cx * 0.97, 2.28, sz * 0.97),
     ]);
     streamGeos.push(new THREE.TubeGeometry(jetCurve, 12, 0.04, 6, false));
   }
@@ -777,9 +787,10 @@ export function buildStorybookFountain(
     const wsz = Math.sin(a);
     // Lower-bowl overflow weir ribbon falling into the basin (water y 0.62)
     const weirCurve = new THREE.CatmullRomCurve3([
-      new THREE.Vector3(wcx * 1.14, 1.56, wsz * 1.14),
-      new THREE.Vector3(wcx * 1.26, 1.36, wsz * 1.26),
-      new THREE.Vector3(wcx * 1.32, 1.04, wsz * 1.32),
+      new THREE.Vector3(wcx * 1.26, 2.32, wsz * 1.26),
+      new THREE.Vector3(wcx * 1.4, 2.08, wsz * 1.4),
+      new THREE.Vector3(wcx * 1.46, 1.6, wsz * 1.46),
+      new THREE.Vector3(wcx * 1.38, 1.0, wsz * 1.38),
       new THREE.Vector3(wcx * STORYBOOK_FOUNTAIN_SPEC.weirLandingRadius, 0.66, wsz * STORYBOOK_FOUNTAIN_SPEC.weirLandingRadius),
     ]);
     streamGeos.push(new THREE.TubeGeometry(weirCurve, 12, 0.034, 5, false));
@@ -787,12 +798,12 @@ export function buildStorybookFountain(
   for (const pa of [Math.PI / 4, Math.PI / 4 + Math.PI]) {
     const pcx = Math.cos(pa);
     const psz = Math.sin(pa);
-    // Crown plume arching out of the finial tip (y 2.86) into the upper tier
+    // Crown plume arching out of the finial tip (y 4.45) into the upper tier
     const plumeCurve = new THREE.CatmullRomCurve3([
-      new THREE.Vector3(pcx * 0.04, 2.86, psz * 0.04),
-      new THREE.Vector3(pcx * 0.26, 3.08, psz * 0.26),
-      new THREE.Vector3(pcx * 0.46, 2.72, psz * 0.46),
-      new THREE.Vector3(pcx * 0.56, 2.24, psz * 0.56),
+      new THREE.Vector3(pcx * 0.04, 4.45, psz * 0.04),
+      new THREE.Vector3(pcx * 0.28, 4.72, psz * 0.28),
+      new THREE.Vector3(pcx * 0.5, 4.3, psz * 0.5),
+      new THREE.Vector3(pcx * 0.62, 3.72, psz * 0.62),
     ]);
     streamGeos.push(new THREE.TubeGeometry(plumeCurve, 12, 0.026, 5, false));
   }

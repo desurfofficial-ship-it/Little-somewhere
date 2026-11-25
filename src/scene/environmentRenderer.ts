@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { ComposedEnvironmentState } from '../game/environment';
 import { SeasonType, Vec2, WorldState } from '../game/types';
 import { GazeboRig, FountainRig, MirrorPondRig } from './models';
-import { NoticeboardRig } from './builders/landmarks';
+import { STORYBOOK_FOUNTAIN_SPEC, type NoticeboardRig } from './builders/landmarks';
 import { OrchardRig } from './builders/orchard';
 import {
   OrchardAmbientExtrasRig,
@@ -613,8 +613,11 @@ export class EnvironmentVisualController {
         if (kind === 'crown') {
           const ph = (elapsed * 1.65 + idx / 8) % 1;
           const angle = (idx / 8) * Math.PI * 2;
-          const r = ph * 0.58;
-          const arcY = 2.86 + Math.sin(ph * Math.PI) * 0.4 - ph * 0.84;
+          const r = ph * 0.62;
+          // Slice F1: crown spray anchors read the SPEC (finial tip y 4.45) —
+          // never re-hardcode the landmark height here.
+          const arcY =
+            STORYBOOK_FOUNTAIN_SPEC.finialTipY + Math.sin(ph * Math.PI) * 0.4 - ph * 0.9;
           drop.position.set(Math.cos(angle) * r, arcY, Math.sin(angle) * r);
         } else if (kind === 'basin') {
           const bIdx = idx - 8;
@@ -629,7 +632,10 @@ export class EnvironmentVisualController {
           const ph = (elapsed * 1.8 + idx / 8) % 1;
           const angle = (idx / 8) * Math.PI * 2;
           const r = ph * 0.95;
-          const arcY = 2.15 + Math.sin(ph * Math.PI) * 0.65 - ph * 1.5;
+          // Slice F1: upper-tier spray falls from the new tier rim into the
+          // lower bowl (SPEC-derived; lands ≈ lowerBowlWaterY).
+          const arcY =
+            STORYBOOK_FOUNTAIN_SPEC.upperTierRimY - 0.12 + Math.sin(ph * Math.PI) * 0.65 - ph * 0.95;
           drop.position.set(Math.cos(angle) * r, arcY, Math.sin(angle) * r);
         }
       }

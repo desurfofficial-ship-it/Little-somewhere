@@ -66,25 +66,29 @@ describe('fishing bank rigs (Stage 3 v1.1)', () => {
     assert.ok(Math.abs(pos[4].z - 17.75) < 1e-9, 'rod z pinned');
   });
 
-  it('RIG-03 brook rig sits on the west bank clear of the bridge shadow', () => {
+  it('RIG-03 brook rig sits on the stream north bank (Slice W1 relocation)', () => {
     const pos = meshWorldPositions(brook);
-    // Planks at z 13.45 stepping WESTWARD from x -4.90 to -6.00 (rotY +PI/2):
-    // the bank corner stays outside the bridge's rail band and its visual
-    // shadow, so the rig reads from the default camera, the deck and the lawn.
+    // Planks at z 12.70 stepping WESTWARD from x -6.15 to -7.25 (rotY +PI/2):
+    // the north-bank line keeps the cluster south-free of the running brook
+    // (west_brook_run z 13.3..14.9), west of the rail band and on walkable
+    // ground, under the oak's ground-clear canopy edge.
     const plankXs = [0, 1, 2].map((i) => pos[i].x).sort((a, b) => a - b);
     for (let i = 0; i < 3; i++) {
-      assert.ok(Math.abs(plankXs[i] - (-6.0 + i * 0.55)) < 1e-9, `plank ${i} x = ${-6.0 + i * 0.55}`);
-      assert.ok(Math.abs(pos[i].z - 13.45) < 1e-9, `plank ${i} z = 13.45`);
+      assert.ok(Math.abs(plankXs[i] - (-7.25 + i * 0.55)) < 1e-9, `plank ${i} x = ${-7.25 + i * 0.55}`);
+      assert.ok(Math.abs(pos[i].z - 12.7) < 1e-9, `plank ${i} z = 12.70`);
     }
-    // Creel rests at (-5.10, 14.15); rod leans over the bank at (-5.20, 13.72).
-    assert.ok(Math.abs(pos[3].x - -5.1) < 1e-9, 'creel x');
-    assert.ok(Math.abs(pos[3].z - 14.15) < 1e-9, 'creel z');
-    assert.ok(Math.abs(pos[4].x - -5.2) < 1e-9, 'rod x');
-    assert.ok(Math.abs(pos[4].z - 13.72) < 1e-9, 'rod z');
-    // Nothing crosses into the rail band (x -3.7..-3.58) or the water (x >= -3.58).
+    // Creel rests at (-5.65, 12.65); rod leans over the bank at (-5.45, 12.80).
+    assert.ok(Math.abs(pos[3].x - -5.65) < 1e-9, 'creel x');
+    assert.ok(Math.abs(pos[3].z - 12.65) < 1e-9, 'creel z');
+    assert.ok(Math.abs(pos[4].x - -5.45) < 1e-9, 'rod x');
+    assert.ok(Math.abs(pos[4].z - 12.8) < 1e-9, 'rod z');
+    // Nothing crosses into the rail band (x -4.0..-3.88 inflated -4.48..-3.40)
+    // and every mesh stays clear of the oak trunk collision ring (r 1.35 at
+    // (-6.2, 15.6) — the canopy is ground-clear overhead, the trunk is not).
     for (const p of pos) {
       assert.ok(p.x < -3.7, `mesh at x ${p.x.toFixed(2)} stays west of the rail band`);
-      assert.ok(p.x > -6.6, `mesh at x ${p.x.toFixed(2)} stays east of the hollow-oak canopy`);
+      const d = Math.hypot(p.x - -6.2, p.z - 15.6);
+      assert.ok(d > 2.2, `mesh at (${p.x.toFixed(2)}, ${p.z.toFixed(2)}) clear of the oak trunk (d=${d.toFixed(2)})`);
     }
   });
 

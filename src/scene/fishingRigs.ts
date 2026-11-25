@@ -61,26 +61,29 @@ export const FISHING_BANK_RIG_PLACEMENTS: readonly FishingBankRigPlacement[] = [
       rodDz: 0.15,
     },
   },
-  // v1.1 West Brook Bank: with rotY = +PI/2 local +z maps to world +x, so the
-  // plank trio steps from x -4.90 WESTWARD to x -6.00 at z 13.45 — the bank
-  // corner clear of the bridge's rail band (-3.7..-3.58) and its visual
-  // shadow; creel rests at (-5.10, 14.15); rod leans over the bank at
-  // (-5.20, 13.72), angled toward the culvert outflow (water west tip
-  // x -3.58) without touching it. All meshes on walkable ground (RIG-05),
-  // every mesh west of x -3.7 (RIG-03).
+  // v1.1 West Brook Bank (Slice W1 relocation): the stream now RUNS WEST from
+  // the culvert (west_brook_run box z 13.3..14.9), so the bank cluster moved to
+  // the stream's NORTH bank at (-5.5, 12.35). With rotY = +PI/2 local +z maps to
+  // world +x: the plank trio steps from x -6.15 WESTWARD to x -7.25 along the
+  // bank at z 12.70 (0.6u+ north of the water, walkable ground), the creel
+  // rests at (-5.65, 12.65), and the rod leans over the bank at (-5.45, 12.80)
+  // angled toward the water without standing in it. All meshes on walkable
+  // ground (RIG-05), every mesh west of x -3.7 (RIG-03), under the oak's new
+  // canopy edge — dappled shade, never occluded from the NE camera (canopy is
+  // ground-clear overhead).
   {
     name: 'west_brook_bank_rig',
-    x: -4.45,
-    z: 13.9,
+    x: -5.5,
+    z: 12.35,
     rotY: Math.PI / 2,
     offsets: {
-      plankDx: 0.45,
-      plankDz: -0.45,
+      plankDx: -0.35,
+      plankDz: -0.65,
       plankStep: -0.55,
-      creelDx: -0.25,
-      creelDz: -0.65,
-      rodDx: 0.18,
-      rodDz: -0.75,
+      creelDx: -0.3,
+      creelDz: -0.15,
+      rodDx: -0.45,
+      rodDz: 0.05,
     },
   },
 ];
