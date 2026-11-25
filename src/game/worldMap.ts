@@ -89,7 +89,7 @@ export const BOX_OBSTACLES: BoxObstacle[] = [
   // a 1.7u slot under the bridge. The brook-bank fishing stand moves to the
   // north bank (see FISHING_SPOTS.west_brook_bank); the old south-bank lane
   // (pond_bank_sw) reroutes along the stream's north side.
-  { id: 'west_brook_run', minX: -9.2, maxX: -4.4, minZ: 13.3, maxZ: 14.9 },
+  { id: 'west_brook_run', minX: -11.6, maxX: -4.4, minZ: 13.3, maxZ: 14.9 },
   // Cedar bridge west handrail & culvert mouth barrier (keeps walkers inside bridge deck or west lawn without clipping rails/brook).
   // Slice W1: the rail shifts 0.3u WEST with the widened deck so the deck's
   // logical walk strip grows 0.42u -> 0.72u (still single-file, no longer a squeeze).
@@ -202,7 +202,7 @@ export const SEAT_SPOTS: readonly SeatSpot[] = [
     id: 'seat_pond_east',
     label: 'Pond East Bank Bench',
     seatPos: { x: 8.15, z: 17.3 },
-    approachPos: { x: 7.2, z: 17.3 },
+    approachPos: { x: 7.15, z: 17.3 },
     facingAngle: -Math.PI / 2,
     seatHeight: 0.36,
     zoneId: 'pond',
@@ -560,7 +560,7 @@ export function getGroundHeightAt(x: number, z: number): number {
   if (x >= -4.35 && x <= -2.0 && z >= 12.25 && z <= 15.75) {
     const t = (z - 14.0) / 3.5; // -0.5..+0.5
     const normalized = Math.max(-0.5, Math.min(0.5, t));
-    const arch = 0.24 + (1 - 4 * normalized * normalized) * 0.61;
+    const arch = 0.24 + (1 - 4 * normalized * normalized) * 0.71;
     // Feather gently onto the stone abutments at the very tips
     const edgeFeather = Math.max(0, Math.min(1, (1.75 - Math.abs(z - 14.0)) / 0.4));
     return arch * edgeFeather;

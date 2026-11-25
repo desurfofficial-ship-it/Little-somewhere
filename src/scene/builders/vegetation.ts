@@ -336,7 +336,7 @@ export function buildHollowOakLandmark(
     const rx = Math.cos(a);
     const rz = Math.sin(a);
     barkGeos.push(
-      baked(new THREE.CylinderGeometry(0.2, 0.44, 1.15, 7), [rx * 0.82, 0.36, rz * 0.82], [
+      baked(new THREE.CylinderGeometry(0.2, 0.44, 1.15, 7), [rx * 0.74, 0.36, rz * 0.74], [
         rz * 0.66,
         0,
         -rx * 0.66,
@@ -371,16 +371,18 @@ export function buildHollowOakLandmark(
   // Hollow root cavity facing North-East toward Toby (-4.8, 13.4), Hollow Oak
   // inspect (-6.2, 14.0), & camera silhouette — scaled up with the trunk so the
   // hollow reads at gameplay zoom (old opening ≈ 0.32u → 0.44u).
-  const cavityFrameGeo = new THREE.TorusGeometry(0.42, 0.12, 7, 14);
+  // Review round: the hollow must READ from the default NE camera — enlarged
+  // (opening ≈ 0.42 → 0.55u) and swung toward east-north-east.
+  const cavityFrameGeo = new THREE.TorusGeometry(0.52, 0.14, 7, 14);
   const cavityFrame = new THREE.Mesh(cavityFrameGeo, barkHighlightMat);
-  cavityFrame.position.set(0.66, 0.62, -0.72);
-  cavityFrame.rotation.y = Math.PI * 0.75;
+  cavityFrame.position.set(0.78, 0.72, -0.5);
+  cavityFrame.rotation.y = Math.PI * 0.72;
   cavityFrame.castShadow = true;
-  const cavityDarkGeo = new THREE.SphereGeometry(0.37, 8, 8);
+  const cavityDarkGeo = new THREE.SphereGeometry(0.47, 8, 8);
   const cavityDark = new THREE.Mesh(cavityDarkGeo, cavityMat);
-  cavityDark.scale.set(1.0, 1.25, 0.6);
-  cavityDark.position.set(0.6, 0.62, -0.66);
-  cavityDark.rotation.y = Math.PI * 0.75;
+  cavityDark.scale.set(1.0, 1.2, 0.5);
+  cavityDark.position.set(0.72, 0.72, -0.44);
+  cavityDark.rotation.y = Math.PI * 0.72;
   group.add(cavityFrame, cavityDark);
 
   // Gleaming brass clapper cue nestled inside hollow root
@@ -394,7 +396,7 @@ export function buildHollowOakLandmark(
       roughness: 0.2,
     }),
   );
-  oakGlint.position.set(0.8, 0.44, -0.86);
+  oakGlint.position.set(0.92, 0.48, -0.62);
   group.add(oakGlint);
 
   // Five expressive forked boughs carrying the broad crown
@@ -421,7 +423,7 @@ export function buildHollowOakLandmark(
   // highlights), baked + merged per tone: canopy top ≈ 7.5u, spread ≈ 7.3u.
   const canopyLobes: Array<{ pos: [number, number, number]; scale: [number, number, number]; r: number; mat: THREE.MeshStandardMaterial }> = [
     { pos: [0, 5.6, 0], scale: [1.35, 0.95, 1.3], r: 2.1, mat: foliageMid },
-    { pos: [-2.0, 5.0, 0.9], scale: [1.2, 0.88, 1.15], r: 1.7, mat: foliageDeep },
+    { pos: [-1.7, 5.0, 0.9], scale: [1.2, 0.88, 1.15], r: 1.6, mat: foliageDeep },
     { pos: [1.9, 5.15, -1.0], scale: [1.18, 0.9, 1.16], r: 1.65, mat: foliageMid },
     { pos: [0.5, 6.35, 0.3], scale: [1.15, 0.85, 1.1], r: 1.5, mat: foliageSun },
     { pos: [-1.2, 4.7, -1.6], scale: [1.12, 0.84, 1.1], r: 1.5, mat: foliageDeep },
@@ -532,13 +534,15 @@ function buildKoiFish(
  * standable) and that the pond's area/shoreline actually GREW.
  */
 export const POND_OUTLINE_SHAPE_POINTS: readonly [number, number][] = [
-  [-10.8, 0.42], [-9.7, 0.55], [-8.5, 0.62], [-7.3, 0.66], [-6.3, 0.7],
-  [-5.6, 0.95], [-5.1, 1.25], [-4.5, 1.55], [-3.9, 1.8], [-3.0, 2.05],
-  [-1.6, 2.16], [0.3, 2.1], [1.8, 2.0], [2.9, 1.72], [3.6, 1.3],
-  [4.1, 0.95], [4.6, 0.62], [4.68, 0.0], [4.6, -0.65], [4.15, -1.05],
-  [3.6, -1.3], [2.85, -1.62], [1.9, -1.9], [0.6, -2.06], [-0.9, -2.02],
-  [-2.3, -1.84], [-3.4, -1.46], [-4.0, -1.1], [-4.6, -0.72], [-5.3, -0.62],
-  [-6.3, -0.58], [-7.3, -0.55], [-8.5, -0.5], [-9.7, -0.44], [-10.8, -0.38],
+  [-13.2, 0.4], [-12.0, 0.55], [-10.8, 0.62], [-9.5, 0.66], [-8.2, 0.68],
+  [-7.0, 0.68], [-6.0, 0.68], [-5.5, 0.92], [-5.0, 1.2], [-4.5, 1.5],
+  [-3.9, 1.78], [-3.0, 2.02], [-1.6, 2.14], [0.3, 2.08], [1.8, 1.98],
+  [2.9, 1.7], [3.25, 1.52], [3.6, 1.32], [4.0, 1.12], [4.4, 0.85],
+  [4.68, 0.5], [4.7, 0.0], [4.62, -0.5], [4.4, -0.85], [4.1, -1.08],
+  [3.7, -1.25], [3.25, -1.48], [2.85, -1.62], [1.9, -1.9], [0.6, -2.06],
+  [-0.9, -2.02], [-2.3, -1.84], [-3.4, -1.46], [-4.0, -1.12], [-4.6, -0.8],
+  [-5.3, -0.74], [-6.0, -0.76], [-7.0, -0.8], [-8.2, -0.82], [-9.5, -0.8],
+  [-10.8, -0.72], [-12.0, -0.6], [-13.2, -0.4],
 ];
 
 export function buildMirrorPondAndBridge(
@@ -675,12 +679,18 @@ export function buildMirrorPondAndBridge(
     { x: -1.45, z: 1.88, r: 0.39, sy: 0.46, dark: false, moss: true },
     { x: -2.65, z: 1.66, r: 0.42, sy: 0.50, dark: true },
     { x: -3.22, z: 1.36, r: 0.38, sy: 0.46, dark: false },
-    // West brook stream banks (Slice W1: along world z 13.1 / 15.05)
-    { x: -7.0, z: -0.86, r: 0.3, sy: 0.44, dark: true },
-    { x: -8.2, z: -0.8, r: 0.28, sy: 0.42, dark: false, moss: true },
-    { x: -6.4, z: 1.02, r: 0.3, sy: 0.44, dark: false },
-    { x: -7.9, z: 0.98, r: 0.28, sy: 0.42, dark: true, moss: true },
-    { x: -8.9, z: -0.78, r: 0.26, sy: 0.4, dark: false },
+    // West brook stream banks (Slice W1: along world z ≈ 13.1 / 14.9)
+    { x: -7.0, z: -0.88, r: 0.3, sy: 0.44, dark: true },
+    { x: -8.2, z: -0.84, r: 0.28, sy: 0.42, dark: false, moss: true },
+    { x: -6.4, z: 0.9, r: 0.3, sy: 0.44, dark: false },
+    { x: -7.9, z: 0.86, r: 0.28, sy: 0.42, dark: true, moss: true },
+    { x: -8.9, z: -0.84, r: 0.26, sy: 0.4, dark: false },
+    { x: -10.4, z: 0.78, r: 0.26, sy: 0.4, dark: true },
+    { x: -11.8, z: -0.72, r: 0.28, sy: 0.42, dark: false, moss: true },
+    // Mid-stream boulders breaking the current (visual only, inside the water)
+    { x: -8.5, z: -0.08, r: 0.2, sy: 0.3, dark: true },
+    { x: -10.2, z: 0.14, r: 0.18, sy: 0.28, dark: false },
+    { x: -7.2, z: 0.28, r: 0.16, sy: 0.26, dark: true },
     // Culvert mouth boulders flanking the widened channel under the bridge
     { x: -6.15, z: -0.65, r: 0.3, sy: 0.46, dark: true, moss: true },
     { x: -6.15, z: 0.85, r: 0.3, sy: 0.46, dark: false },
@@ -859,7 +869,8 @@ export function buildMirrorPondAndBridge(
     [-2.78, 1.48, true],
     [-2.95, -1.25, false],
     [-7.9, -0.85, true],
-    [-9.1, 1.0, false],
+    [-9.1, 0.9, false],
+    [-11.4, -0.78, true],
   ];
   for (const [rx, rz, withIris] of reeds) {
     const clump = new THREE.Group();
@@ -958,18 +969,22 @@ export function buildMirrorPondAndBridge(
   }
   // Half-torus culvert rings framing both water mouths under the deck
   stoneGeos.push(
-    bBake(new THREE.TorusGeometry(0.85, 0.13, 8, 14, Math.PI), [-1.45, 0.1, 0], [0, Math.PI / 2, 0]),
+    bBake(new THREE.TorusGeometry(1.0, 0.17, 8, 14, Math.PI), [-1.45, 0.1, 0], [0, Math.PI / 2, 0]),
   );
   stoneGeos.push(
-    bBake(new THREE.TorusGeometry(0.85, 0.13, 8, 14, Math.PI), [0.75, 0.1, 0], [0, Math.PI / 2, 0]),
+    bBake(new THREE.TorusGeometry(1.0, 0.17, 8, 14, Math.PI), [0.75, 0.1, 0], [0, Math.PI / 2, 0]),
   );
+  // Stone spandrel cheeks under the deck edges — give the span a masonry
+  // profile so the arch reads from the isometric camera (review finding).
+  stoneGeos.push(bBake(new THREE.BoxGeometry(0.34, 0.5, 3.0), [-1.18, 0.3, 0]));
+  stoneGeos.push(bBake(new THREE.BoxGeometry(0.34, 0.5, 3.0), [1.18, 0.3, 0]));
 
   // Individual cambered deck planks (9 × 2.5u-wide cedar, arch peak 0.85)
   const plankCount = 9;
   for (let i = 0; i < plankCount; i++) {
     const t = i / (plankCount - 1) - 0.5; // -0.5..0.5
     const pz = t * 3.5;
-    const archY = 0.24 + (1 - 4 * t * t) * 0.61;
+    const archY = 0.24 + (1 - 4 * t * t) * 0.71;
     const geo = new THREE.BoxGeometry(2.5, 0.12, 0.4);
     const bakedPlank = bBake(geo, [0, archY, pz]);
     (i % 2 === 0 ? plankDeckGeos : plankWarmGeos).push(bakedPlank);
@@ -978,12 +993,12 @@ export function buildMirrorPondAndBridge(
   // Side stringer beams, posts, mid rails (cedar dark) + top rails & caps (warm)
   for (const rx of [-1.12, 1.12]) {
     cedarDarkGeos.push(bBake(new THREE.BoxGeometry(0.15, 0.2, 3.9), [rx, 0.42, 0]));
-    cedarWarmGeos.push(bBake(new THREE.BoxGeometry(0.11, 0.09, 3.6), [rx, 1.32, 0]));
-    cedarDarkGeos.push(bBake(new THREE.BoxGeometry(0.08, 0.06, 3.55), [rx, 0.98, 0]));
+    cedarWarmGeos.push(bBake(new THREE.BoxGeometry(0.11, 0.09, 3.6), [rx, 1.4, 0]));
+    cedarDarkGeos.push(bBake(new THREE.BoxGeometry(0.08, 0.06, 3.55), [rx, 1.06, 0]));
     for (const rz of [-1.5, 0, 1.5]) {
-      cedarDarkGeos.push(bBake(new THREE.BoxGeometry(0.15, 1.0, 0.15), [rx, 1.12, rz]));
-      cedarWarmGeos.push(bBake(new THREE.BoxGeometry(0.2, 0.07, 0.2), [rx, 1.66, rz]));
-      brassGeos.push(bBake(new THREE.SphereGeometry(0.05, 7, 7), [rx, 1.73, rz]));
+      cedarDarkGeos.push(bBake(new THREE.BoxGeometry(0.15, 1.0, 0.15), [rx, 1.16, rz]));
+      cedarWarmGeos.push(bBake(new THREE.BoxGeometry(0.2, 0.07, 0.2), [rx, 1.7, rz]));
+      brassGeos.push(bBake(new THREE.SphereGeometry(0.05, 7, 7), [rx, 1.77, rz]));
     }
   }
 

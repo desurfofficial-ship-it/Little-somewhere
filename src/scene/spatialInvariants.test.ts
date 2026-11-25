@@ -114,7 +114,7 @@ describe('Stage 3 spatial invariants (Willow Square redesign)', () => {
       assert.ok(h > 0.1, `deck height at z ${z} must be elevated (got ${h.toFixed(2)})`);
     }
     // The arch peaks at 0.85 over the channel and feathers to the approaches.
-    assert.ok(Math.abs(getGroundHeightAt(-2.9, 14.0) - 0.85) < 0.02, 'arch peak 0.85 at midspan');
+    assert.ok(Math.abs(getGroundHeightAt(-2.9, 14.0) - 0.95) < 0.02, 'arch peak 0.95 at midspan');
     assert.ok(getGroundHeightAt(-2.9, 12.0) < 0.1, 'north approach returns to ground level');
     assert.ok(getGroundHeightAt(-2.9, 16.0) < 0.1, 'south approach returns to ground level');
     // Continuity: no cliff between deck and bank at the feathers.
