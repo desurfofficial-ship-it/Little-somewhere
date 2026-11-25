@@ -302,10 +302,12 @@ test('SC-A-05: project pride fires on the second conversation after the immediat
 });
 
 // ---------------------------------------------------------------------------
-// SC-A-06: Registry contract — 3 new topics at the tail, golden matches
+// SC-A-06: Registry contract — 3 community echo topics contiguous (no longer
+// the tail: the 2 PHOTO_ECHO_TOPICS from photoEcho.ts now follow them, per
+// the Stage 3 Continuation Photography workstream).
 // ---------------------------------------------------------------------------
 
-test('SC-A-06: COMMUNITY_ECHO_TOPICS registered at the append-only tail and golden-pinned', () => {
+test('SC-A-06: COMMUNITY_ECHO_TOPICS are contiguous, photo echoes follow at the tail, golden matches', () => {
   // The three community echo topics exist in DIALOGUE_TOPICS.
   for (const id of COMMUNITY_ECHO_TOPIC_IDS) {
     const t = DIALOGUE_TOPICS.find((x) => x.id === id);
@@ -314,11 +316,18 @@ test('SC-A-06: COMMUNITY_ECHO_TOPICS registered at the append-only tail and gold
     assert.equal(t!.category, 'event_reaction', `${id} sits in the event_reaction band`);
   }
 
-  // Append-only ordering: the three topics are the LAST three entries, in
-  // authored order, strictly after REFLECTION_TOPICS.
-  const tail = DIALOGUE_TOPICS.slice(-3).map((t) => t.id);
-  assert.deepEqual(tail, [...COMMUNITY_ECHO_TOPIC_IDS],
-    'community echo topics occupy the append-only tail in authored order');
+  // Contiguity: the three community echo topics occupy three consecutive
+  // indices in the registry (in authored order). The PHOTO_ECHO_TOPICS module
+  // (Stage 3 Continuation, Workstream B) now appends two more event_reaction
+  // echoes strictly after, so the community echoes are no longer the literal
+  // tail — but they remain contiguous.
+  const indices = COMMUNITY_ECHO_TOPIC_IDS.map((id) =>
+    DIALOGUE_TOPICS.findIndex((t) => t.id === id),
+  );
+  assert.ok(indices.every((i) => i >= 0), 'every community echo topic is registered');
+  assert.ok(indices[0] >= 3, 'community echoes appear after the early quest/personal bands');
+  assert.equal(indices[1], indices[0] + 1, 'community echoes are contiguous (1→2)');
+  assert.equal(indices[2], indices[1] + 1, 'community echoes are contiguous (2→3)');
 
   const goldenPath = new URL('../../scripts/dialogue-topics-golden.json', import.meta.url);
   const golden = JSON.parse(readFileSync(goldenPath, 'utf8')) as {
@@ -328,10 +337,15 @@ test('SC-A-06: COMMUNITY_ECHO_TOPICS registered at the append-only tail and gold
   assert.equal(golden.count, golden.topics.length, 'golden internally consistent');
   assert.equal(golden.count, DIALOGUE_TOPICS.length,
     `golden count matches registry: golden=${golden.count} registry=${DIALOGUE_TOPICS.length}`);
-  assert.equal(golden.topics.at(-1)!.id, 'everyday_community_project_pride',
-    'golden tail is the community echo pride topic (milestone pin migrated from SF4-07)');
+  // Append-only ordering contract milestone pin migrated: the registry tail is
+  // now `everyday_photo_noticer` (the PHOTO_ECHO_TOPICS module's last topic),
+  // appended strictly after the community echoes per the Stage 3 Continuation
+  // Photography workstream. Each future append must similarly migrate this
+  // assertion, never reorder.
+  assert.equal(golden.topics.at(-1)!.id, 'everyday_photo_noticer',
+    'golden tail is the photo noticer topic (milestone pin migrated from everyday_community_project_pride)');
 
-  // Field-for-field pin on the three new topics (anti-fraud backstop).
+  // Field-for-field pin on the three community echo topics (anti-fraud backstop).
   for (const expected of [
     { id: 'everyday_community_basket_echo', residentId: 'any', category: 'event_reaction', priority: 14 },
     { id: 'everyday_community_completion_celebration', residentId: 'any', category: 'event_reaction', priority: 20 },
@@ -339,6 +353,19 @@ test('SC-A-06: COMMUNITY_ECHO_TOPICS registered at the append-only tail and gold
   ]) {
     const g = golden.topics.find((t) => t.id === expected.id);
     assert.ok(g, `${expected.id} present in golden`);
+    assert.equal(g!.residentId, expected.residentId);
+    assert.equal(g!.category, expected.category);
+    assert.equal(g!.priority, expected.priority);
+  }
+
+  // Field-for-field pin on the two PHOTO_ECHO_TOPICS (Stage 3 Continuation,
+  // Workstream B — appended strictly after the community echoes).
+  for (const expected of [
+    { id: 'everyday_photo_witness_echo', residentId: 'any', category: 'event_reaction', priority: 12 },
+    { id: 'everyday_photo_noticer', residentId: 'any', category: 'event_reaction', priority: 8 },
+  ]) {
+    const g = golden.topics.find((t) => t.id === expected.id);
+    assert.ok(g, `${expected.id} present in golden (Stage 3 Cont. photo echo)`);
     assert.equal(g!.residentId, expected.residentId);
     assert.equal(g!.category, expected.category);
     assert.equal(g!.priority, expected.priority);

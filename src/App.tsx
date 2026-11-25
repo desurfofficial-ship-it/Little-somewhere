@@ -1,6 +1,7 @@
 import { Component, ErrorInfo, ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   BookOpen,
+  Camera,
   Clock,
   MessageCircle,
   Pause,
@@ -91,6 +92,7 @@ import {
   COMMUNITY_REASON_LABELS,
   contributeToCommunityProject,
 } from './game/community';
+import { PERSONAL_ITEM_MAP } from './game/inventory';
 import { interruptSocialEncounter } from './game/simulation';
 import {
   SUBJECT_IMAGE_KEYS,
@@ -117,6 +119,8 @@ import { CottageStationMode, InventoryDrawer } from './components/InventoryDrawe
 import { CottageStationModal } from './components/CottageStationModal';
 import { GreenhousePanel, GreenhousePanelMode } from './components/GreenhousePanel';
 import { CommunityProjectsPanel } from './components/CommunityProjectsPanel';
+import { PhotoPanel, PhotoPanelMode } from './components/PhotoPanel';
+import { performPhotoAction } from './game/photography';
 import { PauseModal } from './components/PauseModal';
 
 interface SceneErrorBoundaryProps {
@@ -209,6 +213,9 @@ export default function App() {
   const [greenhousePanelMode, setGreenhousePanelMode] = useState<GreenhousePanelMode | null>(null);
   // Everyday Gameplay GA-5 — plaza noticeboard community contribution shelf.
   const [communityProjectsOpen, setCommunityProjectsOpen] = useState<boolean>(false);
+  // Stage 3 Continuation — Photography (Workstream B): the camera panel mode
+  // (null = closed; 'viewfinder' = subject list; 'album' = kept photographs).
+  const [photoMode, setPhotoMode] = useState<PhotoPanelMode>(null);
   const [muted, setMuted] = useState<boolean>(false);
   const [bellRingCounter, setBellRingCounter] = useState<number>(0);
   const [fountainWishCounter, setFountainWishCounter] = useState<number>(0);
@@ -390,6 +397,7 @@ export default function App() {
     setCottageStationMode(null);
     setGreenhousePanelMode(null);
     setCommunityProjectsOpen(false);
+    setPhotoMode(null);
     setIntroTipDismissed(false);
     if (document.activeElement instanceof HTMLElement) {
       document.activeElement.blur();
@@ -788,6 +796,42 @@ export default function App() {
     [commitWorld, showToast, triggerPlayerPulse],
   );
 
+  // Stage 3 Continuation — Photography (Workstream B): the camera capture
+  // handler. Mirrors handleCookRecipe's shape — performPhotoAction is the pure
+  // reducer; App owns the world commit, pulse, chime, and toast. On refusal
+  // (e.g. indoors or active activity) the reducer returns the unchanged world
+  // with a body prose explanation; we surface that as a toast.
+  const handleCapturePhoto = useCallback(
+    (subjectId: string) => {
+      const res = performPhotoAction(worldRef.current, subjectId);
+      if (res.nextWorld !== worldRef.current) {
+        commitWorld(res.nextWorld);
+        triggerPlayerPulse('interact');
+        if (res.memoryUnlockedTitle) {
+          cozyAudio.playMemoryChime();
+        } else {
+          cozyAudio.playUiTap(1.14);
+        }
+        if (res.gainedItems && res.gainedItems.length > 0) {
+          // First-ever capture: surface the framed-photo keepsake toast in
+          // addition to the capture body so the player knows about the shelf
+          // reward. The capture body itself is shown below.
+          for (const chip of res.gainedItems) {
+            const def = PERSONAL_ITEM_MAP[chip.itemId];
+            if (def) {
+              showToast(`Keepsake added: ${def.label}`);
+            }
+          }
+        }
+      } else {
+        // Refusal path — surface the reducer's body prose as the toast.
+        cozyAudio.playUiTap(0.9);
+        showToast(res.body);
+      }
+    },
+    [commitWorld, showToast, triggerPlayerPulse],
+  );
+
   const handlePlaceFlower = useCallback(
     (flowerId: PersonalItemId | null) => {
       const res = placeFlowerInVaseAction(worldRef.current, flowerId);
@@ -1158,6 +1202,10 @@ export default function App() {
           setCommunityProjectsOpen(false);
           return;
         }
+        if (photoMode) {
+          setPhotoMode(null);
+          return;
+        }
         if (inventoryOpen) {
           setInventoryOpen(false);
           return;
@@ -1187,6 +1235,7 @@ export default function App() {
         setCottageStationMode(null);
         setGreenhousePanelMode(null);
         setCommunityProjectsOpen(false);
+        setPhotoMode(null);
         setJournalOpen((o) => !o);
         return;
       }
@@ -1197,7 +1246,31 @@ export default function App() {
         setCottageStationMode(null);
         setGreenhousePanelMode(null);
         setCommunityProjectsOpen(false);
+        setPhotoMode(null);
         setInventoryOpen((o) => !o);
+        return;
+      }
+
+      // Stage 3 Continuation — Photography (Workstream B): [F] toggles the
+      // camera panel outdoors (toast if indoors). Protected-surface discipline:
+      // never stacks over dialogue/prop/panel.
+      if (
+        e.code === 'KeyF' &&
+        !dialogueSession &&
+        !propCard &&
+        !journalOpen &&
+        !inventoryOpen &&
+        !cottageStationMode &&
+        !greenhousePanelMode &&
+        !communityProjectsOpen
+      ) {
+        e.preventDefault();
+        if (worldRef.current.playerLocation !== 'exterior') {
+          cozyAudio.playUiTap(0.9);
+          showToast('The camera prefers daylight — step outside to frame a subject.');
+          return;
+        }
+        setPhotoMode((prev) => (prev === null ? 'viewfinder' : null));
         return;
       }
 
@@ -1210,7 +1283,8 @@ export default function App() {
         !inventoryOpen &&
         !cottageStationMode &&
         !greenhousePanelMode &&
-        !communityProjectsOpen
+        !communityProjectsOpen &&
+        !photoMode
       ) {
         e.preventDefault();
         openTargetInteraction(nearestTarget);
@@ -1226,7 +1300,8 @@ export default function App() {
         !inventoryOpen &&
         !cottageStationMode &&
         !greenhousePanelMode &&
-        !communityProjectsOpen
+        !communityProjectsOpen &&
+        !photoMode
       ) {
         e.preventDefault();
         handlePlaceHeldItem();
@@ -1247,6 +1322,7 @@ export default function App() {
     journalOpen,
     nearestTarget,
     openTargetInteraction,
+    photoMode,
     propCard,
     screenState,
   ]);
@@ -1357,7 +1433,8 @@ export default function App() {
     inventoryOpen ||
     Boolean(cottageStationMode) ||
     Boolean(greenhousePanelMode) ||
-    communityProjectsOpen;
+    communityProjectsOpen ||
+    photoMode !== null;
 
   return (
     <main className="relative w-full h-full overflow-hidden">
@@ -1447,6 +1524,33 @@ export default function App() {
               >
                 <ShoppingBag className="w-4 h-4 text-sage shrink-0" />
                 <span className="hidden sm:inline">Satchel</span>
+              </button>
+
+              {/* Stage 3 Continuation — Photography (Workstream B): the camera
+                  HUD button. Toggles the PhotoPanel viewfinder; surfaces a
+                  toast if pressed indoors (the reducer refuses interior captures). */}
+              <button
+                type="button"
+                onClick={() => {
+                  if (worldRef.current.playerLocation !== 'exterior') {
+                    cozyAudio.playUiTap(0.9);
+                    showToast('The camera prefers daylight — step outside to frame a subject.');
+                    return;
+                  }
+                  cozyAudio.playUiTap(1.05);
+                  setJournalOpen(false);
+                  setInventoryOpen(false);
+                  setCottageStationMode(null);
+                  setGreenhousePanelMode(null);
+                  setCommunityProjectsOpen(false);
+                  setPhotoMode((prev) => (prev === null ? 'viewfinder' : null));
+                }}
+                aria-label="Open Camera"
+                title="Camera [F]"
+                className="min-h-[44px] min-w-[44px] px-2.5 sm:px-3.5 py-2 rounded-xl bg-linen/95 hover:bg-linen-deep border border-stone-line text-espresso text-xs sm:text-sm font-semibold flex items-center justify-center gap-1.5 sm:gap-2 shadow-sm transition-colors cursor-pointer whitespace-nowrap"
+              >
+                <Camera className="w-4 h-4 text-terracotta shrink-0" />
+                <span className="hidden sm:inline">Camera</span>
               </button>
 
               <button
@@ -1718,6 +1822,17 @@ export default function App() {
         world={worldSnapshot}
         onClose={() => setCommunityProjectsOpen(false)}
         onContribute={handleContribute}
+      />
+
+      {/* Camera Viewfinder & Album — opened from the HUD Camera button or [F]
+          (Stage 3 Continuation, Workstream B Photography everyday activity). */}
+      <PhotoPanel
+        mode={photoMode}
+        world={worldSnapshot}
+        playerPos={playerPos}
+        onClose={() => setPhotoMode(null)}
+        onCapture={handleCapturePhoto}
+        onSwitchMode={(m) => setPhotoMode(m)}
       />
 
       {/* Pocket Journal Drawer */}

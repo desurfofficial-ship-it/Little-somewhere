@@ -512,13 +512,21 @@ test('S3-G §3.3: dialogue registry count matches the golden snapshot', () => {
     `registry count matches golden: registry=${DIALOGUE_TOPICS.length} golden=${golden.count}`,
   );
   assert.equal(golden.count, golden.topics.length, 'golden internally consistent');
-  // The three echo topics are the LAST three entries in the append-only registry
-  // (communityEcho.ts is the last spread in dialogue/index.ts).
-  const tail = DIALOGUE_TOPICS.slice(-3).map((t) => t.id);
+  // The community echo topics are no longer the literal tail (Stage 3 Cont.
+  // Photography appends two PHOTO_ECHO_TOPICS strictly after). They are still
+  // contiguous and immediately precede the two photo echoes at the registry
+  // tail — the slice(-5,-2) checks community echoes, slice(-2) checks photo.
+  const tailPhoto = DIALOGUE_TOPICS.slice(-2).map((t) => t.id);
   assert.deepEqual(
-    tail,
+    tailPhoto,
+    ['everyday_photo_witness_echo', 'everyday_photo_noticer'],
+    'photo echo topics occupy the append-only tail in authored order',
+  );
+  const tailCommunity = DIALOGUE_TOPICS.slice(-5, -2).map((t) => t.id);
+  assert.deepEqual(
+    tailCommunity,
     [...ECHO_TOPIC_IDS],
-    'community echo topics occupy the append-only tail in authored order',
+    'community echo topics remain contiguous and immediately precede the photo echoes',
   );
 });
 
