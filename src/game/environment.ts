@@ -1,5 +1,6 @@
 import { computeEnvironmentState } from './narrative';
 import { getCommunityProjectStage } from './communityProjects';
+import { getCommunityShelfStage } from './community';
 import { composeProgressionVisualState } from './progressionVisuals';
 import type { ProgressionVisualState } from './progressionVisuals';
 import { hashSeed, mulberry32 } from './rng';
@@ -53,6 +54,8 @@ export interface WorldEchoesState {
   posyBankPickedToday: boolean;
   /** WP-4: Sorrel Hollow garden stage (0 = forgotten … 3 = blooming again). */
   sorrelGardenStage: number;
+  /** Stage 2: Plaza Garlands visual stage (0 = bare … 3 = full garland strung). */
+  marigoldGarlandStage: number;
 }
 
 export interface ComposedEnvironmentState {
@@ -162,6 +165,7 @@ export function composeEnvironmentState(
         | 'greenhouseState'
         | 'bakeryState'
         | 'nookState'
+        | 'communityProjects'
       >
     >,
 ): ComposedEnvironmentState {
@@ -275,6 +279,8 @@ export function composeEnvironmentState(
     { sideFlags: world.sideFlags ?? {} },
     'sorrel_garden',
   );
+  // Stage 2: Plaza Garlands visual stage — derived from GA-1 contribution counts.
+  const marigoldGarlandStage = getCommunityShelfStage(world, 'marigold_garland', 3);
 
   const revision =
     (world.day & 1023) * 8388608 +
@@ -284,10 +290,11 @@ export function composeEnvironmentState(
     staticFlagsMask +
     // Echo mask rides ABOVE the day term (day contributes < 2^33) so pebble/pick
     // changes re-run the static render block immediately, with zero bit collisions.
-    // Bits: 0-2 pebble stack · 3 nosegay stub · 4-5 Sorrel garden stage.
+    // Bits: 0-2 pebble stack · 3 nosegay stub · 4-5 Sorrel garden stage · 6-7 Plaza garland stage.
     ((wellPebbleStack & 7) |
       ((posyBankPickedToday ? 1 : 0) << 3) |
-      ((sorrelGardenStage & 3) << 4)) *
+      ((sorrelGardenStage & 3) << 4) |
+      ((marigoldGarlandStage & 3) << 6)) *
       8589934592;
 
   return {
@@ -321,6 +328,7 @@ export function composeEnvironmentState(
       wellPebbleStack,
       posyBankPickedToday,
       sorrelGardenStage,
+      marigoldGarlandStage,
     },
     npcTouches: {
       claraPastryBasketVisible,
