@@ -359,3 +359,37 @@ All core simulation, cottage home-life, personal inventory/gifting, dialogue, re
   blocked by open feat/lr3-slice-2), photography (doc 01 order, LR-3-locked files), cooking
   content sliver (unowned, next). Doc 04 records findings V1-1..V1-5 incl. the rig-shadow
   scene fix and the exact gate counts (807/807).
+
+
+---
+
+## Stage 3 spatial addendum (2026-11-25): Willow Square environmental redesign
+
+- **New scene contracts to respect**:
+  - `src/scene/builders/vegetation.ts` exports `POND_OUTLINE_SHAPE_POINTS` (shape-space
+    water outline; world x = 1.6 + sx, world z = 14 − sy). The rendered water polygon is
+    CONTRACT-LOCKED to the walkability exclusions by SPAT-01 — any outline change must
+    keep every visible-water cell inside `pond_water` / `pond_water_east` /
+    `west_brook_run` (or the rail/pond-covered under-bridge band) and stay inside the
+    lobe box (max world x 6.3).
+  - The bridge is a LOGICAL/VISUAL twin: `getGroundHeightAt` arch region (x −4.35..−2.0 ×
+    z 12.25..15.75, peak 0.95, feathered) must move together with the plank/rail builder
+    and `bridge_west_rail` (−4.0..−3.88). Deck walk strip is −3.40..−2.68 (0.71u).
+  - `STORYBOOK_FOUNTAIN_SPEC` is the single source for fountain heights — renderer
+    droplet anchors read it; never re-hardcode landmark heights in environmentRenderer.
+  - The hollow oak's collision circle stays r 1.35 at (−6.2,15.6) — the canopy is
+    ground-clear overhead; root buttresses reach ≈ 1.5u visual, trimmed clear of the
+    bridge footing.
+- **Fishing spots moved**: `west_brook_bank` = (−5.5,12.35) (stream north bank); jetty
+  unchanged. worldMap row / fishing.ts def / fishingRigs placement / navigation.test
+  mirror move as ONE lockstep edit. Global once-per-day gate + RNG streams unchanged.
+- **Residents**: Toby homePos + morning (−4.6,12.2), golden (−4.9,12.6) — on the brook's
+  north bank. All 50 resident anchors + 44 extra-activity anchors re-verified walkable
+  and routable after the water reroute (R-NAV audit).
+- **Cross-workstream findings to hand over**: (1) pondMosaic.ts (merged PR #34) parents
+  its rig with pond-LOCAL coords — renders near the plaza, not on the pier step
+  (world 2.22,16.28); pre-existing, not fixed here. (2) Mobile location-card truncation
+  ("Mirror Po…") is pre-existing UI behavior. (3) SW meadow orphan path slabs are
+  pre-existing dressing.
+- **Gates**: 946/946 tests, tsc clean, build green at the branch HEAD; evidence in
+  `download/asset-qa/stage3-spatial/`; record in doc 05.

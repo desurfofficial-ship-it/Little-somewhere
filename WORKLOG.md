@@ -1438,3 +1438,33 @@ Chronological log of design decisions, implementation milestones, verification r
 - Gates at e7c560a baseline: 793/793; branch final: tsc clean, **807/807** (8 FISH + 6 RIG
   new), build green; WorldState stays v12. Browser evidence: desktop+mobile cast loop with
   honest chips at download/asset-qa/stage3-brook/ (script scripts/qa_brook_v11.sh).
+
+
+## Stage 3 spatial continuation (2026-11-25): Willow Square environmental redesign — landmarks, watershed, bridge
+
+- **Branch**: `stage3/fishing-v11-west-brook` (commits 1b35691 + review-round fix + 51a50c6
+  merge of main fa5dcfc). Record: `docs/architecture/stage3-everyday-activities/
+  05-spatial-redesign.md`. Evidence: `download/asset-qa/stage3-spatial/{baseline,after,after2}/`
+  (21 captures, desktop+mobile) + `scripts/probe_spatial_audit.ts` (live-module measurements).
+- **Measured baseline**: fountain 2.86u (below every roof peak ≈ 4.3u); oak 4.8u ≈ houses;
+  pond water 29.1u² / shore 21.8u; bridge walk strip 0.42u over a 1.7u culvert slot hidden
+  under a 5.1u deck; 0.19u razor corridor oak↔rail; buildings audited healthy (12.5%
+  footprint, gaps 3.2–6.4u) and left untouched.
+- **Shipped**: F1 fountain re-tier (tip 4.45u, footprint/collision/wish-metrics unchanged,
+  renderer droplet anchors SPEC-driven); O1 oak monumental rebuild (7.98u, ≈8u canopy,
+  24→8 meshes, collision unchanged); W1 watershed (pond NE lobe — water 44.5u², shore 39u;
+  West Brook runs 7.2u west under the oak; stone-and-cedar arch bridge — deck 2.5u, peak
+  0.95, walk strip 0.71u, 40→8 meshes; NEW east pond bench; driftwood nook relocated;
+  brook-bank fishing stand moved to the stream's north bank in one lockstep edit with
+  rig/worldMap/nav mirror; Toby's home+slots follow the rerouted bank).
+- **New locks**: `src/scene/spatialInvariants.test.ts` SPAT-01..06 (water containment,
+  deck strip, destination reachability, silhouette hierarchy, pond growth, corridor closure).
+- **Independent review** (R-NAV / R-VIS / R-INT, all PASS-WITH-CONCERNS): findings fixed
+  in the review round (brook readability, arch profile, oak hollow, bench margin,
+  canopy/root trims); dispositions recorded in doc 05 §6 (fountain dry = unrepaired
+  narrative state; mobile HUD truncation + SW slabs pre-existing; pondMosaic placement
+  finding handed to the community owners — pre-existing from merged PR #34).
+- **Gates (exact commits)**: 1b35691 → tsc clean, 813/813, build green; 51a50c6 → tsc
+  clean, **946/946**, build green; review-round fix → tsc clean, 946/946, build green.
+  WorldState stays **v12** — geometry/scene only, zero persistence change. Fishing v1.0
+  and v1.1 contracts intact (spot registry lockstep; global once-per-day gate unchanged).
