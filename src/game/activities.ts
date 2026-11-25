@@ -56,6 +56,17 @@ export interface SharedActivityDef {
    */
   offerPhases?: readonly TimePhase[];
   /**
+   * [LR-3 integration remediation, B-03] Optional bake-roster constraint:
+   * when present, `canOfferInvitation` refuses with `host_unavailable` on days
+   * when the host's venue roster has nothing to share (Hearth & Crumb oven-rest
+   * days, where `getBakeForDay(day).shareItemId === null` every 4th day).
+   * Without this gate the offer text, the completion journal line, and the
+   * capability rows all advertise a pastry that does not exist on rest days.
+   * Absence (Nora) leaves the generic gates untouched. Checked after the D10
+   * phase gate, before schedule availability.
+   */
+  requiresShareableBake?: boolean;
+  /**
    * [LR-3, doc 05 §5.1] Optional venue-voiced arrival line, composed by the
    * enter reducer when the helper places the occupant. Absent = generic line.
    */
@@ -148,6 +159,10 @@ export const SHARED_ACTIVITIES: Readonly<Record<string, SharedActivityDef>> = {
     npcMemoryTag: 'shared_morning_pastry',
     activityNoun: 'pastry',
     offerPhases: ['morning'],
+    // [LR-3 integration remediation, B-03] A "morning pastry" requires a bake:
+    // on oven-rest days the roster has nothing to share, so Clara does not
+    // offer (pinned by the lr3-restday-gate battery REST-01…08).
+    requiresShareableBake: true,
     arrivalLine: (hostName) =>
       `${hostName} has set today’s bake on the café corner and saved you the seat across from her.`,
     summaryCompose: (world) => ({
