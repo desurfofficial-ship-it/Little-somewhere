@@ -516,3 +516,21 @@ test('LR3-63 (headless half): 10 enter/exit alternations keep occupancy owned by
   assert.equal(world.invitations.active?.status, 'accepted', 'invite survives all alternations');
   assert.equal(clearOccupant(world, 'nook_interior'), world, 'no orphan nook occupancy to clear');
 });
+
+test('LR3-D8 (integration review E-1): occupant-click labels compose from def titles — nook historic string byte-identical, ledger designation preserved', () => {
+  const nora = getSharedActivityDef('share_featured_reading')!;
+  const clara = getSharedActivityDef('share_morning_pastry')!;
+  // Historic LR-2 occupant-click label: `Share Reading with ${label}` — the
+  // scene composes "Share <title minus 'Shared '> with <host>" from the live
+  // def. Nora's short title makes that composition byte-identical to the
+  // shipped historic string; Clara's title yields the doc 05 §8.3 string.
+  const compose = (def: { title: string }, host: string) =>
+    `Share ${def.title.replace(/^Shared\s+/, '')} with ${host}`;
+  assert.equal(compose(nora, 'Nora'), 'Share Reading with Nora',
+    'nook occupant-click label must stay byte-identical to the historic shipped string');
+  assert.equal(compose(clara, 'Clara'), 'Share Morning Pastry with Clara',
+    'bakery occupant-click label per doc 05 §8.3');
+  // Ledger/journal projections keep the longer historic designation.
+  assert.equal(nora.ledgerTitle, 'Shared Featured Reading');
+  assert.equal(clara.ledgerTitle, undefined, 'Clara falls back to her title');
+});
