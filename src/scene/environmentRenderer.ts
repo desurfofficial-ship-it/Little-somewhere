@@ -228,7 +228,7 @@ export class EnvironmentVisualController {
     const jettyWickerMat = new THREE.MeshStandardMaterial({ color: '#A8845A', roughness: 0.92 });
     for (let i = 0; i < 3; i++) {
       const plank = new THREE.Mesh(new THREE.BoxGeometry(0.62, 0.08, 0.5), jettyWoodMat);
-      plank.position.set(-0.35, 0.16 + i * 0.004, 16.95 + i * 0.55);
+      plank.position.set(-0.35, 0.1 + i * 0.004, 16.95 + i * 0.55);
       plank.rotation.y = 0.06;
       plank.rotation.z = -0.012;
       jettyRig.add(plank);

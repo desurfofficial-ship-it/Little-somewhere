@@ -74,7 +74,7 @@ export const FISHING_LAST_DAY_KEY = 'fishingLastDay';
  */
 function readCounter(raw: unknown): number {
   return typeof raw === 'number' && Number.isFinite(raw) && raw > 0
-    ? Math.floor(raw)
+    ? Math.min(Math.floor(raw), Number.MAX_SAFE_INTEGER)
     : 0;
 }
 
@@ -179,16 +179,19 @@ export function performFishingAction(world: WorldState): FishingActionResult {
   // Guard 2 — distance self-check (defense-in-depth; the walk-approach selector
   // normally guarantees this, reducers like plantSeedAtPlotAction double-check).
   const pos = world.playerPos;
-  if (pos) {
-    const dx = pos.x - FISHING_SPOT.x;
-    const dz = pos.z - FISHING_SPOT.z;
-    if (Math.sqrt(dx * dx + dz * dz) > FISHING_SPOT.interactRadius + 0.35) {
-      return {
-        nextWorld: world,
-        title,
-        body: 'The line needs you closer to the water — step to the jetty’s edge and try again.',
-      };
-    }
+  if (
+    !pos ||
+    Math.sqrt(
+      (pos.x - FISHING_SPOT.x) ** 2 + (pos.z - FISHING_SPOT.z) ** 2,
+    ) > FISHING_SPOT.interactRadius + 0.35
+  ) {
+    // Fail closed (defense-in-depth discipline): a partially-built world must
+    // never silently bypass the distance guard.
+    return {
+      nextWorld: world,
+      title,
+      body: 'The line needs you closer to the water — step to the jetty’s edge and try again.',
+    };
   }
 
   // Guard 3 — one unhurried thing at a time (no dual-activity claim; occupancy

@@ -99,6 +99,20 @@ describe('fishing — Willow Jetty (Stage 3 slice)', () => {
     const bId = b.gainedItems?.[0]?.itemId;
     assert.equal(aId, bId);
     assert.equal(JSON.stringify(a.nextWorld.sideFlags), JSON.stringify(b.nextWorld.sideFlags));
+    // Absolute golden table (QA finding 3): locks the salt, thresholds and
+    // seasonal pools together. Update INTENTIONALLY if the formula changes.
+    const golden: Record<number, string> = {
+      1: 'silver_dace',
+      2: 'silver_dace',
+      3: 'silver_dace',
+      4: 'silver_dace',
+      5: 'smooth_river_glass',
+    };
+    for (const [dayStr, expectedId] of Object.entries(golden)) {
+      const day = Number(dayStr);
+      const res = performFishingAction(stageAtJetty({ day }));
+      assert.equal(res.gainedItems?.[0]?.itemId ?? 'quiet', expectedId, `golden day ${day}`);
+    }
   });
 
   it('FISH-03 stream isolation — unrelated sideFlags history cannot shift the catch', () => {
@@ -287,19 +301,24 @@ describe('fishing — Willow Jetty (Stage 3 slice)', () => {
       assert.equal(fishMems[0].eventId, `ev_fishing_${world.day}_1`);
       assert.equal(fishMems[0].provenance, 'firsthand');
     }
-    // Second day, second catch: a fresh event id (index increments), never a dupe.
+    // Second day, second catch: a fresh event id (index increments), never a
+    // dupe. Day 2 is picked deterministically as the next day whose SECOND
+    // cast (catchIndex 1) is non-quiet, so the uniqueness assertions always
+    // execute (QA finding 2 - the day+1 default was a quiet day, vacuously).
+    let day2 = res.nextWorld.day + 1;
+    while (rollFor(18042, day2, 1) < 0.14) day2++;
     const day2World = {
       ...res.nextWorld,
-      day: res.nextWorld.day + 1,
+      day: day2,
       minuteOfDay: 600,
       sideFlags: { ...res.nextWorld.sideFlags, [FISHING_LAST_DAY_KEY]: res.nextWorld.day },
     } as WorldState;
     const res2 = performFishingAction(day2World);
-    if (res2.gainedItems?.length) {
-      const fishMems2 = (res2.nextWorld.npcMemories.mina ?? []).filter((m) => m.tag === 'fishing');
-      const eventIds = new Set(fishMems2.map((m) => m.eventId));
-      assert.equal(fishMems2.length, eventIds.size, 'event ids are unique per catch');
-    }
+    assert.ok(res2.gainedItems?.length, 'day-2 cast resolves a catch (non-quiet by construction)');
+    const fishMems2 = (res2.nextWorld.npcMemories.mina ?? []).filter((m) => m.tag === 'fishing');
+    const eventIds = new Set(fishMems2.map((m) => m.eventId));
+    assert.equal(fishMems2.length, eventIds.size, 'event ids are unique per catch');
+    assert.ok(fishMems2.some((m) => m.eventId === `ev_fishing_${day2}_2`), 'second catch carries index 2');
   });
 
   it('FISH-19 day-end clamp surfaces the evening note', () => {

@@ -98,7 +98,7 @@ const BOTTOM_TIERS: Record<EverydayPracticeId, { tier: string; next: string; nex
   reading: { tier: 'Unopened Pages', next: 'First Chapters', nextAt: 1 },
   tea_tables: { tier: 'Empty Cup', next: 'Casual Sips', nextAt: 2 },
   mending: { tier: 'Untouched Bench', next: 'First Watches', nextAt: 1 },
-  fishing: { tier: 'Untried Water', next: 'First Cast', nextAt: 1 },
+  fishing: { tier: 'Untried Water', next: 'First Catch', nextAt: 1 },
   wilds: { tier: 'Homebody Steps', next: 'First Paths', nextAt: 1 },
   friendship: { tier: 'Shy Waves', next: 'First Hellos', nextAt: 1 },
   community: { tier: 'Unmarked Shelf', next: 'First Helping Hand', nextAt: 1 },
@@ -140,7 +140,7 @@ test('EP-02: staged counters derive correct counts, tier labels, and nextAt', ()
     { count: number; tierLabel: string; nextTierLabel: string; nextAt: number }
   > = {
     gardening: { count: 6, tierLabel: 'Green Thumb', nextTierLabel: 'Keeper of the Beds', nextAt: 10 },
-    fishing: { count: 0, tierLabel: 'Untried Water', nextTierLabel: 'First Cast', nextAt: 1 },
+    fishing: { count: 0, tierLabel: 'Untried Water', nextTierLabel: 'First Catch', nextAt: 1 },
     kitchen: { count: 0, tierLabel: 'Cold Hearth', nextTierLabel: 'First Bakes', nextAt: 1 },
     reading: { count: 2, tierLabel: 'Regular Reader', nextTierLabel: 'Nook Regular', nextAt: 3 },
     tea_tables: { count: 6, tierLabel: 'Warm Rituals', nextTierLabel: 'Tea Table Friend', nextAt: 9 },
