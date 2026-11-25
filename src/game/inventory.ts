@@ -214,6 +214,42 @@ export const PERSONAL_ITEMS: readonly PersonalItemDef[] = [
     giftable: false,
   },
 
+  // SC-B — Community Project completion keepsakes. Each is a pressed / miniature
+  // memento of the finished town endeavor: non-giftable, displayable on the oak
+  // cottage shelf, granted once per project via `contributeToCommunityProject`'s
+  // completion burst. The ids are scoped to this module so the wider PersonalItemId
+  // union in `types.ts` stays untouched (SC-B constraint); the cast is the same
+  // runtime-string→typed-id bridge the save/load path already uses for inventory
+  // keys, and `VALID_PERSONAL_ITEM_IDS` (built from this array) is the runtime
+  // gatekeeper every grant path already consults.
+  {
+    id: 'pressed_garland_bloom' as PersonalItemId,
+    label: 'Pressed Garland Bloom',
+    category: 'keepsake',
+    description:
+      'A single marigold bloom pressed flat from the plaza garland you helped string — golden petals kept forever in waxed paper.',
+    homeDisplayable: 'shelf',
+    giftable: false,
+  },
+  {
+    id: 'orchard_lantern_charm' as PersonalItemId,
+    label: 'Orchard Lantern Charm',
+    category: 'keepsake',
+    description:
+      'A miniature brass lantern charm from the orchard tasting table — the same warm glow the crabapple jars cast over Fern Hollow.',
+    homeDisplayable: 'shelf',
+    giftable: false,
+  },
+  {
+    id: 'pond_mosaic_shard' as PersonalItemId,
+    label: 'Pond Mosaic Shard',
+    category: 'keepsake',
+    description:
+      'A polished mosaic tile shard lifted from Mirror Pond’s new steps — river glass and fern pressed into ceramic, still cool from the water.',
+    homeDisplayable: 'shelf',
+    giftable: false,
+  },
+
   // Mirror Pond catches — Willow Jetty fishing (Stage 3). Giftable field finds;
   // every species is a quiet, seasonal neighbor of the pond, never a quota.
   {
