@@ -390,14 +390,14 @@ export function buildHearthCrumbInterior(
   // 3. Brick dome bake oven (north-west) — mirrors bakery_oven obstacle
   // ---------------------------------------------------------------------
   const ovenGroup = new THREE.Group();
-  ovenGroup.position.set(-1.9, 0, -1.95);
-  addStaticContactShadow(ovenGroup, shadowTex, 2.2, 1.0, 0.42, 0.018);
+  ovenGroup.position.set(-2.04, 0, -1.93); // center of the bakery_oven collision box
+  addStaticContactShadow(ovenGroup, shadowTex, 1.9, 1.0, 0.42, 0.018);
 
-  const ovenBase = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(1.9, 0.62, 0.82)), darkStoneMat);
+  const ovenBase = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(1.62, 0.62, 0.82)), darkStoneMat);
   ovenBase.position.y = 0.31;
   ovenBase.castShadow = true;
   ovenGroup.add(ovenBase);
-  const hearthSlab = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(2.0, 0.09, 0.9)), limestoneMat);
+  const hearthSlab = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(1.72, 0.09, 0.9)), limestoneMat);
   hearthSlab.position.y = 0.68;
   ovenGroup.add(hearthSlab);
   const dome = new THREE.Mesh(
@@ -405,11 +405,11 @@ export function buildHearthCrumbInterior(
     brickMat,
   );
   dome.position.y = 0.73;
-  dome.scale.set(1.3, 1.0, 0.92);
+  dome.scale.set(1.12, 1.0, 0.92);
   dome.castShadow = true;
   ovenGroup.add(dome);
   const flue = new THREE.Mesh(trackGeo(new THREE.CylinderGeometry(0.14, 0.17, 1.5, 8)), brickMat);
-  flue.position.set(-0.35, 1.85, -0.18);
+  flue.position.set(-0.3, 1.85, -0.18);
   ovenGroup.add(flue);
   // Iron oven mouth with glowing ember bed
   const ovenMouth = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(0.5, 0.34, 0.1)), ironMat);
@@ -420,16 +420,16 @@ export function buildHearthCrumbInterior(
   ovenGroup.add(emberBed);
   // Long-handled peel leaning against the oven's east side
   const peelShaft = new THREE.Mesh(trackGeo(new THREE.CylinderGeometry(0.025, 0.03, 1.7, 6)), cedarWarmMat);
-  peelShaft.position.set(0.82, 0.85, 0.18);
+  peelShaft.position.set(0.6, 0.85, 0.18);
   peelShaft.rotation.z = -0.5;
   ovenGroup.add(peelShaft);
   const peelBlade = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(0.3, 0.02, 0.24)), brassMat);
-  peelBlade.position.set(0.52, 1.55, 0.18);
+  peelBlade.position.set(0.32, 1.55, 0.18);
   peelBlade.rotation.z = -0.5;
   ovenGroup.add(peelBlade);
   // Kindling box + split logs at the base
   const woodBox = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(0.44, 0.3, 0.34)), cedarDarkMat);
-  woodBox.position.set(1.02, 0.15, 0.1);
+  woodBox.position.set(0.62, 0.15, 0.1);
   ovenGroup.add(woodBox);
   const logGeo = trackGeo(new THREE.CylinderGeometry(0.045, 0.045, 0.4, 6));
   for (const [lx, lr] of [
@@ -438,7 +438,7 @@ export function buildHearthCrumbInterior(
     [0.0, 1.5],
   ] as Array<[number, number]>) {
     const log = new THREE.Mesh(logGeo, cedarDarkMat);
-    log.position.set(1.02 + lx, 0.36, 0.1);
+    log.position.set(0.62 + lx, 0.36, 0.1);
     log.rotation.x = Math.PI / 2;
     log.rotation.z = lr;
     ovenGroup.add(log);
@@ -450,22 +450,22 @@ export function buildHearthCrumbInterior(
   // 4. Service counter with loaf display (west wall) — mirrors bakery_counter
   // ---------------------------------------------------------------------
   const counterGroup = new THREE.Group();
-  counterGroup.position.set(-2.55, 0, 0.2);
-  addStaticContactShadow(counterGroup, shadowTex, 1.0, 2.4, 0.4, 0.018);
+  counterGroup.position.set(-2.55, 0, 0.78); // center of the bakery_counter collision box
+  addStaticContactShadow(counterGroup, shadowTex, 1.0, 3.1, 0.4, 0.018);
 
-  const counterTop = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(0.72, 0.08, 2.0)), cedarWarmMat);
+  const counterTop = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(0.72, 0.08, 3.1)), cedarWarmMat);
   counterTop.position.y = 0.92;
   counterTop.castShadow = true;
   counterGroup.add(counterTop);
-  const counterFront = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(0.06, 0.52, 1.9)), cedarDarkMat);
+  const counterFront = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(0.06, 0.52, 3.0)), cedarDarkMat);
   counterFront.position.set(0.34, 0.62, 0);
   counterGroup.add(counterFront);
-  for (const cz of [-0.85, 0.85]) {
+  for (const cz of [-1.42, 1.42]) {
     const leg = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(0.12, 0.9, 0.12)), cedarDarkMat);
     leg.position.set(0.0, 0.45, cz);
     counterGroup.add(leg);
   }
-  const counterLower = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(0.6, 0.05, 1.8)), cedarWarmMat);
+  const counterLower = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(0.6, 0.05, 2.9)), cedarWarmMat);
   counterLower.position.y = 0.32;
   counterGroup.add(counterLower);
 
@@ -531,18 +531,18 @@ export function buildHearthCrumbInterior(
   // 5. Flour-dusted prep table (north-east) — mirrors bakery_prep obstacle
   // ---------------------------------------------------------------------
   const prepGroup = new THREE.Group();
-  prepGroup.position.set(1.7, 0, -1.95);
-  addStaticContactShadow(prepGroup, shadowTex, 1.9, 1.0, 0.42, 0.018);
+  prepGroup.position.set(1.83, 0, -1.95); // center of the bakery_prep collision box
+  addStaticContactShadow(prepGroup, shadowTex, 1.7, 1.0, 0.42, 0.018);
 
-  const prepTop = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(1.7, 0.09, 0.76)), cedarWarmMat);
+  const prepTop = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(1.5, 0.09, 0.76)), cedarWarmMat);
   prepTop.position.y = 0.86;
   prepTop.castShadow = true;
   prepGroup.add(prepTop);
   // Flour dusting layer on the tabletop
-  const flourDust = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(1.56, 0.012, 0.64)), flourMat);
+  const flourDust = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(1.36, 0.012, 0.64)), flourMat);
   flourDust.position.y = 0.92;
   prepGroup.add(flourDust);
-  for (const lx of [-0.72, 0.72]) {
+  for (const lx of [-0.62, 0.62]) {
     const leg = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(0.11, 0.86, 0.11)), cedarDarkMat);
     leg.position.set(lx, 0.43, 0);
     prepGroup.add(leg);
@@ -550,7 +550,7 @@ export function buildHearthCrumbInterior(
 
   // Soft dough mound mid-proof
   const doughMound = new THREE.Mesh(trackGeo(new THREE.SphereGeometry(0.14, 9, 7)), flourMat);
-  doughMound.position.set(-0.35, 0.99, 0.02);
+  doughMound.position.set(-0.3, 0.99, 0.02);
   doughMound.scale.set(1.15, 0.6, 1.0);
   prepGroup.add(doughMound);
   // Rolling pin resting beside it
@@ -570,13 +570,13 @@ export function buildHearthCrumbInterior(
   prepGroup.add(pinHandleB);
   // Stoneware flour jar + linen cloth over the rising basket
   const flourJar = new THREE.Mesh(trackGeo(new THREE.CylinderGeometry(0.09, 0.08, 0.2, 9)), ceramicMat);
-  flourJar.position.set(0.62, 1.0, -0.14);
+  flourJar.position.set(0.55, 1.0, -0.14);
   prepGroup.add(flourJar);
   const proofBasket = new THREE.Mesh(trackGeo(new THREE.CylinderGeometry(0.16, 0.13, 0.14, 9)), cedarDarkMat);
-  proofBasket.position.set(-0.62, 0.95, -0.2);
+  proofBasket.position.set(-0.55, 0.95, -0.2);
   prepGroup.add(proofBasket);
   const proofCloth = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(0.3, 0.015, 0.3)), linenMat);
-  proofCloth.position.set(-0.62, 1.03, -0.2);
+  proofCloth.position.set(-0.55, 1.03, -0.2);
   proofCloth.rotation.y = 0.3;
   prepGroup.add(proofCloth);
 
@@ -679,6 +679,41 @@ export function buildHearthCrumbInterior(
   cafeRunner.position.set(0.02, 0.82, 0.02);
   cafeRunner.rotation.y = 0.2;
   cafeGroup.add(cafeRunner);
+
+  // Window-settle nook filling the café corner to the east wall — the visual
+  // body of the extended bakery_table footprint (collision maxX 3.0). The old
+  // table-east sliver is now a seated nook: bench + cushion + potted herb.
+  const settleGroup = new THREE.Group();
+  settleGroup.position.set(2.72, 0, 1.45);
+  addStaticContactShadow(settleGroup, shadowTex, 0.55, 1.2, 0.4, 0.016);
+
+  const settleSeat = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(0.44, 0.06, 1.1)), cedarWarmMat);
+  settleSeat.position.y = 0.44;
+  settleSeat.castShadow = true;
+  settleGroup.add(settleSeat);
+  const settleBase = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(0.4, 0.4, 1.02)), cedarDarkMat);
+  settleBase.position.y = 0.2;
+  settleGroup.add(settleBase);
+  const settleBack = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(0.1, 0.62, 1.1)), cedarWarmMat);
+  settleBack.position.set(0.18, 0.72, 0);
+  settleGroup.add(settleBack);
+  const settleCushion = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(0.36, 0.05, 0.96)), linenRedMat);
+  settleCushion.position.y = 0.49;
+  settleGroup.add(settleCushion);
+  const settlePlant = new THREE.Mesh(trackGeo(new THREE.CylinderGeometry(0.09, 0.07, 0.14, 8)), terracottaMat);
+  settlePlant.position.set(-0.02, 0.87, 0.38);
+  settleGroup.add(settlePlant);
+  const settleHerb = new THREE.Mesh(trackGeo(new THREE.SphereGeometry(0.08, 6, 5)), mossMat);
+  settleHerb.position.set(-0.02, 0.99, 0.38);
+  settleGroup.add(settleHerb);
+  const settlePlant2 = new THREE.Mesh(trackGeo(new THREE.CylinderGeometry(0.07, 0.06, 0.11, 8)), ceramicMat);
+  settlePlant2.position.set(0.0, 0.84, -0.36);
+  settleGroup.add(settlePlant2);
+  const settleHerb2 = new THREE.Mesh(trackGeo(new THREE.SphereGeometry(0.06, 6, 5)), mossMat);
+  settleHerb2.position.set(0.0, 0.94, -0.36);
+  settleGroup.add(settleHerb2);
+
+  group.add(settleGroup);
 
   group.add(cafeGroup);
 
