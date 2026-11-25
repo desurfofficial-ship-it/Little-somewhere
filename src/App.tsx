@@ -87,6 +87,10 @@ import {
   togglePlayerSitAction,
   sipBeverageAtTableAction,
   waterGreenhousePlotsAction,
+  plantInGardenAction,
+  waterGardenAction,
+  harvestFromGardenAction,
+  gardenIdForProp,
 } from './game/actions';
 import {
   COMMUNITY_REASON_LABELS,
@@ -118,6 +122,7 @@ import { JournalDrawer } from './components/JournalDrawer';
 import { CottageStationMode, InventoryDrawer } from './components/InventoryDrawer';
 import { CottageStationModal } from './components/CottageStationModal';
 import { GreenhousePanel, GreenhousePanelMode } from './components/GreenhousePanel';
+import { GardenPanel } from './components/GardenPanel';
 import { CommunityProjectsPanel } from './components/CommunityProjectsPanel';
 import { PhotoPanel, PhotoPanelMode } from './components/PhotoPanel';
 import { performPhotoAction } from './game/photography';
@@ -211,6 +216,7 @@ export default function App() {
   const [inventoryOpen, setInventoryOpen] = useState<boolean>(false);
   const [cottageStationMode, setCottageStationMode] = useState<CottageStationMode | null>(null);
   const [greenhousePanelMode, setGreenhousePanelMode] = useState<GreenhousePanelMode | null>(null);
+  const [gardenPanelGardenId, setGardenPanelGardenId] = useState<string | null>(null);
   // Everyday Gameplay GA-5 — plaza noticeboard community contribution shelf.
   const [communityProjectsOpen, setCommunityProjectsOpen] = useState<boolean>(false);
   // Stage 3 Continuation — Photography (Workstream B): the camera panel mode
@@ -549,6 +555,14 @@ export default function App() {
           setDialogueSession(null);
           setPropCard(null);
           setGreenhousePanelMode('harvest');
+          return;
+        }
+        if (res.actionType === 'garden_panel') {
+          cozyAudio.playUiTap(1.06);
+          setDialogueSession(null);
+          setPropCard(null);
+          const gid = gardenIdForProp(activePropId ?? '');
+          if (gid) setGardenPanelGardenId(gid);
           return;
         }
         if (res.nextWorld !== current) {
@@ -1074,6 +1088,11 @@ export default function App() {
         setActivePropId(null);
         setPropCard(null);
         setGreenhousePanelMode('harvest');
+      } else if (actionType === 'garden_panel') {
+        setActivePropId(null);
+        setPropCard(null);
+        const gid = gardenIdForProp(activePropId ?? '');
+        if (gid) setGardenPanelGardenId(gid);
       } else if (actionType === 'community_projects_panel') {
         setActivePropId(null);
         setPropCard(null);
@@ -1815,6 +1834,46 @@ export default function App() {
         onHarvestPlot={handleHarvestPlot}
         onWaterAll={handleWaterAll}
       />
+
+      {/* Gardening Expansion — outdoor garden panel */}
+      {gardenPanelGardenId && (
+        <GardenPanel
+          gardenId={gardenPanelGardenId}
+          world={worldSnapshot}
+          onClose={() => setGardenPanelGardenId(null)}
+          onPlantSeed={(gid, seedId, plotIdx) => {
+            const res = plantInGardenAction(worldRef.current, gid, seedId, plotIdx);
+            if (res.ok) {
+              commitWorld(res.nextWorld);
+              triggerPlayerPulse('interact');
+              showToast(res.toast);
+            } else {
+              showToast(res.toast);
+            }
+          }}
+          onHarvestPlot={(gid, plotIdx) => {
+            const res = harvestFromGardenAction(worldRef.current, gid, plotIdx);
+            if (res.ok) {
+              commitWorld(res.nextWorld);
+              triggerPlayerPulse('interact');
+              showToast(res.toast);
+              if (res.gainedItems) {
+                res.gainedItems.forEach((g) => showToast(`+${g.count} ${PERSONAL_ITEM_MAP[g.itemId]?.label ?? g.itemId}`));
+              }
+            } else {
+              showToast(res.toast);
+            }
+          }}
+          onWaterAll={(gid) => {
+            const res = waterGardenAction(worldRef.current, gid);
+            if (res.nextWorld !== worldRef.current) {
+              commitWorld(res.nextWorld);
+              triggerPlayerPulse('interact');
+              showToast(res.body);
+            }
+          }}
+        />
+      )}
 
       {/* Community Contribution Shelf — opened from the plaza noticeboard (GA-5) */}
       <CommunityProjectsPanel
