@@ -513,6 +513,16 @@ const ITEM_SUBJECT_SPECS: Record<PersonalItemId, ItemSubjectSpec> = {
   pond_watercolor_card: { subject: 'item_watercolor_card', primary: '#7FB5C4', accent: '#C86446' },
   woven_herb_wreath: { subject: 'item_wreath', primary: '#5E8062', accent: '#E5A93C' },
   cedar_music_box: { subject: 'item_music_box', primary: '#A8805B', accent: '#C9A253' },
+  // SC-B — Community Project completion keepsakes. The ids are cast as
+  // PersonalItemId here (and in PERSONAL_ITEMS) so the wider PersonalItemId
+  // union in types.ts stays untouched; computed keys bypass the object-literal
+  // excess-property check while the runtime lookup in `subjectForItem` resolves
+  // to these specs. Scenes are reused from existing keepsake/flora art: a
+  // pressed bloom reuses the sprig painter, the lantern charm reuses the brass
+  // bell painter, and the mosaic shard reuses the river-glass painter.
+  ['pressed_garland_bloom' as PersonalItemId]: { subject: 'item_sprig', primary: '#E5A93C', accent: '#C86446' },
+  ['orchard_lantern_charm' as PersonalItemId]: { subject: 'item_bell', primary: '#C9A253', accent: '#E5A93C' },
+  ['pond_mosaic_shard' as PersonalItemId]: { subject: 'item_river_glass', primary: '#7FB5C4', accent: '#5E8062' },
 };
 
 /** Resolves a satchel item id into its paintable subject thumbnail descriptor. */

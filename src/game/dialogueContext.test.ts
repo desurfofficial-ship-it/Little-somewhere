@@ -272,8 +272,15 @@ test('SF4-07: the echo topic is registered at the tail and golden-pinned (anti-f
   assert.equal(golden.count, golden.topics.length);
   assert.equal(golden.count, DIALOGUE_TOPICS.length);
   assert.ok(golden.topics.some((g) => g.id === 'everyday_shared_visit_echo'));
-  // Append-only ordering contract: the echo topic is the LAST registry entry.
-  assert.equal(golden.topics.at(-1)!.id, 'everyday_shared_visit_echo');
+  // Append-only ordering contract milestone pin: the registry tail is the
+  // most recently appended module's last topic. SF-4 owned the tail at
+  // `everyday_shared_visit_echo`; the Community Projects social-afterlife
+  // module (COMMUNITY_ECHO_TOPICS, feat/community-social-consequences)
+  // appended three topics strictly after REFLECTION_TOPICS, so the pin
+  // migrates to `everyday_community_project_pride`. The existence check
+  // above still pins the SF-4 topic itself; only the tail pin moves. Each
+  // future append must similarly migrate this assertion, never reorder.
+  assert.equal(golden.topics.at(-1)!.id, 'everyday_community_project_pride');
 });
 
 // ---------------------------------------------------------------------------
