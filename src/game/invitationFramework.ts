@@ -219,7 +219,7 @@ export function describeInvitationCapabilities(
 
     rows.push({
       activityId,
-      activityTitle: def.title,
+      activityTitle: def.ledgerTitle ?? def.title,
       hostId: host,
       hostName: RESIDENTS[host].name,
       venueLabel: RESIDENTS[host].homeName,
@@ -353,7 +353,10 @@ export function getInvitationLedger(world: WorldState): InvitationLedger {
         hostName: RESIDENTS[active.hostId]?.name ?? active.hostId,
         venueLabel: RESIDENTS[active.hostId]?.homeName ?? '',
         activityId: active.activityId,
-        activityTitle: SHARED_ACTIVITIES[active.activityId]?.title ?? active.activityId,
+        activityTitle:
+          SHARED_ACTIVITIES[active.activityId]?.ledgerTitle ??
+          SHARED_ACTIVITIES[active.activityId]?.title ??
+          active.activityId,
         live: isInvitationLive(active, world.day, world.minuteOfDay),
         offeredDay: active.offeredDay,
         windowStartMinute: active.windowStartMinute,
@@ -366,7 +369,10 @@ export function getInvitationLedger(world: WorldState): InvitationLedger {
     hostId: entry.hostId,
     hostName: RESIDENTS[entry.hostId]?.name ?? entry.hostId,
     activityId: entry.activityId,
-    activityTitle: SHARED_ACTIVITIES[entry.activityId]?.title ?? entry.activityId,
+    activityTitle:
+      SHARED_ACTIVITIES[entry.activityId]?.ledgerTitle ??
+      SHARED_ACTIVITIES[entry.activityId]?.title ??
+      entry.activityId,
     day: entry.day,
     outcome: entry.outcome,
     outcomeLabel: outcomeLabelFor(entry.outcome, entry.reason),

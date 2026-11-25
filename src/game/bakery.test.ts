@@ -71,7 +71,12 @@ test('bakery interior walkability, obstacle bounds, spawns, and interactable sta
     assert.ok(
       BAKERY_INTERIOR_OBSTACLES.some(
         (b) => b.id === (prop.id as typeof b.id),
-      ) || prop.id === 'bakery_door' || prop.id === 'bakery_notes',
+      ) ||
+        prop.id === 'bakery_door' ||
+        prop.id === 'bakery_notes' ||
+        // LR-3 café-corner card anchor (doc 05 §6.3): a fixture of the
+        // bakery_table obstacle (its claimed-station card), not a separate box.
+        prop.id === 'bakery_cafe_table',
       `station ${prop.id} mirrors an obstacle or is a wall-mounted fixture`,
     );
   }

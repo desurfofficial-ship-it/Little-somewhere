@@ -73,13 +73,30 @@ export interface SharedActivityDef {
    * noun (byte-identical for Nora).
    */
   activityNoun?: string;
+  /**
+   * [LR-3, doc 05 §8.3; integration review E-1 fix] Formal designation used by
+   * ledger/journal projections (invitation capability rows, active/history
+   * entries, social-profile completed visits, journal active card). The
+   * scene's occupant-click label composes from `title` (strip the "Shared "
+   * prefix) — Nora's `title` is the short "Shared Reading" so that composition
+   * reproduces the shipped historic "Share Reading with Nora" byte-exactly,
+   * while every ledger/journal surface keeps the longer historic designation
+   * "Shared Featured Reading". Absent = `title`.
+   */
+  ledgerTitle?: string;
 }
 
 export const SHARED_ACTIVITIES: Readonly<Record<string, SharedActivityDef>> = {
   share_featured_reading: {
     id: 'share_featured_reading',
     hostId: 'nora',
-    title: 'Shared Featured Reading',
+    // E-1 byte-identity: the occupant-click label composes "Share <title minus
+    // 'Shared '> with <host>" — the short title makes that composition equal
+    // the shipped historic "Share Reading with Nora". The longer formal
+    // designation is preserved for ledger/journal surfaces via ledgerTitle
+    // (pinned by the slice-2 battery LR3-D8 and the SF2/social-profile pins).
+    title: 'Shared Reading',
+    ledgerTitle: 'Shared Featured Reading',
     location: 'nook_interior',
     stationId: NOOK_CHAIR_STATION_ID,
     seatPos: { ...NOOK_OCCUPANT_POS },
@@ -95,6 +112,10 @@ export const SHARED_ACTIVITIES: Readonly<Record<string, SharedActivityDef>> = {
     npcMemoryTag: 'shared_featured_reading',
     knowledgeGranted: 'nora_featured_reading',
     activityNoun: 'reading',
+    // D5 byte-identity: the helper composes the enter toast from the def's
+    // arrival line; Nora carries the historic nook sentence verbatim so the
+    // enterNookAction refactor cannot shift a single character (LR2 suite).
+    arrivalLine: (hostName) => `${hostName} looks up from the reading chair.`,
     summaryCompose: (world) => {
       const book = getFeaturedBookForDay(world.day);
       return {

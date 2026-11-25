@@ -73,6 +73,11 @@ import {
 } from './bookNook';
 import {
   BAKERY_BAKES,
+  BAKERY_CAFE_STATION_ID,
+  BAKERY_CAFE_TABLE_CARD_LABEL,
+  BAKERY_CAFE_TABLE_CARD_TITLE,
+  BAKERY_CAFE_TABLE_FLAVOR_BODY,
+  BAKERY_CAFE_TABLE_FLAVOR_TITLE,
   BAKERY_CHECK_MINUTES,
   BAKERY_DOOR_DEFAULT_FACING,
   BAKERY_DOOR_SPAWN,
@@ -150,6 +155,7 @@ import {
   isHostAvailableForActivity,
   isInvitationLive,
   offerInvitation,
+  reconcileInvitedInteriorEntry,
 } from './invitations';
 import {
   NOOK_CHAIR_STATION_ID,
@@ -193,7 +199,8 @@ export interface PropInteractionResult {
     | 'greenhouse_planting_panel'
     | 'greenhouse_harvest_panel'
     | 'community_projects_panel'
-    | 'share_featured_reading';
+    | 'share_featured_reading'
+    | 'share_morning_pastry';
   memoryUnlockedTitle?: string;
   /** Explicit item-gain readout rendered as chips above the prose (everyday-life polish). */
   gainedItems?: GainedItemChip[];
@@ -1020,6 +1027,18 @@ export function togglePlayerSitAction(
       nextWorld: world,
       sat: false,
       toast: 'Nora is keeping the reading armchair for your shared book session.',
+    };
+  }
+  // LR3-24 (doc 05 §6.4): mirror of the nook suppression — the café chair is
+  // refused with a Clara-voiced line while she holds it for the session.
+  if (
+    seat.id === BAKERY_CAFE_STATION_ID &&
+    isStationOccupied(world, 'bakery_interior', BAKERY_CAFE_STATION_ID)
+  ) {
+    return {
+      nextWorld: world,
+      sat: false,
+      toast: 'Clara is keeping the café corner for your shared pastry.',
     };
   }
   // Cottage-interior seats are player-only (residents never enter the home), so the
@@ -2827,6 +2846,19 @@ export function enterBakeryAction(world: WorldState): { nextWorld: WorldState; t
   const safeExteriorPos = isPointWalkable(working.playerPos.x, working.playerPos.z, 0.48)
     ? { ...working.playerPos }
     : { ...BAKERY_PORCH_EXIT_POS };
+
+  // F-ENTER-1 (doc 05 §5.3): reconcile invitation expiry + occupancy claim on
+  // room entry through the SHARED helper (nook byte-identical pattern; LR3-13).
+  const reconciled = reconcileInvitedInteriorEntry(working, 'bakery_interior');
+  working = reconciled.world;
+
+  let toast = 'Stepped inside Hearth & Crumb Bakery.';
+  if (reconciled.arrivalToast) {
+    toast = `Stepped inside Hearth & Crumb Bakery — ${reconciled.arrivalToast}`;
+  } else if (reconciled.expiryToast) {
+    toast = `Stepped inside Hearth & Crumb Bakery. ${reconciled.expiryToast}`;
+  }
+
   return {
     nextWorld: {
       ...working,
@@ -2838,7 +2870,7 @@ export function enterBakeryAction(world: WorldState): { nextWorld: WorldState; t
       playerPosture: 'standing',
       playerSeatId: null,
     },
-    toast: 'Stepped inside Hearth & Crumb Bakery.',
+    toast,
   };
 }
 
@@ -2846,16 +2878,22 @@ export function exitBakeryAction(world: WorldState): { nextWorld: WorldState; to
   if (world.playerLocation !== 'bakery_interior') {
     return { nextWorld: world, toast: '' };
   }
-  const exPos = world.exteriorPlayerPos ?? BAKERY_PORCH_EXIT_POS;
+  // LR-3 (doc 05 §5.3): release the café-corner claim on exit, mirroring
+  // exitNookAction. The location-guarded clear is a no-op when the occupant
+  // belongs to another venue (malformed states stay safe). The invite itself
+  // stays accepted+live — re-entry re-places the occupant idempotently (LR3-21).
+  const cleared = clearOccupant(world, 'bakery_interior');
+  const exPos = cleared.exteriorPlayerPos ?? BAKERY_PORCH_EXIT_POS;
   const safePos = isPointWalkable(exPos.x, exPos.z, 0.48) ? { ...exPos } : { ...PLAYER_SPAWN };
   return {
     nextWorld: {
-      ...world,
+      ...cleared,
       playerLocation: 'exterior',
       playerPos: safePos,
-      playerFacing: world.exteriorPlayerFacing ?? PLAYER_DEFAULT_FACING,
+      playerFacing: cleared.exteriorPlayerFacing ?? PLAYER_DEFAULT_FACING,
       playerPosture: 'standing',
       playerSeatId: null,
+      activeActivity: null,
     },
     toast: 'Stepped out beside Hearth & Crumb Bakery.',
   };
@@ -2887,12 +2925,59 @@ export function interactWithBakeryProp(
     return helpKneadDoughAction(world);
   }
 
+  // LR-3 café-corner card anchor (doc 05 §6.3; pattern: interactWithNookProp
+  // nook_chair branch): when the station is claimed by a live accepted pastry
+  // invite, the card offers the shared session; otherwise it is flavor.
+  if (bakeryPropId === 'bakery_cafe_table') {
+    const active = world.invitations?.active;
+    if (
+      isStationOccupied(world, 'bakery_interior', BAKERY_CAFE_STATION_ID) &&
+      active?.status === 'accepted' &&
+      active.activityId === 'share_morning_pastry' &&
+      isInvitationLive(active, world.day, world.minuteOfDay)
+    ) {
+      const bake = getBakeForDay(world.day);
+      return {
+        nextWorld: world,
+        title: BAKERY_CAFE_TABLE_CARD_TITLE,
+        body: `Clara is holding today’s ${bake.label.toLowerCase()} at the corner with your chair saved across from her. Settle in and keep the slow morning together?`,
+        actionLabel: BAKERY_CAFE_TABLE_CARD_LABEL,
+        actionType: 'share_morning_pastry',
+      };
+    }
+    return {
+      nextWorld: world,
+      title: BAKERY_CAFE_TABLE_FLAVOR_TITLE,
+      body: BAKERY_CAFE_TABLE_FLAVOR_BODY,
+    };
+  }
+
   // bakery_notes
   return readBakeryNotesAction(world);
 }
 
+/**
+ * LR-3 S3 station exclusivity guard (doc 05 §6.4): while Clara holds the café
+ * corner for a live shared-pastry session, the same-day-stamp bakery rituals
+ * refuse with a visible card and ZERO mutation (doc 13:91 co-fire hazard;
+ * doc 15 §3.2 item 1). Mirror of browseBookshelfAction's refusal shape.
+ */
+function isBakerySessionClaimingStation(world: WorldState): boolean {
+  return (
+    isStationOccupied(world, 'bakery_interior', BAKERY_CAFE_STATION_ID) ||
+    world.activeActivity?.activityId === 'share_morning_pastry'
+  );
+}
+
 /** Deterministic daily reveal at the brick dome oven — once per day, +8m. */
 export function checkMorningBakeAction(world: WorldState): PropInteractionResult {
+  if (isBakerySessionClaimingStation(world)) {
+    return {
+      nextWorld: world,
+      title: 'Brick Dome Bake Oven',
+      body: 'Clara is keeping the café corner warm for your shared morning pastry — the oven reveal can wait until the slow morning is done.',
+    };
+  }
   const bk = getBakeryStateSafe(world);
   const bake = getBakeForDay(world.day);
   const alreadyChecked = bk.bakeCheckedDay === world.day;
@@ -2936,6 +3021,13 @@ export function checkMorningBakeAction(world: WorldState): PropInteractionResult
  * A kneaded morning doubles that day's counter share (Clara splits the batch).
  */
 export function helpKneadDoughAction(world: WorldState): PropInteractionResult {
+  if (isBakerySessionClaimingStation(world)) {
+    return {
+      nextWorld: world,
+      title: 'Flour-Dusted Prep Table',
+      body: 'Clara’s hands are at the café corner today, not the troughs — the dough keeps while you share the morning pastry together.',
+    };
+  }
   const bk = getBakeryStateSafe(world);
   const alreadyKneaded = bk.kneadedDay === world.day;
   const bake = getBakeForDay(world.day);
@@ -2981,6 +3073,13 @@ export function helpKneadDoughAction(world: WorldState): PropInteractionResult {
  * oven-rest days. Helping knead first doubles the share (the batch is split).
  */
 export function shareMorningLoafAction(world: WorldState): PropInteractionResult {
+  if (isBakerySessionClaimingStation(world)) {
+    return {
+      nextWorld: world,
+      title: 'Service Counter & Loaf Shelf',
+      body: 'The counter share waits — today’s bake is already spoken for at the café corner, where Clara saved you the seat across from her.',
+    };
+  }
   const bk = getBakeryStateSafe(world);
   const bake = getBakeForDay(world.day);
 
@@ -3124,52 +3223,18 @@ export function enterNookAction(world: WorldState): { nextWorld: WorldState; toa
     ? { ...working.playerPos }
     : { ...NOOK_PORCH_EXIT_POS };
 
-  // Reconcile invitation expiry first on room transition (doc 14 §2.4 / LR2-04b).
-  const expiryCheck = expireInvitationsAt(working, working.day, working.minuteOfDay);
-  working = expiryCheck.world;
+  // F-ENTER-1 (doc 05 §5.3): the enter block is now the SHARED reconciliation
+  // helper — observable behavior byte-identical to the historic inline block
+  // (pinned unmodified by the LR2/LRTL suites). Nora's arrival line comes from
+  // her def verbatim ("... looks up from the reading chair.").
+  const reconciled = reconcileInvitedInteriorEntry(working, 'nook_interior');
+  working = reconciled.world;
 
   let toast = 'Stepped inside Linden Book Nook.';
-  if (expiryCheck.expired && expiryCheck.toast) {
-    toast = `Stepped inside Linden Book Nook. ${expiryCheck.toast}`;
-  }
-
-  let nextActiveActivity = working.activeActivity ?? null;
-  const activeInv = working.invitations?.active ?? null;
-  if (
-    activeInv &&
-    activeInv.status === 'accepted' &&
-    isInvitationLive(activeInv, working.day, working.minuteOfDay)
-  ) {
-    const activityDef = getSharedActivityDef(activeInv.activityId);
-    if (activityDef && activityDef.location === 'nook_interior') {
-      if (isHostAvailableForActivity(working, activeInv.hostId)) {
-        working = setOccupant(working, {
-          residentId: activeInv.hostId,
-          location: 'nook_interior',
-          stationId: activityDef.stationId,
-          localPos: activityDef.seatPos,
-          facing: activityDef.seatFacing,
-          invitationId: activeInv.id,
-        });
-        nextActiveActivity = {
-          activityId: activityDef.id,
-          invitationId: activeInv.id,
-        };
-        toast = `Stepped inside Linden Book Nook — ${RESIDENTS[activeInv.hostId].name} looks up from the reading chair.`;
-      } else {
-        const unavail = expireInvitationsAt(
-          working,
-          working.day,
-          working.minuteOfDay,
-          'host_unavailable',
-        );
-        working = unavail.world;
-        nextActiveActivity = null;
-        if (unavail.toast) {
-          toast = `Stepped inside Linden Book Nook. ${unavail.toast}`;
-        }
-      }
-    }
+  if (reconciled.arrivalToast) {
+    toast = `Stepped inside Linden Book Nook — ${reconciled.arrivalToast}`;
+  } else if (reconciled.expiryToast) {
+    toast = `Stepped inside Linden Book Nook. ${reconciled.expiryToast}`;
   }
 
   return {
@@ -3182,7 +3247,6 @@ export function enterNookAction(world: WorldState): { nextWorld: WorldState; toa
       playerFacing: NOOK_DOOR_DEFAULT_FACING,
       playerPosture: 'standing',
       playerSeatId: null,
-      activeActivity: nextActiveActivity,
     },
     toast,
   };

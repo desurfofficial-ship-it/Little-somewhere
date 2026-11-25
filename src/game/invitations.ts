@@ -3,6 +3,7 @@ import { RESIDENTS, getTimePhase } from './residents';
 import { DAY_END_MINUTE, advanceSimulationClock } from './time';
 import { distance2D } from './worldMap';
 import { getSharedActivityDef } from './activities';
+import { setOccupant } from './occupancy';
 import {
   InvitationHistoryEntry,
   InvitationRecord,
@@ -449,4 +450,93 @@ export function advanceClockAndReconcile(
     minuteOfDay: nextMin,
   };
   return expireInvitationsAt(movedWorld, movedWorld.day, nextMin);
+}
+
+// ---------------------------------------------------------------------------
+// F-ENTER-1 resolution (doc 05 §5): the shared interior-enter reconciliation
+// ---------------------------------------------------------------------------
+
+export interface ReconciledInteriorEntry {
+  world: WorldState;
+  /** Visible expiry line from step 1 (generic) or the step-2 host_unavailable archive. */
+  expiryToast?: string;
+  /** Venue-voiced arrival line when the occupant was placed (def `arrivalLine`). */
+  arrivalToast?: string;
+  occupantSet: boolean;
+}
+
+/**
+ * Reconciles invitation state when the player ENTERS an invite-gated interior.
+ *
+ * Single owner of occupant creation, as part of the enter reducer's transaction
+ * (doc 05 §5.2 — the helper IS the enter reducer's reconcile step, not a second
+ * writer). Both invite-gated venues (nook + bakery) call this; cottage /
+ * greenhouse / copperwheel enters remain untouched (behavioral no-op avoidance,
+ * doc 05 §9.3). Pure, deterministic, allocation-light.
+ *
+ * Contract (order normative, doc 05 §5.1):
+ *  1. Expiry reconcile: `expireInvitationsAt(world, day, minute)` archives any
+ *     non-live active invitation with the visible generic line.
+ *  2. Live accepted invite for THIS venue (`def.location === location`):
+ *     - host available  → setOccupant + activeActivity + def `arrivalLine`;
+ *     - host unavailable → expire with the visible `host_unavailable` line,
+ *       NO phantom occupant (LRTL-05 analog).
+ *  3. Otherwise: no occupancy changes (wrong-venue invites survive to be
+ *     honored at their own door — LR3-15/16).
+ */
+export function reconcileInvitedInteriorEntry(
+  world: WorldState,
+  location: WorldState['playerLocation'],
+): ReconciledInteriorEntry {
+  // Step 1 — expiry reconcile on room transition (doc 14 §2.4 / LR2-04b).
+  const expiryCheck = expireInvitationsAt(world, world.day, world.minuteOfDay);
+  let working = expiryCheck.world;
+  let expiryToast = expiryCheck.expired ? expiryCheck.toast : undefined;
+
+  let arrivalToast: string | undefined;
+  let occupantSet = false;
+
+  // Step 2 — live accepted invite resolving to THIS venue's def.
+  const activeInv = working.invitations?.active ?? null;
+  if (
+    activeInv &&
+    activeInv.status === 'accepted' &&
+    isInvitationLive(activeInv, working.day, working.minuteOfDay)
+  ) {
+    const activityDef = getSharedActivityDef(activeInv.activityId);
+    if (activityDef && activityDef.location === location) {
+      if (isHostAvailableForActivity(working, activeInv.hostId)) {
+        working = setOccupant(working, {
+          residentId: activeInv.hostId,
+          location,
+          stationId: activityDef.stationId,
+          localPos: activityDef.seatPos,
+          facing: activityDef.seatFacing,
+          invitationId: activeInv.id,
+        });
+        working = {
+          ...working,
+          activeActivity: { activityId: activityDef.id, invitationId: activeInv.id },
+        };
+        occupantSet = true;
+        const hostName = RESIDENTS[activeInv.hostId]?.name ?? 'Your host';
+        arrivalToast = activityDef.arrivalLine
+          ? activityDef.arrivalLine(hostName)
+          : `${hostName} looks up from their seat.`;
+      } else {
+        // Host drifted away before arrival: visible archive, NO phantom occupant.
+        const unavail = expireInvitationsAt(
+          working,
+          working.day,
+          working.minuteOfDay,
+          'host_unavailable',
+        );
+        working = unavail.world;
+        expiryToast = unavail.toast;
+      }
+    }
+  }
+
+  // Step 3 — otherwise: no occupancy changes; the caller's world carries through.
+  return { world: working, expiryToast, arrivalToast, occupantSet };
 }

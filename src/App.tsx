@@ -43,7 +43,7 @@ import {
 } from './game/storage';
 import { formatClock, getTimePhase } from './game/residents';
 import { advanceClockAndReconcile } from './game/invitations';
-import { completeSharedActivity } from './game/activities';
+import { completeSharedActivity, getSharedActivityDef } from './game/activities';
 import { buildMorningWakeLine, buildResidentDialogue } from './game/narrative';
 import { countJournalUnread, loadJournalReadKeys } from './game/journal';
 import {
@@ -1069,11 +1069,25 @@ export default function App() {
         setActivePropId(null);
         setPropCard(null);
         showToast(res.toast);
-      } else if (actionType === 'share_featured_reading') {
-        const res = completeSharedActivity(worldRef.current, 'share_featured_reading');
+      } else if (actionType === 'share_featured_reading' || actionType === 'share_morning_pastry') {
+        // LR-3 dual-surface completion (QA-07 / LR3-36; proposal constraint F-P4):
+        // the activityId derives from the LIVE accepted invitation — never a
+        // second hardcoded literal — so both surfaces route through the same
+        // single transaction (completeSharedActivity) with identical deltas.
+        const live = worldRef.current.invitations?.active;
+        const activityId =
+          live?.status === 'accepted' ? live.activityId : actionType;
+        const res = completeSharedActivity(worldRef.current, activityId);
         if (res.ok) {
           commitWorld(res.world);
-          triggerPlayerPulse('interact', { x: -0.9, z: 1.65 });
+          // Session pulse at the completed venue's station (def-driven; the
+          // nook keeps its historic pulse point for identical feel).
+          const completedDef = getSharedActivityDef(activityId);
+          const pulsePos =
+            completedDef?.location === 'nook_interior'
+              ? { x: -0.9, z: 1.65 }
+              : (completedDef?.seatPos ?? { x: -0.9, z: 1.65 });
+          triggerPlayerPulse('interact', pulsePos);
           cozyAudio.playMemoryChime();
         } else {
           cozyAudio.playUiTap(0.95);
