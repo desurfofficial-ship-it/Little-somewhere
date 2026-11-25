@@ -1415,3 +1415,26 @@ Chronological log of design decisions, implementation milestones, verification r
   Dart" journal toast; zero mobile overflow. Files: `download/asset-qa/stage3-willow-jetty/`.
   QA doc 03 gains "Pass 3 -- post-merge re-verification + browser visual smoke".
 - Deliverable F: focused PR opened for owner review (never merged by the author).
+
+## Fishing v1.1 (West Brook Bank, branch stage3/fishing-v11-west-brook)
+
+- Follow-up slice 1 from doc 01 shipped: `FISHING_SPOTS` registry (willow_jetty pinned +
+  west_brook_bank at (-4.45, 13.9) — probe-verified walkable/reachable, 0.87u off the
+  culvert water, 2.44u clear of the hollow-oak ring); `performFishingAction(world, spotId)`
+  fails closed on unknown ids. SHARED once-per-day gate across both spots (no spot-hopping
+  rerolls); RNG stream stays spot-independent (day's luck is the day's luck — golden table
+  pinned at BOTH spots, FISH-24). Same species/treasure pools (module table reused, zero
+  new items); per-spot journal retellings with item-keyed first-of-species memories
+  (global, first telling preserved verbatim, FISH-25); witness memories carry spot
+  placeName; spot-aware cast/quiet prose (FISH-26). Unknown spot id fails closed (FISH-27).
+- Scene rigs extracted to `src/scene/fishingRigs.ts` (placement table + per-rig offsets,
+  structurally tested RIG-01..06): jetty rig byte-identical to v1; brook rig shifted ~0.9u
+  west out of the bridge's visual shadow after browser QA caught four-viewpoint occlusion
+  (finding V1-2 in doc 04). Two shared materials, +5 draws per rig, 0 new programs.
+- LR-3 boundary: golden-topics half of v1.1 DEFERRED (feat/lr3-slice-2 owns
+  scripts/dialogue-topics-golden.json — 14-file footprint verified). Shared-file touches
+  additive-only: types.ts union end, actions.ts dispatch branch, worldMap row,
+  dialogue/assets.ts exhaustive case.
+- Gates at e7c560a baseline: 793/793; branch final: tsc clean, **807/807** (8 FISH + 6 RIG
+  new), build green; WorldState stays v12. Browser evidence: desktop+mobile cast loop with
+  honest chips at download/asset-qa/stage3-brook/ (script scripts/qa_brook_v11.sh).

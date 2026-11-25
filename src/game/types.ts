@@ -37,7 +37,10 @@ export type PropInteractableId =
   | 'wild_bee_log'
   | 'sorrel_garden_bed'
   // Stage 3 (Willow Jetty fishing) — quiet rod fishing on Mirror Pond's south shore.
-  | 'willow_jetty';
+  | 'willow_jetty'
+  // Stage 3 v1.1 (West Brook) — second unhurried cast, at the culvert mouth on the
+  // west lawn (FISHING_SPOTS registry in src/game/fishing.ts; one cast per day total).
+  | 'west_brook_bank';
 
 export type PlayerLocation =
   | 'exterior'

@@ -329,6 +329,12 @@ export const PROP_INTERACTABLES: PropInteractable[] = [
   // shore (registry: src/game/fishing.ts). Standing point sits outside the
   // pond_water exclusion box (maxZ 16.65) and clear of the pond bench approach.
   { id: 'willow_jetty', name: 'Willow Jetty', x: -0.8, z: 17.6, interactRadius: 2.4 },
+  // Stage 3 v1.1: West Brook Bank — the second quiet cast, at the culvert mouth
+  // on the west lawn (same daily cadence, shared day gate — see fishing.ts).
+  // Standing point verified via scripts/probe_brook_spot.ts: walkable + A* reachable
+  // at r 0.48, 0.87u from the culvert water (west tip x -3.58), 2.44u clear of the
+  // hollow-oak circle (-6.2, 15.6, r 1.35 + r 0.48 = 1.83), 0.9u+ from token anchors.
+  { id: 'west_brook_bank', name: 'West Brook Bank', x: -4.45, z: 13.9, interactRadius: 2.4 },
 ];
 
 export interface PropInteractionMetrics {

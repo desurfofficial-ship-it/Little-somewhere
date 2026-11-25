@@ -333,6 +333,9 @@ export function subjectKeyForPropId(propId: PropInteractableId): string {
     case 'willow_jetty':
       // The jetty card borrows the pond vista (same shore, one quiet cast).
       return SUBJECT_IMAGE_KEYS.mirror_pond;
+    case 'west_brook_bank':
+      // The brook card borrows the pond vista too (one watershed, one quiet cast).
+      return SUBJECT_IMAGE_KEYS.mirror_pond;
     case 'mirror_pond':
       return SUBJECT_IMAGE_KEYS.mirror_pond;
     case 'cottage_window_box':
