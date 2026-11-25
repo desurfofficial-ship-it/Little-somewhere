@@ -3,7 +3,7 @@ import { COTTAGE_INTERACTABLES, COTTAGE_SEAT_SPOTS } from '../../game/cottage';
 
 import { getSeasonForDay } from '../../game/time';
 import { composeProgressionVisualState } from '../../game/progressionVisuals';
-import { CottageHomeState, TimePhase, WorldState } from '../../game/types';
+import { CottageHomeState, PersonalItemId, TimePhase, WorldState } from '../../game/types';
 import { MaterialPalette, STORYBOOK_PALETTE } from '../materials';
 import {
   addContactShadow,
@@ -38,19 +38,21 @@ function hasMemoryIdPrefix(
 }
 
 type VaseFlowerKey = NonNullable<CottageHomeState['placedFlowerId']>;
-type KeepsakeKey =
-  | 'willow_zine_copy'
-  | 'brass_pocket_bell'
-  | 'pond_watercolor_card'
-  | 'woven_herb_wreath'
-  | 'cedar_music_box';
 
 export interface WillowCottageInteriorRig {
   group: THREE.Group;
   hitProxies: THREE.Mesh[];
   vaseEmptyGroup: THREE.Group;
   vaseFlowers: Record<VaseFlowerKey, THREE.Group>;
-  shelfKeepsakes: Record<KeepsakeKey, THREE.Group>;
+  /**
+   * Unified, extensible keepsake display map (Stage 3 Continuation). Every
+   * displayable keepsake id — the 5 original shelf objects, the 3 Community
+   * Project keepsakes, and the Photography framed-photo keepsake — maps to a
+   * physical mesh group. The display loop toggles visibility per
+   * `cottageState.displayedKeepsakeIds`. Adding a keepsake = adding a builder +
+   * one entry here; no separate handling paths.
+   */
+  shelfKeepsakeMeshes: Record<string, THREE.Group>;
   kettleSteamPuffs: THREE.Mesh[];
   almanacLampMat: THREE.MeshStandardMaterial;
   /** Pass 8: weather-reactive window life — streak group visible only in rain. */
@@ -1040,13 +1042,100 @@ export function buildWillowCottageInterior(
   dishTrim.position.y = 0.08;
   musicBoxGroup.add(dishBase, dishTrim);
 
-  shelfGroup.add(zineGroup, bellGroup, watercolorGroup, wreathGroup, musicBoxGroup);
-  const shelfKeepsakes: Record<KeepsakeKey, THREE.Group> = {
+  // Stage 3 Continuation: three Community Project keepsake meshes (bespoke,
+  // handcrafted) + the Photography framed-photo keepsake. Each is a small,
+  // recognizable physical object on the sideboard, positioned to coexist with
+  // the existing five shelf objects without overlap. All nine keepsakes join a
+  // single unified `shelfKeepsakeMeshes` map so the display loop is one pass.
+
+  // Pressed Garland Bloom — a flat pressed marigold on a waxed-paper backing card.
+  const garlandBloomGroup = new THREE.Group();
+  garlandBloomGroup.position.set(-0.78, 0.86, 0.02);
+  garlandBloomGroup.visible = false;
+  const bloomBacking = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(0.16, 0.012, 0.12)), linenMat);
+  bloomBacking.position.y = 0.0;
+  const bloomDisk = new THREE.Mesh(
+    trackGeo(new THREE.CylinderGeometry(0.07, 0.07, 0.014, 14)),
+    palette.standard('#E5A93C', 0.62, 0.0),
+  );
+  bloomDisk.position.y = 0.008;
+  const bloomCenter = new THREE.Mesh(
+    trackGeo(new THREE.CylinderGeometry(0.022, 0.022, 0.016, 10)),
+    palette.standard('#C86446', 0.55, 0.0),
+  );
+  bloomCenter.position.y = 0.012;
+  garlandBloomGroup.add(bloomBacking, bloomDisk, bloomCenter);
+
+  // Orchard Lantern Charm — a miniature hanging lantern, distinct from the full
+  // orchard lanterns: a small brass frame with a warm glass insert and a loop.
+  const lanternCharmGroup = new THREE.Group();
+  lanternCharmGroup.position.set(-0.08, 0.86, 0.02);
+  lanternCharmGroup.visible = false;
+  const charmLoop = new THREE.Mesh(trackGeo(new THREE.TorusGeometry(0.018, 0.006, 6, 10)), brassMat);
+  charmLoop.position.y = 0.16;
+  charmLoop.rotation.x = Math.PI * 0.5;
+  const charmCap = new THREE.Mesh(trackGeo(new THREE.CylinderGeometry(0.045, 0.05, 0.03, 10)), cedarDarkMat);
+  charmCap.position.y = 0.12;
+  const charmBody = new THREE.Mesh(trackGeo(new THREE.CylinderGeometry(0.05, 0.045, 0.1, 10)), brassMat);
+  charmBody.position.y = 0.055;
+  const charmGlass = new THREE.Mesh(
+    trackGeo(new THREE.CylinderGeometry(0.038, 0.038, 0.08, 10)),
+    palette.standard('#E5A93C', 0.4, 0.0),
+  );
+  charmGlass.position.y = 0.055;
+  const charmBaseRing = new THREE.Mesh(trackGeo(new THREE.CylinderGeometry(0.05, 0.045, 0.022, 10)), cedarDarkMat);
+  charmBaseRing.position.y = 0.0;
+  lanternCharmGroup.add(charmLoop, charmCap, charmBody, charmGlass, charmBaseRing);
+
+  // Pond Mosaic Shard — a polished, irregular tessera with real thickness,
+  // river-glass blue-green, raised off the sideboard to avoid z-fighting.
+  const mosaicShardGroup = new THREE.Group();
+  mosaicShardGroup.position.set(0.28, 0.86, 0.02);
+  mosaicShardGroup.visible = false;
+  const shardBase = new THREE.Mesh(
+    trackGeo(new THREE.BoxGeometry(0.13, 0.04, 0.1)),
+    palette.standard('#7FB5C4', 0.25, 0.0),
+  );
+  shardBase.position.y = 0.02;
+  shardBase.rotation.y = 0.18;
+  const shardOverlay = new THREE.Mesh(
+    trackGeo(new THREE.BoxGeometry(0.08, 0.028, 0.06)),
+    palette.standard('#5E8062', 0.3, 0.0),
+  );
+  shardOverlay.position.set(0.02, 0.05, 0.01);
+  shardOverlay.rotation.y = 0.22;
+  mosaicShardGroup.add(shardBase, shardOverlay);
+
+  // Framed First Photograph — a small wooden frame leaning on the sideboard,
+  // canvas proud of the frame to avoid z-fighting.
+  const framedPhotoGroup = new THREE.Group();
+  framedPhotoGroup.position.set(0.62, 0.86, 0.02);
+  framedPhotoGroup.visible = false;
+  const framedPhotoFrame = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(0.22, 0.18, 0.035)), cedarWarmMat);
+  framedPhotoFrame.position.y = 0.1;
+  framedPhotoFrame.rotation.x = -0.14;
+  const framedPhotoCanvas = new THREE.Mesh(
+    trackGeo(new THREE.BoxGeometry(0.17, 0.13, 0.04)),
+    palette.standard('#C9A253', 0.55, 0.0),
+  );
+  framedPhotoCanvas.position.set(0, 0.1, 0.006);
+  framedPhotoCanvas.rotation.x = -0.14;
+  framedPhotoGroup.add(framedPhotoFrame, framedPhotoCanvas);
+
+  shelfGroup.add(
+    zineGroup, bellGroup, watercolorGroup, wreathGroup, musicBoxGroup,
+    garlandBloomGroup, lanternCharmGroup, mosaicShardGroup, framedPhotoGroup,
+  );
+  const shelfKeepsakeMeshes: Record<string, THREE.Group> = {
     willow_zine_copy: zineGroup,
     brass_pocket_bell: bellGroup,
     pond_watercolor_card: watercolorGroup,
     woven_herb_wreath: wreathGroup,
     cedar_music_box: musicBoxGroup,
+    pressed_garland_bloom: garlandBloomGroup,
+    orchard_lantern_charm: lanternCharmGroup,
+    pond_mosaic_shard: mosaicShardGroup,
+    framed_photo_keepsake: framedPhotoGroup,
   };
   group.add(shelfGroup);
 
@@ -1934,10 +2023,12 @@ export function buildWillowCottageInterior(
     vaseFlowers.lavender_sprig.visible = placed === 'lavender_sprig';
     vaseFlowers.crabapple.visible = placed === 'crabapple';
 
-    // Shelf keepsakes
+    // Shelf keepsakes — unified extensible map: every displayable keepsake id
+    // (the 5 originals, 3 Community Project keepsakes, Photography framed photo)
+    // toggles in one pass.
     const shown = cs?.displayedKeepsakeIds ?? [];
-    for (const key of Object.keys(shelfKeepsakes) as KeepsakeKey[]) {
-      shelfKeepsakes[key].visible = shown.includes(key);
+    for (const [id, mesh] of Object.entries(shelfKeepsakeMeshes)) {
+      mesh.visible = shown.includes(id as PersonalItemId);
     }
 
     // Round-4 Pass 13: the home remembers — mementos derived from lived progress
@@ -2056,7 +2147,7 @@ export function buildWillowCottageInterior(
     hitProxies,
     vaseEmptyGroup,
     vaseFlowers,
-    shelfKeepsakes,
+    shelfKeepsakeMeshes,
     kettleSteamPuffs,
     almanacLampMat,
     rainStreaks,

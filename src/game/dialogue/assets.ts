@@ -333,6 +333,9 @@ export function subjectKeyForPropId(propId: PropInteractableId): string {
     case 'willow_jetty':
       // The jetty card borrows the pond vista (same shore, one quiet cast).
       return SUBJECT_IMAGE_KEYS.mirror_pond;
+    case 'west_brook_bank':
+      // The brook card borrows the pond vista too (one watershed, one quiet cast).
+      return SUBJECT_IMAGE_KEYS.mirror_pond;
     case 'mirror_pond':
       return SUBJECT_IMAGE_KEYS.mirror_pond;
     case 'cottage_window_box':
@@ -523,6 +526,11 @@ const ITEM_SUBJECT_SPECS: Record<PersonalItemId, ItemSubjectSpec> = {
   ['pressed_garland_bloom' as PersonalItemId]: { subject: 'item_sprig', primary: '#E5A93C', accent: '#C86446' },
   ['orchard_lantern_charm' as PersonalItemId]: { subject: 'item_bell', primary: '#C9A253', accent: '#E5A93C' },
   ['pond_mosaic_shard' as PersonalItemId]: { subject: 'item_river_glass', primary: '#7FB5C4', accent: '#5E8062' },
+  // Stage 3 Continuation — Photography (Workstream B): the framed-photo keepsake
+  // reuses the watercolor-card painter (small framed picture scene) with warm
+  // wood + cool pond-glass tones. SC-B cast idiom — computed key bypasses the
+  // object-literal excess-property check; runtime lookup resolves to this spec.
+  ['framed_photo_keepsake' as PersonalItemId]: { subject: 'item_watercolor_card', primary: '#C9A253', accent: '#7FB5C4' },
 };
 
 /** Resolves a satchel item id into its paintable subject thumbnail descriptor. */

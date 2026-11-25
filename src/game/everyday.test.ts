@@ -102,6 +102,7 @@ const BOTTOM_TIERS: Record<EverydayPracticeId, { tier: string; next: string; nex
   wilds: { tier: 'Homebody Steps', next: 'First Paths', nextAt: 1 },
   friendship: { tier: 'Shy Waves', next: 'First Hellos', nextAt: 1 },
   community: { tier: 'Unmarked Shelf', next: 'First Helping Hand', nextAt: 1 },
+  photography: { tier: 'Unframed', next: 'First Frame', nextAt: 1 },
 };
 
 // --- EP-01 -------------------------------------------------------------------------------
@@ -109,7 +110,7 @@ const BOTTOM_TIERS: Record<EverydayPracticeId, { tier: string; next: string; nex
 test('EP-01: fresh world — all counts 0, bottom tiers, A Quiet Start, nothing touched today', () => {
   const profile = deriveEverydayPracticeProfile(freshWorld());
 
-  assert.equal(profile.practices.length, 9);
+  assert.equal(profile.practices.length, 10);
   assert.deepEqual(
     profile.practices.map((p) => p.id),
     [...EVERYDAY_PRACTICE_ORDER],
@@ -148,6 +149,7 @@ test('EP-02: staged counters derive correct counts, tier labels, and nextAt', ()
     wilds: { count: 0, tierLabel: 'Homebody Steps', nextTierLabel: 'First Paths', nextAt: 1 },
     friendship: { count: 3, tierLabel: 'Familiar Face', nextTierLabel: 'Fast Friend', nextAt: 6 },
     community: { count: 3, tierLabel: 'First Helping Hand', nextTierLabel: 'Shelf Contributor', nextAt: 4 },
+    photography: { count: 0, tierLabel: 'Unframed', nextTierLabel: 'First Frame', nextAt: 1 },
   };
 
   for (const id of EVERYDAY_PRACTICE_ORDER) {
@@ -159,7 +161,7 @@ test('EP-02: staged counters derive correct counts, tier labels, and nextAt', ()
     assert.equal(practice.nextAt, want.nextAt, `${id} next tier threshold`);
   }
 
-  // Tier indices: 3 + 0 + 2 + 2 + 0 + 0 + 2 + 1 = 10 → 6–11 bucket.
+  // Tier indices: 3 + 0 + 2 + 2 + 0 + 0 + 2 + 1 + 0 (photography) = 10 → 6–11 bucket.
   assert.equal(profile.keeperTitle, 'A Regular Around the Lane');
   // Staging touched no day-stamps or daily booleans → nothing touched today.
   assert.deepEqual(profile.touchedToday, []);
@@ -390,7 +392,7 @@ test('EP-08: journal Daily Practices card exists for staged worlds and stays qui
   const freshCard = freshView.dailyPractices;
   assert.ok(freshCard, 'the Daily Practices card must exist in the built view');
   assert.equal(freshCard.keeperTitle, 'A Quiet Start');
-  assert.equal(freshCard.practices.length, 9);
+  assert.equal(freshCard.practices.length, 10);
   assert.equal(
     freshCard.practices.every((line) => line.count === 0),
     true,

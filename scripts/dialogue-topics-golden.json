@@ -1,5 +1,5 @@
 {
- "count": 93,
+ "count": 95,
  "topics": [
   {
    "index": 0,
@@ -1449,6 +1449,45 @@
     "requiresRecentEventTag": {
      "tagPrefix": "community_",
      "maxDaysAgo": 6
+    },
+    "notSeenToday": true,
+    "maxSeenCount": 2
+   }
+  },
+  {
+   "index": 93,
+   "id": "everyday_photo_witness_echo",
+   "residentId": "any",
+   "category": "event_reaction",
+   "priority": 12,
+   "historyScope": null,
+   "condition": {
+    "requiresNpcMemory": {
+     "tags": [
+      "photo"
+     ],
+     "unmentionedOnly": true,
+     "maxDaysOld": 6,
+     "subjectPlayer": true
+    },
+    "notSeenToday": true
+   }
+  },
+  {
+   "index": 94,
+   "id": "everyday_photo_noticer",
+   "residentId": "any",
+   "category": "event_reaction",
+   "priority": 8,
+   "historyScope": null,
+   "condition": {
+    "requiresNpcMemory": {
+     "tags": [
+      "photo"
+     ],
+     "unmentionedOnly": false,
+     "maxDaysOld": 6,
+     "subjectPlayer": true
     },
     "notSeenToday": true,
     "maxSeenCount": 2

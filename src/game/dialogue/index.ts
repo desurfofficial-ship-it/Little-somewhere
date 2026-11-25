@@ -33,6 +33,7 @@ import { DAILY_SLICE_TOPICS } from './everyday/smalltalk';
 import { EVERYDAY_HOME_TOPICS } from './everyday/home';
 import { REFLECTION_TOPICS } from './everyday/reflections';
 import { COMMUNITY_ECHO_TOPICS } from './everyday/communityEcho';
+import { PHOTO_ECHO_TOPICS } from './everyday/photoEcho';
 import { GREENHOUSE_TOPICS } from './interiors/greenhouse';
 import { BAKERY_TOPICS } from './interiors/bakery';
 import { BOOK_NOOK_TOPICS } from './interiors/bookNook';
@@ -75,4 +76,12 @@ export const DIALOGUE_TOPICS: readonly DialogueTopic[] = [
   // module's last topic. Golden snapshot regenerated 90 → 93 with
   // justification recorded in the SC-A audit report.
   ...COMMUNITY_ECHO_TOPICS,
+  // Photography social afterlife (Stage 3 Continuation, Workstream B): two
+  // stage-aware echoes of the photography reducer's `photo`-tagged witness
+  // memory writes. Appended strictly after COMMUNITY_ECHO_TOPICS per the
+  // append-only ordering contract; the SF4-07 milestone pin migrates to this
+  // module's last topic (`everyday_photo_noticer`). Tag is `'photo'` (NOT
+  // `'shared_photo'`) → no SF-4 R1 context boost → these topics stay gentle
+  // below the community band. Golden snapshot regenerated 93 → 95.
+  ...PHOTO_ECHO_TOPICS,
 ];

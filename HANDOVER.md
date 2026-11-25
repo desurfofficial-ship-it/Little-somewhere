@@ -343,3 +343,35 @@ All core simulation, cottage home-life, personal inventory/gifting, dialogue, re
 - Boundary note: LR-3 PR cluster owns App.tsx/NeighborhoodCanvas.tsx/journal.ts/migrations.ts/
   types.ts(BakeryInteractableId)/actions.ts(imports+bakery)/invitations*/bakery*; this slice's
   shared-file touches are additive-only and merge-trivial (documented in doc 01).
+
+## Fishing v1.1 addendum (West Brook Bank, branch stage3/fishing-v11-west-brook)
+
+- Two quiet waters now: `FISHING_SPOTS.willow_jetty` (v1, geometry pinned) +
+  `FISHING_SPOTS.west_brook_bank` (-4.45, 13.9). One cast per day TOTAL — the
+  `fishingLastDay` sideFlags stamp is deliberately GLOBAL across spots (anti pond-hopping,
+  FISH-23); the catch stream is deliberately spot-independent (FISH-24). Both waters share
+  the v1 species/treasure pools — no new items, no schema movement (WorldState v12).
+- Rig placement contract lives in `src/scene/fishingRigs.ts` (structurally tested RIG-01..06,
+  jetty byte-identical pin RIG-02). If a future world edit moves obstacles near the west
+  lawn, RIG-03/05 will fail fast — re-probe with `scripts/probe_brook_spot.ts` before
+  repositioning.
+- Deferred with owner tags: catch-reacting everyday topics (golden-topic protocol owner,
+  blocked by open feat/lr3-slice-2), photography (doc 01 order, LR-3-locked files), cooking
+  content sliver (unowned, next). Doc 04 records findings V1-1..V1-5 incl. the rig-shadow
+  scene fix and the exact gate counts (807/807).
+
+## Stage 3 Delivery, Integration & Visual Completion (Campaign 3)
+
+- **Fishing v1.1 + Photography + Community keepsake display** are all shipped on
+  branch `stage3-cont/fishing-photo` (PR #37, CI green, mergeable). The previous
+  campaign's local work was lost to a sandbox reset and reconstructed here.
+- **Shelf architecture evolved:** `shelfKeepsakes: Record<KeepsakeKey, ...>` (5
+  hardcoded keys) → `shelfKeepsakeMeshes: Record<string, THREE.Group>` (9 keepsakes
+  in one unified map). Adding a keepsake = adding a builder + one map entry.
+- **All 9 keepsakes now render:** 5 originals + 3 community (bespoke meshes) +
+  framed photo. The community-keepsake invisibility gap is closed.
+- **Next milestone (roadmap-reconciled):** Gardening expansion (window boxes,
+  outdoor soil beds, orchard tending). Highest readiness, most underrepresented
+  pillar. NPC participation in activities remains deferred (simulation-owner
+  coordination; do not build a second simulation framework).
+- **Gate:** 991/991 tests, tsc clean, boundary intact, build green. WorldState v12.

@@ -28,7 +28,8 @@ export type EverydayPracticeId =
   | 'wilds'
   | 'fishing'
   | 'friendship'
-  | 'community';
+  | 'community'
+  | 'photography';
 
 export interface EverydayPracticeTier {
   minCount: number;
@@ -64,6 +65,7 @@ export const EVERYDAY_PRACTICE_ORDER: readonly EverydayPracticeId[] = [
   'fishing',
   'friendship',
   'community',
+  'photography',
 ];
 
 // --- practice catalog -----------------------------------------------------------------
@@ -149,6 +151,14 @@ const FISHING_TIERS: readonly EverydayPracticeTier[] = [
   { minCount: 9, label: 'Reader of Ripples', note: 'Seasons change the pond, and the pond changes you back.' },
 ];
 
+const PHOTOGRAPHY_TIERS: readonly EverydayPracticeTier[] = [
+  { minCount: 0, label: 'Unframed', note: 'The camera waits in its case; the lane has not yet been noticed.' },
+  { minCount: 1, label: 'First Frame', note: 'One view held still — your first photograph sits on the cottage shelf.' },
+  { minCount: 3, label: 'Quiet Observer', note: 'Neighbors notice you carrying the camera; the lane looks back.' },
+  { minCount: 6, label: 'Noticer of Small Things', note: 'You see the views the rest of the lane walks right past.' },
+  { minCount: 10, label: `Keeper of the Lane's Light`, note: 'The neighborhood’s quiet views add up to a portrait only you have framed.' },
+];
+
 const PRACTICE_DEFS: Record<EverydayPracticeId, EverydayPracticeDef> = {
   gardening: {
     id: 'gardening',
@@ -228,6 +238,14 @@ const PRACTICE_DEFS: Record<EverydayPracticeId, EverydayPracticeDef> = {
       'Leaving a bloom or a field find in the plaza basket helps build something the whole town keeps.',
     readCount: (world) => safeCounter(countCommunityContributions(world)),
     tiers: COMMUNITY_TIERS,
+  },
+  photography: {
+    id: 'photography',
+    label: `The Camera's Eye`,
+    blurb:
+      'Carrying the camera outdoors and framing the lane’s small views turns noticing into a quiet habit.',
+    readCount: (world) => safeCounter(world.sideFlags?.photoCount),
+    tiers: PHOTOGRAPHY_TIERS,
   },
 };
 
@@ -333,6 +351,14 @@ function deriveTouchedToday(world: WorldState, day: number): EverydayPracticeId[
   // canonical isDoneToday idiom as the interior stamps above.
   if (isDoneToday(Number(world.sideFlags?.fishingLastDay), day)) {
     touched.add('fishing');
+  }
+
+  // Stage 3 Continuation: the photography day-stamp (sideFlags) gates the
+  // camera practice. Photography has no day-gate (multiple captures per day
+  // are allowed) but the day-stamp records that the practice was touched
+  // today, mirroring the fishing idiom.
+  if (isDoneToday(Number(world.sideFlags?.photoLastDay), day)) {
+    touched.add('photography');
   }
 
   // Stable canonical order, deduplicated by the Set above.

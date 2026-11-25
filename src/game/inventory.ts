@@ -250,6 +250,25 @@ export const PERSONAL_ITEMS: readonly PersonalItemDef[] = [
     giftable: false,
   },
 
+  // Stage 3 Continuation — Photography (Workstream B): the framed-photo
+  // keepsake granted on the player's first-ever capture. Non-giftable,
+  // displayable on the cottage shelf via the existing toggleDisplayedKeepsakeAction.
+  // The id is cast as PersonalItemId here (and in PERSONAL_ITEMS) so the wider
+  // PersonalItemId union in types.ts stays untouched (SC-B cast idiom — same
+  // runtime-string→typed-id bridge the save/load path uses for inventory keys,
+  // and VALID_PERSONAL_ITEM_IDS is the runtime gatekeeper every grant path
+  // consults). The reducer grants it idempotently (getItemCount === 0 guard)
+  // so re-captures never duplicate it.
+  {
+    id: 'framed_photo_keepsake' as PersonalItemId,
+    label: 'Framed First Photograph',
+    category: 'keepsake',
+    description:
+      'A small wooden frame holding your very first photograph of the neighborhood — the view that taught you to keep a camera close.',
+    homeDisplayable: 'shelf',
+    giftable: false,
+  },
+
   // Mirror Pond catches — Willow Jetty fishing (Stage 3). Giftable field finds;
   // every species is a quiet, seasonal neighbor of the pond, never a quota.
   {
