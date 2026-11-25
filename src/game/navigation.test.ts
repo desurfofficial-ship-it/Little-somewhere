@@ -208,6 +208,8 @@ test('rise deck, bridge deck and west lawn are reachable at the player radius', 
     ['west far lawn north', { x: -22.0, z: -6.5 }],
     ['west south lawn', { x: -22.0, z: 15.5 }],
     ['orchard south fringe', { x: -4.9, z: -21.8 }],
+    // Stage 3 v1.1: the West Brook fishing bank is reachable on foot.
+    ['west brook bank', { x: -4.45, z: 13.9 }],
   ];
   for (const [label, to] of targets) {
     const path = computeWaypointPath(plaza, to, PLAYER_RADIUS);
@@ -231,6 +233,9 @@ test('door, mailbox and driftwood stand spots are walkable at the player radius'
     ['copperwheel_door', 13.1, -7.55],
     ['player_mailbox approach', -9.0, 7.2],
     ['pond_driftwood approach', 6.55, 14.6],
+    // Stage 3 v1.1: West Brook Bank — the second fishing stand spot (culvert
+    // mouth, west lawn). Must stay clear of the rail band and the hollow oak.
+    ['west_brook_bank stand', -4.45, 13.9],
   ];
   for (const [label, x, z] of standSpots) {
     assert.equal(

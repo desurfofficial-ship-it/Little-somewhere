@@ -23,6 +23,14 @@
  *   FISH-18 witness NPC memory written once per catch with stable eventId scheme
  *   FISH-19 day-end clamp surfaces the evening note
  *   FISH-20 memoryUnlockedTitle only on true first-of-species
+ *   FISH-21 West Brook Bank — valid cast at the second spot (v1.1)
+ *   FISH-22 spot registry ↔ worldMap registry cross-check + v1 jetty pin
+ *   FISH-23 shared once-per-day gate across BOTH spots (no spot-hopping rerolls)
+ *   FISH-24 spot-independent determinism (same day ⇒ same outcome at either spot)
+ *   FISH-25 first-of-species memory is item-keyed and global; copy retells per spot
+ *   FISH-26 spot-flavored prose (brook lines name the water; jetty lines unchanged)
+ *   FISH-27 unknown spot id fails closed
+ *   FISH-28 brook stand spot is walkable & A*-reachable at the player radius
  *
  * Run: npm test (tsx --test src/game/*.test.ts src/scene/*.test.ts)
  */
@@ -32,11 +40,19 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
-import { performFishingAction, FISHING_SPOT, FISHING_CATCHES_KEY, FISHING_LAST_DAY_KEY } from './fishing';
+import {
+  performFishingAction,
+  FISHING_SPOT,
+  FISHING_SPOTS,
+  FISHING_CATCHES_KEY,
+  FISHING_LAST_DAY_KEY,
+} from './fishing';
 import { createFreshWorldState, serializeWorldState, deserializeWorldState, computeWorldSaveRevision } from './storage';
 import { hashSeed, mulberry32 } from './rng';
 import { EVENING_SLIPPED_NOTE, DAY_END_MINUTE } from './time';
 import { PERSONAL_ITEM_MAP } from './inventory';
+import { PROP_INTERACTABLES, isPointWalkable } from './worldMap';
+import { computeWaypointPath } from './navigation';
 import type { WorldState, PersonalItemId, TimePhase } from './types';
 
 const KNOWN_CATCH_IDS: readonly PersonalItemId[] = [
@@ -58,6 +74,13 @@ function rollFor(simSeed: number, day: number, catchIndex: number): number {
 function stageAtJetty(overrides: Partial<WorldState> = {}): WorldState {
   const world = createFreshWorldState();
   world.playerPos = { x: FISHING_SPOT.x, z: FISHING_SPOT.z };
+  world.playerLocation = 'exterior';
+  return Object.assign(world, overrides);
+}
+
+function stageAtBrook(overrides: Partial<WorldState> = {}): WorldState {
+  const world = createFreshWorldState();
+  world.playerPos = { x: FISHING_SPOTS.west_brook_bank.x, z: FISHING_SPOTS.west_brook_bank.z };
   world.playerLocation = 'exterior';
   return Object.assign(world, overrides);
 }
@@ -348,5 +371,191 @@ describe('fishing — Willow Jetty (Stage 3 slice)', () => {
     const res = performFishingAction(seeded);
     assert.equal(res.memoryUnlockedTitle, undefined, 'no unlock when all memories pre-exist');
     assert.equal(res.nextWorld.memories.length, seeded.memories.length, 'no row appended');
+  });
+});
+
+describe('fishing — West Brook Bank (Stage 3 v1.1, second quiet water)', () => {
+  it('FISH-21 valid cast at the brook grants exactly one honest chip, field-scoped', () => {
+    const world = stageAtBrook();
+    world.npcRuntime.mina.position = { x: -4.0, z: 13.5 };
+    world.npcRuntime.mina.targetPos = { x: -4.0, z: 13.5 };
+    const res = performFishingAction(world, 'west_brook_bank');
+    assert.equal(res.title, FISHING_SPOTS.west_brook_bank.name);
+    assert.notEqual(res.nextWorld, world, 'catch path returns a new world');
+    assert.equal(res.nextWorld.sideFlags[FISHING_CATCHES_KEY], 1);
+    assert.equal(res.nextWorld.sideFlags[FISHING_LAST_DAY_KEY], world.day);
+    assert.ok(res.body.includes('+20m'), 'prose records the time spent');
+    // Field-scoped regression (FISH-16 discipline) on the second spot's path.
+    assert.equal(res.nextWorld.occupancy, world.occupancy);
+    assert.equal(res.nextWorld.activeActivity, world.activeActivity);
+    assert.equal(res.nextWorld.invitations, world.invitations);
+    if (res.gainedItems?.length) {
+      const def = PERSONAL_ITEM_MAP[res.gainedItems[0].itemId];
+      assert.ok(def, 'granted item is a registry item');
+    }
+  });
+
+  it('FISH-22 spot registry matches the worldMap registry; v1 jetty def is pinned', () => {
+    const ids = new Set<string>();
+    for (const spot of Object.values(FISHING_SPOTS)) {
+      const row = PROP_INTERACTABLES.find((p) => p.id === spot.id);
+      assert.ok(row, `${spot.id} has a worldMap PROP_INTERACTABLES row`);
+      assert.equal(row.x, spot.x, `${spot.id} x matches the worldMap row`);
+      assert.equal(row.z, spot.z, `${spot.id} z matches the worldMap row`);
+      assert.equal(row.interactRadius, spot.interactRadius, `${spot.id} radius matches`);
+      assert.ok(!ids.has(spot.id), 'spot ids are unique');
+      ids.add(spot.id);
+    }
+    assert.equal(ids.size, 2, 'v1.1 ships exactly two quiet waters');
+    // v1 back-compat pin: the jetty's geometry must never drift (golden tests,
+    // save QA scripts and the scene rig all assume the v1 shore point).
+    assert.deepEqual(FISHING_SPOT, { id: 'willow_jetty', name: 'Willow Jetty', x: -0.8, z: 17.6, interactRadius: 2.4 });
+  });
+
+  it('FISH-23 shared day gate — a cast at either spot rests the line at the other', () => {
+    // Jetty first, brook second (same day): brook refused, world unchanged.
+    const atJetty = performFishingAction(stageAtJetty());
+    assert.ok(atJetty.nextWorld.sideFlags[FISHING_LAST_DAY_KEY], 'jetty cast stamped the day');
+    const brookSecond = performFishingAction(stageAtBrook({
+      day: atJetty.nextWorld.day,
+      sideFlags: { ...atJetty.nextWorld.sideFlags },
+    }), 'west_brook_bank');
+    assert.equal(brookSecond.gainedItems, undefined, 'no second reward via the brook');
+    assert.equal(
+      brookSecond.nextWorld.sideFlags[FISHING_CATCHES_KEY],
+      atJetty.nextWorld.sideFlags[FISHING_CATCHES_KEY],
+      'catch count unchanged by the refused cast',
+    );
+    assert.ok(
+      brookSecond.body.includes('one quiet cast a day'),
+      'refusal prose explains the shared cadence',
+    );
+    // Brook first, jetty second: same refusal in the other direction.
+    const atBrook = performFishingAction(stageAtBrook(), 'west_brook_bank');
+    const jettySecond = performFishingAction(stageAtJetty({
+      day: atBrook.nextWorld.day,
+      sideFlags: { ...atBrook.nextWorld.sideFlags },
+    }));
+    assert.equal(jettySecond.gainedItems, undefined, 'no second reward via the jetty');
+  });
+
+  it('FISH-24 spot-independent determinism — the day’s luck is the day’s luck', () => {
+    // The golden day table (FISH-02) must resolve identically at BOTH spots:
+    // the stream is keyed on (seed, day, catch index), never on the spot.
+    const golden: Record<number, string> = {
+      1: 'silver_dace',
+      2: 'silver_dace',
+      3: 'silver_dace',
+      4: 'silver_dace',
+      5: 'smooth_river_glass',
+    };
+    for (const [dayStr, expectedId] of Object.entries(golden)) {
+      const day = Number(dayStr);
+      const res = performFishingAction(stageAtBrook({ day }), 'west_brook_bank');
+      assert.equal(res.gainedItems?.[0]?.itemId ?? 'quiet', expectedId, `brook golden day ${day}`);
+    }
+    // Determinism pin: same seed/day/index at the brook reproduces byte-identical outcomes.
+    const a = performFishingAction(stageAtBrook(), 'west_brook_bank');
+    const b = performFishingAction(stageAtBrook(), 'west_brook_bank');
+    assert.equal(
+      JSON.stringify(a.nextWorld.sideFlags),
+      JSON.stringify(b.nextWorld.sideFlags),
+    );
+    assert.equal(a.gainedItems?.[0]?.itemId, b.gainedItems?.[0]?.itemId);
+  });
+
+  it('FISH-25 first-of-species memory is item-keyed and global; copy retells per spot', () => {
+    // Day 1 dace at the jetty writes the jetty-told row…
+    const day = findDays((r) => r >= 0.44, 1)[0];
+    const jettyRes = performFishingAction(stageAtJetty({ day }));
+    const speciesId = jettyRes.gainedItems?.[0]?.itemId;
+    assert.ok(speciesId, 'probe day yields a catch');
+    const jettyMem = jettyRes.nextWorld.memories.find((m) => m.id === `mem_fish_first_${speciesId}`);
+    assert.ok(jettyMem, 'first-of-species row exists');
+    // …the brook retelling differs for the same discovery. The signature-carp
+    // branch [0.34, 0.44) is environment-independent (deterministically scanned),
+    // so the brook catch is guaranteed to be a fish species the copy tables cover.
+    const carpDay = findDays((r) => r >= 0.34 && r < 0.44, 1)[0];
+    const brookFirst = performFishingAction(stageAtBrook({ day: carpDay }), 'west_brook_bank');
+    assert.equal(brookFirst.gainedItems?.[0]?.itemId, 'mirror_carp', 'carp branch yields the signature carp');
+    const brookMem = brookFirst.nextWorld.memories.find((m) => m.id === 'mem_fish_first_mirror_carp');
+    assert.ok(brookMem, 'brook first-of-species row exists');
+    assert.ok(
+      brookMem.summary.includes('brook') || brookMem.summary.includes('culvert'),
+      'the brook table retells the discovery at the brook',
+    );
+    // Same species caught at the brook later: no second row, no unlock, and the
+    // FIRST telling is preserved. Scan (deterministically) for the next day
+    // whose SECOND cast (catchIndex 1) is in the same seasonal branch as day's,
+    // so the dedupe assertions always execute (FISH-18's discipline — never
+    // leave an assertion vacuous).
+    let day2 = day + 1;
+    while (day2 <= 400 && rollFor(18042, day2, 1) < 0.44) day2++;
+    assert.ok(day2 <= 400, 'a non-quiet seasonal successor day exists');
+    const staged = stageAtBrook({
+      day: day2,
+      sideFlags: { ...jettyRes.nextWorld.sideFlags, [FISHING_LAST_DAY_KEY]: day },
+      memories: jettyRes.nextWorld.memories,
+    });
+    const brookSame = performFishingAction(staged, 'west_brook_bank');
+    assert.equal(
+      brookSame.gainedItems?.[0]?.itemId,
+      speciesId,
+      'same roll branch ⇒ same species at the default season',
+    );
+    assert.equal(brookSame.memoryUnlockedTitle, undefined, 'no unlock for a species already journaled');
+    const kept = brookSame.nextWorld.memories.find((m) => m.id === `mem_fish_first_${speciesId}`);
+    assert.ok(kept, 'kept row still present');
+    assert.equal(kept.summary, jettyMem.summary, 'the first telling is preserved verbatim');
+    assert.equal(
+      brookSame.nextWorld.memories.filter((m) => m.id === `mem_fish_first_${speciesId}`).length,
+      1,
+      'exactly one first-of-species row across both spots',
+    );
+  });
+
+  it('FISH-26 spot-flavored prose — brook lines name the brook; jetty lines unchanged', () => {
+    // Day 1 is golden-pinned to the common seasonal branch (FISH-02), so the
+    // default spring-weather cast lines are deterministic here.
+    const brookRes = performFishingAction(stageAtBrook({ day: 1 }), 'west_brook_bank');
+    assert.ok(brookRes.body.includes('culvert'), 'brook cast prose names the culvert water');
+    // Quiet brook day names the brook’s own stillness (line varies by season,
+    // so accept either brook-specific landmark both variants name).
+    const quietDay = findDays((r) => r < 0.14, 1)[0];
+    const brookQuiet = performFishingAction(stageAtBrook({ day: quietDay }), 'west_brook_bank');
+    assert.ok(
+      brookQuiet.body.includes('brook') || brookQuiet.body.includes('culvert'),
+      'quiet prose is brook-specific',
+    );
+    // Jetty default prose keeps the v1 flavor (regression lock, day 1 default env).
+    const jettyRes = performFishingAction(stageAtJetty({ day: 1 }));
+    assert.ok(
+      jettyRes.body.includes('jetty') || jettyRes.body.includes('pond'),
+      'jetty prose keeps the v1 water vocabulary',
+    );
+  });
+
+  it('FISH-27 unknown spot id fails closed', () => {
+    const world = stageAtJetty();
+    const before = JSON.stringify(world);
+    const res = performFishingAction(world, 'not_a_spot');
+    assert.equal(res.nextWorld, world, 'unchanged world reference');
+    assert.equal(JSON.stringify(world), before, 'input untouched');
+    assert.equal(res.gainedItems, undefined);
+    assert.equal(res.nextWorld.sideFlags[FISHING_LAST_DAY_KEY], undefined, 'no day stamp');
+  });
+
+  it('FISH-28 brook stand spot is walkable and A*-reachable at the player radius', () => {
+    const spot = FISHING_SPOTS.west_brook_bank;
+    assert.equal(isPointWalkable(spot.x, spot.z, 0.48), true, 'stand spot walkable at r=0.48');
+    const path = computeWaypointPath({ x: -3.6, z: 1.5 }, { x: spot.x, z: spot.z }, 0.48);
+    assert.ok(path, 'A* path exists from the plaza west node');
+    for (const wp of path) {
+      assert.equal(isPointWalkable(wp.x, wp.z, 0.48), true, `waypoint (${wp.x.toFixed(2)}, ${wp.z.toFixed(2)}) walkable`);
+    }
+    assert.ok(
+      Math.hypot(path[path.length - 1].x - spot.x, path[path.length - 1].z - spot.z) < 0.15,
+      'path terminates at the stand spot',
+    );
   });
 });

@@ -1973,11 +1973,12 @@ export function interactWithProp(
     };
   }
 
-  if (propId === 'willow_jetty') {
-    // Stage 3: Willow Jetty -- one quiet cast a day on Mirror Pond's south shore.
-    // src/game/fishing.ts owns the full contract (guards, grants, memories);
-    // this branch is pure dispatch and writes nothing itself.
-    return performFishingAction(world);
+  if (propId === 'willow_jetty' || propId === 'west_brook_bank') {
+    // Stage 3 (+v1.1): Willow Jetty & West Brook Bank -- one quiet cast a day
+    // across both quiet waters (shared day gate). src/game/fishing.ts owns the
+    // full contract (guards, grants, memories); this branch is pure dispatch
+    // and writes nothing itself. The prop id doubles as the FISHING_SPOTS key.
+    return performFishingAction(world, propId);
   }
 
   return {
