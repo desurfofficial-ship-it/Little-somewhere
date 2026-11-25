@@ -60,6 +60,14 @@ import {
   summarizeGreenhousePlots,
 } from './greenhouse';
 import {
+  GARDENS,
+  getGardenDef,
+  getOrCreateGardenState,
+  sowPlotInPlace,
+  harvestPlotInPlace,
+  summarizeGarden,
+} from './gardens';
+import {
   NOOK_BROWSE_MINUTES,
   NOOK_DOOR_DEFAULT_FACING,
   NOOK_DOOR_SPAWN,
@@ -198,6 +206,7 @@ export interface PropInteractionResult {
     | 'exit_copperwheel'
     | 'greenhouse_planting_panel'
     | 'greenhouse_harvest_panel'
+    | 'garden_panel'
     | 'community_projects_panel'
     | 'share_featured_reading'
     | 'share_morning_pastry';
@@ -2000,6 +2009,11 @@ export function interactWithProp(
     return performFishingAction(world, propId);
   }
 
+  // Gardening Expansion — outdoor garden bed interactables.
+  if (isGardenBedProp(propId)) {
+    return interactWithGardenBed(world, propId);
+  }
+
   return {
     nextWorld: world,
     title: 'Willow Lane',
@@ -2818,6 +2832,270 @@ export function readGreenhouseNotesAction(world: WorldState): PropInteractionRes
 
 function getBakeryStateSafe(world: WorldState) {
   return world.bakeryState ?? createInitialBakeryState();
+}
+
+// ── Gardening Expansion — outdoor garden reducers ────────────────────────────
+
+const GARDEN_PLANT_MINUTES = 10;
+const GARDEN_WATER_MINUTES = 8;
+const GARDEN_HARVEST_MINUTES = 12;
+
+/** All garden bed prop ids mapped to their garden id for routing. */
+const GARDEN_PROP_TO_ID: Record<string, string> = {
+  bakery_herb_bed: 'clara_herb_garden',
+  nook_lavender_bed: 'nook_lavender_bed',
+  pond_iris_bed: 'pond_iris_border',
+  beeline_pollinator_bed: 'beeline_pollinator_bed',
+  barnaby_compost_bed: 'barnaby_compost_garden',
+};
+
+/** Is this prop id a garden bed? */
+export function isGardenBedProp(propId: string): boolean {
+  return propId in GARDEN_PROP_TO_ID;
+}
+
+/** Resolve a garden bed prop id to its garden id. */
+export function gardenIdForProp(propId: string): string | null {
+  return GARDEN_PROP_TO_ID[propId] ?? null;
+}
+
+/**
+ * Interact with an outdoor garden bed — opens the garden panel (planting /
+ * harvesting / watering interface). Mirrors the greenhouse panel routing but
+ * for exterior garden beds.
+ */
+export function interactWithGardenBed(world: WorldState, propId: string): PropInteractionResult {
+  const gardenId = gardenIdForProp(propId);
+  if (!gardenId) {
+    return { nextWorld: world, title: 'Garden Bed', body: 'This garden bed is not yet ready.' };
+  }
+  const def = getGardenDef(gardenId);
+  if (!def) {
+    return { nextWorld: world, title: 'Garden Bed', body: 'This garden bed is not yet ready.' };
+  }
+  // Lazy-init garden state.
+  const state = getOrCreateGardenState(world, gardenId);
+  if (!state) {
+    return { nextWorld: world, title: 'Garden Bed', body: 'This garden bed is not yet ready.' };
+  }
+  const summary = summarizeGarden(state);
+  const readyPlots = summary.readyPlots;
+  const growingPlots = summary.growingPlots;
+  const emptyPlots = summary.emptyPlots;
+  const thirstyPlots = summary.thirstyPlots;
+  let body: string;
+  if (emptyPlots > 0 && growingPlots === 0 && readyPlots === 0) {
+    body = `${def.blurb} Two empty plots wait for seeds.`;
+  } else if (readyPlots > 0) {
+    body = `${def.blurb} ${readyPlots} plot${readyPlots > 1 ? 's are' : ' is'} ready to harvest${growingPlots > 0 ? `, and ${growingPlots} ${growingPlots > 1 ? 'are' : 'is'} still growing` : ''}.`;
+  } else if (thirstyPlots > 0) {
+    body = `${def.blurb} ${growingPlots} ${growingPlots > 1 ? 'plots are' : 'plot is'} growing — ${thirstyPlots} ${thirstyPlots > 1 ? 'need' : 'needs'} watering.`;
+  } else {
+    body = `${def.blurb} ${growingPlots} ${growingPlots > 1 ? 'plots are' : 'plot is'} growing steadily.`;
+  }
+  return {
+    nextWorld: world,
+    title: def.label,
+    body,
+    actionLabel: readyPlots > 0 ? 'Harvest & Tend' : 'Tend Garden',
+    actionType: 'garden_panel',
+    subjectImageKey: 'planter_box',
+  };
+}
+
+/**
+ * Plant a seed in an outdoor garden plot. Validates garden existence, plot
+ * occupancy, crop compatibility, seed ownership, and inventory. Consumes the
+ * seed and sets the plot to stage 0 with wateredToday=true (sowing-night
+ * watering included, same as greenhouse).
+ */
+export function plantInGardenAction(
+  world: WorldState,
+  gardenId: string,
+  seedItemId: PersonalItemId,
+  plotIndex: number,
+): { ok: boolean; nextWorld: WorldState; toast: string; memoryUnlockedTitle?: string } {
+  const def = getGardenDef(gardenId);
+  if (!def) {
+    return { ok: false, nextWorld: world, toast: 'That garden does not exist.' };
+  }
+  // Ensure exterior location (outdoor beds are exterior props, not interiors).
+  if (world.playerLocation !== 'exterior') {
+    return { ok: false, nextWorld: world, toast: 'Step outside to tend the garden beds.' };
+  }
+  const state = getOrCreateGardenState(world, gardenId);
+  if (!state) {
+    return { ok: false, nextWorld: world, toast: 'That garden is not yet ready.' };
+  }
+  if (plotIndex < 0 || plotIndex >= state.plots.length) {
+    return { ok: false, nextWorld: world, toast: 'That plot is not in this garden.' };
+  }
+  const plot = state.plots[plotIndex];
+  if (plot.cropId) {
+    return { ok: false, nextWorld: world, toast: 'That plot is already growing something.' };
+  }
+  const crop = getGreenhouseCropBySeed(seedItemId);
+  if (!crop) {
+    return { ok: false, nextWorld: world, toast: 'That pocket holds no sowable seeds.' };
+  }
+  // Check crop compatibility with this garden.
+  if (def.allowedCropIds && !def.allowedCropIds.includes(crop.id)) {
+    return { ok: false, nextWorld: world, toast: `${crop.label} does not suit this garden bed.` };
+  }
+  if (getItemCount(world.inventory, seedItemId) < 1) {
+    return { ok: false, nextWorld: world, toast: 'No seeds of that kind left in your satchel.' };
+  }
+  const consumed = consumeItemFromInventory(world.inventory, seedItemId, 1);
+  if (!consumed.ok) {
+    return { ok: false, nextWorld: world, toast: 'No seeds of that kind left in your satchel.' };
+  }
+  const nextMin = Math.min(DAY_END_MINUTE, world.minuteOfDay + GARDEN_PLANT_MINUTES);
+  const seedLabel = PERSONAL_ITEM_MAP[seedItemId].label;
+  // Use the plot primitive from gardens.ts.
+  const newPlot = { ...plot };
+  sowPlotInPlace(newPlot, crop.id, world.day);
+  return {
+    ok: true,
+    nextWorld: {
+      ...world,
+      minuteOfDay: nextMin,
+      inventory: consumed.inventory,
+      gardens: {
+        ...world.gardens,
+        [gardenId]: {
+          ...state,
+          totalPlanted: state.totalPlanted + 1,
+          lastTendedDay: world.day,
+          plots: state.plots.map((p, idx) => (idx === plotIndex ? newPlot : p)),
+        },
+      },
+    },
+    toast: `Sowed ${seedLabel} in ${def.label}, plot ${plotIndex + 1} (+${GARDEN_PLANT_MINUTES}m). Water it daily until it ripens.`,
+  };
+}
+
+/**
+ * Water all thirsty growing plots in an outdoor garden. Idempotent per day;
+ * rain days cost no minutes. Same lifecycle as greenhouse watering.
+ */
+export function waterGardenAction(world: WorldState, gardenId: string): PropInteractionResult {
+  const def = getGardenDef(gardenId);
+  if (!def) {
+    return { nextWorld: world, title: 'Garden', body: 'That garden does not exist.' };
+  }
+  if (world.playerLocation !== 'exterior') {
+    return { nextWorld: world, title: def.label, body: 'Step outside to water the garden beds.' };
+  }
+  const state = getOrCreateGardenState(world, gardenId);
+  if (!state) {
+    return { nextWorld: world, title: def.label, body: 'That garden is not yet ready.' };
+  }
+  const thirsty = state.plots.filter((p) => p.cropId && p.stage < 3 && !p.wateredToday);
+  if (thirsty.length === 0) {
+    const anyGrowing = state.plots.some((p) => p.cropId);
+    return {
+      nextWorld: world,
+      title: def.label,
+      body: anyGrowing
+        ? 'Every growing plot is already watered for the day — the soil sits dark and content.'
+        : 'The soil is bare and waiting. Plant a seed to begin.',
+    };
+  }
+  const rainDay = world.weather === 'light_rain';
+  const waterSpend = rainDay
+    ? { nextWorld: world, minuteOfDay: world.minuteOfDay, eveningSlippedAway: false }
+    : spendMinutes(world, GARDEN_WATER_MINUTES);
+  return {
+    nextWorld: {
+      ...waterSpend.nextWorld,
+      gardens: {
+        ...world.gardens,
+        [gardenId]: {
+          ...state,
+          lastTendedDay: world.day,
+          plots: state.plots.map((p) =>
+            p.cropId && p.stage < 3 ? { ...p, wateredToday: true } : p,
+          ),
+        },
+      },
+    },
+    title: def.label,
+    body: rainDay
+      ? `The rain chain carried cool water to every thirsty plot — the garden drinks deeply (+0m on a rainy day).`
+      : `You tipped the watering can along the beds until every thirsty plot drank its fill (+${GARDEN_WATER_MINUTES}m). Tonight they will grow a little stronger.${waterSpend.eveningSlippedAway ? ` ${EVENING_SLIPPED_NOTE}` : ''}`,
+  };
+}
+
+/**
+ * Harvest a mature plot from an outdoor garden. Grants crop items + a seed
+ * return (same sustainable loop as greenhouse). Resets the plot to empty.
+ */
+export function harvestFromGardenAction(
+  world: WorldState,
+  gardenId: string,
+  plotIndex: number,
+): {
+  ok: boolean;
+  nextWorld: WorldState;
+  toast: string;
+  memoryUnlockedTitle?: string;
+  gainedItems?: GainedItemChip[];
+} {
+  const def = getGardenDef(gardenId);
+  if (!def) {
+    return { ok: false, nextWorld: world, toast: 'That garden does not exist.' };
+  }
+  if (world.playerLocation !== 'exterior') {
+    return { ok: false, nextWorld: world, toast: 'Step outside to harvest the garden beds.' };
+  }
+  const state = getOrCreateGardenState(world, gardenId);
+  if (!state) {
+    return { ok: false, nextWorld: world, toast: 'That garden is not yet ready.' };
+  }
+  if (plotIndex < 0 || plotIndex >= state.plots.length) {
+    return { ok: false, nextWorld: world, toast: 'That plot is not in this garden.' };
+  }
+  const plot = state.plots[plotIndex];
+  if (!plot.cropId || plot.stage < 3) {
+    return { ok: false, nextWorld: world, toast: 'That plot is still growing — it needs a few more good days.' };
+  }
+  const crop = GREENHOUSE_CROPS.find((c) => c.id === plot.cropId);
+  if (!crop) {
+    return { ok: false, nextWorld: world, toast: 'That plot holds an unfamiliar seedling.' };
+  }
+  const lush = isLushStreak(plot.waterStreak ?? 0);
+  const yieldCount = crop.harvestCount + (lush ? 1 : 0);
+  const invRes = applyItemGrants(world.inventory, world.discoveredItemIds, [
+    { itemId: crop.cropItemId, amount: yieldCount },
+    { itemId: crop.seedItemId, amount: 1 },
+  ]);
+  const harvestSpend = spendMinutes(world, GARDEN_HARVEST_MINUTES);
+  const cropDef = PERSONAL_ITEM_MAP[crop.cropItemId];
+  // Use the plot primitive.
+  const newPlot = { ...plot };
+  harvestPlotInPlace(newPlot, crop.harvestCount, lush);
+  return {
+    ok: true,
+    nextWorld: {
+      ...world,
+      minuteOfDay: harvestSpend.minuteOfDay,
+      inventory: invRes.inventory,
+      discoveredItemIds: invRes.discoveredItemIds,
+      gardens: {
+        ...world.gardens,
+        [gardenId]: {
+          ...state,
+          totalHarvests: state.totalHarvests + 1,
+          lastTendedDay: world.day,
+          plots: state.plots.map((p, idx) => (idx === plotIndex ? newPlot : p)),
+        },
+      },
+    },
+    toast: lush
+      ? `Harvested ${cropDef.label} ×${yieldCount} from ${def.label} — especially lush, thanks to your steady care (+${GARDEN_HARVEST_MINUTES}m). Kept one seed fold.`
+      : `Harvested ${cropDef.label} ×${yieldCount} from ${def.label} and kept one seed fold (+${GARDEN_HARVEST_MINUTES}m).`,
+    gainedItems: invRes.gainedItems,
+  };
 }
 
 function addBakeryMemory(
