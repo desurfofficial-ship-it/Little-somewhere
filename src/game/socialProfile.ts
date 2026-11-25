@@ -201,7 +201,10 @@ export function deriveSharedHistory(
     .map((entry) => ({
       invitationId: entry.invitationId,
       activityId: entry.activityId,
-      activityTitle: SHARED_ACTIVITIES[entry.activityId]?.title ?? entry.activityId,
+      activityTitle:
+        SHARED_ACTIVITIES[entry.activityId]?.ledgerTitle ??
+        SHARED_ACTIVITIES[entry.activityId]?.title ??
+        entry.activityId,
       day: entry.day,
     }));
 
