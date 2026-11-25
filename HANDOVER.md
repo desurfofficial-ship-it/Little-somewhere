@@ -327,3 +327,19 @@ All core simulation, cottage home-life, personal inventory/gifting, dialogue, re
 - **Community projects pilot (Workstream E)**: Sorrel Hollow well-garden — three tending visits transform the hollow forgotten → tilled → sprouting → blooming (sideFlags-borne, sanitizer-safe, zero migration), completion journals "The Garden Remembers", Mina tends the beds from stage 1 (`requiresSideFlag` candidate). The strongest existing foreshadowing (discovery memory + Mina's promise + foxglove pipeline) now pays off visibly and permanently.
 - **Wilds draw budget**: 80 → 88 (documented in the guard test) to carry the echo rigs (1 InstancedMesh + 2 merged) and the garden stage groups (6 merged meshes); every addition follows the mobile merge/instance discipline.
 - **Open world backlog (plan §5, owner-tagged)**: Pinecone Woodshop purpose + Foxglove Rise resident routine (World), region activation or freeze (World, unblocks GAME_DESIGN §4.2), world manifest generator (kills stale "33 nodes"/"79 topics" doc claims), tea-cart check-in + recurring wilds value (Gameplay), café-table flag-aware collision (Scene), Copperwheel/bakery occupant anchors + invitation graft (LR-3/LR-5, per HANDOVER §20 boundary), mid-day weather shifts (Persistence rollover surface), night epilogue window (design decision), `onlySeasons` NPC activities (Sim), season-gated topics (Narrative golden protocol).
+
+
+## Stage 3 addendum (Willow Jetty fishing, branch stage3/everyday-activities)
+
+- New contracts: `src/game/fishing.ts` (pure module; `performFishingAction` returns a
+  PropInteractionResult-compatible object; guards: exterior / fail-closed distance /
+  activeActivity / once-per-day `isDoneToday` on sideFlags `fishingLastDay`); sideFlags keys
+  `fishingCatchesCount` + `fishingLastDay` are now load-bearing (both hashed by
+  computeWorldSaveRevision so autosave fires); 5 new giftable PersonalItemId members
+  (silver_dace, sun_perch, rain_trout, mirror_carp, ice_perch) + `item_fish` SubjectScene;
+  everyday practice id `fishing` (order between wilds and friendship; tier ladder 0..3).
+- Mobile budget: +5 draw calls (static jetty rig in environmentRenderer.ts, 0 new programs,
+  0 textures). WorldState stays v12 -- no migration.
+- Boundary note: LR-3 PR cluster owns App.tsx/NeighborhoodCanvas.tsx/journal.ts/migrations.ts/
+  types.ts(BakeryInteractableId)/actions.ts(imports+bakery)/invitations*/bakery*; this slice's
+  shared-file touches are additive-only and merge-trivial (documented in doc 01).
