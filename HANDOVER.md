@@ -359,3 +359,19 @@ All core simulation, cottage home-life, personal inventory/gifting, dialogue, re
   blocked by open feat/lr3-slice-2), photography (doc 01 order, LR-3-locked files), cooking
   content sliver (unowned, next). Doc 04 records findings V1-1..V1-5 incl. the rig-shadow
   scene fix and the exact gate counts (807/807).
+
+## Stage 3 Delivery, Integration & Visual Completion (Campaign 3)
+
+- **Fishing v1.1 + Photography + Community keepsake display** are all shipped on
+  branch `stage3-cont/fishing-photo` (PR #37, CI green, mergeable). The previous
+  campaign's local work was lost to a sandbox reset and reconstructed here.
+- **Shelf architecture evolved:** `shelfKeepsakes: Record<KeepsakeKey, ...>` (5
+  hardcoded keys) → `shelfKeepsakeMeshes: Record<string, THREE.Group>` (9 keepsakes
+  in one unified map). Adding a keepsake = adding a builder + one map entry.
+- **All 9 keepsakes now render:** 5 originals + 3 community (bespoke meshes) +
+  framed photo. The community-keepsake invisibility gap is closed.
+- **Next milestone (roadmap-reconciled):** Gardening expansion (window boxes,
+  outdoor soil beds, orchard tending). Highest readiness, most underrepresented
+  pillar. NPC participation in activities remains deferred (simulation-owner
+  coordination; do not build a second simulation framework).
+- **Gate:** 991/991 tests, tsc clean, boundary intact, build green. WorldState v12.
