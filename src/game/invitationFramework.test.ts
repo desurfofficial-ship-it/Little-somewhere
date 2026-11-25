@@ -69,6 +69,7 @@ test('SF2-01: every chassis reason string has player-legible copy', () => {
     'spacing_cooldown',
     'host_guarded',
     'tier_too_low',
+    'offer_phase_closed',
     'host_unavailable',
     'no_offered_invitation',
     'invitation_expired',

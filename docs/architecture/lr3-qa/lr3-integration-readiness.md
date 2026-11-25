@@ -2,6 +2,8 @@
 
 Final integration verdict of the LR-3 independent adversarial QA campaign, on `main` @ `8e08d3b`.
 
+> **[Execution record — 2026-11-24]** All five blockers below have since been executed on the branch series PRs #26–#30 (proposal → QA-03 fix → spatial comfort → slice 1 → slice 2): implementation landed (802/802 · tsc clean · build green, pre-existing suites unmodified), QA-03 FIXED with its adversarial battery, QA-10 closed NOT-REPRODUCIBLE (`lr3-qa10-correction.md`), the 11-field proposal filed before code, and the battery executed per `lr3-battery-execution-record.md`. The verdict below is preserved as the campaign's historical record; **LR-3 is now Implemented-locally/Verified-locally and pending merge + browser QA + independent adversarial review** — acceptance remains gated on those three, exactly as the evidence list at the bottom prescribes.
+
 ## Verdict: **BLOCKED**
 
 LR-3 is **not** ready for integration because the milestone has not been implemented: zero production code exists on any accessible branch or worktree (QA-01, mechanically verified by four independent agents). The design stack is complete, adversarially reviewed, and its substance re-verified on today's tree; the foundation chassis is green and audit-clean. Acceptance therefore cannot proceed past BLOCKED until the implementation exists and executes the prepared 98-scenario battery.
