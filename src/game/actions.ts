@@ -2941,12 +2941,17 @@ export function plantInGardenAction(
   if (getItemCount(world.inventory, seedItemId) < 1) {
     return { ok: false, nextWorld: world, toast: 'No seeds of that kind left in your satchel.' };
   }
+  // DEFECT-15 fix: validate plotIndex against def.plotCount BEFORE lazy-init
+  // so failed actions don't mutate world.gardens.
+  if (plotIndex < 0 || plotIndex >= def.plotCount) {
+    return { ok: false, nextWorld: world, toast: 'That plot is not in this garden.' };
+  }
   // All validation passed — now safe to lazy-init garden state.
   const state = getOrCreateGardenState(world, gardenId);
   if (!state) {
     return { ok: false, nextWorld: world, toast: 'That garden is not yet ready.' };
   }
-  if (plotIndex < 0 || plotIndex >= state.plots.length) {
+  if (plotIndex >= state.plots.length) {
     return { ok: false, nextWorld: world, toast: 'That plot is not in this garden.' };
   }
   const plot = state.plots[plotIndex];

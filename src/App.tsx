@@ -187,6 +187,7 @@ export default function App() {
   const [initialLoaded] = useState<WorldState>(() => loadWorldState());
   const [initialComposed] = useState(() => composeEnvironmentState(initialLoaded));
   const worldRef = useRef<WorldState>(initialLoaded);
+  const activePropIdRef = useRef<PropInteractableId | null>(null);
   const joystickVectorRef = useRef<ScreenVec2>({ x: 0, y: 0 });
   const zoomRef = useRef<number>(1.0);
   const lastSavedStampRef = useRef<string>(getSaveStamp(initialLoaded));
@@ -561,7 +562,7 @@ export default function App() {
           cozyAudio.playUiTap(1.06);
           setDialogueSession(null);
           setPropCard(null);
-          const gid = gardenIdForProp(activePropId ?? '');
+          const gid = gardenIdForProp(activePropIdRef.current ?? '');
           if (gid) setGardenPanelGardenId(gid);
           return;
         }
@@ -712,6 +713,7 @@ export default function App() {
           cozyAudio.playUiTap(1.1);
         }
         setDialogueSession(null);
+        activePropIdRef.current = pid;
         setActivePropId(pid);
         setPropCard({ ...res, subjectImageKey: subjectKeyForPropId(pid) });
       }
@@ -1091,7 +1093,7 @@ export default function App() {
       } else if (actionType === 'garden_panel') {
         setActivePropId(null);
         setPropCard(null);
-        const gid = gardenIdForProp(activePropId ?? '');
+        const gid = gardenIdForProp(activePropIdRef.current ?? '');
         if (gid) setGardenPanelGardenId(gid);
       } else if (actionType === 'community_projects_panel') {
         setActivePropId(null);

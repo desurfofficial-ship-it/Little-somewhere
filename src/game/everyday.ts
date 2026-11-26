@@ -165,7 +165,16 @@ const PRACTICE_DEFS: Record<EverydayPracticeId, EverydayPracticeDef> = {
     label: 'Quiet Hours in the Beds',
     blurb:
       'Watering the shared pots and tending the window boxes keeps the whole lane in blooms and herbs.',
-    readCount: (world) => safeCounter(world.greenhouseState?.totalHarvests),
+    readCount: (world) => {
+      let total = safeCounter(world.greenhouseState?.totalHarvests);
+      const gardens = world.gardens;
+      if (gardens && typeof gardens === 'object') {
+        for (const g of Object.values(gardens)) {
+          if (g) total += safeCounter(g.totalHarvests);
+        }
+      }
+      return total;
+    },
     tiers: GARDENING_TIERS,
   },
   kitchen: {
