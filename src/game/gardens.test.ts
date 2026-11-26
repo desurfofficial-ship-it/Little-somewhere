@@ -354,8 +354,8 @@ test('persistence: corrupt garden state is sanitized', () => {
   const garden = reloaded.gardens!['clara_herb_garden'];
   assert.ok(garden, 'garden survived sanitization');
   assert.ok(garden); assert.equal(garden.plots[0].cropId, null, 'invalid cropId reset to null');
-  assert.ok(garden); assert.equal(garden.plots[0].stage, 3, 'stage clamped to 0-3 (99 clamped to 3)');
-  assert.ok(garden); assert.equal(garden.plots[0].plantedDay, 0, 'negative plantedDay clamped to 0');
+  assert.ok(garden); assert.equal(garden.plots[0].stage, 0, 'invalid-cropId plot stage reset to 0 (fresh empty plot)');
+  assert.ok(garden); assert.equal(garden.plots[0].plantedDay, 0, 'plantedDay reset to 0');
   assert.ok(garden); assert.equal(garden.totalHarvests, 0, 'negative totalHarvests clamped to 0');
 });
 

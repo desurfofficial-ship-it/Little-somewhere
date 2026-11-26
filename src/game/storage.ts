@@ -609,6 +609,7 @@ export function computeWorldSaveRevision(state: WorldState): string {
       pushNum(g!.plots[j].nightsGrown);
       pushNum(g!.plots[j].wateredToday ? 1 : 0);
       pushNum(g!.plots[j].waterStreak);
+      pushNum(g!.plots[j].plantedDay);
     }
     pushNum(g?.totalHarvests ?? 0);
     pushNum(g?.totalPlanted ?? 0);

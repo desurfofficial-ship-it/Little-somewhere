@@ -14,7 +14,7 @@ import {
 import {
   GARDENS,
   getGardenDef,
-  getOrCreateGardenState,
+  getGardenState,
   summarizeGarden,
 } from '../game/gardens';
 import { PERSONAL_ITEM_MAP, getItemCount } from '../game/inventory';
@@ -49,13 +49,47 @@ export function GardenPanel({
 
   const state = useMemo(() => {
     if (!def) return null;
-    return getOrCreateGardenState({ ...world }, gardenId);
+    // DEFECT-9 fix: use read-only getGardenState, NOT getOrCreateGardenState
+    // (which mutates world.gardens inside useMemo — a React side-effect).
+    return getGardenState(world, gardenId);
   }, [world, gardenId, def]);
 
   const summary = useMemo(() => summarizeGarden(state), [state]);
 
+  // If the garden has no state yet (player hasn't interacted), show an empty
+  // placeholder so the panel doesn't crash — the first planting will lazy-init.
   if (!def || !state) {
-    return null;
+    if (!def) return null;
+    // Garden exists in registry but has no state yet — show empty summary.
+    return (
+      <dialog
+        ref={panelRef}
+        className="fixed inset-x-0 bottom-0 z-50 w-full max-h-[75vh] overflow-y-auto rounded-t-3xl bg-linen/95 backdrop-blur-sm border-t-2 border-stone-line shadow-2xl open:flex open:flex-col"
+        style={{ display: 'flex' }}
+        aria-label={def.label}
+      >
+        <div className="flex items-center justify-between px-4 py-3 border-b border-stone-line/50">
+          <div className="flex items-center gap-2">
+            <Sprout className="w-5 h-5 text-sage-deep" />
+            <h2 className="font-display text-lg sm:text-xl text-espresso">{def.label}</h2>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-full hover:bg-linen-deep transition-colors"
+            aria-label="Close garden panel"
+          >
+            <X className="w-5 h-5 text-espresso-muted" />
+          </button>
+        </div>
+        <div className="flex-1 overflow-y-auto px-4 py-3 space-y-4">
+          <p className="text-sm text-espresso-muted leading-relaxed">{def.blurb}</p>
+          <p className="text-xs text-espresso-muted italic">
+            {def.plotCount} empty {def.plotCount > 1 ? 'plots' : 'plot'} wait{def.plotCount > 1 ? '' : 's'} for seeds. Plant a seed to begin.
+          </p>
+        </div>
+      </dialog>
+    );
   }
 
   const allowedCrops = def.allowedCropIds
@@ -148,7 +182,7 @@ export function GardenPanel({
             className="min-h-[44px] w-full flex items-center justify-center gap-2 rounded-xl bg-sage-deep hover:bg-sage text-linen text-sm font-semibold transition-colors"
           >
             <Droplets className="w-4 h-4" />
-            Water all thirsty plots (+8m)
+            {world.weather === 'light_rain' ? 'Water all thirsty plots (rain helps — free!)' : 'Water all thirsty plots (+8m)'}
           </button>
         )}
 

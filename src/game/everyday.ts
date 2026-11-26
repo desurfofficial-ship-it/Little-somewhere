@@ -328,6 +328,21 @@ function deriveTouchedToday(world: WorldState, day: number): EverydayPracticeId[
     }
   }
 
+  // Gardening Expansion — outdoor garden tending counts as gardening practice.
+  // Any garden with lastTendedDay === today was tended (planted, watered, or
+  // harvested) by the player. Uses the garden's own lastTendedDay stamp, not
+  // a separate daily boolean — so no new dailyActivities field is needed.
+  const gardens = world.gardens;
+  if (gardens && typeof gardens === 'object') {
+    for (const gardenId of Object.keys(gardens)) {
+      const g = gardens[gardenId];
+      if (g && g.lastTendedDay === day) {
+        touched.add('gardening');
+        break;
+      }
+    }
+  }
+
   const bakery = world.bakeryState;
   if (bakery && typeof bakery === 'object') {
     if (isDoneToday(bakery.kneadedDay, day) || isDoneToday(bakery.loafSharedDay, day)) {

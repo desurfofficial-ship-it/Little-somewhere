@@ -63,6 +63,7 @@ import {
   GARDENS,
   getGardenDef,
   getOrCreateGardenState,
+  getGardenState,
   sowPlotInPlace,
   harvestPlotInPlace,
   summarizeGarden,
@@ -2840,14 +2841,11 @@ const GARDEN_PLANT_MINUTES = 10;
 const GARDEN_WATER_MINUTES = 8;
 const GARDEN_HARVEST_MINUTES = 12;
 
-/** All garden bed prop ids mapped to their garden id for routing. */
-const GARDEN_PROP_TO_ID: Record<string, string> = {
-  bakery_herb_bed: 'clara_herb_garden',
-  nook_lavender_bed: 'nook_lavender_bed',
-  pond_iris_bed: 'pond_iris_border',
-  beeline_pollinator_bed: 'beeline_pollinator_bed',
-  barnaby_compost_bed: 'barnaby_compost_garden',
-};
+/** All garden bed prop ids mapped to their garden id (derived from the GARDENS registry). */
+const GARDEN_PROP_TO_ID: Record<string, string> = GARDENS.reduce(
+  (acc, g) => { acc[g.anchorPropId] = g.id; return acc; },
+  {} as Record<string, string>,
+);
 
 /** Is this prop id a garden bed? */
 export function isGardenBedProp(propId: string): boolean {
@@ -2873,10 +2871,18 @@ export function interactWithGardenBed(world: WorldState, propId: string): PropIn
   if (!def) {
     return { nextWorld: world, title: 'Garden Bed', body: 'This garden bed is not yet ready.' };
   }
-  // Lazy-init garden state.
-  const state = getOrCreateGardenState(world, gardenId);
+  // DEFECT-4 fix: use read-only getGardenState; don't mutate on interaction.
+  const state = getGardenState(world, gardenId);
   if (!state) {
-    return { nextWorld: world, title: 'Garden Bed', body: 'This garden bed is not yet ready.' };
+    // No state yet — show the "empty garden" introduction without mutating.
+    return {
+      nextWorld: world,
+      title: def.label,
+      body: `${def.blurb} ${def.plotCount} empty ${def.plotCount > 1 ? 'plots' : 'plot'} wait${def.plotCount > 1 ? '' : 's'} for seeds.`,
+      actionLabel: 'Tend Garden',
+      actionType: 'garden_panel',
+      subjectImageKey: 'planter_box',
+    };
   }
   const summary = summarizeGarden(state);
   const readyPlots = summary.readyPlots;
@@ -2885,7 +2891,7 @@ export function interactWithGardenBed(world: WorldState, propId: string): PropIn
   const thirstyPlots = summary.thirstyPlots;
   let body: string;
   if (emptyPlots > 0 && growingPlots === 0 && readyPlots === 0) {
-    body = `${def.blurb} Two empty plots wait for seeds.`;
+    body = `${def.blurb} ${emptyPlots} ${emptyPlots > 1 ? 'empty plots' : 'empty plot'} wait${emptyPlots > 1 ? '' : 's'} for seeds.`;
   } else if (readyPlots > 0) {
     body = `${def.blurb} ${readyPlots} plot${readyPlots > 1 ? 's are' : ' is'} ready to harvest${growingPlots > 0 ? `, and ${growingPlots} ${growingPlots > 1 ? 'are' : 'is'} still growing` : ''}.`;
   } else if (thirstyPlots > 0) {
@@ -2923,17 +2929,7 @@ export function plantInGardenAction(
   if (world.playerLocation !== 'exterior') {
     return { ok: false, nextWorld: world, toast: 'Step outside to tend the garden beds.' };
   }
-  const state = getOrCreateGardenState(world, gardenId);
-  if (!state) {
-    return { ok: false, nextWorld: world, toast: 'That garden is not yet ready.' };
-  }
-  if (plotIndex < 0 || plotIndex >= state.plots.length) {
-    return { ok: false, nextWorld: world, toast: 'That plot is not in this garden.' };
-  }
-  const plot = state.plots[plotIndex];
-  if (plot.cropId) {
-    return { ok: false, nextWorld: world, toast: 'That plot is already growing something.' };
-  }
+  // DEFECT-4 fix: validate BEFORE lazy-init so failed actions don't mutate input.
   const crop = getGreenhouseCropBySeed(seedItemId);
   if (!crop) {
     return { ok: false, nextWorld: world, toast: 'That pocket holds no sowable seeds.' };
@@ -2944,6 +2940,18 @@ export function plantInGardenAction(
   }
   if (getItemCount(world.inventory, seedItemId) < 1) {
     return { ok: false, nextWorld: world, toast: 'No seeds of that kind left in your satchel.' };
+  }
+  // All validation passed — now safe to lazy-init garden state.
+  const state = getOrCreateGardenState(world, gardenId);
+  if (!state) {
+    return { ok: false, nextWorld: world, toast: 'That garden is not yet ready.' };
+  }
+  if (plotIndex < 0 || plotIndex >= state.plots.length) {
+    return { ok: false, nextWorld: world, toast: 'That plot is not in this garden.' };
+  }
+  const plot = state.plots[plotIndex];
+  if (plot.cropId) {
+    return { ok: false, nextWorld: world, toast: 'That plot is already growing something.' };
   }
   const consumed = consumeItemFromInventory(world.inventory, seedItemId, 1);
   if (!consumed.ok) {
@@ -2986,9 +2994,15 @@ export function waterGardenAction(world: WorldState, gardenId: string): PropInte
   if (world.playerLocation !== 'exterior') {
     return { nextWorld: world, title: def.label, body: 'Step outside to water the garden beds.' };
   }
-  const state = getOrCreateGardenState(world, gardenId);
+  // DEFECT-4 fix: use read-only getGardenState first; only create if needed.
+  let state = getGardenState(world, gardenId);
   if (!state) {
-    return { nextWorld: world, title: def.label, body: 'That garden is not yet ready.' };
+    // No state = no plots = nothing to water. Return info without mutating.
+    return {
+      nextWorld: world,
+      title: def.label,
+      body: 'The soil is bare and waiting. Plant a seed to begin.',
+    };
   }
   const thirsty = state.plots.filter((p) => p.cropId && p.stage < 3 && !p.wateredToday);
   if (thirsty.length === 0) {
@@ -3001,6 +3015,8 @@ export function waterGardenAction(world: WorldState, gardenId: string): PropInte
         : 'The soil is bare and waiting. Plant a seed to begin.',
     };
   }
+  // Now safe to create the state (validated — thirsty plots exist).
+  state = getOrCreateGardenState(world, gardenId) ?? state;
   const rainDay = world.weather === 'light_rain';
   const waterSpend = rainDay
     ? { nextWorld: world, minuteOfDay: world.minuteOfDay, eveningSlippedAway: false }
@@ -3048,9 +3064,10 @@ export function harvestFromGardenAction(
   if (world.playerLocation !== 'exterior') {
     return { ok: false, nextWorld: world, toast: 'Step outside to harvest the garden beds.' };
   }
-  const state = getOrCreateGardenState(world, gardenId);
+  // DEFECT-4 fix: use read-only getGardenState; no mutation on failure paths.
+  const state = getGardenState(world, gardenId);
   if (!state) {
-    return { ok: false, nextWorld: world, toast: 'That garden is not yet ready.' };
+    return { ok: false, nextWorld: world, toast: 'That garden has nothing growing yet.' };
   }
   if (plotIndex < 0 || plotIndex >= state.plots.length) {
     return { ok: false, nextWorld: world, toast: 'That plot is not in this garden.' };

@@ -101,6 +101,7 @@ import type {
 } from '../game/types';
 import { computeWaypointPath } from '../game/navigation';
 import { EXPLORATION_DISCOVERIES } from '../game/exploration';
+import { GARDENS } from '../game/gardens';
 import { getResidentAvailableQuestCue } from '../game/narrative';
 import { composeEnvironmentState } from '../game/environment';
 import { cozyAudio } from '../game/audio';
@@ -147,6 +148,7 @@ import { buildOrchardAmbientExtras, buildOrchardMicroLife } from './builders/orc
 import { buildAllReactiveRigs } from './builders/reactiveProps';
 import { buildCobbleNetworkGeometry } from './builders/cobbleNetwork';
 import { buildProgressionPresentation } from './progressionPresentation';
+import { buildGardenBedRig, GardenBedRig, GardenBedSpec } from './builders/gardenBed';
 import { buildWillowCottageInterior } from './builders/cottageInterior';
 import {
   buildSunbeamGreenhouseDoorway,
@@ -702,6 +704,25 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
     // Fern Hollow ambient extras: 3 composite orchard songbirds + seasonal blossom/leaf drift
     const orchardAmbientExtrasRig = buildOrchardAmbientExtras({ isSoftwareGl });
     exteriorRoot.add(orchardAmbientExtrasRig.group);
+
+    // Gardening Expansion — five outdoor garden bed rigs. Each is built once
+    // from the GARDENS registry + PROP_INTERACTABLES positions, added to the
+    // exterior root, and updated each tick from world.gardens state.
+    const gardenBedRigs: Array<{ rig: GardenBedRig; gardenId: string }> = [];
+    for (const def of GARDENS) {
+      const propDef = PROP_INTERACTABLES.find((p) => p.id === def.anchorPropId);
+      if (!propDef) continue;
+      const spec: GardenBedSpec = {
+        x: propDef.x,
+        z: propDef.z,
+        width: 1.8,
+        depth: 0.9,
+        plotCount: def.plotCount,
+      };
+      const rig = buildGardenBedRig(palette, shadowTex, spec);
+      exteriorRoot.add(rig.group);
+      gardenBedRigs.push({ rig, gardenId: def.id });
+    }
 
     const willowProtoCtx = {
       palette,
@@ -2185,6 +2206,19 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
         applyPorchSeason(bakeryPorchLife, world.season);
         applyPorchSeason(nookPorchLife, world.season);
         applyPorchSeason(copperwheelPorchLife, world.season);
+
+        // Gardening Expansion — update outdoor garden bed rigs from simulation state.
+        // Each rig reads its garden's plots and toggles stage-group visibility.
+        // Zero allocations: the rig's update() only writes .visible and .material.
+        for (const { rig, gardenId } of gardenBedRigs) {
+          const gardenState = world.gardens?.[gardenId];
+          if (gardenState) {
+            rig.update(gardenState.plots, world.season, elapsed);
+          } else {
+            // No state yet — show empty beds (all stage groups hidden).
+            rig.update([], world.season, elapsed);
+          }
+        }
       }
 
       // Pass 7: soft hearth crackle room-tone — started/stopped on state transitions only,
@@ -3217,6 +3251,8 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
       orchardRig.dispose();
       orchardMicroLifeRig.dispose();
       orchardAmbientExtrasRig.dispose();
+      // Gardening Expansion — dispose garden bed rigs.
+      for (const { rig } of gardenBedRigs) rig.dispose();
       groundMat.dispose();
       groundGeo.dispose();
       cobbleMat.dispose();

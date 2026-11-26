@@ -126,6 +126,7 @@ import {
   createInitialGreenhouseState,
   isGreenhouseInteriorWalkable,
 } from './greenhouse';
+import { GARDENS, getGardenDef } from './gardens';
 import { BAKERY_DOOR_SPAWN, createInitialBakeryState, isBakeryInteriorWalkable } from './bakery';
 import {
   NOOK_DOOR_SPAWN,
@@ -1675,8 +1676,9 @@ function sanitizeNpcSocialGroups(
 /**
  * Gardening Expansion (v13): sanitize the gardens map. Each garden's plots are
  * sanitized using the same plot-repair logic as sanitizeGreenhouseState (unknown
- * cropId → empty plot; clamped stage/nightsGrown/plantedDay; backfilled waterStreak).
- * Unknown garden ids are dropped with a warning.
+ * cropId → fresh empty plot; clamped stage/nightsGrown/plantedDay; backfilled
+ * waterStreak). Unknown garden ids are dropped with a warning. Plot count is
+ * enforced to match the garden definition (pad/truncate).
  */
 function sanitizeGardensState(
   raw: unknown,
@@ -1687,23 +1689,40 @@ function sanitizeGardensState(
   const out: Partial<Record<string, GardenState>> = {};
   let dropped = 0;
   for (const [gardenId, gardenRaw] of Object.entries(raw as Record<string, unknown>)) {
+    // DEFECT-2 fix: drop unknown garden ids (not in the GARDENS registry).
+    const def = getGardenDef(gardenId);
+    if (!def) { dropped++; continue; }
     if (!isRecord(gardenRaw)) { dropped++; continue; }
     const rawPlots = Array.isArray(gardenRaw.plots) ? gardenRaw.plots : [];
-    const plots = rawPlots.map((rp: unknown) => {
-      if (!isRecord(rp)) return createInitialGreenhousePlot();
+    // DEFECT-3 fix: enforce def.plotCount (pad/truncate like greenhouse sanitizer).
+    const expectedCount = def.plotCount;
+    const plots: GreenhousePlotState[] = [];
+    for (let i = 0; i < expectedCount; i++) {
+      const rp = rawPlots[i];
+      if (!isRecord(rp)) { plots.push(createInitialGreenhousePlot()); continue; }
       const cropId =
         typeof rp.cropId === 'string' && validCropIds.has(rp.cropId)
           ? (rp.cropId as GreenhouseCropId)
           : null;
-      return {
+      // DEFECT-1 fix: if cropId is invalid/null, reset to a fresh empty plot
+      // (do NOT preserve stale progress from the corrupt input).
+      if (!cropId) {
+        plots.push(createInitialGreenhousePlot());
+        continue;
+      }
+      plots.push({
         cropId,
-        plantedDay: Math.max(0, asFiniteNumber(rp.plantedDay, 0)),
+        plantedDay: Math.max(1, asFiniteNumber(rp.plantedDay, 1)),
         nightsGrown: Math.max(0, asFiniteNumber(rp.nightsGrown, 0)),
         stage: Math.max(0, Math.min(3, asFiniteNumber(rp.stage, 0))) as GreenhouseGrowthStage,
         wateredToday: Boolean(rp.wateredToday),
         waterStreak: Math.max(0, asFiniteNumber(rp.waterStreak, 0)),
-      };
-    });
+      });
+    }
+    // Warn if the raw plot count was wrong.
+    if (rawPlots.length !== expectedCount) {
+      warnings.push(`gardens.${gardenId} plots repaired to ${expectedCount} (was ${rawPlots.length})`);
+    }
     out[gardenId] = {
       plots,
       totalHarvests: Math.max(0, asFiniteNumber(gardenRaw.totalHarvests, 0)),
