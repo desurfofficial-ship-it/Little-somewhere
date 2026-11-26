@@ -25,7 +25,7 @@ import { RESIDENT_ORDER } from './residents';
 import { PersonalItemId } from './types';
 
 test('personal item catalog, starter inventory, and stack clamping enforce invariants', () => {
-  assert.equal(PERSONAL_ITEMS.length, 34); // 25 baseline + 5 Willow Jetty pond catches (Stage 3) + 3 SC-B community-project keepsakes + 1 Photography framed-photo keepsake (Stage 3 Cont.)
+  assert.equal(PERSONAL_ITEMS.length, 38); // 25 baseline + 5 Willow Jetty pond catches (Stage 3) + 3 SC-B community-project keepsakes + 1 Photography framed-photo keepsake (Stage 3 Cont.) + 4 Gardening Expansion crops (marigold + sage seeds/harvests)
   const uniqueIds = new Set(PERSONAL_ITEMS.map((item) => item.id));
   assert.equal(uniqueIds.size, PERSONAL_ITEMS.length);
 

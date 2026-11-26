@@ -5,6 +5,7 @@ import {
   GreenhousePlotState,
   GreenhouseState,
   InteractiveTarget,
+  PersonalItemId,
   SeasonType,
   Vec2,
   WorldState,
@@ -136,8 +137,8 @@ export const GREENHOUSE_PLOT_COUNT = 4;
 export interface GreenhouseCropDef {
   id: GreenhouseCropId;
   label: string;
-  seedItemId: 'chamomile_seeds' | 'lavender_seeds' | 'thyme_seeds' | 'foxglove_seeds';
-  cropItemId: 'chamomile_blossom' | 'lavender_sprig' | 'lemon_thyme' | 'foxglove_bloom';
+  seedItemId: PersonalItemId;
+  cropItemId: PersonalItemId;
   /** Watered in-game nights needed from sowing until the pot is ready to harvest. */
   growthNights: number;
   /** Harvest yield of the crop item (a seed of the same crop is always returned). */
@@ -182,6 +183,26 @@ export const GREENHOUSE_CROPS: readonly GreenhouseCropDef[] = [
     harvestCount: 2,
     blurb: 'Speckled woodland bells from the hollow’s forgotten garden — slow, worth every night.',
   },
+  // Gardening Expansion — new crops for outdoor beds. Also growable in the
+  // greenhouse, but their seeds are discovered at outdoor garden locations.
+  {
+    id: 'marigold',
+    label: 'Marigold',
+    seedItemId: 'marigold_seeds',
+    cropItemId: 'marigold_bloom',
+    growthNights: 2,
+    harvestCount: 2,
+    blurb: 'Warm golden pom-poms that brighten any border — ready after two gentle nights.',
+  },
+  {
+    id: 'sage',
+    label: 'Garden Sage',
+    seedItemId: 'sage_seeds',
+    cropItemId: 'sage_sprig',
+    growthNights: 3,
+    harvestCount: 2,
+    blurb: 'Silvery culinary leaves for roasts and stuffings — ready after three patient nights.',
+  },
 ];
 
 const GREENHOUSE_CROP_MAP: Record<GreenhouseCropId, GreenhouseCropDef> = GREENHOUSE_CROPS.reduce(
@@ -198,11 +219,7 @@ export function getGreenhouseCrop(cropId: GreenhouseCropId | null | undefined): 
 }
 
 export function getGreenhouseCropBySeed(
-  seedItemId:
-    | 'chamomile_seeds'
-    | 'lavender_seeds'
-    | 'thyme_seeds'
-    | 'foxglove_seeds',
+  seedItemId: PersonalItemId,
 ): GreenhouseCropDef | null {
   return GREENHOUSE_CROPS.find((c) => c.seedItemId === seedItemId) ?? null;
 }

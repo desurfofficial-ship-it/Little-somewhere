@@ -165,7 +165,16 @@ const PRACTICE_DEFS: Record<EverydayPracticeId, EverydayPracticeDef> = {
     label: 'Quiet Hours in the Beds',
     blurb:
       'Watering the shared pots and tending the window boxes keeps the whole lane in blooms and herbs.',
-    readCount: (world) => safeCounter(world.greenhouseState?.totalHarvests),
+    readCount: (world) => {
+      let total = safeCounter(world.greenhouseState?.totalHarvests);
+      const gardens = world.gardens;
+      if (gardens && typeof gardens === 'object') {
+        for (const g of Object.values(gardens)) {
+          if (g) total += safeCounter(g.totalHarvests);
+        }
+      }
+      return total;
+    },
     tiers: GARDENING_TIERS,
   },
   kitchen: {
@@ -325,6 +334,21 @@ function deriveTouchedToday(world: WorldState, day: number): EverydayPracticeId[
     if (safeCounter(daily.bakedCountToday) > 0) touched.add('kitchen');
     if (Array.isArray(daily.giftedResidentsToday) && daily.giftedResidentsToday.length > 0) {
       touched.add('friendship');
+    }
+  }
+
+  // Gardening Expansion — outdoor garden tending counts as gardening practice.
+  // Any garden with lastTendedDay === today was tended (planted, watered, or
+  // harvested) by the player. Uses the garden's own lastTendedDay stamp, not
+  // a separate daily boolean — so no new dailyActivities field is needed.
+  const gardens = world.gardens;
+  if (gardens && typeof gardens === 'object') {
+    for (const gardenId of Object.keys(gardens)) {
+      const g = gardens[gardenId];
+      if (g && g.lastTendedDay === day) {
+        touched.add('gardening');
+        break;
+      }
     }
   }
 

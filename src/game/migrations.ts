@@ -31,6 +31,7 @@ import {
   SeasonType,
   SocialGroup,
   SocialGroupMembership,
+  GardenState,
   StoryFlags,
   TeachingState,
   TimePhase,
@@ -125,6 +126,7 @@ import {
   createInitialGreenhouseState,
   isGreenhouseInteriorWalkable,
 } from './greenhouse';
+import { GARDENS, getGardenDef } from './gardens';
 import { BAKERY_DOOR_SPAWN, createInitialBakeryState, isBakeryInteriorWalkable } from './bakery';
 import {
   NOOK_DOOR_SPAWN,
@@ -141,7 +143,7 @@ import {
   sanitizeCommunityProjectsState,
 } from './community';
 
-export const CURRENT_SCHEMA_VERSION = 12;
+export const CURRENT_SCHEMA_VERSION = 13;
 export const DEFAULT_SIM_SEED = 18042;
 
 /**
@@ -313,6 +315,8 @@ export function createDefaultWorldState(): WorldState {
     // sanitized, and post-step states all carry the same keys for round-trip).
     npcPerceptions: {},
     npcSocialGroups: [],
+    // Gardening Expansion (v13) — empty gardens map for fresh state.
+    gardens: {},
   };
 }
 
@@ -1572,6 +1576,8 @@ export function sanitizeWorldState(candidate: unknown, externalWarnings: string[
     communityProjects: sanitizeCommunityProjectsState(candidate.communityProjects, warnings),
     npcPerceptions: sanitizeNpcPerceptions(candidate.npcPerceptions, warnings),
     npcSocialGroups: sanitizeNpcSocialGroups(candidate.npcSocialGroups, warnings),
+    // Gardening Expansion (v13) — sanitize the gardens map.
+    gardens: sanitizeGardensState(candidate.gardens, warnings),
   };
 }
 
@@ -1664,6 +1670,67 @@ function sanitizeNpcSocialGroups(
     }
     out.push(group);
   }
+  return out;
+}
+
+/**
+ * Gardening Expansion (v13): sanitize the gardens map. Each garden's plots are
+ * sanitized using the same plot-repair logic as sanitizeGreenhouseState (unknown
+ * cropId → fresh empty plot; clamped stage/nightsGrown/plantedDay; backfilled
+ * waterStreak). Unknown garden ids are dropped with a warning. Plot count is
+ * enforced to match the garden definition (pad/truncate).
+ */
+function sanitizeGardensState(
+  raw: unknown,
+  warnings: string[],
+): Partial<Record<string, GardenState>> {
+  if (!isRecord(raw)) return {};
+  const validCropIds = new Set<string>(GREENHOUSE_CROPS.map((c) => c.id as string));
+  const out: Partial<Record<string, GardenState>> = {};
+  let dropped = 0;
+  for (const [gardenId, gardenRaw] of Object.entries(raw as Record<string, unknown>)) {
+    // DEFECT-2 fix: drop unknown garden ids (not in the GARDENS registry).
+    const def = getGardenDef(gardenId);
+    if (!def) { dropped++; continue; }
+    if (!isRecord(gardenRaw)) { dropped++; continue; }
+    const rawPlots = Array.isArray(gardenRaw.plots) ? gardenRaw.plots : [];
+    // DEFECT-3 fix: enforce def.plotCount (pad/truncate like greenhouse sanitizer).
+    const expectedCount = def.plotCount;
+    const plots: GreenhousePlotState[] = [];
+    for (let i = 0; i < expectedCount; i++) {
+      const rp = rawPlots[i];
+      if (!isRecord(rp)) { plots.push(createInitialGreenhousePlot()); continue; }
+      const cropId =
+        typeof rp.cropId === 'string' && validCropIds.has(rp.cropId)
+          ? (rp.cropId as GreenhouseCropId)
+          : null;
+      // DEFECT-1 fix: if cropId is invalid/null, reset to a fresh empty plot
+      // (do NOT preserve stale progress from the corrupt input).
+      if (!cropId) {
+        plots.push(createInitialGreenhousePlot());
+        continue;
+      }
+      plots.push({
+        cropId,
+        plantedDay: Math.max(1, asFiniteNumber(rp.plantedDay, 1)),
+        nightsGrown: Math.max(0, asFiniteNumber(rp.nightsGrown, 0)),
+        stage: Math.max(0, Math.min(3, asFiniteNumber(rp.stage, 0))) as GreenhouseGrowthStage,
+        wateredToday: Boolean(rp.wateredToday),
+        waterStreak: Math.max(0, asFiniteNumber(rp.waterStreak, 0)),
+      });
+    }
+    // Warn if the raw plot count was wrong.
+    if (rawPlots.length !== expectedCount) {
+      warnings.push(`gardens.${gardenId} plots repaired to ${expectedCount} (was ${rawPlots.length})`);
+    }
+    out[gardenId] = {
+      plots,
+      totalHarvests: Math.max(0, asFiniteNumber(gardenRaw.totalHarvests, 0)),
+      totalPlanted: Math.max(0, asFiniteNumber(gardenRaw.totalPlanted, 0)),
+      lastTendedDay: Math.max(0, asFiniteNumber(gardenRaw.lastTendedDay, 0)),
+    };
+  }
+  if (dropped > 0) warnings.push(`gardens entries dropped on load (${dropped})`);
   return out;
 }
 
@@ -2581,6 +2648,15 @@ export function migrateV11ToV12(v11Raw: Record<string, unknown>): Record<string,
   };
 }
 
+/** Gardening Expansion — v12→v13: adds the `gardens` map for outdoor beds. */
+export function migrateV12ToV13(v12Raw: Record<string, unknown>): Record<string, unknown> {
+  return {
+    ...v12Raw,
+    schemaVersion: 13,
+    gardens: v12Raw.gardens ?? {},
+  };
+}
+
 export function migrateWorldState(raw: unknown): MigrationResult {
   const warnings: string[] = [];
   const detected = detectSchemaVersion(raw);
@@ -2649,6 +2725,11 @@ export function migrateWorldState(raw: unknown): MigrationResult {
   if (version === 11) {
     working = migrateV11ToV12(working);
     version = 12;
+  }
+
+  if (version === 12) {
+    working = migrateV12ToV13(working);
+    version = 13;
   }
 
   if (version > CURRENT_SCHEMA_VERSION) {

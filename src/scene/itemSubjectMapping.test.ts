@@ -9,7 +9,7 @@ import { SUBJECT_IMAGE_KEYS, subjectForItem } from '../game/dialogue/assets';
  * and every parametric item scene is registered.
  */
 test('BUILD 04: all satchel items map to registered, tinted subject scenes', () => {
-  assert.equal(PERSONAL_ITEMS.length, 34, 'the catalog holds exactly 34 items (25 baseline + 5 pond catches + 3 SC-B community-project keepsakes + 1 Photography framed-photo keepsake)');
+  assert.equal(PERSONAL_ITEMS.length, 38, 'the catalog holds exactly 38 items (25 baseline + 5 pond catches + 3 SC-B community-project keepsakes + 1 Photography framed-photo keepsake + 4 Gardening Expansion crops)');
   for (const item of PERSONAL_ITEMS) {
     const desc = subjectForItem(item.id);
     assert.equal(desc.kind, 'procedural', `${item.id} resolves a procedural subject`);

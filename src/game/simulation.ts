@@ -40,6 +40,7 @@ import {
   cloneNpcPerceptions,
   getPerceivedTierFast,
 } from './perceptions';
+import { cloneGardens } from './gardens';
 import {
   computeSeparationVector,
   computeWaypointPath,
@@ -1630,6 +1631,9 @@ export function stepSimulation(
           members: g.members.map((m) => ({ ...m })),
         }))
       : world.npcSocialGroups,
+    // Gardening Expansion (v13): clone gardens so the pure stepSimulation path
+    // and the in-place path share the same view (twin-determinism).
+    gardens: cloneGardens(world.gardens),
     activeEncounters: world.activeEncounters.map((e) => ({
       ...e,
       participants: [...e.participants],

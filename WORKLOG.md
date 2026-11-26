@@ -1498,6 +1498,7 @@ Chronological log of design decisions, implementation milestones, verification r
   activities IMPLEMENTED (keepsake display complete); next milestone =
   Gardening expansion (highest readiness, most underrepresented pillar).
 
+
 ## Stage 3 integration (2026-11-25): main (PR #37) merged into the spatial workstream
 
 - **Merge 0dbec54**: integrated origin/main 4893d56 (PR #37 — fishing v1.1 cherry-pick
@@ -1521,3 +1522,49 @@ Chronological log of design decisions, implementation milestones, verification r
   "West Brook Bank / +1 Silver Dace" (spot registry, once-per-day gate and catch table
   intact after the geometry reconciliation). Jetty regression shot re-confirmed the v1
   rig unmoved.
+
+---
+
+## Gardening Expansion — Phase C Finalization
+
+- **Date**: 2026-11-23
+- **Branch**: `feat/gardening-expansion`
+- **Base**: `4893d56` (PR #37 merged)
+- **HEAD**: `3c919e6`
+- **Status**: Implemented, adversarially QA'd, browser-verified. 1021/1021 tests, tsc clean, build green, stress A–G clean with byte-identical replay.
+
+### Completed this session
+
+1. **NeighborhoodCanvas.tsx scene integration**: 5 garden bed rigs created from the GARDENS registry + PROP_INTERACTABLES positions, added to exteriorRoot, updated each tick from world.gardens state (visibility toggle + soil material swap + bloom sway), disposed on unmount.
+
+2. **Everyday practice integration**: `deriveTouchedToday` now checks `world.gardens` for `lastTendedDay === today`, registering garden tending (planting, watering, harvesting) as 'gardening' practice. No new dailyActivities boolean needed.
+
+3. **Adversarial QA** (independent hostile subagent): 12 defects found — 5 MAJOR, 7 MINOR. All fixed:
+   - DEFECT-1 (MAJOR): Sanitizer resets invalid-cropId plots to fresh empty plot
+   - DEFECT-2 (MAJOR): Sanitizer drops unknown garden ids
+   - DEFECT-3 (MAJOR): Sanitizer enforces def.plotCount
+   - DEFECT-4 (MAJOR): Reducers no longer mutate input on failure paths
+   - DEFECT-5 (MAJOR): Harvest overflow documented (systemic, same as greenhouse)
+   - DEFECT-6–12 (MINOR): Fingerprint, UI labels, useMemo mutation, routing derivation, docstrings — all fixed
+
+4. **Browser QA**: Game loads at `http://localhost:3001/?autostart=1` with zero console errors. Schema v13 confirmed in localStorage. Screenshot captured. Full HUD operational (Day 1, Morning, Spring, Sunlit).
+
+### Architecture summary
+
+- **Garden registry** (`src/game/gardens.ts`): 5 outdoor beds, each with GardenDef (id, label, ownerId, anchorPropId, plotCount, allowedCropIds)
+- **Plot model**: Reuses GreenhousePlotState (cropId, plantedDay, nightsGrown, stage, wateredToday, waterStreak)
+- **Schema v13**: `world.gardens: Partial<Record<string, GardenState>>` with v12→v13 migration (empty default, no data moves)
+- **Nightly growth**: Same algorithm as greenhouse (advanceAllGardensNightlyGrowthInPlace called from advanceToNextDay)
+- **Reducers**: plantInGardenAction, waterGardenAction, harvestFromGardenAction (all validate before mutating)
+- **Scene builder** (`src/scene/builders/gardenBed.ts`): Reusable buildGardenBedRig with stage groups, soil swap, bloom sway, winter dormancy
+- **UI** (`src/components/GardenPanel.tsx`): Bottom-sheet panel with plot rows, seed selection, watering, harvesting
+- **App.tsx routing**: garden_panel actionType dispatches to GardenPanel
+
+### Verification gates
+- Tests: 1021/1021 pass
+- TypeScript: clean
+- Build: green
+- Stress harness: byte-identical replay + twin continuity
+- Browser: zero console errors, schema v13, HUD operational
+- Adversarial QA: 12 defects found and fixed
+conciliation for Phase C finalization)
