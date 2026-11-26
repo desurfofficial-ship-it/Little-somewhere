@@ -161,6 +161,27 @@ Every coding agent must follow these rules. They are mirrored in `docs/MASTER-RO
 20. **Every major implementation receives independent adversarial review** (directive §5, `docs/architecture/master-architecture/08` §2) — reviewers actively attempt to disprove correctness; reproducible findings must be addressed.
 21. **Maintain a consolidated team report** per merge cycle (directive §7, `docs/architecture/master-architecture/07` §11) — completed / active / subagents / files / deps / blockers / test evidence / decisions / risks / next.
 
-**Feature authorization:** distinguish between Approved active work, Approved future work, Proposed ideas, and Deferred work. A feature appearing in the original vision does NOT automatically authorize an agent to implement it immediately. The active milestone (`docs/MASTER-ROADMAP.md` §5) and its scope govern execution.
+**Feature authorization:** distinguish between Approved active work, Approved future work, Proposed ideas, and Deferred work. A feature appearing in the original vision does NOT automatically authorize an agent to implement it immediately. The active milestone (`docs/MASTER-ROADMAP.md` §5) and its scope govern execution. **For narrative, story, NPC-arc, dialogue, district, or world-expansion work specifically, also read §8 (Strategic narrative & district-expansion direction) and `docs/MASTER-ROADMAP.md` §12 before proposing.**
 
 **LR-3 scope control (directive §8):** LR-3 (Clara's Morning Pastry Invitation) is owned by the LR team; design is READY but implementation is gated on 5 clearance items (`docs/architecture/lr3-qa/lr3-integration-readiness.md`). Other teams coordinate with the LR team — do not create a competing implementation, branch, or proposal.
+
+---
+
+## 8. Strategic narrative & district-expansion direction (lifelong-game pillar)
+
+LITTLE SOMEWHERE is intended to be a game players can enjoy for years. Beyond the six core pillars (`docs/MASTER-ROADMAP.md` §1), the repository recognizes a **strategic pillar: Storytelling, Narrative Progression & Lifelong World Expansion**. This is a PROPOSED strategic direction — **not an implementation authorization**.
+
+**Before proposing or implementing any narrative, story, NPC-arc, dialogue, district, or world-expansion work, read:**
+- `docs/MASTER-ROADMAP.md` §12 (the concise authoritative summary), and
+- `docs/architecture/lifelong-narrative/00-LIFELONG-NARRATIVE-VISION.md` (the full framework).
+
+**Agent guidance — communicate and respect:**
+- LITTLE SOMEWHERE is a **long-lived game**; storytelling is a **strategic pillar, not an incidental feature**.
+- Stories support **gradual narrative complexity** (a proposed Tier 1–6 framework for future validation); **early-game stories remain accessible**; future stories may become more interconnected.
+- **District expansion is a long-term strategic direction**; districts integrate with the existing world (not disposable maps). District access emerges through natural world connections, never level-unlock notifications or friendship-threshold gates.
+- **Existing stories and narrative systems must be audited before creating new ones** (the 6 shipped storylines, 95 dialogue topics, community/social echoes, emergent-stories system — see `src/game/narrative.ts`, `storylines.ts`, `emergentStories.ts`, `dialogue/`). Do not duplicate.
+- **The proposed ST-0..ST-6 initiative is NOT permission to implement it.** It is a strategic program requiring design/roadmap review before any implementation. The active milestone (LR-3) and Stage 3 everyday-activity work remain the current execution priority.
+- **No agent should independently invent** district progression, mandatory prerequisites, story tiers presented to players, content economies, or story architecture without the appropriate design/roadmap review (`docs/architecture/master-architecture/10-operating-directive.md` §3, §8).
+- **Pillar 6 (No Stressful Progression) governs this expansion at all times** — no real-world timers, no grinding, no FOMO, no punishment for breaks, in every narrative/district proposal.
+- **Validate mobile performance and technical scalability** before any district-expansion proposal advances.
+- Future implementation agents must **verify actual repository state and scope** before beginning (`docs/MASTER-ROADMAP.md` §11 rule 1, 12).

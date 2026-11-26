@@ -3,9 +3,9 @@
 > **AUTHORITATIVE.** This is the single source of truth for the product vision, the six pillars, what the game is and is not, what is actually built, and the strategic order in which development continues. Every other document that touches product direction is SUPPORTING or HISTORICAL relative to this one (see §10 — Document Authority).
 
 **Repository:** https://github.com/desurfofficial-ship-it/Little-somewhere
-**Recorded:** 2026-11-23, atop `origin/main` @ `a765f38`.
+**Recorded:** 2026-11-23 (last revised 2026-11-25, atop `origin/main` @ `4893d56` — PR #37 merged).
 **Audit basis:** full repository audit (codebase + tests + docs + git history) by three parallel specialists — see `docs/roadmap/REPOSITORY-ALIGNMENT-AUDIT.md` for the evidence.
-**Live status snapshot:** `WorldState` **v12** · **722/722 tests** green · `tsc` clean · build green · 11-step migration chain.
+**Live status snapshot:** `WorldState` **v12** · **991/991 tests** green · `tsc` clean · build green · 11-step migration chain · 95 dialogue topics · PR #37 merged (Fishing v1.1 + Photography + Community keepsake display).
 
 ---
 
@@ -27,6 +27,8 @@ That is the experience we are building.
 4. **The Neighborhood Remembers** — the world visibly responds to the player's actions and residents' lives: trees grow, gardens restore, shops reopen, residents become friends, places improve. Changes persist. The player can look at a place and recognize that something changed because of events in the simulation.
 5. **Seasons and Atmosphere** — morning/afternoon/evening/night, seasonal changes, weather, wildlife, ambient sound, lighting, seasonal resident behaviors, community celebrations. The world feels beautiful and peaceful even when the player is not completing an activity.
 6. **No Stressful Progression** — no punishing login requirements, no real-world timers, no energy depletion, no artificial urgency, no grinding, no punishment for breaks, no competitive business progression, no systems that make players feel behind. **Reward returning to the neighborhood. Never punish leaving it.**
+
+> **Strategic pillar (long-term):** beyond the six core pillars, the game aspires to a **lifelong, narrative-driven, multi-district world** — see §12 (Storytelling, Narrative Progression & Lifelong World Expansion) and `docs/architecture/lifelong-narrative/00-LIFELONG-NARRATIVE-VISION.md`. This is a PROPOSED strategic direction, not an implementation authorization, and never overrides Pillar 6.
 
 ---
 
@@ -57,7 +59,7 @@ That is the experience we are building.
 
 ## 3. Current development status (executive summary)
 
-The project is a genuinely playable, persistent cozy life-sim with a deterministic simulation, 10 named residents with daily routines and NPC↔NPC relationships, 5 visitable interiors, a branching dialogue engine (86 topics), a Pocket Journal, environmental reactivity, seasonal/weather systems, and `WorldState` v12 persistence with an 11-step migration chain.
+The project is a genuinely playable, persistent cozy life-sim with a deterministic simulation, 10 named residents with daily routines and NPC↔NPC relationships, 5 visitable interiors, a branching dialogue engine (95 topics across 25 modules), a Pocket Journal, environmental reactivity, seasonal/weather systems, and `WorldState` v12 persistence with an 11-step migration chain.
 
 **All six pillars are embodied.** The codebase is strikingly faithful to the original vision — the negative space (no business sim, no grinding, no multiplayer race, no NPC-quest-dispensers, no real-world timers) is robustly defended in `GAME_DESIGN.md` §2/§11, `AGENTS.md` §7 (product identity + the six pillars + the IS/IS-NOT list), and the living-relationships non-goals.
 
@@ -78,7 +80,7 @@ The project is a genuinely playable, persistent cozy life-sim with a determinist
 
 ## 4. Completed milestones (authoritative)
 
-All milestones below are **IMPLEMENTED** and merged to `main`, verified by the audit (code + tests + git history). Historical status claims were checked against the current repository before being listed here. Dialogue content: 86 topics across 23 modules.
+All milestones below are **IMPLEMENTED** and merged to `main`, verified by the audit (code + tests + git history). Historical status claims were checked against the current repository before being listed here. Dialogue content: 95 topics across 25 modules.
 
 | Milestone | What it delivered | Evidence |
 | :--- | :--- | :--- |
@@ -88,7 +90,7 @@ All milestones below are **IMPLEMENTED** and merged to `main`, verified by the a
 | **Milestone 2C** | Character & experience polish (rounds 1-8) | `docs/production/everyday-life-polish-roadmap.md` (HISTORICAL); `HANDOVER.md §10-§15` |
 | **Milestone 3 (Builds 1-9)** | Neighborhood & story expansion: 5 visitable interiors (Cottage, Greenhouse, Bakery, Book Nook, Copperwheel), Fern Hollow Orchard, 10 residents, dialogue modularization | `CHANGELOG.md [0.3.0]-[0.9.0]`; `docs/milestones/16-19` |
 | **Build 10 — Wild Hollows** | Exterior exploration: Foxglove Rise, Old Stone Well, Sorrel Hollow, Marigold Lane, The Bee Line | `docs/design/20-build-10-wild-hollows-world-expansion.md`; recovered via `docs/architecture/build10-lr-recovery/` |
-| **Dialogue Modularization** | 86 dialogue topics across 23 modules | `src/game/dialogue/index.ts:42` |
+| **Dialogue Modularization** | 95 dialogue topics across 25 modules | `src/game/dialogue/index.ts:42` |
 | **Systemic Reliability** | Save integrity, sanitizer, migration hardening, stress harness | `docs/architecture/systemic-reliability-integration/07-final-integration-audit.md`; PR #11 |
 | **Living Relationships LR-1** | Invitation foundation (`WorldState` v11) | `invitations.ts`, `occupancy.ts`; `docs/architecture/living-relationships/` |
 | **Living Relationships LR-2** | Linden Book Nook indoor occupancy + shared featured reading | `activities.ts:52` (`share_featured_reading`); `docs/architecture/living-relationships/22` |
@@ -242,7 +244,7 @@ The campaign found **no defect in the chassis that would force a redesign**; the
 | :--- | :--- | :--- |
 | **Multiplayer** | DEFERRED | Single-player-first. Multiplayer is a potential future expansion requiring a separate approval + architecture decision. Do not build multiplayer infrastructure prematurely. |
 | **Cross-device Cloud Saves** | DEFERRED (long-term) | Always 100% optional, never gating offline. `localStorage` is the current persistence. |
-| **New connected districts** | DEFERRED (long-term) | `REGIONS` expansion; only after core neighborhood is sufficiently mature. |
+| **New connected districts** | DEFERRED (long-term) | `REGIONS` expansion; only after core neighborhood is sufficiently mature. Elevated to a strategic pillar — see §12 and `docs/architecture/lifelong-narrative/00-LIFELONG-NARRATIVE-VISION.md` (PROPOSED ST-4/ST-5). |
 | **Pets** | DEFERRED (long-term) | `GAME_DESIGN.md:341` "LONG-TERM VISION." |
 | **LayaAir engine migration** | SUPERSEDED (rejected) | `docs/architecture/layaair-reference/10-final-engineering-assessment.md` — reference only; not adopted. |
 
@@ -305,7 +307,8 @@ Prioritize simulation quality and believable behavior over simply increasing NPC
 - Additional neighborhood experiences (Sunday Market — cadence decision needed).
 
 ### Stage 6 — Long-Term Expansion (only after core is sufficiently mature)
-- Additional neighborhoods / connected districts (`REGIONS`).
+- Additional neighborhoods / connected districts (`REGIONS`) — elevated to a strategic pillar (see §12).
+- District expansion architecture, introduction philosophy & safeguards: see §12 and `docs/architecture/lifelong-narrative/00-LIFELONG-NARRATIVE-VISION.md` (PROPOSED ST-4/ST-5, not yet authorized).
 - Larger resident populations.
 - Expanded storylines.
 - More complex community systems.
@@ -336,6 +339,7 @@ This section establishes which documents are authoritative for what. See `docs/r
 | `ARCHITECTURE.md` | AUTHORITATIVE — system mechanics | Layers, camera math, reactivity pipeline, file map. |
 | `docs/architecture/master-architecture/00-10` | AUTHORITATIVE — engineering governance | Ownership matrix, contracts, parallel-dev protocol, integration gates, operating directive. **Complementary to this roadmap** — master-architecture = "how teams evolve mechanics in parallel"; this roadmap = "what the product is and where it's going." |
 | `docs/architecture/{living-relationships,build10-lr-recovery,systemic-reliability{,-integration},social-foundation,everyday-gameplay,npc-intelligence-living-simulation,lr3,lr3-qa}` | SUPPORTING — feature-scoped | Per-initiative design + as-built records. |
+| `docs/architecture/lifelong-narrative/00-LIFELONG-NARRATIVE-VISION.md` | SUPPORTING — strategic vision | Full expression of the §12 strategic pillar (lifelong-game ambition, narrative progression framework, 8 narrative engines, narrative web, district expansion strategy, proposed ST-0..ST-6 program, exploratory district concepts). Concise authoritative summary in `docs/MASTER-ROADMAP.md` §12. |
 | `docs/milestones/`, `docs/audits/`, `docs/research/`, `docs/proposals/`, `docs/production/`, `docs/visual-quality/` | HISTORICAL | Dated records, append-only. Tagged `STATUS: HISTORICAL` where not already. |
 | `CHANGELOG.md` + `WORKLOG.md` + `git tag build-<sha>` | AUTHORITATIVE — release record | Per `docs/architecture/master-architecture/08` §9. |
 
@@ -373,7 +377,46 @@ Every coding agent must understand these rules. They are mirrored in `AGENTS.md`
 
 ---
 
-## 12. Final
+## 12. Strategic pillar — Storytelling, Narrative Progression & Lifelong World Expansion
+
+> **Status: PROPOSED STRATEGIC DIRECTION — not an implementation authorization.** This pillar elevates storytelling, lifelong progression, district expansion, and narrative difficulty into explicit strategic priorities. It does NOT supersede the active milestone (§5: LR-3) or the Stage 3 everyday-activity work, and it does NOT authorize any implementation. Full framework: `docs/architecture/lifelong-narrative/00-LIFELONG-NARRATIVE-VISION.md`.
+
+LITTLE SOMEWHERE is intended to be a game players can enjoy for years. The longevity ambition is comparable to games that remain engaging years after release — but achieved through **this game's own identity, systems, and philosophy**, never by copying another game's economy, competitive structure, monetization, timers, or grind. **Pillar 6 (No Stressful Progression) governs this expansion at all times.**
+
+The pillar visibly recognizes:
+
+- **Lifelong-game ambition** — a world that grows richer over years without making earlier life irrelevant; no FOMO, no daily-login requirements, no real-world decay, no grind.
+- **Storytelling as a deliberate strategic pillar** — not an incidental feature; the 8 narrative engines (personal, relationship, everyday emergent, community, discovery, long-running, district, player-memory) are strategic content opportunities mapped onto existing systems.
+- **Narrative progression & difficulty** — stories are approachable at the start and progressively richer; sophistication grows through character/location/event count, motivation complexity, observation/exploration, relationship integration, meaningful decisions, continuity, and cross-district consequences. ("Difficulty" here means **narrative sophistication and richness**, never punitive challenge or grind — see the full-vision doc's terminology note.) **A proposed Tier 1–6 framework** (Welcoming → Familiar community → Interconnected neighborhood → Investigative → Major community/district → Long-running/lifelong) is a strategic model for future validation — NOT built in gameplay, NOT presented to players as levels.
+- **The narrative web** — stories increasingly connect where meaningful (activities feed stories, discoveries reveal history, journal preserves connections, NPC autonomy creates emergent opportunities authored stories acknowledge). **Independence safeguard:** not every story depends on another; the world needs a mixture of standalone, short, personal, multi-character, discovery, interconnected, long-running, and emergent stories.
+- **District expansion as a long-term direction** — districts are not disposable map expansions; each supports a full ecosystem (residents, stories, routines, activities, discoveries, community projects, traditions, cross-district connections). **District introduction philosophy:** access emerges through natural world connections (discoveries, invitations, relationships, stories, transportation), not level-unlock notifications. **Safeguards:** no mandatory prerequisite chains, no friendship-threshold gates, no real-world timers, older districts stay accessible, mobile-performance validation required first.
+- **Narrative sustainability** — the game stays enjoyable when the player is not pursuing an authored story (NPC autonomy + activities + exploration + community + emergent stories). No premature prescription of procedural/AI generation.
+
+### Proposed ST program (all PROPOSED — not approved for implementation)
+
+| Initiative | Purpose | Depends on |
+|---|---|---|
+| **ST-0** Narrative & Lifelong-Game Audit | Evidence-based audit of narrative content, systems, progression, district architecture, scalability | Nothing (verify existing audits first) |
+| **ST-1** Narrative Architecture & Narrative Web | Scalable story lifecycle, discovery, progression, branching, continuity, authoring standards | ST-0 |
+| **ST-2** Early-Game Story Excellence | Welcoming, memorable, non-tutorialized first experience | ST-0 |
+| **ST-3** Narrative Interconnection | Strengthen cross-story/character/activity/discovery connections without dependencies | ST-0 |
+| **ST-4** District Expansion Architecture | Expandable district architecture: identity, connectivity, travel, state, performance, save-migration | ST-1 + `REGIONS` + mobile validation |
+| **ST-5** First Future District Expansion | Implement the first evidence-based district **when approved + dependencies satisfied** | ST-4 + owner approval |
+| **ST-6** Lifelong Narrative Content Pipeline | Sustainable content-production process: authoring standards, QA, continuity validation | ST-1 + ST-4 |
+
+**Dependency note:** ST-0 is the natural first step. ST-1/2/3 parallelize after ST-0. ST-4 depends on ST-1. ST-5 depends on ST-4 + owner approval. ST-6 depends on ST-1 + ST-4. **No ST initiative is authorized for implementation by this roadmap.** The active milestone (LR-3) and Stage 3 everyday-activity work remain the current execution priority.
+
+### Exploratory district concepts (NOT APPROVED — examples only)
+
+Six exploratory concepts (A — Home Neighborhood; B — Green District; C — Cultural; D — Waterside; E — Highland; F — Town Center) are documented in `docs/architecture/lifelong-narrative/00-LIFELONG-NARRATIVE-VISION.md` §9 as **exploratory examples only — NOT approved map plans, fixed names, geography, sequencing, or commitments to build**. Future district selection emerges from ST-4/ST-5 evidence-based planning. **Do not rename existing areas** (verify `willow_square`, Fern Hollow, Wild Hollows in the repository first).
+
+### Guardrails for future agents
+
+Any agent proposing narrative, story, or district work must: read this section + the full-vision doc first; audit existing narrative content before creating new stories (ST-0 discipline); respect the active milestone; **not independently invent** district progression, story tiers, content economies, or story architecture without design/roadmap review; preserve Pillar 6; validate mobile performance before district proposals; and use evidence for all claims.
+
+---
+
+## 13. Final
 
 LITTLE SOMEWHERE must remain LITTLE SOMEWHERE. The goal is not to build the largest possible neighborhood or accumulate the most features. The goal is to build a neighborhood that feels like somewhere people genuinely live — a place where residents have their own lives, where relationships develop naturally, where ordinary activities become memorable experiences, where the environment remembers what happened, and where the player gradually feels that they belong.
 
