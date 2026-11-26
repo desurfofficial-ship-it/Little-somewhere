@@ -1439,6 +1439,36 @@ Chronological log of design decisions, implementation milestones, verification r
   new), build green; WorldState stays v12. Browser evidence: desktop+mobile cast loop with
   honest chips at download/asset-qa/stage3-brook/ (script scripts/qa_brook_v11.sh).
 
+
+## Stage 3 spatial continuation (2026-11-25): Willow Square environmental redesign — landmarks, watershed, bridge
+
+- **Branch**: `stage3/fishing-v11-west-brook` (commits 1b35691 + review-round fix + 51a50c6
+  merge of main fa5dcfc). Record: `docs/architecture/stage3-everyday-activities/
+  05-spatial-redesign.md`. Evidence: `download/asset-qa/stage3-spatial/{baseline,after,after2}/`
+  (21 captures, desktop+mobile) + `scripts/probe_spatial_audit.ts` (live-module measurements).
+- **Measured baseline**: fountain 2.86u (below every roof peak ≈ 4.3u); oak 4.8u ≈ houses;
+  pond water 29.1u² / shore 21.8u; bridge walk strip 0.42u over a 1.7u culvert slot hidden
+  under a 5.1u deck; 0.19u razor corridor oak↔rail; buildings audited healthy (12.5%
+  footprint, gaps 3.2–6.4u) and left untouched.
+- **Shipped**: F1 fountain re-tier (tip 4.45u, footprint/collision/wish-metrics unchanged,
+  renderer droplet anchors SPEC-driven); O1 oak monumental rebuild (7.98u, ≈8u canopy,
+  24→8 meshes, collision unchanged); W1 watershed (pond NE lobe — water 44.5u², shore 39u;
+  West Brook runs 7.2u west under the oak; stone-and-cedar arch bridge — deck 2.5u, peak
+  0.95, walk strip 0.71u, 40→8 meshes; NEW east pond bench; driftwood nook relocated;
+  brook-bank fishing stand moved to the stream's north bank in one lockstep edit with
+  rig/worldMap/nav mirror; Toby's home+slots follow the rerouted bank).
+- **New locks**: `src/scene/spatialInvariants.test.ts` SPAT-01..06 (water containment,
+  deck strip, destination reachability, silhouette hierarchy, pond growth, corridor closure).
+- **Independent review** (R-NAV / R-VIS / R-INT, all PASS-WITH-CONCERNS): findings fixed
+  in the review round (brook readability, arch profile, oak hollow, bench margin,
+  canopy/root trims); dispositions recorded in doc 05 §6 (fountain dry = unrepaired
+  narrative state; mobile HUD truncation + SW slabs pre-existing; pondMosaic placement
+  finding handed to the community owners — pre-existing from merged PR #34).
+- **Gates (exact commits)**: 1b35691 → tsc clean, 813/813, build green; 51a50c6 → tsc
+  clean, **946/946**, build green; review-round fix → tsc clean, 946/946, build green.
+  WorldState stays **v12** — geometry/scene only, zero persistence change. Fishing v1.0
+  and v1.1 contracts intact (spot registry lockstep; global once-per-day gate unchanged).
+
 ## Stage 3 Delivery, Integration & Visual Completion (Campaign 3)
 
 - **Repository truth re-verified:** origin/main = ddf46e0 (PR #36 intact). The
@@ -1467,3 +1497,27 @@ Chronological log of design decisions, implementation milestones, verification r
 - **Roadmap:** reconciled — Fishing & Photography marked IMPLEMENTED; Community
   activities IMPLEMENTED (keepsake display complete); next milestone =
   Gardening expansion (highest readiness, most underrepresented pillar).
+
+## Stage 3 integration (2026-11-25): main (PR #37) merged into the spatial workstream
+
+- **Merge 0dbec54**: integrated origin/main 4893d56 (PR #37 — fishing v1.1 cherry-pick
+  lineage, photography, keepsake shelf) into `stage3/fishing-v11-west-brook`. The two
+  fishing v1.1 implementations shared the df3e7f1 lineage (cherry-pick), so the code
+  union was small; the real reconciliation was GEOMETRIC: PR #37's `west_brook_bank`
+  spot/rig/anchor/test expectations were pinned to the pre-redesign culvert-mouth lane
+  (-4.45, 13.9) which the redesign turned into the running brook. Resolved in favor of
+  the redesigned watershed — spot/rig/worldMap/nav mirror stay at the north bank
+  (-5.5, 12.35) as one lockstep edit.
+- **New lockstep join discovered by the merge**: PHOTO-18 pins photography subject
+  anchors to worldMap rows — `west_brook_bank` photo subject moved with the fishing
+  spot (photography.ts), a join PR #37 could not have known about.
+- **Gates at the merge commit**: **997/997** tests, tsc clean, build green.
+  Bank-stand contracts re-probed post-merge: walkable @ r 0.48, A* reachable,
+  water edge 0.95u (interactRadius 2.4), oak-trunk clearance 1.97u beyond r 1.35+0.48.
+- **Stale evidence re-captured**: `download/asset-qa/stage3-brook/` (4 shots) showed the
+  pre-redesign culvert-mouth bank; re-captured on the merged world via the updated
+  `scripts/qa_brook_v11.sh` (north-bank rig view + tap projection moved to (-5.5, 12.35)).
+  Live cast verification passed on the merged build: tap → prose card open →
+  "West Brook Bank / +1 Silver Dace" (spot registry, once-per-day gate and catch table
+  intact after the geometry reconciliation). Jetty regression shot re-confirmed the v1
+  rig unmoved.

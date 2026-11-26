@@ -73,8 +73,12 @@ export const FISHING_SPOTS = {
   west_brook_bank: {
     id: 'west_brook_bank',
     name: 'West Brook Bank',
-    x: -4.45,
-    z: 13.9,
+    // Slice W1: the stand moved to the stream's NORTH bank — the old south-bank
+    // lane (-4.45, 13.9) is now the running brook (west_brook_run). The new
+    // stand keeps the bridge to the east, the brook to the south and the oak's
+    // east lawn behind; rig + worldMap row + nav mirror stay in lockstep.
+    x: -5.5,
+    z: 12.35,
     interactRadius: 2.4,
   },
 } as const satisfies Record<string, FishingSpotDef>;

@@ -184,8 +184,10 @@ export const PHOTO_SUBJECTS: readonly PhotoSubjectDef[] = [
     id: 'west_brook_bank',
     name: 'West Brook Bank',
     category: 'water',
-    anchorX: -4.45,
-    anchorZ: 13.9,
+    // Slice W1 lockstep: follows the relocated fishing stand on the stream's
+    // north bank (worldMap PROP_INTERACTABLES row is the authority).
+    anchorX: -5.5,
+    anchorZ: 12.35,
     frameRadius: 12,
     memoryTitle: 'The Brook at the Culvert',
     memorySummary:

@@ -204,9 +204,10 @@ test('static masonry is merged per material and fully circular (32-seg)', () => 
   assert.equal(streams.userData.streamCount, 14);
   assert.equal(streams.material, rig.streamMat);
   const streamBox = new THREE.Box3().setFromObject(streams);
+  // Slice F1: the crown plume arcs off the raised finial (tip y 4.45) — apex ~4.72.
   assert.ok(
-    streamBox.max.y > 3.0 && streamBox.max.y < 3.2,
-    `crown plume apex should arc to ~3.08 (got ${streamBox.max.y.toFixed(3)})`,
+    streamBox.max.y > 4.5 && streamBox.max.y < 4.9,
+    `crown plume apex should arc to ~4.72 (got ${streamBox.max.y.toFixed(3)})`,
   );
 
   palette.disposeAll();
@@ -362,7 +363,8 @@ test('spouts, weirs and crown plume counts match the reference two-tier layout',
   assert.equal(STORYBOOK_FOUNTAIN_SPEC.spoutCount, 6);
   assert.equal(STORYBOOK_FOUNTAIN_SPEC.weirCount, 6);
   assert.equal(STORYBOOK_FOUNTAIN_SPEC.plumeCount, 2);
-  assert.equal(STORYBOOK_FOUNTAIN_SPEC.finialTipY, 2.86);
+  // Slice F1: raised crown — the finial tip clears the tallest house roof peak.
+  assert.equal(STORYBOOK_FOUNTAIN_SPEC.finialTipY, 4.45);
 
   // Cream limestone family only (palette registry, no new texture families).
   const limestoneFamily = new Set([

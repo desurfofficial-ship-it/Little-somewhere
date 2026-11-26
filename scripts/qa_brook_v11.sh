@@ -1,12 +1,13 @@
 #!/bin/bash
 # Stage 3 fishing v1.1 QA: West Brook Bank visual evidence.
 # Captures (all deterministic injected saves, single server session):
-#   brook-bank-desktop.png        — the bank rig at the culvert mouth + HUD prompt
+#   brook-bank-desktop.png        — the bank rig on the stream's NORTH bank (Slice W1
+#                                   relocation, post-spatial-redesign watershed) + HUD prompt
 #   brook-cast-card-desktop.png   — trusted-mouse tap on the proxy → cast prose card
 #   brook-bank-mobile.png         — 390x844 bank view
 #   jetty-regression-desktop.png  — v1 jetty rig unchanged after the rig-builder refactor
 set -u
-cd /home/z/my-project/stage3-wt
+cd /home/z/my-project/stage3-ws
 export AGENT_BROWSER_SESSION=lsd-brook-01
 mkdir -p /tmp/qa_shots && rm -f /tmp/qa_shots/brook_*.png /tmp/qa_shots/jetty_*.png
 mkdir -p download/asset-qa/stage3-brook && rm -f download/asset-qa/stage3-brook/*.png
@@ -51,12 +52,13 @@ load_scene() { # POS_JSON FACING_EXPR CONTINUE_LABEL [DAY]
   sleep 3.5
 }
 
-BROOK_POS='{"x": -4.45, "z": 13.9}'
-BROOK_FACE='Math.atan2(-2.73 - (-4.45), 14.0 - 13.9)'
-# Canonical rig view: pond south shore, looking WNW — the west-shifted rig
-# cluster (planks/creel/rod) renders unoccluded across open ground.
+BROOK_POS='{"x": -5.5, "z": 12.35}'
+BROOK_FACE='Math.atan2(-2.73 - (-5.5), 14.0 - 12.35)'
+# Canonical rig view: pond south shore, looking WNW — the north-bank rig
+# cluster (planks/creel/rod, cluster center ≈ (-6.24, 12.70)) renders
+# unoccluded across the oak's east lawn.
 BROOK_VIEW_POS='{"x": 1.2, "z": 17.6}'
-BROOK_VIEW_FACE='Math.atan2(-5.2 - 1.2, 13.72 - 17.6)'
+BROOK_VIEW_FACE='Math.atan2(-6.24 - 1.2, 12.7 - 17.6)'
 BROOK_VIEW_DAY=6
 JETTY_POS='{"x": -0.8, "z": 17.6}'
 JETTY_FACE='Math.atan2(1.0 - (-0.8), 14.6 - 17.6)'
@@ -85,7 +87,7 @@ PROJ=$(agent-browser eval "(() => {
   const r = {x: -f.z, y: 0, z: f.x};
   const rl = Math.hypot(r.x, r.y, r.z); r.x/=rl; r.z/=rl;
   const u = {x: r.y*f.z - r.z*f.y, y: r.z*f.x - r.x*f.z, z: r.x*f.y - r.y*f.x};
-  const P = {x: -4.45, y: 0.8, z: 13.9};
+  const P = {x: -5.5, y: 0.8, z: 12.35};
   const d = {x: P.x-C.x, y: P.y-C.y, z: P.z-C.z};
   const camX = d.x*r.x + d.y*r.y + d.z*r.z;
   const camY = d.x*u.x + d.y*u.y + d.z*u.z;

@@ -277,6 +277,22 @@ export interface HollowOakRig {
 
 /**
  * Hero botanical landmark: Gnarled Hollow Oak at (-6.2, 0, 15.6) inside CIRCLE_OBSTACLES r=1.35.
+ *
+ * Stage 3 spatial redesign (Slice O1): the old oak measured trunk-top ≈ 2.9u /
+ * canopy-top ≈ 4.8u — barely above the house roof peaks (≈ 4.3u), so the "enormous,
+ * memorable tree" read as a slightly plump neighbor of the ordinary trees. The
+ * rebuild is a re-COMPOSITION, not a uniform scale: flared root buttresses grip to
+ * the walkable boundary (visual reach ≈ 1.7u ≈ collision 1.35 + player 0.48), the
+ * trunk tapers 1.12 → 0.60 over 3.3u of height, five expressive boughs carry an
+ * eight-lobe canopy whose top ≈ 7.5u (tallest silhouette in Willow Square, above
+ * the gazebo spire ≈ 5.2u) with a ≈ 7.3u spread that naturally overhangs the West
+ * Brook and the jetty lawn with dappled shade. LOGICAL collision stays r 1.35 —
+ * zero walkability, navigation, fishing-spot or NPC-route change; the canopy is
+ * ground-clear overhead (no collider, same as every tree crown).
+ *
+ * Draw discipline: bark (roots + trunk + boughs) merges into ONE mesh, canopy
+ * lobes merge per tone (deep/mid/sun) into 3 meshes, moss merges into 1 — the
+ * old build spent 24 meshes; this one spends 8 (+ glint/cavity contracts).
  */
 export function buildHollowOakLandmark(
   palette: MaterialPalette,
@@ -285,7 +301,7 @@ export function buildHollowOakLandmark(
   const group = new THREE.Group();
   group.position.set(-6.2, 0, 15.6);
 
-  addStaticContactShadow(group, shadowTex, 4.6, 4.6, 0.52, 0.022);
+  addStaticContactShadow(group, shadowTex, 8.0, 8.0, 0.52, 0.022);
 
   const barkMat = palette.standard('#64432F', 0.9, 0.01);
   const barkHighlightMat = palette.standard('#7A543C', 0.88, 0.01);
@@ -295,44 +311,78 @@ export function buildHollowOakLandmark(
   const foliageMid = palette.standard(STORYBOOK_PALETTE.foliageMid, 0.84, 0.0);
   const foliageSun = palette.standard(STORYBOOK_PALETTE.foliageSun, 0.82, 0.0);
 
-  // Flared root buttresses gripping the meadow
-  for (let i = 0; i < 5; i++) {
-    const a = (i / 5) * Math.PI * 2 + 0.3;
-    const root = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.34, 0.95, 7), barkMat);
-    root.position.set(Math.cos(a) * 0.68, 0.32, Math.sin(a) * 0.68);
-    root.rotation.z = -Math.cos(a) * 0.62;
-    root.rotation.x = Math.sin(a) * 0.62;
-    root.castShadow = true;
-    group.add(root);
+  // Transform-baking for per-material merged static geometry (fountain precedent).
+  const scratch = new THREE.Object3D();
+  const baked = (
+    geo: THREE.BufferGeometry,
+    pos: [number, number, number],
+    rot?: [number, number, number],
+    scale?: [number, number, number],
+  ): THREE.BufferGeometry => {
+    scratch.position.set(pos[0], pos[1], pos[2]);
+    scratch.rotation.set(rot?.[0] ?? 0, rot?.[1] ?? 0, rot?.[2] ?? 0);
+    scratch.scale.set(scale?.[0] ?? 1, scale?.[1] ?? 1, scale?.[2] ?? 1);
+    scratch.updateMatrix();
+    geo.applyMatrix4(scratch.matrix);
+    return geo;
+  };
 
+  const barkGeos: THREE.BufferGeometry[] = [];
+  const mossGeos: THREE.BufferGeometry[] = [];
+
+  // Flared root buttresses gripping the meadow (7, reaching the walkable rim)
+  for (let i = 0; i < 7; i++) {
+    const a = (i / 7) * Math.PI * 2 + 0.3;
+    const rx = Math.cos(a);
+    const rz = Math.sin(a);
+    barkGeos.push(
+      baked(new THREE.CylinderGeometry(0.2, 0.44, 1.15, 7), [rx * 0.74, 0.36, rz * 0.74], [
+        rz * 0.66,
+        0,
+        -rx * 0.66,
+      ]),
+    );
     if (i % 2 === 0) {
-      const moss = new THREE.Mesh(new THREE.DodecahedronGeometry(0.24, 0), mossMat);
-      moss.scale.set(1.3, 0.55, 1.1);
-      moss.position.set(Math.cos(a) * 0.96, 0.14, Math.sin(a) * 0.96);
-      group.add(moss);
+      mossGeos.push(
+        baked(new THREE.DodecahedronGeometry(0.3, 0), [rx * 1.05, 0.15, rz * 1.05], undefined, [
+          1.35,
+          0.55,
+          1.15,
+        ]),
+      );
     }
   }
 
-  // Main gnarled oak trunk
-  const trunkLower = new THREE.Mesh(new THREE.CylinderGeometry(0.66, 0.96, 1.4, 10), barkMat);
-  trunkLower.position.y = 0.7;
-  trunkLower.castShadow = true;
-  trunkLower.receiveShadow = true;
+  // Main gnarled oak trunk — flared LatheGeometry with pronounced taper
+  // (base r 1.12 → waist 0.64 → top 0.60 over 3.3u; the old build topped at 2.4u).
+  const trunkProfile = [
+    new THREE.Vector2(0.0, 0.0),
+    new THREE.Vector2(1.02, 0.0),
+    new THREE.Vector2(1.12, 0.22),
+    new THREE.Vector2(0.98, 0.62),
+    new THREE.Vector2(0.82, 1.35),
+    new THREE.Vector2(0.72, 2.1),
+    new THREE.Vector2(0.64, 2.85),
+    new THREE.Vector2(0.6, 3.3),
+    new THREE.Vector2(0.0, 3.34),
+  ];
+  barkGeos.push(new THREE.LatheGeometry(trunkProfile, 10));
 
-  const trunkUpper = new THREE.Mesh(new THREE.CylinderGeometry(0.52, 0.68, 1.1, 9), barkHighlightMat);
-  trunkUpper.position.set(-0.04, 1.82, 0.02);
-  trunkUpper.rotation.z = 0.06;
-  trunkUpper.castShadow = true;
-  group.add(trunkLower, trunkUpper);
-
-  // Hollow root cavity facing North-East toward Toby (-4.8, 13.4), Hollow Oak inspect (-6.2, 14.0), & camera silhouette
-  const cavityFrame = new THREE.Mesh(new THREE.TorusGeometry(0.32, 0.09, 7, 12), barkHighlightMat);
-  cavityFrame.position.set(0.56, 0.42, -0.58);
-  cavityFrame.rotation.y = Math.PI * 0.75;
-  const cavityDark = new THREE.Mesh(new THREE.SphereGeometry(0.27, 8, 8), cavityMat);
-  cavityDark.scale.set(1.0, 1.15, 0.65);
-  cavityDark.position.set(0.51, 0.42, -0.53);
-  cavityDark.rotation.y = Math.PI * 0.75;
+  // Hollow root cavity facing North-East toward Toby (-4.8, 13.4), Hollow Oak
+  // inspect (-6.2, 14.0), & camera silhouette — scaled up with the trunk so the
+  // hollow reads at gameplay zoom (old opening ≈ 0.32u → 0.44u).
+  // Review round: the hollow must READ from the default NE camera — enlarged
+  // (opening ≈ 0.42 → 0.55u) and swung toward east-north-east.
+  const cavityFrameGeo = new THREE.TorusGeometry(0.52, 0.14, 7, 14);
+  const cavityFrame = new THREE.Mesh(cavityFrameGeo, barkHighlightMat);
+  cavityFrame.position.set(0.78, 0.72, -0.5);
+  cavityFrame.rotation.y = Math.PI * 0.72;
+  cavityFrame.castShadow = true;
+  const cavityDarkGeo = new THREE.SphereGeometry(0.47, 8, 8);
+  const cavityDark = new THREE.Mesh(cavityDarkGeo, cavityMat);
+  cavityDark.scale.set(1.0, 1.2, 0.5);
+  cavityDark.position.set(0.72, 0.72, -0.44);
+  cavityDark.rotation.y = Math.PI * 0.72;
   group.add(cavityFrame, cavityDark);
 
   // Gleaming brass clapper cue nestled inside hollow root
@@ -346,40 +396,67 @@ export function buildHollowOakLandmark(
       roughness: 0.2,
     }),
   );
-  oakGlint.position.set(0.68, 0.36, -0.7);
+  oakGlint.position.set(0.92, 0.48, -0.62);
   group.add(oakGlint);
 
-  // Forked boughs supporting wide sculpted oak canopy
-  const boughs: Array<{ pos: [number, number, number]; rot: [number, number, number]; len: number }> = [
-    { pos: [-0.62, 2.38, 0.25], rot: [0.22, 0, 0.68], len: 1.3 },
-    { pos: [0.68, 2.42, -0.18], rot: [-0.18, 0, -0.62], len: 1.25 },
-    { pos: [0.08, 2.48, -0.58], rot: [-0.62, 0, 0.08], len: 1.15 },
+  // Five expressive forked boughs carrying the broad crown
+  const boughs: Array<{ pos: [number, number, number]; rot: [number, number, number]; len: number; r0: number; r1: number }> = [
+    { pos: [-0.95, 3.35, 0.5], rot: [0.24, 0, 0.72], len: 2.5, r0: 0.2, r1: 0.34 },
+    { pos: [1.0, 3.45, -0.4], rot: [-0.2, 0, -0.68], len: 2.4, r0: 0.2, r1: 0.32 },
+    { pos: [0.12, 3.6, -1.0], rot: [-0.66, 0, 0.1], len: 2.2, r0: 0.18, r1: 0.3 },
+    { pos: [-0.4, 3.5, 1.05], rot: [0.6, 0, 0.24], len: 2.1, r0: 0.16, r1: 0.28 },
+    { pos: [0.55, 3.7, 0.45], rot: [0.12, 0, -0.2], len: 1.9, r0: 0.16, r1: 0.26 },
   ];
   for (const b of boughs) {
-    const limb = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.22, b.len, 7), barkMat);
-    limb.position.set(...b.pos);
-    limb.rotation.set(...b.rot);
-    limb.castShadow = true;
-    group.add(limb);
+    barkGeos.push(
+      baked(new THREE.CylinderGeometry(b.r0, b.r1, b.len, 7), b.pos, [b.rot[0], 0, b.rot[2]]),
+    );
   }
 
-  // 6 multi-lobe sculpted foliage cushions (deep -> mid -> sunlit top highlights)
+  const barkMerged = new THREE.Mesh(mergeGeometries(barkGeos)!, barkMat);
+  barkMerged.name = 'hollow_oak_bark_merged';
+  barkMerged.castShadow = true;
+  barkMerged.receiveShadow = true;
+  group.add(barkMerged);
+
+  // Eight multi-lobe sculpted foliage cushions (deep → mid → sunlit top
+  // highlights), baked + merged per tone: canopy top ≈ 7.5u, spread ≈ 7.3u.
   const canopyLobes: Array<{ pos: [number, number, number]; scale: [number, number, number]; r: number; mat: THREE.MeshStandardMaterial }> = [
-    { pos: [0, 3.35, 0], scale: [1.32, 0.92, 1.24], r: 1.38, mat: foliageMid },
-    { pos: [-1.12, 2.95, 0.42], scale: [1.14, 0.85, 1.08], r: 1.05, mat: foliageDeep },
-    { pos: [1.15, 3.05, -0.3], scale: [1.12, 0.86, 1.12], r: 1.02, mat: foliageMid },
-    { pos: [0.18, 3.98, 0.16], scale: [1.16, 0.85, 1.08], r: 0.98, mat: foliageSun },
-    { pos: [-0.35, 3.05, -0.95], scale: [1.04, 0.82, 1.04], r: 0.95, mat: foliageDeep },
-    { pos: [0.55, 2.98, 0.88], scale: [1.05, 0.82, 1.02], r: 0.92, mat: foliageSun },
+    { pos: [0, 5.6, 0], scale: [1.35, 0.95, 1.3], r: 2.1, mat: foliageMid },
+    { pos: [-1.7, 5.0, 0.9], scale: [1.2, 0.88, 1.15], r: 1.6, mat: foliageDeep },
+    { pos: [1.9, 5.15, -1.0], scale: [1.18, 0.9, 1.16], r: 1.65, mat: foliageMid },
+    { pos: [0.5, 6.35, 0.3], scale: [1.15, 0.85, 1.1], r: 1.5, mat: foliageSun },
+    { pos: [-1.2, 4.7, -1.6], scale: [1.12, 0.84, 1.1], r: 1.5, mat: foliageDeep },
+    { pos: [1.3, 4.75, 1.5], scale: [1.1, 0.84, 1.08], r: 1.45, mat: foliageSun },
+    { pos: [-0.6, 6.0, -1.3], scale: [1.08, 0.82, 1.06], r: 1.4, mat: foliageMid },
+    { pos: [0.1, 4.4, 2.1], scale: [1.06, 0.8, 1.04], r: 1.3, mat: foliageDeep },
   ];
+  const canopyByTone = new Map<THREE.MeshStandardMaterial, THREE.BufferGeometry[]>();
   for (const lobe of canopyLobes) {
-    const puff = new THREE.Mesh(new THREE.IcosahedronGeometry(lobe.r, 1), lobe.mat);
-    puff.position.set(...lobe.pos);
-    puff.scale.set(...lobe.scale);
-    puff.castShadow = true;
-    puff.receiveShadow = true;
-    group.add(puff);
+    const geo = new THREE.IcosahedronGeometry(lobe.r, 1);
+    scratch.position.set(lobe.pos[0], lobe.pos[1], lobe.pos[2]);
+    scratch.rotation.set(0, 0, 0);
+    scratch.scale.set(lobe.scale[0], lobe.scale[1], lobe.scale[2]);
+    scratch.updateMatrix();
+    geo.applyMatrix4(scratch.matrix);
+    const list = canopyByTone.get(lobe.mat) ?? [];
+    list.push(geo);
+    canopyByTone.set(lobe.mat, list);
   }
+  let toneIndex = 0;
+  for (const [mat, geos] of canopyByTone) {
+    const merged = new THREE.Mesh(mergeGeometries(geos)!, mat);
+    merged.name = `hollow_oak_canopy_${toneIndex++}`;
+    merged.castShadow = true;
+    merged.receiveShadow = true;
+    for (const g of geos) g.dispose();
+    group.add(merged);
+  }
+
+  const mossMerged = new THREE.Mesh(mergeGeometries(mossGeos)!, mossMat);
+  mossMerged.name = 'hollow_oak_moss_merged';
+  mossMerged.receiveShadow = true;
+  group.add(mossMerged);
 
   return { group, oakGlint };
 }
@@ -449,6 +526,25 @@ function buildKoiFish(
  * Pond bounds stay inside BOX_OBSTACLES['pond_water'] (minX:-2.4, maxX:5.6, minZ:11.4, maxZ:16.6)
  * plus the flowing west brook culvert running cleanly under the arched bridge at (-2.9, 0, 14.0).
  */
+/**
+ * Slice W1: the pond + West Brook water outline in SHAPE space (sx, sy), where
+ * world x = POND_CENTER.x + sx and world z = POND_CENTER.z - sy. Exported so the
+ * headless spatial-invariants battery can verify the rendered water polygon is
+ * fully covered by the walkability exclusion boxes (visible water is never
+ * standable) and that the pond's area/shoreline actually GREW.
+ */
+export const POND_OUTLINE_SHAPE_POINTS: readonly [number, number][] = [
+  [-13.2, 0.4], [-12.0, 0.55], [-10.8, 0.62], [-9.5, 0.66], [-8.2, 0.68],
+  [-7.0, 0.68], [-6.0, 0.68], [-5.5, 0.92], [-5.0, 1.2], [-4.5, 1.5],
+  [-3.9, 1.78], [-3.0, 2.02], [-1.6, 2.14], [0.3, 2.08], [1.8, 1.98],
+  [2.9, 1.7], [3.25, 1.52], [3.6, 1.32], [4.0, 1.12], [4.4, 0.85],
+  [4.68, 0.5], [4.7, 0.0], [4.62, -0.5], [4.4, -0.85], [4.1, -1.08],
+  [3.7, -1.25], [3.25, -1.48], [2.85, -1.62], [1.9, -1.9], [0.6, -2.06],
+  [-0.9, -2.02], [-2.3, -1.84], [-3.4, -1.46], [-4.0, -1.12], [-4.6, -0.8],
+  [-5.3, -0.74], [-6.0, -0.76], [-7.0, -0.8], [-8.2, -0.82], [-9.5, -0.8],
+  [-10.8, -0.72], [-12.0, -0.6], [-13.2, -0.4],
+];
+
 export function buildMirrorPondAndBridge(
   palette: MaterialPalette,
   shadowTex: THREE.Texture,
@@ -500,27 +596,12 @@ export function buildMirrorPondAndBridge(
   addStaticContactShadow(pondGroup, shadowTex, 9.8, 5.6, 0.34, 0.015);
 
   // Organic curved pond silhouette in (sx, sy), rotated -PI/2 around X => localX = sx, localZ = -sy
-  // Spans main pond x:-3.48..+3.58, z:-2.15..+2.15 plus west culvert brook tucked under bridge x:-5.18..-3.48, z:-0.88..+0.88
-  const pondOutlinePts: THREE.Vector2[] = [
-    new THREE.Vector2(-5.18, 0.48),
-    new THREE.Vector2(-4.58, 0.68),
-    new THREE.Vector2(-4.02, 0.90),
-    new THREE.Vector2(-3.48, 1.38),
-    new THREE.Vector2(-2.15, 2.02),
-    new THREE.Vector2(-0.35, 2.16),
-    new THREE.Vector2(1.55, 2.04),
-    new THREE.Vector2(3.05, 1.56),
-    new THREE.Vector2(3.58, 0.45),
-    new THREE.Vector2(3.48, -0.95),
-    new THREE.Vector2(2.65, -1.88),
-    new THREE.Vector2(1.10, -2.14),
-    new THREE.Vector2(-0.75, -2.06),
-    new THREE.Vector2(-2.45, -1.82),
-    new THREE.Vector2(-3.48, -1.32),
-    new THREE.Vector2(-4.02, -0.88),
-    new THREE.Vector2(-4.58, -0.66),
-    new THREE.Vector2(-5.18, -0.46),
-  ];
+  // Slice W1: the water grows a north-east lobe (world x to 6.3, z 12.3..15.2) and the
+  // West Brook extends WEST as a running stream (world x -9.2..-4.4, z 13.3..14.9)
+  // — every outline point stays inside its walkability exclusion box
+  // (pond_water / pond_water_east / west_brook_run) or the rail/pond-covered
+  // under-bridge band, so visible water is never standable (SPAT-01 pin).
+  const pondOutlinePts: THREE.Vector2[] = POND_OUTLINE_SHAPE_POINTS.map((p) => new THREE.Vector2(p[0], p[1]));
   const pondSpline = new THREE.SplineCurve(pondOutlinePts);
   const pondShape = new THREE.Shape(pondSpline.getPoints(80));
   const pondGeo = new THREE.ShapeGeometry(pondShape, 24);
@@ -574,7 +655,8 @@ export function buildMirrorPondAndBridge(
   waterMesh.renderOrder = 2;
   pondGroup.add(waterMesh);
 
-  // Natural fieldstone coping boulders & moss tufts hugging the curved shoreline (strictly inside pond_water bounds)
+  // Natural fieldstone coping boulders & moss tufts hugging the curved shoreline
+  // (strictly inside the water exclusion boxes / under-bridge culvert band)
   const bankRocks: Array<{ x: number; z: number; r: number; sy: number; dark: boolean; moss?: boolean }> = [
     // North shore (kept south of world z = 11.35)
     { x: -3.22, z: -1.52, r: 0.38, sy: 0.48, dark: true },
@@ -584,10 +666,12 @@ export function buildMirrorPondAndBridge(
     { x: 0.85, z: -1.96, r: 0.39, sy: 0.48, dark: true, moss: true },
     { x: 1.95, z: -1.86, r: 0.40, sy: 0.52, dark: false },
     { x: 2.95, z: -1.50, r: 0.42, sy: 0.50, dark: true },
-    // East crescent (kept west of world x = 5.68)
-    { x: 3.40, z: -0.58, r: 0.42, sy: 0.48, dark: false, moss: true },
-    { x: 3.42, z: 0.48, r: 0.45, sy: 0.52, dark: true },
-    { x: 3.18, z: 1.44, r: 0.44, sy: 0.50, dark: false },
+    // East lobe shore (Slice W1: world x 5.7..6.5, z 12.4..15.2)
+    { x: 4.9, z: -1.4, r: 0.40, sy: 0.48, dark: true },
+    { x: 4.95, z: -0.4, r: 0.42, sy: 0.52, dark: false, moss: true },
+    { x: 4.9, z: 0.7, r: 0.40, sy: 0.5, dark: true },
+    { x: 4.5, z: 1.15, r: 0.38, sy: 0.46, dark: false },
+    { x: 4.3, z: -1.5, r: 0.36, sy: 0.44, dark: true, moss: true },
     // South shore flanking pier (kept north of world z = 16.52)
     { x: 2.34, z: 1.84, r: 0.38, sy: 0.46, dark: true, moss: true },
     { x: 1.52, z: 1.94, r: 0.38, sy: 0.48, dark: false },
@@ -595,9 +679,23 @@ export function buildMirrorPondAndBridge(
     { x: -1.45, z: 1.88, r: 0.39, sy: 0.46, dark: false, moss: true },
     { x: -2.65, z: 1.66, r: 0.42, sy: 0.50, dark: true },
     { x: -3.22, z: 1.36, r: 0.38, sy: 0.46, dark: false },
-    // West culvert mouth boulders (tucked cleanly beside bridge culvert, clear of (-4.35, 14.2) lawn path)
-    { x: -5.02, z: -0.74, r: 0.28, sy: 0.44, dark: true, moss: true },
-    { x: -5.02, z: 0.74, r: 0.28, sy: 0.44, dark: false },
+    // West brook stream banks (Slice W1: along world z ≈ 13.1 / 14.9)
+    { x: -7.0, z: -0.88, r: 0.3, sy: 0.44, dark: true },
+    { x: -8.2, z: -0.84, r: 0.28, sy: 0.42, dark: false, moss: true },
+    { x: -6.4, z: 0.9, r: 0.3, sy: 0.44, dark: false },
+    { x: -7.9, z: 0.86, r: 0.28, sy: 0.42, dark: true, moss: true },
+    { x: -8.9, z: -0.84, r: 0.26, sy: 0.4, dark: false },
+    { x: -10.4, z: 0.78, r: 0.26, sy: 0.4, dark: true },
+    { x: -11.8, z: -0.72, r: 0.28, sy: 0.42, dark: false, moss: true },
+    // Mid-stream boulders breaking the current (visual only, inside the water)
+    { x: -8.5, z: -0.08, r: 0.2, sy: 0.3, dark: true },
+    { x: -10.2, z: 0.14, r: 0.18, sy: 0.28, dark: false },
+    { x: -7.2, z: 0.28, r: 0.16, sy: 0.26, dark: true },
+    // Culvert mouth boulders flanking the widened channel under the bridge
+    { x: -6.15, z: -0.65, r: 0.3, sy: 0.46, dark: true, moss: true },
+    { x: -6.15, z: 0.85, r: 0.3, sy: 0.46, dark: false },
+    { x: -5.55, z: -0.72, r: 0.28, sy: 0.44, dark: true },
+    { x: -5.55, z: 0.76, r: 0.28, sy: 0.44, dark: false, moss: true },
   ];
   for (let i = 0; i < bankRocks.length; i++) {
     const rk = bankRocks[i];
@@ -762,13 +860,17 @@ export function buildMirrorPondAndBridge(
     lilyPadGroups.push(padGroup);
   }
 
-  // 4 Swaying Cattail & Blue-Flag Iris Clumps around shallow banks
+  // 4 Swaying Cattail & Blue-Flag Iris Clumps around shallow banks + 2 streamside
+  // clumps on the new West Brook run (Slice W1)
   const reedStalks: THREE.Group[] = [];
   const reeds: Array<[number, number, boolean]> = [
     [2.95, -1.35, true],
     [3.12, 1.25, false],
     [-2.78, 1.48, true],
     [-2.95, -1.25, false],
+    [-7.9, -0.85, true],
+    [-9.1, 0.9, false],
+    [-11.4, -0.78, true],
   ];
   for (const [rx, rz, withIris] of reeds) {
     const clump = new THREE.Group();
@@ -818,76 +920,128 @@ export function buildMirrorPondAndBridge(
 
   group.add(pondGroup);
 
-  // Handcrafted Cedar Footbridge at (-2.9, 0, 14.0) with Stone Culvert Wing Walls & Bridge Post Lantern
+  // Handcrafted Stone-and-Cedar Arch Bridge at (-2.9, 0, 14.0) — Slice W1 rebuild.
+  // The old span was a 1.86u-wide, 0.42u-tall plank run crossing 5.1u of mostly
+  // DRY ground (its 1.7u channel sat under the middle) — a token miniature. The
+  // rebuild is a real arch: 2.5u deck, 0.85u cambered peak, a 3.5u span that
+  // actually bridges the widened culvert + brook channel, stone abutments with
+  // wing walls, half-torus culvert rings at both water mouths, stepped cedar
+  // railing with brass caps, and the retained iron lantern. The logical twin
+  // (getGroundHeightAt arch + bridge_west_rail box + nav deck chain) is updated
+  // to match exactly. Merged per material: 8 meshes (old ≈ 40).
   const bridgeGroup = new THREE.Group();
   bridgeGroup.position.set(-2.9, 0, 14.0);
-  addStaticContactShadow(bridgeGroup, shadowTex, 2.5, 5.5, 0.42, 0.018);
+  addStaticContactShadow(bridgeGroup, shadowTex, 3.6, 4.6, 0.5, 0.018);
 
-  // Stone bridge abutments & stepped wing walls at North & South approaches
-  for (const az of [-2.55, 2.55]) {
-    const abutment = new THREE.Mesh(new THREE.BoxGeometry(2.04, 0.22, 0.56), stoneMat);
-    abutment.position.set(0, 0.11, az);
-    abutment.receiveShadow = true;
-    const cap = new THREE.Mesh(new THREE.BoxGeometry(2.14, 0.08, 0.64), curbMat);
-    cap.position.set(0, 0.24, az);
-    cap.receiveShadow = true;
-    bridgeGroup.add(abutment, cap);
+  const stoneGeos: THREE.BufferGeometry[] = [];
+  const plankDeckGeos: THREE.BufferGeometry[] = [];
+  const plankWarmGeos: THREE.BufferGeometry[] = [];
+  const cedarDarkGeos: THREE.BufferGeometry[] = [];
+  const cedarWarmGeos: THREE.BufferGeometry[] = [];
+  const brassGeos: THREE.BufferGeometry[] = [];
+  const ironBridgeGeos: THREE.BufferGeometry[] = [];
+  const bridgeScratch = new THREE.Object3D();
+  const bBake = (
+    geo: THREE.BufferGeometry,
+    pos: [number, number, number],
+    rot?: [number, number, number],
+  ): THREE.BufferGeometry => {
+    bridgeScratch.position.set(pos[0], pos[1], pos[2]);
+    bridgeScratch.rotation.set(rot?.[0] ?? 0, rot?.[1] ?? 0, rot?.[2] ?? 0);
+    bridgeScratch.scale.set(1, 1, 1);
+    bridgeScratch.updateMatrix();
+    geo.applyMatrix4(bridgeScratch.matrix);
+    return geo;
+  };
+
+  // Stone abutments + stepped wing walls at both approaches (deeper, wider)
+  for (const az of [-1.95, 1.95]) {
+    stoneGeos.push(bBake(new THREE.BoxGeometry(2.9, 0.3, 0.62), [0, 0.15, az]));
+    stoneGeos.push(bBake(new THREE.BoxGeometry(3.0, 0.1, 0.72), [0, 0.33, az]));
+    // Angled wing walls guiding the bank into the abutment
+    const dir = az > 0 ? 1 : -1;
+    stoneGeos.push(
+      bBake(new THREE.BoxGeometry(0.9, 0.24, 0.4), [1.72, 0.12, az + dir * 0.38], [0, dir * -0.5, 0]),
+    );
+    stoneGeos.push(
+      bBake(new THREE.BoxGeometry(0.9, 0.24, 0.4), [-1.72, 0.12, az + dir * 0.38], [0, dir * 0.5, 0]),
+    );
   }
+  // Half-torus culvert rings framing both water mouths under the deck
+  stoneGeos.push(
+    bBake(new THREE.TorusGeometry(1.0, 0.17, 8, 14, Math.PI), [-1.45, 0.1, 0], [0, Math.PI / 2, 0]),
+  );
+  stoneGeos.push(
+    bBake(new THREE.TorusGeometry(1.0, 0.17, 8, 14, Math.PI), [0.75, 0.1, 0], [0, Math.PI / 2, 0]),
+  );
+  // Stone spandrel cheeks under the deck edges — give the span a masonry
+  // profile so the arch reads from the isometric camera (review finding).
+  stoneGeos.push(bBake(new THREE.BoxGeometry(0.34, 0.5, 3.0), [-1.18, 0.3, 0]));
+  stoneGeos.push(bBake(new THREE.BoxGeometry(0.34, 0.5, 3.0), [1.18, 0.3, 0]));
 
-  // Individual cambered wooden deck planks (spanning cleanly above the flowing west brook)
-  const plankCount = 11;
+  // Individual cambered deck planks (9 × 2.5u-wide cedar, arch peak 0.85)
+  const plankCount = 9;
   for (let i = 0; i < plankCount; i++) {
     const t = i / (plankCount - 1) - 0.5; // -0.5..0.5
-    const pz = t * 4.55;
-    const archY = 0.24 + (1 - 4 * t * t) * 0.18;
-    const plank = new THREE.Mesh(
-      new THREE.BoxGeometry(1.86, 0.11, 0.38),
-      i % 2 === 0 ? deckMat : cedarWarmMat,
-    );
-    plank.position.set(0, archY, pz);
-    plank.castShadow = true;
-    plank.receiveShadow = true;
-    bridgeGroup.add(plank);
+    const pz = t * 3.5;
+    const archY = 0.24 + (1 - 4 * t * t) * 0.71;
+    const geo = new THREE.BoxGeometry(2.5, 0.12, 0.4);
+    const bakedPlank = bBake(geo, [0, archY, pz]);
+    (i % 2 === 0 ? plankDeckGeos : plankWarmGeos).push(bakedPlank);
   }
 
-  // Side stringer beams & posts + handrails + brass post caps (aligned with bridge_west_rail & pond_water)
-  for (const rx of [-0.79, 0.79]) {
-    const stringer = new THREE.Mesh(new THREE.BoxGeometry(0.13, 0.18, 5.15), cedarDarkMat);
-    stringer.position.set(rx, 0.22, 0);
-    bridgeGroup.add(stringer);
-
-    const topRail = new THREE.Mesh(new THREE.BoxGeometry(0.11, 0.09, 5.05), cedarWarmMat);
-    topRail.position.set(rx, 0.96, 0);
-    topRail.castShadow = true;
-    const midRail = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.06, 5.0), cedarDarkMat);
-    midRail.position.set(rx, 0.64, 0);
-    bridgeGroup.add(topRail, midRail);
-
-    for (const rz of [-2.35, 0, 2.35]) {
-      const post = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.88, 0.14), cedarDarkMat);
-      post.position.set(rx, 0.56, rz);
-      post.castShadow = true;
-      const cap = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.07, 0.2), cedarWarmMat);
-      cap.position.set(rx, 1.02, rz);
-      const brassFinial = new THREE.Mesh(new THREE.SphereGeometry(0.045, 7, 7), brassMat);
-      brassFinial.position.set(rx, 1.08, rz);
-      bridgeGroup.add(post, cap, brassFinial);
+  // Side stringer beams, posts, mid rails (cedar dark) + top rails & caps (warm)
+  for (const rx of [-1.12, 1.12]) {
+    cedarDarkGeos.push(bBake(new THREE.BoxGeometry(0.15, 0.2, 3.9), [rx, 0.42, 0]));
+    cedarWarmGeos.push(bBake(new THREE.BoxGeometry(0.11, 0.09, 3.6), [rx, 1.4, 0]));
+    cedarDarkGeos.push(bBake(new THREE.BoxGeometry(0.08, 0.06, 3.55), [rx, 1.06, 0]));
+    for (const rz of [-1.5, 0, 1.5]) {
+      cedarDarkGeos.push(bBake(new THREE.BoxGeometry(0.15, 1.0, 0.15), [rx, 1.16, rz]));
+      cedarWarmGeos.push(bBake(new THREE.BoxGeometry(0.2, 0.07, 0.2), [rx, 1.7, rz]));
+      brassGeos.push(bBake(new THREE.SphereGeometry(0.05, 7, 7), [rx, 1.77, rz]));
     }
   }
 
-  // Hanging iron-and-brass lantern mounted on south-east bridge post (aligned with shader dusk reflection)
-  const bridgeLanternPost = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.055, 0.52, 6), ironMat);
-  bridgeLanternPost.position.set(0.79, 1.28, 1.75);
-  const bridgeArm = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.045, 0.045), ironMat);
-  bridgeArm.position.set(0.87, 1.52, 1.75);
+  const stoneMerged = new THREE.Mesh(mergeGeometries(stoneGeos)!, stoneMat);
+  stoneMerged.name = 'bridge_stone_merged';
+  stoneMerged.castShadow = true;
+  stoneMerged.receiveShadow = true;
+  bridgeGroup.add(stoneMerged);
+  const plankDeckMerged = new THREE.Mesh(mergeGeometries(plankDeckGeos)!, deckMat);
+  plankDeckMerged.name = 'bridge_planks_deck';
+  plankDeckMerged.castShadow = true;
+  plankDeckMerged.receiveShadow = true;
+  bridgeGroup.add(plankDeckMerged);
+  const plankWarmMerged = new THREE.Mesh(mergeGeometries(plankWarmGeos)!, cedarWarmMat);
+  plankWarmMerged.name = 'bridge_planks_warm';
+  plankWarmMerged.castShadow = true;
+  plankWarmMerged.receiveShadow = true;
+  bridgeGroup.add(plankWarmMerged);
+  const cedarDarkMerged = new THREE.Mesh(mergeGeometries(cedarDarkGeos)!, cedarDarkMat);
+  cedarDarkMerged.name = 'bridge_frame_dark';
+  cedarDarkMerged.castShadow = true;
+  bridgeGroup.add(cedarDarkMerged);
+  const cedarWarmMerged = new THREE.Mesh(mergeGeometries(cedarWarmGeos)!, cedarWarmMat);
+  cedarWarmMerged.name = 'bridge_rails_warm';
+  cedarWarmMerged.castShadow = true;
+  bridgeGroup.add(cedarWarmMerged);
+  const brassMergedBridge = new THREE.Mesh(mergeGeometries(brassGeos)!, brassMat);
+  brassMergedBridge.name = 'bridge_brass_caps';
+  bridgeGroup.add(brassMergedBridge);
+
+  // Hanging iron-and-brass lantern on the south-east rail post
+  ironBridgeGeos.push(bBake(new THREE.CylinderGeometry(0.045, 0.055, 0.52, 6), [1.12, 1.92, 1.5]));
+  ironBridgeGeos.push(bBake(new THREE.BoxGeometry(0.24, 0.045, 0.045), [1.24, 2.14, 1.5]));
+  ironBridgeGeos.push(bBake(new THREE.ConeGeometry(0.11, 0.08, 6), [1.32, 2.1, 1.5]));
+  const ironMergedBridge = new THREE.Mesh(mergeGeometries(ironBridgeGeos)!, ironMat);
+  ironMergedBridge.name = 'bridge_lantern_iron';
+  bridgeGroup.add(ironMergedBridge);
   const bridgeLanternBulb = new THREE.Mesh(
     new THREE.CylinderGeometry(0.075, 0.06, 0.15, 6),
     pierLanternGlassMat,
   );
-  bridgeLanternBulb.position.set(0.95, 1.4, 1.75);
-  const bridgeLanternCap = new THREE.Mesh(new THREE.ConeGeometry(0.11, 0.08, 6), ironMat);
-  bridgeLanternCap.position.set(0.95, 1.5, 1.75);
-  bridgeGroup.add(bridgeLanternPost, bridgeArm, bridgeLanternBulb, bridgeLanternCap);
+  bridgeLanternBulb.position.set(1.32, 2.0, 1.5);
+  bridgeGroup.add(bridgeLanternBulb);
 
   group.add(bridgeGroup);
 

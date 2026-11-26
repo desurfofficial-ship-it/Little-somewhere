@@ -838,7 +838,9 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
 
       // Mirror Pond East Driftwood & Curio Basket Nook
       const driftwoodGroup = new THREE.Group();
-      driftwoodGroup.position.set(5.85, 0, 13.8);
+      // Slice W1: driftwood nook relocated to the pond east lobe's bank
+      // (worldMap pond_driftwood row 6.9, 14.5 — same contract, new shore).
+      driftwoodGroup.position.set(6.9, 0, 14.5);
       addContactShadow(driftwoodGroup, shadowTex, 1.1, 0.9, 0.35, 0.015);
       const driftLog = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.16, 1.05, 8), driftMat);
       driftLog.rotation.x = Math.PI / 2;
