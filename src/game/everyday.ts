@@ -184,7 +184,8 @@ const PRACTICE_DEFS: Record<EverydayPracticeId, EverydayPracticeDef> = {
       'Kneading dough beside Clara and carrying a warm share home turns any afternoon into a small celebration.',
     readCount: (world) =>
       safeCounter(world.bakeryState?.kneadingSessions) +
-      safeCounter(world.bakeryState?.loavesShared),
+      safeCounter(world.bakeryState?.loavesShared) +
+      safeCounter(world.sideFlags?.hearthCookedCount),
     tiers: KITCHEN_TIERS,
   },
   reading: {

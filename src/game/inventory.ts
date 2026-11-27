@@ -376,6 +376,11 @@ export const HEARTH_RECIPES: readonly RecipeDef[] = [
     description: 'Steep fresh chamomile blossoms in your copper kettle (+15m).',
     minutesRequired: 15,
     ingredients: [{ itemId: 'chamomile_blossom', count: 1 }],
+    /** Discovery: first time the player tends the cottage window box (gets chamomile_blossom). */
+    discoverKey: 'chamomile_blossom',
+    discoverHint: 'Tend the porch herb box to discover this recipe.',
+    firstCookTitle: 'First Cup of Chamomile',
+    firstCookSummary: 'My first pot of chamomile honey tea at the Willow Step hearth — the blossoms from the porch box steeped into a quiet golden cup.',
   },
   {
     id: 'recipe_herb_loaf',
@@ -388,6 +393,11 @@ export const HEARTH_RECIPES: readonly RecipeDef[] = [
       { itemId: 'lemon_thyme', count: 1 },
       { itemId: 'wild_honey', count: 1 },
     ],
+    /** Discovery: first time the player harvests the orchard (gets wild_honey). */
+    discoverKey: 'wild_honey',
+    discoverHint: 'Harvest the orchard crates to discover this recipe.',
+    firstCookTitle: 'First Herb Loaf',
+    firstCookSummary: 'My first herb and honey loaf at the Willow Step hearth — lemon thyme and wild honeycomb folded into a warm boule that filled the cottage with bread smell.',
   },
   {
     id: 'recipe_crabapple_tart',
@@ -400,6 +410,11 @@ export const HEARTH_RECIPES: readonly RecipeDef[] = [
       { itemId: 'crabapple', count: 1 },
       { itemId: 'wild_honey', count: 1 },
     ],
+    /** Discovery: first time the player harvests the orchard (gets crabapple). */
+    discoverKey: 'crabapple',
+    discoverHint: 'Harvest the orchard crates to discover this recipe.',
+    firstCookTitle: 'First Crabapple Tart',
+    firstCookSummary: 'My first rustic crabapple tart at the Willow Step hearth — orchard apples glazed with honey in crisp pastry, the kind of treat that makes the cottage smell like the bakery.',
   },
   {
     id: 'recipe_lavender_tea',
@@ -412,6 +427,11 @@ export const HEARTH_RECIPES: readonly RecipeDef[] = [
       { itemId: 'lavender_sprig', count: 1 },
       { itemId: 'chamomile_blossom', count: 1 },
     ],
+    /** Discovery: first time the player gets lavender_sprig (window box even days). */
+    discoverKey: 'lavender_sprig',
+    discoverHint: 'Tend the porch herb box on a lavender day to discover this recipe.',
+    firstCookTitle: 'First Lavender Chamomile Cup',
+    firstCookSummary: 'My first lavender chamomile tea at the Willow Step hearth — sweet lavender and chamomile blossoms steeped together, the kind of cup that makes an evening feel slow and golden.',
   },
   {
     id: 'recipe_lavender_shortbread',
@@ -424,6 +444,12 @@ export const HEARTH_RECIPES: readonly RecipeDef[] = [
       { itemId: 'lavender_sprig', count: 1 },
       { itemId: 'crabapple', count: 1 },
     ],
+    /** Discovery: requires BOTH lavender_sprig AND crabapple discovered. */
+    discoverKey: 'lavender_sprig',
+    discoverKey2: 'crabapple',
+    discoverHint: 'Gather both lavender and orchard crabapples to discover this recipe.',
+    firstCookTitle: 'First Lavender Biscuits',
+    firstCookSummary: 'My first lavender butter biscuits at the Willow Step hearth — dried lavender folded into crisp biscuit dough with orchard apple glaze, a treat that tastes like the whole neighborhood in one bite.',
   },
 ];
 
@@ -462,6 +488,76 @@ export const RECIPE_ACTIVITY_STEPS: Record<string, readonly [string, string, str
 
 export function getRecipeActivitySteps(recipeId: string): readonly string[] {
   return RECIPE_ACTIVITY_STEPS[recipeId] ?? ['Preparing at the hearth…', 'Working with warm hands…', 'Finishing with care…'];
+}
+
+// --- Recipe Discovery System (zero-schema-bump, sideFlags-borne) ------------------
+
+/**
+ * The sideFlags key for tracking which ingredients the player has discovered.
+ * When the player first acquires an ingredient (via foraging, harvesting, etc.),
+ * a sideFlags key `ingredientDiscovered_<itemId>` is set to true.
+ * Recipes whose `discoverKey` (and optionally `discoverKey2`) match discovered
+ * ingredients become available in the hearth UI.
+ */
+export function ingredientDiscoveredKey(itemId: PersonalItemId): string {
+  return `ingredientDiscovered_${itemId}`;
+}
+
+/**
+ * The sideFlags key for tracking which recipes have been first-cooked.
+ * `recipeFirstCooked_<recipeId>` is set to true on the first successful cook.
+ */
+export function recipeFirstCookedKey(recipeId: string): string {
+  return `recipeFirstCooked_${recipeId}`;
+}
+
+/**
+ * Returns true if the player has discovered the given ingredient (has the
+ * sideFlags key set). Pure read — no mutation.
+ */
+export function isIngredientDiscovered(
+  sideFlags: Record<string, boolean | number | string> | undefined,
+  itemId: PersonalItemId,
+): boolean {
+  return Boolean(sideFlags?.[ingredientDiscoveredKey(itemId)]);
+}
+
+/**
+ * Returns true if the recipe is discovered (all its discoverKey ingredients
+ * have been found). Recipes without a discoverKey are always discovered.
+ */
+export function isRecipeDiscovered(
+  sideFlags: Record<string, boolean | number | string> | undefined,
+  recipe: RecipeDef,
+): boolean {
+  if (!recipe.discoverKey) return true;
+  if (!isIngredientDiscovered(sideFlags, recipe.discoverKey)) return false;
+  if (recipe.discoverKey2 && !isIngredientDiscovered(sideFlags, recipe.discoverKey2)) return false;
+  return true;
+}
+
+/**
+ * Returns true if the recipe has been first-cooked (has the sideFlags key).
+ */
+export function isRecipeFirstCooked(
+  sideFlags: Record<string, boolean | number | string> | undefined,
+  recipeId: string,
+): boolean {
+  return Boolean(sideFlags?.[recipeFirstCookedKey(recipeId)]);
+}
+
+/**
+ * Marks an ingredient as discovered in the sideFlags. Pure — returns a new
+ * sideFlags object. Called by actions that grant ingredients (window box,
+ * orchard harvest, etc.).
+ */
+export function markIngredientDiscovered(
+  sideFlags: Record<string, boolean | number | string>,
+  itemId: PersonalItemId,
+): Record<string, boolean | number | string> {
+  const key = ingredientDiscoveredKey(itemId);
+  if (sideFlags[key] === true) return sideFlags;
+  return { ...sideFlags, [key]: true };
 }
 
 export const RESIDENT_GIFT_PREFS: Record<

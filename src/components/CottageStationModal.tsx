@@ -8,6 +8,7 @@ import {
   getOwnedKeepsakeItems,
   getOwnedVaseFlowerItems,
   getRecipeActivitySteps,
+  isRecipeDiscovered,
 } from '../game/inventory';
 import { describePlacedFlower } from '../game/cottage';
 import { cozyAudio } from '../game/audio';
@@ -176,69 +177,84 @@ export const CottageStationModal: React.FC<CottageStationModalProps> = ({
               </p>
               <div className="space-y-3">
                 {HEARTH_RECIPES.map((recipe) => {
-                  const craftable = canCraftRecipe(world.inventory, recipe);
+                  const discovered = isRecipeDiscovered(world.sideFlags, recipe);
+                  const craftable = discovered && canCraftRecipe(world.inventory, recipe);
                   const ownedOut = getItemCount(world.inventory, recipe.outputItemId);
                   return (
                     <article
                       key={recipe.id}
-                      className="p-3.5 sm:p-4 rounded-xl bg-card-warm border border-parchment flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+                      className={`p-3.5 sm:p-4 rounded-xl border flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${
+                        discovered
+                          ? 'bg-card-warm border-parchment'
+                          : 'bg-linen-deep border-dashed border-stone-line'
+                      }`}
                     >
                       <div className="min-w-0 space-y-1">
                         <div className="flex flex-wrap items-baseline gap-2">
                           <h3 className="font-display text-base font-semibold text-espresso">
-                            {recipe.label}
+                            {discovered ? recipe.label : 'Undiscovered Recipe'}
                           </h3>
-                          {ownedOut > 0 && (
+                          {discovered && ownedOut > 0 && (
                             <span className="text-[11px] font-mono-nums text-sage font-semibold">
                               In satchel: {ownedOut}
                             </span>
                           )}
                         </div>
-                        <p className="text-xs text-[#4A3C32] leading-relaxed">
-                          {recipe.description}
-                        </p>
-                        <div className="flex flex-wrap gap-x-3 gap-y-1 pt-0.5 text-xs">
-                          {recipe.ingredients.map((ing) => {
-                            const have = getItemCount(world.inventory, ing.itemId);
-                            const enough = have >= ing.count;
-                            return (
-                              <span
-                                key={ing.itemId}
-                                className={`font-medium ${
-                                  enough ? 'text-[#4B6B4F]' : 'text-[#8C5B4D]'
-                                }`}
-                              >
-                                {PERSONAL_ITEM_MAP[ing.itemId].label}:{' '}
-                                <span className="font-mono-nums">
-                                  {have}/{ing.count}
-                                </span>
-                              </span>
-                            );
-                          })}
-                        </div>
+                        {discovered ? (
+                          <>
+                            <p className="text-xs text-[#4A3C32] leading-relaxed">
+                              {recipe.description}
+                            </p>
+                            <div className="flex flex-wrap gap-x-3 gap-y-1 pt-0.5 text-xs">
+                              {recipe.ingredients.map((ing) => {
+                                const have = getItemCount(world.inventory, ing.itemId);
+                                const enough = have >= ing.count;
+                                return (
+                                  <span
+                                    key={ing.itemId}
+                                    className={`font-medium ${
+                                      enough ? 'text-[#4B6B4F]' : 'text-[#8C5B4D]'
+                                    }`}
+                                  >
+                                    {PERSONAL_ITEM_MAP[ing.itemId].label}:{' '}
+                                    <span className="font-mono-nums">
+                                      {have}/{ing.count}
+                                    </span>
+                                  </span>
+                                );
+                              })}
+                            </div>
+                          </>
+                        ) : (
+                          <p className="text-xs text-[#8C7D6F] italic leading-relaxed">
+                            {recipe.discoverHint ?? 'Discover this recipe through exploration.'}
+                          </p>
+                        )}
                       </div>
 
-                      <button
-                        type="button"
-                        disabled={!craftable || brewing}
-                        onClick={() => {
-                          if (!craftable || brewing) return;
-                          setBrewComplete(null);
-                          setBrewSteps({ recipeId: recipe.id, stepIndex: 0 });
-                          cozyAudio.playKettleSteam();
-                        }}
-                        className={`min-h-[44px] px-4 py-2 rounded-xl text-sm font-semibold transition-colors whitespace-nowrap shrink-0 ${
-                          craftable && !brewing
-                            ? 'bg-terracotta hover:bg-terracotta-deep text-linen cursor-pointer'
-                            : 'bg-[#E6DAC7] text-[#8C7D6F] cursor-not-allowed'
-                        }`}
-                      >
-                        {brewing && brewSteps?.recipeId === recipe.id
-                          ? 'Preparing…'
-                          : recipe.id === 'recipe_chamomile_tea'
-                          ? 'Steep Tea'
-                          : 'Bake Treat'}
-                      </button>
+                      {discovered && (
+                        <button
+                          type="button"
+                          disabled={!craftable || brewing}
+                          onClick={() => {
+                            if (!craftable || brewing) return;
+                            setBrewComplete(null);
+                            setBrewSteps({ recipeId: recipe.id, stepIndex: 0 });
+                            cozyAudio.playKettleSteam();
+                          }}
+                          className={`min-h-[44px] px-4 py-2 rounded-xl text-sm font-semibold transition-colors whitespace-nowrap shrink-0 ${
+                            craftable && !brewing
+                              ? 'bg-terracotta hover:bg-terracotta-deep text-linen cursor-pointer'
+                              : 'bg-[#E6DAC7] text-[#8C7D6F] cursor-not-allowed'
+                          }`}
+                        >
+                          {brewing && brewSteps?.recipeId === recipe.id
+                            ? 'Preparing…'
+                            : recipe.id === 'recipe_chamomile_tea'
+                            ? 'Steep Tea'
+                            : 'Bake Treat'}
+                        </button>
+                      )}
                     </article>
                   );
                 })}
