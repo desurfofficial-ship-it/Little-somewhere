@@ -331,15 +331,33 @@ export function tendResidentGardenInPlace(
       }
     }
   }
-  if (didSomething) {
-    state.lastTendedDay = world.day;
-  }
+  // D1 fix (adversarial review): stamp lastTendedDay UNCONDITIONALLY after the
+  // loop, not only when didSomething. The gate's semantic is "the NPC tended
+  // (visited) the garden today" — even if all plots were already watered/growing,
+  // the NPC showed up and found nothing to do. Without the unconditional stamp,
+  // a no-op tend (all plots growing+watered) would leave the gate open, causing
+  // the NPC to re-navigate and re-arrive repeatedly until a plot state changes.
+  // Nightly growth resets wateredToday=false, so in normal play didSomething is
+  // always true — but the unconditional stamp is defense-in-depth against
+  // corrupt saves, future features (e.g. rain waters outdoor beds), and
+  // test fixtures that set wateredToday=true without stamping the gate.
+  state.lastTendedDay = world.day;
 }
 
 /**
- * Returns true if the given resident owns a garden and hasn't tended it today.
- * Used by the autonomy system to decide whether the "tend garden" candidate
- * is eligible.
+ * Returns the garden id the resident should tend next, or null if all their
+ * gardens are already tended today.
+ *
+ * D2 note (adversarial review): this function is currently called only from
+ * tests — the production autonomy system (selectActivityForResident in
+ * simulation.ts) does NOT consult it before selecting a gardening candidate.
+ * The gardening candidate is always in the scoring pool (baseWeight 1.0).
+ * The lastTendedDay gate inside tendResidentGardenInPlace prevents actual
+ * re-tending, but the NPC may still walk to an already-tended garden and
+ * dwell there (a no-op arrival). This is characterful (a resident visiting
+ * their garden) but not a resource waste. If future work wants to suppress
+ * redundant garden commutes, wire this into selectActivityForResident as a
+ * downweight or hard skip — but that is out of scope for this review.
  */
 export function residentNeedsToTend(
   world: WorldState,

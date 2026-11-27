@@ -2947,7 +2947,12 @@ export function plantInGardenAction(
     return { ok: false, nextWorld: world, toast: 'That plot is not in this garden.' };
   }
   // All validation passed — now safe to lazy-init garden state.
-  const state = getOrCreateGardenState(world, gardenId);
+  // D3 fix (adversarial review): clone gardens BEFORE getOrCreateGardenState
+  // so the input world's gardens slice is not mutated. Previously,
+  // getOrCreateGardenState(world, gardenId) mutated world.gardens in-place
+  // (adding an empty garden entry), which dirtied the input's save fingerprint.
+  const nextGardens = { ...(world.gardens ?? {}) };
+  const state = getOrCreateGardenState({ ...world, gardens: nextGardens }, gardenId);
   if (!state) {
     return { ok: false, nextWorld: world, toast: 'That garden is not yet ready.' };
   }
@@ -2974,7 +2979,7 @@ export function plantInGardenAction(
       minuteOfDay: nextMin,
       inventory: consumed.inventory,
       gardens: {
-        ...world.gardens,
+        ...nextGardens,
         [gardenId]: {
           ...state,
           totalPlanted: state.totalPlanted + 1,
