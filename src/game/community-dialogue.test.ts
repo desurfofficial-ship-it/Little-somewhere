@@ -342,8 +342,8 @@ test('SC-A-06: COMMUNITY_ECHO_TOPICS are contiguous, photo echoes follow at the 
   // appended strictly after the community echoes per the Stage 3 Continuation
   // Photography workstream. Each future append must similarly migrate this
   // assertion, never reorder.
-  assert.equal(golden.topics.at(-1)!.id, 'everyday_photo_noticer',
-    'golden tail is the photo noticer topic (milestone pin migrated from everyday_community_project_pride)');
+  assert.equal(golden.topics.at(-1)!.id, 'everyday_garden_noticer',
+    'golden tail is the garden noticer topic (milestone pin migrated from everyday_photo_noticer)');
 
   // Field-for-field pin on the three community echo topics (anti-fraud backstop).
   for (const expected of [
@@ -358,11 +358,12 @@ test('SC-A-06: COMMUNITY_ECHO_TOPICS are contiguous, photo echoes follow at the 
     assert.equal(g!.priority, expected.priority);
   }
 
-  // Field-for-field pin on the two PHOTO_ECHO_TOPICS (Stage 3 Continuation,
-  // Workstream B — appended strictly after the community echoes).
+  // Field-for-field pin on the two PHOTO_ECHO_TOPICS + two GARDEN_ECHO_TOPICS.
   for (const expected of [
     { id: 'everyday_photo_witness_echo', residentId: 'any', category: 'event_reaction', priority: 12 },
     { id: 'everyday_photo_noticer', residentId: 'any', category: 'event_reaction', priority: 8 },
+    { id: 'everyday_garden_witness_echo', residentId: 'any', category: 'event_reaction', priority: 10 },
+    { id: 'everyday_garden_noticer', residentId: 'any', category: 'event_reaction', priority: 6 },
   ]) {
     const g = golden.topics.find((t) => t.id === expected.id);
     assert.ok(g, `${expected.id} present in golden (Stage 3 Cont. photo echo)`);

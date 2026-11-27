@@ -19,6 +19,7 @@ import {
   GardenState,
   GreenhouseCropId,
   GreenhousePlotState,
+  JournalMemory,
   PersonalItemId,
   ResidentId,
   SeasonType,
@@ -32,6 +33,15 @@ import {
   isLushStreak,
   stageForNights,
 } from './greenhouse';
+import {
+  LOCAL_WITNESS_RADIUS,
+  collectWitnessesForPosition,
+  cloneNpcMemories,
+  createNpcMemoryEntry,
+  recordNpcMemoryInPlace,
+} from './memories';
+import { getTimePhase } from './residents';
+import { PROP_INTERACTABLES } from './worldMap';
 
 // ─── Garden definition registry ──────────────────────────────────────────────
 
@@ -342,6 +352,60 @@ export function tendResidentGardenInPlace(
   // corrupt saves, future features (e.g. rain waters outdoor beds), and
   // test fixtures that set wateredToday=true without stamping the gate.
   state.lastTendedDay = world.day;
+
+  // Garden Social Integration: write first-tend journal memory + witness NPC
+  // memories so the neighborhood's social fabric acknowledges resident
+  // gardening. Mirrors the community project + photography witness pattern.
+  // Zero schema bump — rides world.memories + world.npcMemories.
+  const firstTendMemId = `mem_garden_first_${gardenId}`;
+  const hasFirstTendMem = world.memories.some((m) => m.id === firstTendMemId);
+  if (!hasFirstTendMem) {
+    const phase = getTimePhase(world.minuteOfDay);
+    const gardenMemories: JournalMemory[] = [
+      {
+        id: firstTendMemId,
+        day: world.day,
+        phase,
+        title: `${def.label} — First Tending`,
+        summary: `Watched ${residentId} tend ${def.label} for the first time — the neighborhood's gardens are coming alive.`,
+      },
+      ...world.memories,
+    ];
+    // In-place mutation (the reducer is void, called from stepSimulationInPlace).
+    world.memories = gardenMemories;
+  }
+
+  // Witness memory: neighbors near the garden see the resident tending.
+  const propDef = PROP_INTERACTABLES.find((p) => p.id === def.anchorPropId);
+  const gardenPos = propDef ? { x: propDef.x, z: propDef.z } : { x: 0, z: 0 };
+  const witnesses = collectWitnessesForPosition(world, gardenPos, LOCAL_WITNESS_RADIUS);
+  const gardenEvId = `garden_tend_${gardenId}_${world.day}`;
+  const roundedMinute = Math.round(world.minuteOfDay);
+  for (const wid of witnesses) {
+    if (wid === residentId) continue; // the gardener doesn't witness themselves
+    recordNpcMemoryInPlace(
+      world.npcMemories,
+      wid,
+      createNpcMemoryEntry({
+        id: gardenEvId,
+        eventId: gardenEvId,
+        tag: 'garden',
+        category: 'event',
+        subjectPlayer: false,
+        subjectResidents: [residentId],
+        provenance: 'firsthand',
+        sourceKind: 'witness',
+        createdDay: world.day,
+        createdMinute: roundedMinute,
+        importance: 2,
+        retention: 'ephemeral',
+        valence: 'warm',
+        emotionalWeight: 48,
+        detail: { placeName: def.label },
+      }),
+      world.day,
+    );
+  }
 }
 
 /**

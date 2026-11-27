@@ -283,7 +283,7 @@ test('SF4-07: the echo topic is registered at the tail and golden-pinned (anti-f
   // `everyday_photo_noticer`. The existence check above still pins the SF-4
   // topic itself; only the tail pin moves. Each future append must similarly
   // migrate this assertion, never reorder.
-  assert.equal(golden.topics.at(-1)!.id, 'everyday_photo_noticer');
+  assert.equal(golden.topics.at(-1)!.id, 'everyday_garden_noticer');
 });
 
 // ---------------------------------------------------------------------------
