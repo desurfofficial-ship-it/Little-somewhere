@@ -1,5 +1,5 @@
 {
- "count": 97,
+ "count": 96,
  "topics": [
   {
    "index": 0,
@@ -1495,39 +1495,23 @@
   },
   {
    "index": 95,
-   "id": "everyday_garden_witness_echo",
-   "residentId": "any",
+   "id": "teaching_nora_featured_reading",
+   "residentId": "nora",
    "category": "event_reaction",
-   "priority": 10,
+   "priority": 20,
    "historyScope": null,
    "condition": {
+    "requiresMet": true,
+    "requiresTeachingKnown": [
+     "nora_featured_reading"
+    ],
     "requiresNpcMemory": {
-     "tags": [
-      "garden"
-     ],
+     "tag": "shared_featured_reading",
      "unmentionedOnly": true,
-     "maxDaysOld": 4
-    },
-    "notSeenToday": true
-   }
-  },
-  {
-   "index": 96,
-   "id": "everyday_garden_noticer",
-   "residentId": "any",
-   "category": "event_reaction",
-   "priority": 6,
-   "historyScope": null,
-   "condition": {
-    "requiresNpcMemory": {
-     "tags": [
-      "garden"
-     ],
-     "unmentionedOnly": false,
-     "maxDaysOld": 4
+     "maxDaysOld": 6
     },
     "notSeenToday": true,
-    "maxSeenCount": 2
+    "maxSeenCount": 1
    }
   }
  ]

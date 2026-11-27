@@ -1568,3 +1568,24 @@ Chronological log of design decisions, implementation milestones, verification r
 - Browser: zero console errors, schema v13, HUD operational
 - Adversarial QA: 12 defects found and fixed
 conciliation for Phase C finalization)
+
+---
+
+## Living Relationships LR-4 — Teaching Grant, Knowledge Registry & Post-Reading Dialogue (2026-11-26)
+
+- **Status**: `Tested` locally (`WorldState` remains **v13**; Git/PR creation blocked because workspace snapshot contains no `.git` or `gh` CLI)
+- **Proposal & Decisions**: `docs/architecture/living-relationships/25-lr4-implementation-proposal.md` (settled `D-4A(b)`, `D-4B(a)`, `D-4C(b)`, `D-4D(b)`)
+- **Key Deliverables**:
+  - **`src/game/activities.ts`**: Exported `KNOWN_KNOWLEDGE_IDS` (derived from `SHARED_ACTIVITIES` entries with non-empty `knowledgeGranted`: `['nora_featured_reading']`) and `KNOWLEDGE_IDS: ReadonlySet<string>`. Wired atomic `def.knowledgeGranted` write inside `completeSharedActivity` strictly after refusal guards and the `already_completed` memory guard. LR-3's `share_morning_pastry` remains untouched (`knowledgeGranted === undefined`).
+  - **`src/game/migrations.ts`**: Upgraded `sanitizeLivingRelationships` (preserving `CURRENT_SCHEMA_VERSION = 13`) to strip unknown strings (`unknown teaching knowledge stripped (...)`) and invalid non-string/empty entries (`invalid teaching knowledge entries dropped (N)`), warn on non-array `teaching.known`, and deduplicate valid `KNOWLEDGE_IDS` symmetrically on both load (`migrateWorldState`) and save (`serializeWorldState`).
+  - **`src/game/dialogue/everyday/teaching.ts` & `src/game/dialogue/index.ts`**: Added `TEACHING_TOPICS` (`teaching_nora_featured_reading`, Nora `event_reaction`, priority `20` -> score `88 > 87` to outscore SF-4 `everyday_shared_visit_echo`, singular `tag: 'shared_featured_reading'` so `computeContextBoosts` adds `0`, gated on `requiresMet: true`, `requiresTeachingKnown: ['nora_featured_reading']`, unmentioned `shared_featured_reading` memory `<= 6d`, `notSeenToday: true`, `maxSeenCount: 1`) appended strictly at the tail of `DIALOGUE_TOPICS`.
+  - **Golden Snapshot & Tail-Pin Tests**: Regenerated `scripts/dialogue-topics-golden.json` (`95 -> 96` topics) via `scripts/generate_dialogue_golden.ts`, documented in `scripts/dialogue-topics-golden-justification.md`, and migrated append-only tail assertions in `dialogueContext.test.ts`, `community-dialogue.test.ts`, and `stage3-baseline.test.ts`.
+  - **Acceptance Battery (`src/game/lr4-teaching.test.ts`)**: Added 8 tests covering `LR4-01`..`LR4-07` including repeat/pre-seeded strict no-op, decline/expire/host-refusal empty teaching, SF-4 priority ordering & gossip preservation, sanitizer warnings & v13 round-trip, `computeWorldSaveRevision` sensitivity, `stepSimulation` parity, and LR-3 bakery isolation.
+- **Verification**:
+  - `npm test`: **1061/1061 passed** (`0` failures).
+  - `npm run lint` (`tsc --noEmit`): **0 errors**.
+  - `npx --yes tsx scripts/check_layer_boundaries.ts`: exit `0` (`74` game files, `83` scene files, `15` component files; acyclic).
+  - `npx --yes tsx scripts/longrun_stress.ts --quick`: exit `0` (zero hard invariant violations; twin & replay deterministic).
+  - `vite build` (`compile_applet`): green.
+  - Headless Chromium (`playwright-cli` on `http://localhost:3000/?autostart=1`): Desktop (`1440×900`) & Mobile (`390×844`, `scrollW === 390`, zero overflow) layout checks; dirty-save sanitizer warning + survival test; full end-to-end outdoors invite -> Linden Book Nook `Share Reading with Nora` -> `localStorage` `["nora_featured_reading"]` -> exterior `teaching_nora_featured_reading` dialogue UI -> reload persistence verified with `0` console/page errors.
+

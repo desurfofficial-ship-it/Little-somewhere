@@ -512,26 +512,26 @@ test('S3-G §3.3: dialogue registry count matches the golden snapshot', () => {
     `registry count matches golden: registry=${DIALOGUE_TOPICS.length} golden=${golden.count}`,
   );
   assert.equal(golden.count, golden.topics.length, 'golden internally consistent');
-  // The registry tail is now GARDEN_ECHO_TOPICS (2) preceded by PHOTO_ECHO_TOPICS
-  // (2) preceded by COMMUNITY_ECHO_TOPICS (3). slice(-2) = garden, slice(-4,-2)
-  // = photo, slice(-7,-4) = community.
-  const tailGarden = DIALOGUE_TOPICS.slice(-2).map((t) => t.id);
+  // Stage 3 Photography (`PHOTO_ECHO_TOPICS`, 2 topics) sits right after
+  // `COMMUNITY_ECHO_TOPICS` (3 topics), and LR-4 `TEACHING_TOPICS` (1 topic)
+  // occupies the append-only tail (`slice(-1)`). Verify exact contiguous order.
+  const tailTeaching = DIALOGUE_TOPICS.slice(-1).map((t) => t.id);
   assert.deepEqual(
-    tailGarden,
-    ['everyday_garden_witness_echo', 'everyday_garden_noticer'],
-    'garden echo topics occupy the append-only tail',
+    tailTeaching,
+    ['teaching_nora_featured_reading'],
+    'LR-4 teaching topic occupies the append-only tail',
   );
-  const tailPhoto = DIALOGUE_TOPICS.slice(-4, -2).map((t) => t.id);
+  const tailPhoto = DIALOGUE_TOPICS.slice(-3, -1).map((t) => t.id);
   assert.deepEqual(
     tailPhoto,
     ['everyday_photo_witness_echo', 'everyday_photo_noticer'],
-    'photo echo topics precede the garden echoes',
+    'photo echo topics remain contiguous immediately before the LR-4 teaching tail',
   );
-  const tailCommunity = DIALOGUE_TOPICS.slice(-7, -4).map((t) => t.id);
+  const tailCommunity = DIALOGUE_TOPICS.slice(-6, -3).map((t) => t.id);
   assert.deepEqual(
     tailCommunity,
     [...ECHO_TOPIC_IDS],
-    'community echo topics remain contiguous and immediately precede the photo echoes',
+    'community echo topics remain contiguous immediately before the photo echoes',
   );
 });
 

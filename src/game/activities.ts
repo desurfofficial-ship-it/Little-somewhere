@@ -157,6 +157,25 @@ export const SHARED_ACTIVITIES: Readonly<Record<string, SharedActivityDef>> = {
   },
 };
 
+/**
+ * Canonical Knowledge Registry (Living Relationships — LR-4, D-4A).
+ *
+ * Derived directly from SHARED_ACTIVITIES entries carrying `knowledgeGranted`
+ * (`{'nora_featured_reading'}`; Clara's LR-3 `share_morning_pastry` has none
+ * per LR3-48). Authoritative validation set for `migrations.ts` sanitizer.
+ */
+export const KNOWN_KNOWLEDGE_IDS: readonly string[] = Object.freeze(
+  Array.from(
+    new Set(
+      Object.values(SHARED_ACTIVITIES)
+        .map((def) => def.knowledgeGranted)
+        .filter((id): id is string => typeof id === 'string' && id.length > 0),
+    ),
+  ),
+);
+
+export const KNOWLEDGE_IDS: ReadonlySet<string> = new Set(KNOWN_KNOWLEDGE_IDS);
+
 export function createInitialTeachingState(): TeachingState {
   return { known: [] };
 }
@@ -408,12 +427,24 @@ export function completeSharedActivity(
       }
     : nextWorld.npcRuntime;
 
+  const prevKnown = nextWorld.teaching?.known ?? [];
+  const knowledgeToGrant =
+    typeof def.knowledgeGranted === 'string' &&
+    def.knowledgeGranted.length > 0 &&
+    !prevKnown.includes(def.knowledgeGranted)
+      ? def.knowledgeGranted
+      : undefined;
+  const nextTeaching: TeachingState = knowledgeToGrant
+    ? { known: [...prevKnown, knowledgeToGrant] }
+    : { known: [...prevKnown] };
+
   nextWorld = {
     ...nextWorld,
     memories: [memoryRecord, ...nextWorld.memories],
     npcMemories: nextNpcMemories,
     worldEvents: nextEvents,
     npcRuntime: nextNpcRuntime,
+    teaching: nextTeaching,
     invitations: {
       ...prevInvState,
       active: null,

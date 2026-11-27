@@ -1,8 +1,8 @@
 # 23 — LR-4 Teaching Specification (implementation-ready)
 
-- **Date**: 2026-11-22
-- **Status**: READY — implementation-ready on integrated main (`a80a220`). No feature code written (deliberate; see §9).
-- **Definition of record**: `14-revised-architecture.md` §10 LR-4 row: *"Teaching flag on the nook or bakery activity (one knowledge id)"* (`:294`). Milestone numbering per the settled chain of record: LR-1 → LR-2 → LR-3 (Clara/bakery, in flight, owned) → **LR-4 (teaching)** → LR-5 (Arthur/Copperwheel) — doc 10's older LR numbering is historical.
+- **Date**: 2026-11-22 *(reconciled 2026-11-26)*
+- **Status**: `Tested` locally on integrated `WorldState v13` (post-LR-3 snapshot). **All `L4-S1`..`L4-S5` deliverables implemented and verified** (`1061/1061` unit tests, `96`-topic golden snapshot, Chromium Desktop + Mobile QA); decisions settled in `docs/architecture/living-relationships/25-lr4-implementation-proposal.md` (`D-4A(b)`, `D-4B(a)`, `D-4C(b)`, `D-4D(b)`). Original pre-implementation specification text preserved below for provenance.
+- **Definition of record**: `14-revised-architecture.md` §10 LR-4 row: *"Teaching flag on the nook or bakery activity (one knowledge id)"* (`:294`). Milestone numbering per the settled chain of record: LR-1 → LR-2 → LR-3 (Clara/bakery, integrated) → **LR-4 (teaching)** → LR-5 (Arthur/Copperwheel) — doc 10's older LR numbering is historical.
 - **Preparation audit**: `docs/architecture/social-foundation/01-audit-synthesis.md` §5.
 
 ---

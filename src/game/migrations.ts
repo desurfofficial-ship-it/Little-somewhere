@@ -48,7 +48,7 @@ import {
   createInitialInvitationState,
   isInvitationLive,
 } from './invitations';
-import { SHARED_ACTIVITIES, createInitialTeachingState } from './activities';
+import { KNOWLEDGE_IDS, SHARED_ACTIVITIES, createInitialTeachingState } from './activities';
 import {
   RESIDENT_ORDER,
   createInitialResidentsProgress,
@@ -2058,13 +2058,40 @@ function sanitizeLivingRelationships(
   }
 
   const rawTeach = isRecord(candidate.teaching) ? candidate.teaching : {};
-  const teachingKnown = Array.isArray(rawTeach.known)
-    ? Array.from(
-        new Set(
-          rawTeach.known.filter((k): k is string => typeof k === 'string' && k.length > 0),
-        ),
-      )
-    : [];
+  const teachingKnown: string[] = [];
+  const seenKnowledgeIds = new Set<string>();
+  const strippedUnknownIds: string[] = [];
+  let droppedInvalidKnowledgeCount = 0;
+
+  if (Array.isArray(rawTeach.known)) {
+    for (const item of rawTeach.known) {
+      if (typeof item !== 'string' || item.length === 0) {
+        droppedInvalidKnowledgeCount += 1;
+        continue;
+      }
+      if (!KNOWLEDGE_IDS.has(item)) {
+        strippedUnknownIds.push(item);
+        continue;
+      }
+      if (!seenKnowledgeIds.has(item)) {
+        seenKnowledgeIds.add(item);
+        teachingKnown.push(item);
+      }
+    }
+  } else if (rawTeach.known !== undefined) {
+    warnings.push('teaching.known had non-array shape; reset to empty');
+  }
+
+  if (strippedUnknownIds.length > 0) {
+    warnings.push(
+      `unknown teaching knowledge stripped (${strippedUnknownIds.join(', ')})`,
+    );
+  }
+  if (droppedInvalidKnowledgeCount > 0) {
+    warnings.push(
+      `invalid teaching knowledge entries dropped (${droppedInvalidKnowledgeCount})`,
+    );
+  }
 
   return {
     invitations: {

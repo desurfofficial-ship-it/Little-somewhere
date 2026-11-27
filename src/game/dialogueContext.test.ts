@@ -274,16 +274,15 @@ test('SF4-07: the echo topic is registered at the tail and golden-pinned (anti-f
   assert.ok(golden.topics.some((g) => g.id === 'everyday_shared_visit_echo'));
   // Append-only ordering contract milestone pin: the registry tail is the
   // most recently appended module's last topic. SF-4 owned the tail at
-  // `everyday_shared_visit_echo`; the Community Projects social-afterlife
-  // module (COMMUNITY_ECHO_TOPICS, feat/community-social-consequences)
-  // appended three topics strictly after REFLECTION_TOPICS, so the pin
-  // migrated to `everyday_community_project_pride`. The Stage 3 Continuation
-  // Photography workstream (PHOTO_ECHO_TOPICS) appends two more event_reaction
-  // echoes strictly after the community echoes, so the pin migrates again to
-  // `everyday_photo_noticer`. The existence check above still pins the SF-4
-  // topic itself; only the tail pin moves. Each future append must similarly
-  // migrate this assertion, never reorder.
-  assert.equal(golden.topics.at(-1)!.id, 'everyday_garden_noticer');
+  // `everyday_shared_visit_echo`; Community Projects moved it to
+  // `everyday_community_project_pride`; Stage 3 Photography moved it to
+  // `everyday_photo_noticer`; Living Relationships LR-4 (TEACHING_TOPICS)
+  // appends one topic strictly after PHOTO_ECHO_TOPICS, so the tail pin
+  // migrates to `teaching_nora_featured_reading`. Both prior milestones are
+  // still pinned by existence checks; only the tail pin moves. Each future
+  // append must similarly migrate this assertion, never reorder.
+  assert.ok(golden.topics.some((g) => g.id === 'everyday_photo_noticer'));
+  assert.equal(golden.topics.at(-1)!.id, 'teaching_nora_featured_reading');
 });
 
 // ---------------------------------------------------------------------------
