@@ -1,1 +1,0 @@
-probe A[hostId]B [h] [ho] [hello] [historyKey] [shieldId] C[helpers]D [activeInv.hostId] end
