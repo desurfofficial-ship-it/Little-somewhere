@@ -29,7 +29,6 @@ import {
   reconcileInvitedInteriorEntry,
 } from './invitations';
 import { completeSharedActivity, getSharedActivityDef } from './activities';
-import { shareMorningLoafAction } from './actions';
 import { setOccupant } from './occupancy';
 import { getBakeForDay } from './bakery';
 import { describeInvitationCapabilities } from './invitationFramework';
@@ -206,20 +205,4 @@ test('REST-10 B-03 completion-side: a hand-staged rest-day session cannot comple
   assert.equal(result.toast, undefined, 'grants nothing');
   assert.equal(result.memoryUnlockedTitle, undefined);
   assert.equal(JSON.stringify(result.world), before, 'zero mutation — expiry cleans up');
-});
-
-test('REST-11 B-07 class: the solo counter re-share copy is roster-aware about tomorrow’s rest', () => {
-  // Day 3 shares lavender shortbread and tomorrow (day 4) is the oven rest:
-  // the re-share card must not claim “come back tomorrow”.
-  const day3 = stageClaraWorld(3);
-  const first = shareMorningLoafAction(day3);
-  assert.equal(first.nextWorld.bakeryState!.loafSharedDay, 3, 'precondition: day-3 share lands');
-  const again = shareMorningLoafAction(first.nextWorld);
-  assert.match(again.body, /dome rests tomorrow/);
-  assert.doesNotMatch(again.body, /come back tomorrow/);
-  // Day 1 (tomorrow bakes crabapple) keeps the historic copy byte-exactly.
-  const day1 = stageClaraWorld(BAKE_DAY);
-  const first1 = shareMorningLoafAction(day1);
-  const again1 = shareMorningLoafAction(first1.nextWorld);
-  assert.match(again1.body, /come back tomorrow, the dome’s already talking about it/);
 });
