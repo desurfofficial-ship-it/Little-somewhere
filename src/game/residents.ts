@@ -676,6 +676,8 @@ export interface ActivityCandidate {
   onlyWeathers?: readonly WeatherType[];
   preferredWeathers?: readonly WeatherType[];
   sheltered?: boolean;
+  /** Resident-owned gardens: if set, fires tendResidentGardenInPlace on arrival, once per day. */
+  gardenId?: string;
 }
 
 export const RESIDENT_EXTRA_ACTIVITIES: Record<ResidentId, readonly ActivityCandidate[]> = {
@@ -749,6 +751,18 @@ export const RESIDENT_EXTRA_ACTIVITIES: Record<ResidentId, readonly ActivityCand
       goalKind: 'eat',
       baseWeight: 1.38,
       requiresSideFlag: 'orchardGatheringComplete',
+    },
+    {
+      id: 'clara_tend_herb_garden',
+      phases: ['morning', 'afternoon'],
+      target: { x: -12.4, z: -15.5 },
+      placeName: "Clara's Herb Garden",
+      activity: 'Tending sage and thyme along the bakery wall',
+      facingAngle: 1.4,
+      animState: 'work',
+      goalKind: 'work',
+      baseWeight: 1.0,
+      gardenId: 'clara_herb_garden',
     },
   ],
   arthur: [
@@ -975,6 +989,18 @@ export const RESIDENT_EXTRA_ACTIVITIES: Record<ResidentId, readonly ActivityCand
       goalKind: 'work',
       baseWeight: 0.68,
     },
+    {
+      id: 'barnaby_tend_compost_garden',
+      phases: ['morning', 'afternoon'],
+      target: { x: 17.5, z: 13.0 },
+      placeName: "Barnaby's Compost Garden",
+      activity: 'Working cedar-shaving compost into the marigold beds',
+      facingAngle: -1.4,
+      animState: 'work',
+      goalKind: 'work',
+      baseWeight: 1.0,
+      gardenId: 'barnaby_compost_garden',
+    },
   ],
   sora: [
     {
@@ -1088,6 +1114,18 @@ export const RESIDENT_EXTRA_ACTIVITIES: Record<ResidentId, readonly ActivityCand
       baseWeight: 1.7,
       onlyWeathers: ['light_rain'],
       sheltered: true,
+    },
+    {
+      id: 'nora_tend_lavender_bed',
+      phases: ['morning', 'afternoon'],
+      target: { x: -14.0, z: 3.5 },
+      placeName: "Nora's Lavender Bed",
+      activity: 'Snipping lavender and chamomile outside the Book Nook',
+      facingAngle: 1.5,
+      animState: 'work',
+      goalKind: 'work',
+      baseWeight: 1.0,
+      gardenId: 'nook_lavender_bed',
     },
   ],
   pip: [

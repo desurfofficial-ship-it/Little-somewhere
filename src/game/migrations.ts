@@ -1710,13 +1710,21 @@ function sanitizeGardensState(
         plots.push(createInitialGreenhousePlot());
         continue;
       }
+      // D5 fix (adversarial review): align with the greenhouse sanitizer —
+      // floor plantedDay, cross-validate nightsGrown when stage>=3.
+      const rawPlantedDay = Math.max(1, Math.floor(asFiniteNumber(rp.plantedDay, 1)));
+      const rawNightsGrown = Math.max(0, Math.floor(asFiniteNumber(rp.nightsGrown, 0)));
+      const rawStage = Math.max(0, Math.min(3, asFiniteNumber(rp.stage, 0))) as GreenhouseGrowthStage;
+      // D5 fix: if stage >= 3 but nightsGrown < 1, repair to the minimum
+      // consistent value (mirrors greenhouse sanitizer at ~line 2183).
+      const repairedNightsGrown = rawStage >= 3 ? Math.max(1, rawNightsGrown) : rawNightsGrown;
       plots.push({
         cropId,
-        plantedDay: Math.max(1, asFiniteNumber(rp.plantedDay, 1)),
-        nightsGrown: Math.max(0, asFiniteNumber(rp.nightsGrown, 0)),
-        stage: Math.max(0, Math.min(3, asFiniteNumber(rp.stage, 0))) as GreenhouseGrowthStage,
+        plantedDay: rawPlantedDay,
+        nightsGrown: repairedNightsGrown,
+        stage: rawStage,
         wateredToday: Boolean(rp.wateredToday),
-        waterStreak: Math.max(0, asFiniteNumber(rp.waterStreak, 0)),
+        waterStreak: Math.max(0, Math.floor(asFiniteNumber(rp.waterStreak, 0))),
       });
     }
     // Warn if the raw plot count was wrong.
@@ -1725,9 +1733,12 @@ function sanitizeGardensState(
     }
     out[gardenId] = {
       plots,
-      totalHarvests: Math.max(0, asFiniteNumber(gardenRaw.totalHarvests, 0)),
-      totalPlanted: Math.max(0, asFiniteNumber(gardenRaw.totalPlanted, 0)),
-      lastTendedDay: Math.max(0, asFiniteNumber(gardenRaw.lastTendedDay, 0)),
+      totalHarvests: Math.max(0, Math.floor(asFiniteNumber(gardenRaw.totalHarvests, 0))),
+      totalPlanted: Math.max(0, Math.floor(asFiniteNumber(gardenRaw.totalPlanted, 0))),
+      // D5 fix: floor lastTendedDay (was only Math.max(0, ...) — could accept
+      // fractional values). Future-value clamp is deferred (the gate logic
+      // handles it correctly).
+      lastTendedDay: Math.max(0, Math.floor(asFiniteNumber(gardenRaw.lastTendedDay, 0))),
     };
   }
   if (dropped > 0) warnings.push(`gardens entries dropped on load (${dropped})`);
