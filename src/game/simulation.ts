@@ -40,7 +40,7 @@ import {
   cloneNpcPerceptions,
   getPerceivedTierFast,
 } from './perceptions';
-import { cloneGardens } from './gardens';
+import { cloneGardens, tendResidentGardenInPlace } from './gardens';
 import {
   computeSeparationVector,
   computeWaypointPath,
@@ -1138,6 +1138,17 @@ export function stepSimulationInPlace(
         rt.waypoints.length = 0;
         rt.stuckSeconds = 0;
         rt.currentSpeed = 0;
+        // Resident-owned garden arrival hook: if the NPC arrived at a garden-tend
+        // activity, fire tendResidentGardenInPlace once (idempotent via
+        // GardenState.lastTendedDay). This is the only place NPC gardening
+        // actually happens — the candidate routes them here, the arrival fires
+        // the reducer, and the lastTendedDay gate prevents re-tending.
+        if (rt.socialPartnerId === null) {
+          const extra = findMatchingExtraActivity(id, phase, rt.currentActivityId);
+          if (extra?.gardenId) {
+            tendResidentGardenInPlace(world, extra.gardenId, id);
+          }
+        }
         if (rt.reservedSeatId && !rt.socialPartnerId) {
           const seat = getSeatById(rt.reservedSeatId);
           // Overhaul G-7: never teleport a resident onto a seat the player is

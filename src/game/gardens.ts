@@ -64,7 +64,7 @@ export const GARDENS: readonly GardenDef[] = [
     id: 'clara_herb_garden',
     label: "Clara's Herb Garden",
     blurb: 'A culinary herb border along the bakery south wall — sage, thyme, and rosemary for warm sourdough.',
-    ownerId: 'player',
+    ownerId: 'clara',
     anchorPropId: 'bakery_herb_bed',
     plotCount: 2,
     allowedCropIds: ['sage', 'thyme', 'lavender'],
@@ -73,7 +73,7 @@ export const GARDENS: readonly GardenDef[] = [
     id: 'nook_lavender_bed',
     label: "Nora's Lavender Bed",
     blurb: 'A calming lavender and chamomile border outside the Book Nook — the scent drifts over paperback displays.',
-    ownerId: 'player',
+    ownerId: 'nora',
     anchorPropId: 'nook_lavender_bed',
     plotCount: 2,
     allowedCropIds: ['lavender', 'chamomile'],
@@ -100,7 +100,7 @@ export const GARDENS: readonly GardenDef[] = [
     id: 'barnaby_compost_garden',
     label: "Barnaby's Compost Garden",
     blurb: 'A working garden east of the woodshop — fed by cedar-shaving compost, bright with marigold and chamomile.',
-    ownerId: 'player',
+    ownerId: 'barnaby',
     anchorPropId: 'barnaby_compost_bed',
     plotCount: 2,
     allowedCropIds: ['marigold', 'chamomile', 'thyme'],
@@ -278,4 +278,80 @@ export function cloneGardens(
     };
   }
   return out;
+}
+
+// ─── Resident-owned garden autonomous tending ────────────────────────────────
+
+/**
+ * NPC-tender variant: reuses plot primitives, skips player-location/inventory
+ * guards, grants no items to player inventory. Idempotent per (garden, day)
+ * via GardenState.lastTendedDay — fires once when the NPC arrives at their
+ * garden bed, then the candidate is de-prioritised for the rest of the day.
+ *
+ * The NPC "virtually" sources seeds from their allowedCropIds (no inventory
+ * needed) and composts harvested crops silently (no item grants). This makes
+ * the garden visibly progress without creating an NPC economy.
+ *
+ * Determinism: no RNG — the crop choice is deterministic (first allowed crop),
+ * the action is purely state-driven, and the lastTendedDay gate ensures
+ * exactly one tend per in-game day per garden.
+ */
+export function tendResidentGardenInPlace(
+  world: WorldState,
+  gardenId: string,
+  residentId: ResidentId,
+): void {
+  const def = getGardenDef(gardenId);
+  if (!def) return;
+  // Ownership guard: only the owner tends their garden.
+  if (def.ownerId !== residentId) return;
+  const state = getOrCreateGardenState(world, gardenId);
+  if (!state) return;
+  // Once-per-day gate: lastTendedDay prevents re-tending within the same day.
+  if (state.lastTendedDay === world.day) return;
+
+  let didSomething = false;
+  for (const plot of state.plots) {
+    if (!plot.cropId) {
+      // NPC sows a crop from their garden's allowed list (virtual seed source).
+      const cropId = def.allowedCropIds?.[0] ?? 'sage';
+      sowPlotInPlace(plot, cropId, world.day);
+      state.totalPlanted += 1;
+      didSomething = true;
+    } else if (plot.stage >= 3) {
+      // NPC harvests — crops are composted silently (no inventory grant).
+      harvestPlotInPlace(plot, 2, isLushStreak(plot.waterStreak ?? 0));
+      state.totalHarvests += 1;
+      didSomething = true;
+    } else {
+      // NPC waters growing plots.
+      if (!plot.wateredToday) {
+        waterPlotInPlace(plot);
+        didSomething = true;
+      }
+    }
+  }
+  if (didSomething) {
+    state.lastTendedDay = world.day;
+  }
+}
+
+/**
+ * Returns true if the given resident owns a garden and hasn't tended it today.
+ * Used by the autonomy system to decide whether the "tend garden" candidate
+ * is eligible.
+ */
+export function residentNeedsToTend(
+  world: WorldState,
+  residentId: ResidentId,
+): string | null {
+  for (const def of GARDENS) {
+    if (def.ownerId !== residentId) continue;
+    const state = getGardenState(world, def.id);
+    // Eligible if no state yet (first tend) or lastTendedDay !== today.
+    if (!state || state.lastTendedDay !== world.day) {
+      return def.id;
+    }
+  }
+  return null;
 }
