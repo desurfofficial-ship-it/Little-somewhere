@@ -113,7 +113,7 @@ export const CLARA_INVITATION_TOPICS: readonly DialogueTopic[] = [
           },
           declined_end: {
             moodLabel: 'Understanding',
-            text: `No trouble at all — the dome bakes again tomorrow, and the corner seat keeps.`,
+            text: `No trouble at all — the dome bakes again a few mornings on, and the corner seat keeps.`,
           },
         },
       };
