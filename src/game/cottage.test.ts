@@ -160,8 +160,14 @@ test('cottage hearth cooking, table vase arrangement, keepsake display, almanac,
   let world = enterCottageAction(createFreshWorldState()).nextWorld;
 
   // Brew Chamomile Honey Tea using starter chamomile_blossom
+  // Recipe discovery: pre-seed the chamomile_blossom ingredient discovery so
+  // the recipe is available (the test simulates a player who has already
+  // tended the window box at least once).
   const startMinute = world.minuteOfDay;
-  const cooked = cookRecipeAction(world, 'recipe_chamomile_tea');
+  const cooked = cookRecipeAction({
+    ...world,
+    sideFlags: { ...(world.sideFlags ?? {}), ingredientDiscovered_chamomile_blossom: true },
+  }, 'recipe_chamomile_tea');
   assert.equal(cooked.ok, true);
   world = cooked.nextWorld;
   assert.equal(getItemCount(world.inventory, 'chamomile_blossom'), 0);
@@ -350,7 +356,12 @@ test('cottage indoor dining seats are footprint-anchored, walkable-approach, and
 test('tea-table sip ritual consumes a drink, spends minutes, and writes one first-time journal memory', () => {
   // Build a seated-inside world with a freshly brewed tea in the satchel
   let world = enterCottageAction(createFreshWorldState()).nextWorld;
-  const cooked = cookRecipeAction(world, 'recipe_chamomile_tea');
+  const startMinute2 = world.minuteOfDay;
+  // Recipe discovery: pre-seed ingredient discovery for the tea-table test.
+  const cooked = cookRecipeAction({
+    ...world,
+    sideFlags: { ...(world.sideFlags ?? {}), ingredientDiscovered_chamomile_blossom: true },
+  }, 'recipe_chamomile_tea');
   assert.equal(cooked.ok, true);
   world = cooked.nextWorld;
   const seated = togglePlayerSitAction(world, 'cottage_seat_table_west');

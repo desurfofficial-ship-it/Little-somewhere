@@ -483,7 +483,11 @@ test('read-state storage helpers handle Node (no window) and browser localStorag
 
 test('Milestone 2C: Pocket Journal projects cottage homeSummary and personalItemId gift notes cleanly', () => {
   let world = createFreshWorldState();
-  world = cookRecipeAction(world, 'recipe_chamomile_tea').nextWorld;
+  // Recipe discovery: pre-seed ingredient discovery so the recipe is available.
+  world = cookRecipeAction({
+    ...world,
+    sideFlags: { ...(world.sideFlags ?? {}), ingredientDiscovered_chamomile_blossom: true },
+  }, 'recipe_chamomile_tea').nextWorld;
   world = {
     ...world,
     inventory: { ...world.inventory, lavender_sprig: 1, willow_zine_copy: 1 },

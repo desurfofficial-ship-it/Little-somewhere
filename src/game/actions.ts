@@ -109,6 +109,10 @@ import {
   getFirstSipableItem,
   getGiftReactionTier,
   getItemCount,
+  isRecipeDiscovered,
+  isRecipeFirstCooked,
+  markIngredientDiscovered,
+  recipeFirstCookedKey,
 } from './inventory';
 import {
   COPPERWHEEL_BENCH_MINUTES,
@@ -1408,12 +1412,20 @@ export function interactWithProp(
       ...(bonusLavender ? [{ itemId: 'lavender_sprig' as const, amount: 1 }] : []),
     ]);
     const spend = spendMinutes(world, 12);
+    // Recipe discovery: mark chamomile_blossom (and lavender_sprig on even days)
+    // as discovered ingredients so recipes that depend on them unlock.
+    let nextSideFlags = { ...(world.sideFlags ?? {}) };
+    nextSideFlags = markIngredientDiscovered(nextSideFlags, 'chamomile_blossom');
+    if (bonusLavender) {
+      nextSideFlags = markIngredientDiscovered(nextSideFlags, 'lavender_sprig');
+    }
     return {
       nextWorld: {
         ...world,
         minuteOfDay: spend.minuteOfDay,
         inventory: invRes.inventory,
         discoveredItemIds: invRes.discoveredItemIds,
+        sideFlags: nextSideFlags,
         dailyActivities: { ...da, cottagePlanterTendedToday: true },
       },
       title: 'Porch Herb & Chamomile Box',
@@ -1490,12 +1502,17 @@ export function interactWithProp(
           ...world.memories,
         ];
     const spend = spendMinutes(world, 20);
+    // Recipe discovery: mark crabapple and wild_honey as discovered ingredients.
+    let orchardSideFlags = { ...(world.sideFlags ?? {}) };
+    orchardSideFlags = markIngredientDiscovered(orchardSideFlags, 'crabapple');
+    orchardSideFlags = markIngredientDiscovered(orchardSideFlags, 'wild_honey');
     return {
       nextWorld: {
         ...world,
         minuteOfDay: spend.minuteOfDay,
         inventory: invRes.inventory,
         discoveredItemIds: invRes.discoveredItemIds,
+        sideFlags: orchardSideFlags,
         dailyActivities: { ...da, orchardHarvestedToday: true },
         memories: nextMemories,
       },
@@ -4091,6 +4108,10 @@ export function cookRecipeAction(
   if (!recipe) {
     return { ok: false, nextWorld: world, toast: 'Unknown hearth recipe.' };
   }
+  // Recipe discovery gate: refuse to cook an undiscovered recipe.
+  if (!isRecipeDiscovered(world.sideFlags, recipe)) {
+    return { ok: false, nextWorld: world, toast: recipe.discoverHint ?? 'You have not discovered this recipe yet.' };
+  }
   if (!canCraftRecipe(world.inventory, recipe)) {
     return { ok: false, nextWorld: world, toast: 'Still missing fresh ingredients for that recipe.' };
   }
@@ -4127,10 +4148,34 @@ export function cookRecipeAction(
       ? { ...world.flags, brewedChamomileTea: true }
       : world.flags;
 
+  // First-hearth-bake memory (generic, one-time).
   const memId = 'mem_cottage_hearth';
   const hasMem = world.memories.some((m) => m.id === memId);
+
+  // Recipe-specific first-cook memory + sideFlags (recipe discovery system).
+  const firstCookedKey = recipeFirstCookedKey(recipe.id);
+  const isFirstCook = !isRecipeFirstCooked(world.sideFlags, recipe.id);
+  const firstCookMemId = `mem_recipe_first_${recipe.id}`;
+  const hasFirstCookMem = world.memories.some((m) => m.id === firstCookMemId);
+  let firstCookMemories = world.memories;
+  let firstCookUnlocked: string | undefined;
+  if (isFirstCook && recipe.firstCookTitle && !hasFirstCookMem) {
+    firstCookMemories = [
+      {
+        id: firstCookMemId,
+        day: world.day,
+        phase,
+        title: recipe.firstCookTitle!,
+        summary: recipe.firstCookSummary!,
+      },
+      ...world.memories,
+    ];
+    firstCookUnlocked = recipe.firstCookTitle;
+  }
+
+  // Merge the generic hearth memory with the recipe-specific first-cook memory.
   const nextMemories = hasMem
-    ? world.memories
+    ? firstCookMemories
     : [
         {
           id: memId,
@@ -4140,8 +4185,25 @@ export function cookRecipeAction(
           summary:
             'Warm gingered steam filled Willow Step Cottage while preparing my first treat at the stone hearth.',
         },
-        ...world.memories,
+        ...firstCookMemories,
       ];
+
+  // Stamp the recipe-first-cooked sideFlags key + bump the hearth cooking counter.
+  const nextSideFlags: Record<string, boolean | number | string> = {
+    ...(world.sideFlags ?? {}),
+    [firstCookedKey]: true,
+  };
+  // Track total hearth-cooking count for the everyday practice (separate from
+  // bakery kneading sessions). Zero schema bump — rides sideFlags.
+  const HEARTH_COOKED_COUNT_KEY = 'hearthCookedCount';
+  const prevCookedCount =
+    typeof nextSideFlags[HEARTH_COOKED_COUNT_KEY] === 'number' &&
+    Number.isFinite(nextSideFlags[HEARTH_COOKED_COUNT_KEY])
+      ? Math.max(0, Math.floor(nextSideFlags[HEARTH_COOKED_COUNT_KEY] as number))
+      : 0;
+  nextSideFlags[HEARTH_COOKED_COUNT_KEY] = prevCookedCount + 1;
+
+  const memoryUnlockedTitle = firstCookUnlocked ?? (hasMem ? undefined : 'First Hearth Bake at Willow Step');
 
   return {
     ok: true,
@@ -4151,6 +4213,7 @@ export function cookRecipeAction(
       inventory: addedRes.inventory,
       discoveredItemIds: addedRes.discoveredItemIds,
       flags: nextFlags,
+      sideFlags: nextSideFlags,
       cottageState: {
         ...cottage,
         hearthLit: true,
@@ -4163,7 +4226,7 @@ export function cookRecipeAction(
       memories: nextMemories,
     },
     toast: `Prepared ${outDef.label} at the hearth (+${recipe.minutesRequired}m)!${overflowNote}`,
-    memoryUnlockedTitle: hasMem ? undefined : 'First Hearth Bake at Willow Step',
+    memoryUnlockedTitle,
   };
 }
 

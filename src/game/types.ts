@@ -274,6 +274,16 @@ export interface RecipeDef {
   description: string;
   minutesRequired: number;
   ingredients: Array<{ itemId: PersonalItemId; count: number }>;
+  /** Recipe discovery: the ingredient whose first acquisition unlocks this recipe. */
+  discoverKey?: PersonalItemId;
+  /** Optional second ingredient required for discovery (both must be discovered). */
+  discoverKey2?: PersonalItemId;
+  /** Hint shown in the UI when the recipe is not yet discovered. */
+  discoverHint?: string;
+  /** Journal memory title for the first time this recipe is cooked. */
+  firstCookTitle?: string;
+  /** Journal memory summary for the first time this recipe is cooked. */
+  firstCookSummary?: string;
 }
 
 export interface CottageHomeState {
