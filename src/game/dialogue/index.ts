@@ -34,6 +34,7 @@ import { EVERYDAY_HOME_TOPICS } from './everyday/home';
 import { REFLECTION_TOPICS } from './everyday/reflections';
 import { COMMUNITY_ECHO_TOPICS } from './everyday/communityEcho';
 import { PHOTO_ECHO_TOPICS } from './everyday/photoEcho';
+import { GARDEN_ECHO_TOPICS } from './everyday/gardenEcho';
 import { GREENHOUSE_TOPICS } from './interiors/greenhouse';
 import { BAKERY_TOPICS } from './interiors/bakery';
 import { BOOK_NOOK_TOPICS } from './interiors/bookNook';
@@ -84,4 +85,8 @@ export const DIALOGUE_TOPICS: readonly DialogueTopic[] = [
   // `'shared_photo'`) → no SF-4 R1 context boost → these topics stay gentle
   // below the community band. Golden snapshot regenerated 93 → 95.
   ...PHOTO_ECHO_TOPICS,
+  // Resident Gardens social afterlife: echoes of the tendResidentGardenInPlace
+  // reducer's 'garden' witness memory writes. Appended after PHOTO_ECHO_TOPICS.
+  // Golden 95 → 97. Tag is 'garden' (no SF-4 boost).
+  ...GARDEN_ECHO_TOPICS,
 ];

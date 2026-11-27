@@ -1,5 +1,5 @@
 {
- "count": 95,
+ "count": 97,
  "topics": [
   {
    "index": 0,
@@ -1488,6 +1488,43 @@
      "unmentionedOnly": false,
      "maxDaysOld": 6,
      "subjectPlayer": true
+    },
+    "notSeenToday": true,
+    "maxSeenCount": 2
+   }
+  },
+  {
+   "index": 95,
+   "id": "everyday_garden_witness_echo",
+   "residentId": "any",
+   "category": "event_reaction",
+   "priority": 10,
+   "historyScope": null,
+   "condition": {
+    "requiresNpcMemory": {
+     "tags": [
+      "garden"
+     ],
+     "unmentionedOnly": true,
+     "maxDaysOld": 4
+    },
+    "notSeenToday": true
+   }
+  },
+  {
+   "index": 96,
+   "id": "everyday_garden_noticer",
+   "residentId": "any",
+   "category": "event_reaction",
+   "priority": 6,
+   "historyScope": null,
+   "condition": {
+    "requiresNpcMemory": {
+     "tags": [
+      "garden"
+     ],
+     "unmentionedOnly": false,
+     "maxDaysOld": 4
     },
     "notSeenToday": true,
     "maxSeenCount": 2
