@@ -492,7 +492,14 @@ test('CP-14: communityProjects slice persists through the day roll', () => {
   assert.equal(before.orchard_lanterns?.completedDay, res.world.day);
 
   const next = advanceToNextDay(res.world);
-  assert.deepEqual(next.communityProjects, before, 'slice carried through advanceToNextDay');
+  // The NPC community day-tick (Stage 2 advance) may add contributions to
+  // OTHER incomplete projects during the day roll — but it skips COMPLETED
+  // projects. Assert the orchard (completed) is preserved specifically.
+  assert.deepEqual(
+    next.communityProjects.orchard_lanterns,
+    before.orchard_lanterns,
+    'completed orchard_lanterns carried through advanceToNextDay (NPC day-tick skips completed projects)',
+  );
   assert.equal(next.day, res.world.day + 1);
   assert.equal(
     next.communityProjects.orchard_lanterns?.contributed.wild_honey,
