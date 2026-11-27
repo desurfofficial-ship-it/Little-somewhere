@@ -15,7 +15,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { advanceToNextDay, createFreshWorldState } from './storage';
+import { advanceToNextDay, createFreshWorldState, serializeWorldState, deserializeWorldState } from './storage';
 import {
   COMMUNITY_REASON_LABELS,
   MAX_CONTRIBUTED_PER_ITEM,
@@ -190,7 +190,7 @@ test('CP-06: nearby witness records a firsthand shared_community memory; distant
   assert.ok(pipMemory.subjectResidents.includes('pip'));
   assert.equal(pipMemory.retention, 'durable');
   assert.equal(pipMemory.valence, 'warm');
-  assert.equal(pipMemory.detail?.placeName, 'Village Plaza');
+  assert.equal(pipMemory.detail?.placeName, 'the community shelf');
   assert.equal(
     (pipMemory.detail as Record<string, unknown>).projectId,
     'marigold_garland',
@@ -500,4 +500,43 @@ test('CP-14: communityProjects slice persists through the day roll', () => {
     'contribution totals survive the roll',
   );
   assert.equal(next.communityProjects.orchard_lanterns?.completedDay, res.world.day);
+});
+
+// CP-15: D-1 fix — the `projectId` field in NPC memory detail survives save/load.
+// Previously the closed-shape `sanitizeMemoryDetail` stripped `projectId`, so
+// dialogue echoes lost the project title after reload.
+test('CP-15: projectId survives save/load round-trip in NPC memory detail (D-1 fix)', () => {
+  let world = createFreshWorldState();
+  world.playerPos = { x: 4.4, z: -2.2 };
+  world.playerLocation = 'exterior';
+  // Stage Pip nearby so he witnesses the contribution.
+  world.npcRuntime.pip.position = { x: 5.6, z: -2.2 };
+  world.npcRuntime.pip.targetPos = { x: 5.6, z: -2.2 };
+  // Grant a satchel item so the contribution succeeds.
+  world.inventory = { ...world.inventory, meadow_posy: 2 };
+
+  const res = contributeToCommunityProject(world, 'marigold_garland', 'meadow_posy', 1);
+  assert.equal(res.ok, true);
+
+  // Verify projectId is present before save.
+  const pipMemBefore = res.world.npcMemories.pip?.find((m) => m.tag === 'shared_community');
+  assert.ok(pipMemBefore, 'Pip holds a shared_community memory');
+  assert.equal(
+    (pipMemBefore!.detail as Record<string, unknown>)?.projectId,
+    'marigold_garland',
+    'projectId present before save',
+  );
+
+  // Serialize → deserialize → verify projectId survives.
+  const json = serializeWorldState(res.world);
+  const loaded = deserializeWorldState(json).state;
+  const pipMemAfter = loaded.npcMemories.pip?.find((m) => m.tag === 'shared_community');
+  assert.ok(pipMemAfter, 'Pip still holds the shared_community memory after reload');
+  assert.equal(
+    (pipMemAfter!.detail as Record<string, unknown>)?.projectId,
+    'marigold_garland',
+    'projectId survives save/load round-trip (D-1 fix)',
+  );
+  // placeName also survives (it was already preserved; this pins the combined behavior).
+  assert.equal(pipMemAfter!.detail?.placeName, 'the community shelf', 'placeName survives round-trip');
 });

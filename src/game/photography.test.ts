@@ -423,4 +423,28 @@ describe('photography — Stage 3 Continuation (Workstream B)', () => {
       }
     }
   });
+
+  it('PHOTO-19: community-project photo subjects are gated on project completion (D-3/D-4 fix)', () => {
+    const world = stageOutdoors();
+    // Fresh world: no community project is complete → the 3 community subjects
+    // (plaza_garlands, orchard_lanterns, pond_mosaic) must be refused.
+    const refused = performPhotoAction(world, 'plaza_garlands');
+    assert.equal(refused.nextWorld, world, 'plaza_garlands refused when project incomplete');
+    assert.equal(refused.memoryUnlockedTitle, undefined, 'no memory granted');
+    // The refusal body explains the project isn't finished.
+    assert.ok(refused.body.includes('isn'), 'refusal prose explains the project is not finished');
+
+    // Complete the marigold_garland project via the completion sideFlag.
+    const completed: WorldState = {
+      ...world,
+      sideFlags: { ...world.sideFlags, communityGarlandComplete: true },
+    };
+    const granted = performPhotoAction(completed, 'plaza_garlands');
+    assert.notEqual(granted.nextWorld, completed, 'plaza_garlands granted when project complete');
+    assert.ok(granted.memoryUnlockedTitle, 'memory granted on first capture after completion');
+
+    // A non-community subject (mirror_pond) is NOT gated — it captures regardless.
+    const ungated = performPhotoAction(world, 'mirror_pond');
+    assert.notEqual(ungated.nextWorld, world, 'non-community subject captures without a sideFlag gate');
+  });
 });

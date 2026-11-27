@@ -1080,6 +1080,12 @@ function sanitizeMemoryDetail(raw: unknown): NpcMemoryDetail | undefined {
   if (typeof raw.placeZoneId === 'string' && raw.placeZoneId.length > 0) {
     detail.placeZoneId = raw.placeZoneId;
   }
+  // Stage 2 Community Projects (D-1 fix): preserve the projectId so dialogue
+  // echoes can recover the project title after save/load. Previously stripped
+  // because NpcMemoryDetail was a closed shape without this field.
+  if (typeof raw.projectId === 'string' && raw.projectId.length > 0) {
+    detail.projectId = raw.projectId;
+  }
   return Object.keys(detail).length > 0 ? detail : undefined;
 }
 

@@ -514,9 +514,18 @@ export function contributeToCommunityProject(
   const completionEventId = `community_${projectId}_complete_d${world.day}`;
   // `projectId` rides in the memory detail for dialogue/telemetry consumers;
   // built as a record (not an inline literal into the typed param) so the extra
-  // key survives createNpcMemoryEntry's detail spread without fighting the
-  // closed NpcMemoryDetail shape.
-  const communityDetail = { placeName: def.venueLabel, projectId: def.id };
+  // key survives createNpcMemoryEntry's detail spread. (D-1 fix: projectId is now
+  // a declared NpcMemoryDetail field + sanitizer-preserved, so it round-trips
+  // through save/load — dialogue echoes recover the project title after reload.)
+  //
+  // D-2 fix: the WITNESS memory's placeName is where the witness actually was —
+  // the community shelf at the plaza noticeboard (where contributions dispatch),
+  // NOT the project's venue (which may be Fern Hollow Orchard or Mirror Pond —
+  // a geographic lie if the witness was at the plaza). The PARTICIPANT (thanksFrom)
+  // memory keeps the project's venueLabel, since the thanksFrom resident is
+  // associated with the project's venue.
+  const witnessDetail = { placeName: 'the community shelf', projectId: def.id };
+  const participantDetail = { placeName: def.venueLabel, projectId: def.id };
 
   // Living-world interconnection: neighbors within LOCAL_WITNESS_RADIUS hold a
   // firsthand witness memory of the contribution moment.
@@ -541,7 +550,7 @@ export function contributeToCommunityProject(
         retention: 'durable',
         valence: 'warm',
         emotionalWeight: 66,
-        detail: communityDetail,
+        detail: witnessDetail,
       }),
       world.day,
     );
@@ -595,7 +604,7 @@ export function contributeToCommunityProject(
           retention: 'durable',
           valence: 'warm',
           emotionalWeight: 80,
-          detail: communityDetail,
+          detail: participantDetail,
         }),
         world.day,
       );
