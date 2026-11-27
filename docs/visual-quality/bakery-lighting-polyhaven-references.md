@@ -4,6 +4,8 @@
 **Purpose**: Reference study only (polyhaven skill). Inform future visual polish of the bakery under golden-hour and warm interior lighting while preserving PREMIUM HANDCRAFTED STORYBOOK DIORAMA identity.  
 **Constraint**: Zero external runtime assets. Prefer procedural geometry + CanvasTexture reconstruction. Do not fetch these assets at runtime.
 
+**Discoverability**: Referenced from `AGENTS.md` §6.5. Use when polishing Hearth & Crumb Bakery (especially under golden-hour / lantern conditions or in support of LR-3 interior occupancy).
+
 ## Useful CC0 references
 
 ### Lighting (HDRI)

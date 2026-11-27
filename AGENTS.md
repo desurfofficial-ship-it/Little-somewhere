@@ -110,20 +110,71 @@ Before considering any change complete, run these checks in order after your fin
 
 ---
 
-## 6. Optional Agent Skills (Capability Enhancers Only)
+## 6. Agent Skills — Integration Workflow (Capability Enhancers)
 
-The `skills/` directory contains optional skills that **improve agent capability** for high-fidelity visuals, sound design, and reference assets. They are **not** architectural authorities.
+The `skills/` directory contains optional skills that **improve agent capability** for high-fidelity visuals, sound design, reference assets, and related techniques. They are **not** architectural authorities.
 
-- Read `skills/README.md` first.
-- Load a skill only when the task matches its purpose.
-- When any skill guidance conflicts with this document or the art-direction docs, **this document and the art-direction docs win**.
-- Never use a skill to introduce photorealism, external runtime asset packs that can fail, or to collapse the three-layer architecture.
+**Hard rule**: When any skill guidance conflicts with this document, `docs/MASTER-ROADMAP.md`, the art-direction docs, the three-layer architecture, or verification gates, **this document and the project authorities win**.
 
-Available entry points:
-- `skills/dream-loop/` — closed visual-fidelity loop
-- `skills/earshot/` — sound generation & evaluation
-- `skills/polyhaven/` — CC0 reference / optional assets from Poly Haven
-- `skills/mengto/` — pointers into the MengTo design & Three.js skill library
+### 6.1 When skill discovery is required
+
+For **substantial** work (new visual assets or significant visual changes, new audio, new materials/lighting, major scene composition, or any task that would benefit from specialized technique libraries), agents **must**:
+
+1. Read `skills/README.md`.
+2. Inspect the local skill entry points that match the task (`skills/dream-loop/SKILL.md`, `skills/polyhaven/SKILL.md`, `skills/earshot/README.md`, `skills/mengto/README.md`, or others discovered).
+3. Perform a short applicability assessment (relevant / partially relevant / not relevant).
+4. Read the actual skill instructions for any skill marked relevant or partially relevant.
+5. Adapt useful techniques to LITTLE SOMEWHERE rather than copying foreign styles, architectures, or asset approaches.
+6. Produce inspectable evidence that the skill influenced the work (or a clear reason it was excluded).
+7. Allow independent review to challenge skill claims.
+
+For small, purely mechanical, or pure-simulation changes that have no visual, audio, material, or reference component, full skill discovery is **not** required. Do not force irrelevant skills.
+
+### 6.2 Skill Utilization Matrix (required for substantial work)
+
+Before or with the implementation, produce a concise matrix:
+
+| Skill | Available | Instructions inspected | Applicable | Applied | Evidence | Reason excluded or limitations |
+|-------|-----------|------------------------|-----------|---------|----------|--------------------------------|
+| …     | Yes/No    | Yes/No                 | Relevant / Partial / Not | Yes / Partial / No | File, screenshot, test, or decision record | … |
+
+- **Activated / Applied**: instructions were read and techniques demonstrably influenced the result.
+- **Considered but excluded**: investigated, then deliberately not used, with a defensible reason.
+- **Unavailable**: identified but could not be executed; disclose the limitation.
+- **Not relevant**: does not materially benefit the assigned task.
+
+A list of skill names is not evidence. Screenshots, before/after captures, decision records, or concrete implementation changes are evidence.
+
+### 6.3 Dream Loop (visual fidelity)
+
+For substantial visual, architectural, environmental, character, lighting, material, camera, prop, or scene-quality work:
+
+- Load and follow the actual Dream Loop workflow appropriate to the environment.
+- Establish the existing visual baseline (prefer live in-engine captures at 1440×900 desktop and 390×844 mobile).
+- Define an improvement target that preserves PREMIUM HANDCRAFTED STORYBOOK DIORAMA identity.
+- Iterate with objective comparison; do not declare beauty by developer opinion alone.
+- Keep `.dream-loop` artifacts isolated and gitignored where appropriate.
+- Never allow Dream Loop to override the visual constitution.
+
+If live capture is unavailable, document the limitation honestly and do not claim visual validation that did not occur.
+
+### 6.4 PolyHaven, Earshot, MengTo
+
+- **polyhaven**: reference / material / lighting / silhouette study only. Prefer procedural reconstruction. Record asset IDs, source URLs, and license. Never introduce runtime fetches.
+- **earshot**: use when audio is in scope; respect existing Web Audio architecture and the zero-external-runtime-asset rule.
+- **mengto**: technique library. Adapt useful patterns to the handcrafted storybook identity and three-layer architecture; never import conflicting styles or demo architectures.
+
+### 6.5 Existing visual reference studies
+
+- Bakery lighting & materials (PolyHaven study): `docs/visual-quality/bakery-lighting-polyhaven-references.md`  
+  Use when polishing Hearth & Crumb Bakery (especially under golden-hour / lantern conditions or in support of LR-3 interior occupancy).
+
+### 6.6 Governance summary
+
+- Skills enhance capability; they do not redefine product identity, storage keys, schedules, verification gates, or the six pillars.
+- Skill discovery is proportional and context-sensitive.
+- Evidence and independent review are required for substantial skill-influenced work.
+- Unavailable tools or missing capture environments must be reported accurately — never fabricated.
 
 ---
 
