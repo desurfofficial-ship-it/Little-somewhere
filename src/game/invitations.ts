@@ -3,6 +3,7 @@ import { RESIDENTS, getTimePhase } from './residents';
 import { DAY_END_MINUTE, advanceSimulationClock } from './time';
 import { distance2D } from './worldMap';
 import { getSharedActivityDef } from './activities';
+import { getBakeForDay } from './bakery';
 import { setOccupant } from './occupancy';
 import {
   InvitationHistoryEntry,
@@ -203,6 +204,19 @@ export function canOfferInvitation(
     !activity.offerPhases.includes(getTimePhase(world.minuteOfDay))
   ) {
     return { eligible: false, reason: 'offer_phase_closed' };
+  }
+
+  // [LR-3 integration remediation, B-03] Optional def-level bake-roster
+  // constraint: Clara's "morning pastry" is only offered on days when the
+  // oven actually baked something shareable. On Hearth & Crumb rest days
+  // (`getBakeForDay(...).shareItemId === null`, every 4th day) the offer is
+  // refused as `host_unavailable` instead of advertising a pastry that does
+  // not exist — the offer text, the completion journal line, and the
+  // capability rows all read the same roster. Field absence (Nora) leaves
+  // eligibility byte-identical. Checked after the D10 phase gate so the
+  // normative gate order (tier → phase → roster → availability) holds.
+  if (activity.requiresShareableBake && !getBakeForDay(world.day).shareItemId) {
+    return { eligible: false, reason: 'host_unavailable' };
   }
 
   if (!isHostAvailableForActivity(world, hostId)) {
@@ -505,7 +519,17 @@ export function reconcileInvitedInteriorEntry(
   ) {
     const activityDef = getSharedActivityDef(activeInv.activityId);
     if (activityDef && activityDef.location === location) {
-      if (isHostAvailableForActivity(working, activeInv.hostId)) {
+      // [LR-3 integration remediation, B-03 completion-side] The gated offer
+      // path makes a live accepted roster-false invite unreachable in normal
+      // play (invites are same-day only: offer-day roster = entry-day roster),
+      // so observing one here means a hand-edited or corrupt save. Archive it
+      // visibly with the host_unavailable line instead of placing a phantom
+      // occupant whose arrival toast advertises a bake that does not exist.
+      // Same disposition family as the host-drift branch below.
+      const rosterClear =
+        !activityDef.requiresShareableBake ||
+        !!getBakeForDay(working.day).shareItemId;
+      if (rosterClear && isHostAvailableForActivity(working, activeInv.hostId)) {
         working = setOccupant(working, {
           residentId: activeInv.hostId,
           location,
