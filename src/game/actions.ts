@@ -3032,6 +3032,7 @@ export function plantInGardenAction(
       ...world,
       minuteOfDay: nextMin,
       inventory: consumed.inventory,
+      sideFlags: { ...(world.sideFlags ?? {}), gardenTendedDay: world.day },
       gardens: {
         ...nextGardens,
         [gardenId]: {
@@ -3088,6 +3089,7 @@ export function waterGardenAction(world: WorldState, gardenId: string): PropInte
   return {
     nextWorld: {
       ...waterSpend.nextWorld,
+      sideFlags: { ...(waterSpend.nextWorld.sideFlags ?? {}), gardenTendedDay: world.day },
       gardens: {
         ...world.gardens,
         [gardenId]: {
@@ -3175,6 +3177,7 @@ export function harvestFromGardenAction(
       minuteOfDay: harvestSpend.minuteOfDay,
       inventory: invRes.inventory,
       discoveredItemIds: invRes.discoveredItemIds,
+      sideFlags: { ...(world.sideFlags ?? {}), gardenTendedDay: world.day },
       gardens: {
         ...world.gardens,
         [gardenId]: {

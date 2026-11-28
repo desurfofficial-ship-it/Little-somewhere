@@ -349,6 +349,11 @@ function deriveTouchedToday(world: WorldState, day: number): EverydayPracticeId[
     ) {
       touched.add('gardening');
     }
+    // Outdoor garden beds (Gardening Expansion v13): plantInGardenAction,
+    // waterGardenAction, and harvestFromGardenAction stamp sideFlags.gardenTendedDay.
+    if (isDoneToday(Number(world.sideFlags?.gardenTendedDay), day)) {
+      touched.add('gardening');
+    }
     if (daily.pondCombedToday) touched.add('wilds');
     if (safeCounter(daily.bakedCountToday) > 0) touched.add('kitchen');
     if (Array.isArray(daily.giftedResidentsToday) && daily.giftedResidentsToday.length > 0) {
