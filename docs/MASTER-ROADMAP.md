@@ -59,7 +59,7 @@ That is the experience we are building.
 
 ## 3. Current development status (executive summary)
 
-The project is a genuinely playable, persistent cozy life-sim with a deterministic simulation, 10 named residents with daily routines and NPC↔NPC relationships, 5 visitable interiors, a branching dialogue engine (95 topics across 25 modules), a Pocket Journal, environmental reactivity, seasonal/weather systems, and `WorldState` v12 persistence with an 11-step migration chain.
+The project is a genuinely playable, persistent cozy life-sim with a deterministic simulation, 10 named residents with daily routines and NPC↔NPC relationships, 5 visitable interiors, resident gardens (cottage window boxes, outdoor soil beds, orchard tending), multi-spot fishing, photography, recipe-discovery cooking, a branching dialogue engine (105 topics across 28 modules), a Pocket Journal, environmental reactivity, seasonal/weather systems, procedural audio (room-tones, weather beds, foley, UI, page-turn), and `WorldState` v13 persistence.
 
 **All six pillars are embodied.** The codebase is strikingly faithful to the original vision — the negative space (no business sim, no grinding, no multiplayer race, no NPC-quest-dispensers, no real-world timers) is robustly defended in `GAME_DESIGN.md` §2/§11, `AGENTS.md` §7 (product identity + the six pillars + the IS/IS-NOT list), and the living-relationships non-goals.
 
@@ -80,7 +80,7 @@ The project is a genuinely playable, persistent cozy life-sim with a determinist
 
 ## 4. Completed milestones (authoritative)
 
-All milestones below are **IMPLEMENTED** and merged to `main`, verified by the audit (code + tests + git history). Historical status claims were checked against the current repository before being listed here. Dialogue content: 95 topics across 25 modules.
+All milestones below are **IMPLEMENTED** and merged to `main`, verified by the audit (code + tests + git history). Historical status claims were checked against the current repository before being listed here. Dialogue content: 105 topics across 28 modules (reconciled 2026-11-28).
 
 | Milestone | What it delivered | Evidence |
 | :--- | :--- | :--- |
@@ -103,63 +103,35 @@ All milestones below are **IMPLEMENTED** and merged to `main`, verified by the a
 | **Rendering Integrity** | Floor-flicker elimination (unified cobble network, truthful ground contract) | `src/scene/builders/cobbleNetwork.ts`; commit `f4590ea`; WORKLOG Entry 071 |
 | **Whisper-bubble reposition** | Nearby neighbor whisper moved from mid-screen to bottom (unblocks scene focal point) | `src/App.tsx`; PR #24 |
 | **Master Architecture Governance** | Ownership matrix, contracts, parallel-dev protocol, CI gates, operating directive | `docs/architecture/master-architecture/00-10`; PRs #14, #18 |
+| **Living Relationships LR-3** | Clara's Morning Pastry Invitation: `share_morning_pastry`, bakery interior occupancy, invitation dialogue quartet, restday eligibility gate | Merged via PR #45 (stacked slice series PRs #26–#30); `src/game/activities.ts`, `src/game/lr3-restday-gate.test.ts` |
+| **Living Relationships LR-4** | Nora teaching & shared hobbies: `teaching.known` (v13 sanitize), `knowledgeGranted` chassis, `teaching_nora_featured_reading` follow-up | commit `4acf2f3`; `docs/architecture/living-relationships/23,25` |
+| **Living Relationships LR-5** | Arthur Copperwheel Workshop hosting: `share_workbench_hour`, `arthur_escapement_basics`, bench station occupancy + occupant rig | PR #46; `docs/architecture/living-relationships/24,26` |
+| **Gardening Expansion** | Beyond-greenhouse gardening: cottage window boxes, outdoor soil beds, orchard tending (`gardens.ts`, GardenPanel) | PR #40; `docs/architecture/gardening-expansion-contract.md` |
+| **Resident Gardens hardening & social integration** | Activation tuning, planting/harvest ownership guards, everyday-practice filter, garden social layer | PRs #42 (review), #44 (social integration), #47 (critical fixes) |
+| **Recipe Discovery** | Ingredient-gated cooking unlocks, first-cook memories, kitchen practice integration | PR #43 |
+| **Fishing v11 — West Brook Bank** | Multi-spot `FISHING_SPOTS` registry (Willow Jetty + West Brook Bank), fishing-photo keepsakes | PRs #37, #38 |
+| **Photography** | 13-subject registry, viewfinder + album, framed-photo keepsake, `'photo'` witness echoes | `src/game/photography.ts`, `src/components/PhotoPanel.tsx` |
+| **Community Projects Advance** | Contribution progression, keepsake rewards, visible reward rigs (garland/lanterns/mosaic) | PR #41; `src/scene/builders/plazaGarland.ts`, `orchardLanterns.ts`, `pondMosaic.ts` |
+| **Everyday-Activity Social Integration** | Everyday activities feeding relationships/dialogue (`fishingEcho`, `gardenEcho`, photo echoes) | PR #49 |
+| **Earshot skill exercise** | Procedural page-turn foley for the Book Nook shelf browse (zero shipped audio assets) | PR #50; WORKLOG Entry 073 |
+| **Dream Loop visual improvements** | Balanced bridge lanterns on the Mirror Pond footbridge (mirrored iron buffer, shared lantern glass) | PR #51 |
 
 ---
 
-## 5. Current milestone — LR-3 (Clara's Morning Pastry Invitation)
+## 5. Status reconciliation (2026-11-28) & next milestone recommendation
 
-**Status: IMPLEMENTED + LOCALLY VERIFIED — pending review/merge, browser QA, and independent adversarial sign-off (see the execution record below).**
+> **[Reconciliation record — 2026-11-28]** This section replaces the prior "Current milestone — LR-3" text, which still described LR-3 as pending review/merge. Since that record was written, the repository shipped (all merged to `main`, CI green, independently re-verified during this reconciliation): LR-3 (PR #45, stacked slice series #26–#30), LR-4 teaching (commit `4acf2f3`), LR-5 (PR #46), gardening expansion (PR #40) + resident-gardens hardening (PRs #42, #44, #47), recipe discovery (PR #43), community-projects advance + visible reward rigs (PR #41), everyday-activity social integration (PR #49), the earshot page-turn foley (PR #50), and the Dream Loop bridge lanterns (PR #51). The full ledger is in §4; the historical LR-3 clearance list and execution record remain in git history.
 
-> **[Execution record — 2026-11-24]** The five clearance items below were executed on the `docs/lr3-implementation-proposal` → `fix/qa03-cross-venue-sit` → `feat/bakery-spatial-comfort` → `feat/lr3-slice-1` → `feat/lr3-slice-2` branch series (PRs #26–#30, fast-forward only):
-> 1. **Implementation landed** — `share_morning_pastry` def + Clara quartet + golden 86→90 (slice 1); `reconcileInvitedInteriorEntry` shared enter helper + bakery reducers + S3 station guards + scene D8 + dual-surface completion (slice 2). 802/802 tests green (738 pre-existing unmodified + 6 QA-03 + 10 spatial + 19 slice-1 battery + 29 slice-2 battery), `tsc` clean, build green.
-> 2. **QA-02 verification basis** — golden math corrected to 86→90 (QA-05) with committed justification; as-built corrections recorded in-battery for LR3-11 (719-flat window) and LR3-96 (OR-reading floor, QA-08); the doc re-base pass for the remaining v12 anchor drift is the standing docs obligation (non-blocking).
-> 3. **QA-03 FIXED** — categorical cross-venue sit guard (`seatLocation(seat) !== world.playerLocation`) with the full adversarial battery; probe P5d flipped.
-> 4. **QA-10 CLOSED as NOT-REPRODUCIBLE** — three artifact-immune methods prove `branches: [main]` intact (`lr3-qa10-correction.md`); the register entry was an environment display artifact.
-> 5. **11-field proposal FILED** — `docs/architecture/lr3/10-implementation-proposal-11-field.md` (PR #26), with architecture + adversarial review verdicts recorded, filed before any feature code per the governance precondition.
->
-> State classification (honest register): **Implemented locally / Locally tested** (unit + battery + build on the branch tips). NOT yet: **Merged**, **Remotely CI-verified on the PRs**, **Browser-verified** (desktop/mobile manual QA per doc 06 §11 item 5), or **Independently reviewed** (the post-implementation adversarial re-run of probes P4/P5a/P8 is scripted in the QA-03 battery; the review itself is scheduled). Acceptance therefore remains **pending** until merge + those gates — do not mark the milestone ACCEPTED on the strength of this record alone.
+**Stage status after reconciliation:**
 
-The original clearance list is preserved below for the audit trail. The LR-3 design verdict is READY, and `docs/architecture/lr3-qa/lr3-integration-readiness.md` recorded **5 explicit blockers** that had to clear before implementation could begin:
+- **Stage 1 — Finish Living Relationships: COMPLETE.** LR-3 (Clara), LR-4 (Nora teaching), LR-5 (Arthur Copperwheel) are all IMPLEMENTED. The invitation chassis (`invitationFramework`, station occupancy, offer phases, `knowledgeGranted`, teaching follow-ups) has proven itself across three hosts with **zero schema movement** (registry-only policy D7 held; `WorldState` v13).
+- **Stage 2 — Community Projects: core loop COMPLETE.** Contribution progression + keepsake rewards (PR #41), visible reward rigs (plaza garland / orchard lanterns / pond mosaic — `NeighborhoodCanvas.tsx:946-954`, `environmentRenderer.ts` progressive stages), relationship-influenced participation and social consequences (PRs #44, #49). Open remainder: a cooperative building phase (no design doc; not scheduled).
+- **Stage 3 — Everyday Activity Expansion: largely shipped.** Gardening expansion, fishing, photography, recipe discovery, and everyday-activity social integration are IMPLEMENTED. Open remainders: home decorating expansion (furniture/wall/porch placement — no implementation spec yet), shared cooking/meals, expanded Wild Hollows exploration.
+- **Platform state:** `WorldState` v13, 1116/1116 unit tests, `tsc` clean, build green, three-layer boundary intact.
 
-1. **LR-3 implementation absent** (start-gate) — no `share_morning_pastry` in `SHARED_ACTIVITIES`, no `feat/lr3-implementation` branch.
-2. **QA-02 stale verification basis** — the LR-3 design docs (`docs/architecture/lr3/01-09`) were reconciled against v11; they need a re-base pass onto v12 (anchor drift, golden math 86→90, file-map gaps) before an implementer reads them as current.
-3. **QA-03 cross-venue sit teleport** (latent current-code bug) — a platform defect that LR-3's bakery seat surface would expose. Must be fixed or explicitly waived BEFORE the LR-3 branch exposes the bakery seat.
-4. **QA-10 `ci.yml` push trigger corrupted** — post-merge push CI doesn't run (PR-trigger CI already covers the implementation PR). One-line fix.
-5. **11-field implementation proposal** (`docs/architecture/master-architecture/03` §8) must be filed before LR-3 code — governance precondition.
+**Next milestone recommendation (design-first): Tier-gated invitations — Barnaby slice (LR-6).** With LR-5 merged, the last open Stage-1 item — tier-gated invitations across the remaining hosts (Barnaby, Sora, Toby) — becomes eligible. Recommendation: **one host per milestone, Barnaby first**. Rationale: Barnaby Woodshop's interior, station, and schedule already exist from Milestone 3; the LR-5 Arthur pattern (station occupancy + offer phases + `knowledgeGranted` + teaching follow-up + occupant rig) maps 1:1; highest narrative readiness at the lowest architectural risk; no schema bump; completes Stage 1 before Stage 4 deepening. **Governance precondition:** file `docs/architecture/living-relationships/27-lr6-barnaby-proposal.md` (mirroring 25/26) before any feature code, and do not invent requirements beyond the chassis's existing capabilities.
 
-The campaign found **no defect in the chassis that would force a redesign**; the design's load-bearing claims survived re-derivation. These are clearance items, not design problems.
-
-**Owner:** LR team (per `docs/architecture/master-architecture/04-module-ownership-matrix.md` §1 + `10-operating-directive.md` §8). The central coordinator authorized the main agent as LR team / LR-3 owner on 2026-11-22.
-
-**What LR-3 is** (authoritative spec: `docs/architecture/lr3/01-authoritative-milestone-discovery.md` §3-§5, `03-lr3-scope-and-acceptance.md`):
-- Host: **Clara** (Hearth & Crumb Bakery).
-- Activity: **`share_morning_pastry`** — a meaningful shared social experience.
-- Bakery interior occupancy (the invitation chassis + occupancy system already support this).
-- Appropriate dialogue and relationship context.
-- Persistent outcomes.
-- A complete, playable shared social experience.
-
-**What is already built for LR-3** (verified by audit):
-- The invitation chassis (`invitations.ts`: offer/accept/decline/expire) — IMPLEMENTED.
-- The occupancy system (`occupancy.ts`) — IMPLEMENTED.
-- The bakery interior (bounds, stations, interactables, builder) — IMPLEMENTED.
-- Clara's schedule, traits, dialogue — IMPLEMENTED.
-- The `invitationFramework.ts` reservation comment (`invitationFramework.ts:47` names `share_morning_pastry` as reserved).
-
-**What is NOT built** (the LR-3 implementation gap):
-- `share_morning_pastry` is **not defined** in `SHARED_ACTIVITIES` (`activities.ts:52` has exactly 1 entry: `share_featured_reading`).
-- No `share_morning_pastry` activity reducer, no bakery station guards for the invitation, no Clara invitation dialogue tree, no golden snapshot.
-- No `feat/lr3-implementation` branch exists (verified via `git branch -a`).
-
-**Boundaries (directive §8 + design decisions):**
-- LR-3 is **Bakery + Clara only** — not the five-venue adoption that was rejected in adversarial review.
-- LR-4 (teaching) is **excluded** from LR-3.
-- LR-5 (Arthur/Copperwheel) is **excluded** from LR-3.
-- **No schema bump** for LR-3 (D7 registry-only policy; LR-3 must not touch `migrations.ts`/`storage.ts`).
-- D10 (`offerPhases: ['morning']`) is **owner-approved** (recorded in `docs/architecture/systemic-reliability-integration/08-lr3-d10-owner-decision-record.md`).
-- The reliability integration gate is **resolved** (PR #11 merged via path (a)).
-
-**Do not duplicate LR-3.** Other teams coordinate with the LR team; do not create a competing implementation, branch, or proposal (directive §8 / `docs/architecture/master-architecture/10-operating-directive.md` §8).
+**Also open, by readiness (detail in §6/§8):** home decorating expansion (design-first candidate after LR-6), NPC Intelligence Evolution Tier 1–3 (owned work IN DEVELOPMENT — do not duplicate, directive §8), Sunday Market & seasonal festivals (PLANNED, no design docs), weather depth (snow/heavy rain/storms), cooperative community building phase.
 
 ---
 
@@ -177,14 +149,14 @@ The campaign found **no defect in the chassis that would force a redesign**; the
 ### Pillar 2 — Everyday Activities (the most underrepresented pillar)
 | Item | Status | Evidence / next |
 | :--- | :--- | :--- |
-| **Gardening** (full pillar) | PARTIALLY IMPLEMENTED | Greenhouse-only (4 plots, 4 crops). Cottage window boxes, outdoor soil beds, orchard tending — DESIGNED. **Next milestone candidate** (highest readiness + most underrepresented). |
+| **Gardening** (full pillar) | IMPLEMENTED | Greenhouse (4 plots, 4 crops) + resident gardens: cottage window boxes, outdoor soil beds, orchard tending (PRs #40, #42, #44, #47). `gardens.ts` + GardenPanel; everyday-practice integrated. |
 | **Fishing** | IMPLEMENTED | Willow Jetty (Stage 3) + West Brook Bank (v1.1, multi-spot `FISHING_SPOTS` registry). `src/game/fishing.ts`. One cast/day, zero-migration, deterministic. |
 | **Photography** | IMPLEMENTED | Stage 3 Continuation. `src/game/photography.ts` (reducer + 13-subject registry) + `src/components/PhotoPanel.tsx` (viewfinder + album). Zero schema bump; first-of-subject journal memories + `framed_photo_keepsake` + `'photo'` witness dialogue echoes. No day-gate, no quota. |
 | **Decorating** (full pillar) | PARTIALLY IMPLEMENTED | Vase flowers + 5-slot keepsake shelf only. Furniture arrangement, wall placement, porch decorating — DESIGNED. |
-| **Cooking & shared meals** | PARTIALLY IMPLEMENTED | Hearth baking + tea brewing + bakery help exist. Recipe discovery, teachable exchange (LR-4), shared cooking — PLANNED. |
+| **Cooking & shared meals** | PARTIALLY IMPLEMENTED | Hearth baking, tea brewing, bakery help, and recipe discovery (ingredient-gated unlocks + first-cook memories, PR #43) exist. Teachable exchange shipped via LR-4 knowledge; shared cooking/meals — PLANNED. |
 | **Exploration & discoveries** | IMPLEMENTED | 4 wild destinations + journal discoveries |
 | **Collectibles** | PARTIALLY IMPLEMENTED | Satchel (34 items incl. 5 pond catches + 3 community keepsakes + framed photo); photo album implemented (Photography); no general collection album |
-| **Community activities** | IMPLEMENTED | 3 Community Projects (contribute + social consequences + keepsake rewards). Keepsake physical display complete (Stage 3 Continuation: 3 bespoke meshes + unified shelf map). No cooperative building phase. |
+| **Community activities** | IMPLEMENTED | 3 Community Projects (contribute + social consequences + keepsake rewards) with contribution progression (PR #41). Keepsake physical display complete (3 bespoke meshes + unified shelf map); visible reward rigs rendered (Pillar 4). No cooperative building phase (PLANNED). |
 | **Sunday Market** | PLANNED | `GAME_DESIGN.md:211`. Cadence UNDECIDED. Zero implementation. |
 | **Seasonal Festivals** | PLANNED | `GAME_DESIGN.md:214`. No design doc. |
 
@@ -196,10 +168,10 @@ The campaign found **no defect in the chassis that would force a redesign**; the
 | NPC memories (firsthand + gossip, capped) | IMPLEMENTED | `memories.ts` |
 | Memory→behavior bridge | IMPLEMENTED | `simulation.ts:343` (PR #23) |
 | Directional perception + social groups + atrophy | IMPLEMENTED | `perceptions.ts` (PR #23) |
-| **LR-3 invitation (Clara)** | DESIGNED — current milestone | See §5 |
-| **LR-4 Teaching & shared hobbies** | DESIGNED | `docs/architecture/living-relationships/23-lr4-teaching-specification.md` |
-| **LR-5 Arthur/Copperwheel hosting** | DESIGNED | `docs/architecture/living-relationships/24-lr5-arthur-copperwheel-specification.md` |
-| Tier-gated invitations across remaining hosts (Barnaby, Sora, Toby) | PLANNED | Post-LR-5 |
+| **LR-3 invitation (Clara)** | IMPLEMENTED | `share_morning_pastry` + bakery occupancy + Clara invitation dialogue; merged via PR #45 |
+| **LR-4 Teaching & shared hobbies** | IMPLEMENTED | `teaching.known` + `knowledgeGranted` chassis + teaching dialogue; commit `4acf2f3` |
+| **LR-5 Arthur/Copperwheel hosting** | IMPLEMENTED | `share_workbench_hour` + `cw_bench` station occupancy + occupant rig; PR #46 |
+| Tier-gated invitations across remaining hosts (Barnaby, Sora, Toby) | PLANNED — next milestone candidate | Post-LR-5 dependency cleared; Barnaby slice recommended first, design-first (§5) |
 | Per-NPC memory-driven dialogue topics | PARTIALLY IMPLEMENTED | Engine supports `requiresNpcMemory`; more content desired |
 | Deeper personal side arcs | PARTIALLY IMPLEMENTED | 6 storylines shipped; more desired |
 
@@ -208,7 +180,7 @@ The campaign found **no defect in the chassis that would force a redesign**; the
 | :--- | :--- | :--- |
 | Environmental reactivity (blooming sills, restored fountain, cleared ivy, lit festoons, café tables, bell) | IMPLEMENTED | `narrative.ts:computeEnvironmentState`; `environmentRenderer.ts` |
 | Community Projects (3 permanent flags) | IMPLEMENTED | `community.ts`; `sideFlags[worldFlag]` |
-| Community Project **visible rewards** (plaza garland, orchard lanterns, pond mosaic scene rendering) | PARTIALLY IMPLEMENTED | Flags persisted; scene rendering is open backlog (World team) |
+| Community Project **visible rewards** (plaza garland, orchard lanterns, pond mosaic scene rendering) | IMPLEMENTED | `src/scene/builders/plazaGarland.ts` / `orchardLanterns.ts` / `pondMosaic.ts`; progressive stages wired in `NeighborhoodCanvas.tsx:946-954` + `environmentRenderer.ts` (PR #41) |
 | Per-NPC memories persist | IMPLEMENTED | `npcMemories` (v4) |
 | Storyline persistence | IMPLEMENTED | `storylines` (v5) |
 | Home/greenhouse/bakery/nook/copperwheel state | IMPLEMENTED | v6-v10 |
@@ -221,7 +193,7 @@ The campaign found **no defect in the chassis that would force a redesign**; the
 | 4 seasons (10-day each, 40-day cycle) | IMPLEMENTED | `time.ts:7` |
 | 4 weather types (sunlit/breezy/misty_morning/light_rain) | PARTIALLY IMPLEMENTED | No heavy rain, snow, storms; snow not modeled even in winter |
 | Lighting cycle | IMPLEMENTED | `environmentRenderer.ts` |
-| Procedural audio (12 SFX) | IMPLEMENTED | `audio.ts` |
+| Procedural audio (room-tones, weather beds, foley, UI, page-turn) | IMPLEMENTED | `audio.ts`; page-turn foley via earshot exercise (PR #50) |
 | Wildlife (butterflies, skep bees) | PARTIALLY IMPLEMENTED | Orchard only; no koi/dragonflies/fireflies as agents (prose mentions exist) |
 | Seasonal NPC behaviors | PARTIALLY IMPLEMENTED | Weather-aware traits; more seasonal routines desired |
 | Seasonal decorations / porch life | IMPLEMENTED | `builders/porchSeasonLife.ts`; seasonal interior dressing |
@@ -254,36 +226,30 @@ The campaign found **no defect in the chassis that would force a redesign**; the
 
 This is the **recommended strategic direction**, subject to the actual state of the repository and existing approved specifications. The active milestone must have clear acceptance criteria, dependencies, ownership, and approved scope. This sequence is NOT authorization to start all stages simultaneously.
 
-### Stage 1 (CURRENT) — Finish Living Relationships
-1. **LR-3**: Clara's Morning Pastry Invitation (Bakery + `share_morning_pastry`). — DESIGNED, gated on 5 clearance items (§5).
-2. **LR-4**: Teaching and Shared Hobbies. — DESIGNED; do not invent final requirements without checking `docs/architecture/living-relationships/23`.
-3. **LR-5**: Arthur and Copperwheel. — DESIGNED; see `docs/architecture/living-relationships/24`.
+### Stage 1 — Finish Living Relationships — COMPLETE (reconciled 2026-11-28)
+1. ~~**LR-3**~~ — SHIPPED (Clara's Morning Pastry; merged via PR #45).
+2. ~~**LR-4**~~ — SHIPPED (Teaching & shared hobbies; commit `4acf2f3`).
+3. ~~**LR-5**~~ — SHIPPED (Arthur Copperwheel; PR #46).
+4. **Tier-gated invitations across remaining hosts (Barnaby, Sora, Toby)** — the remaining Stage-1 item; see §5 recommendation (Barnaby slice first, design-first).
 
-**Goal:** develop relationships through meaningful shared experiences, not by adding dialogue or increasing scores.
+Goal reminder: relationships grow through meaningful shared experiences, not added dialogue or score inflation.
 
-### Stage 2 — Community Projects
-Build upon the existing Sorrel well-garden pilot + the 3 shipped Community Projects (GA-1).
-- Resident contributions.
-- Collaborative improvement.
-- Persistent environmental changes (the visible rewards — plaza garland, orchard lanterns, pond mosaic — are open backlog for the World team).
-- Relationship-influenced participation.
-- Community activities.
-- Long-term neighborhood development.
+### Stage 2 — Community Projects — CORE COMPLETE (reconciled 2026-11-28)
+- ~~Resident contributions~~ — SHIPPED (PR #41).
+- ~~Collaborative improvement~~ — SHIPPED (3 permanent projects + contribution progression).
+- ~~Persistent environmental changes~~ — SHIPPED (visible reward rigs: plaza garland, orchard lanterns, pond mosaic; PR #41).
+- ~~Relationship-influenced participation~~ — SHIPPED (PRs #44, #49).
+- Open remainder: **cooperative building phase** (no design doc; community progression must remain believable and day-driven).
 
-Community progression must remain believable and day-driven.
-
-### Stage 3 — Everyday Activity Expansion
-Prioritize meaningful, integrated gameplay for (one at a time, not simultaneously):
-1. **Gardening** (expand beyond greenhouse: window boxes, outdoor beds, orchard tending) — **NEXT**.
-2. ~~**Fishing**~~ — SHIPPED (Willow Jetty + West Brook Bank).
+### Stage 3 — Everyday Activity Expansion — LARGELY SHIPPED (reconciled 2026-11-28)
+1. ~~**Gardening**~~ — SHIPPED (window boxes, outdoor soil beds, orchard tending; PRs #40, #42, #44, #47).
+2. ~~**Fishing**~~ — SHIPPED (Willow Jetty + West Brook Bank; PRs #37, #38).
 3. ~~**Photography**~~ — SHIPPED (Stage 3 Continuation; see `docs/architecture/stage3-everyday-activities/05-photography-design.md`).
-4. **Home decorating** (furniture placement, wall placement, porch).
-5. **Cooking and shared meals** (recipe discovery, shared cooking).
-6. **Exploration and discoveries** (expand the Wild Hollows).
+4. **Home decorating** (furniture placement, wall placement, porch) — open; design-first candidate.
+5. ~~**Cooking — recipe discovery**~~ — SHIPPED (PR #43); shared cooking/meals remain open.
+6. **Exploration and discoveries** (expand the Wild Hollows) — open.
 
-**Next milestone recommendation: Gardening expansion** (window boxes, outdoor soil beds, orchard tending). Rationale: the most underrepresented pillar (Pillar 2 header); highest readiness (the greenhouse plot/reducer pattern extends directly to window boxes and outdoor beds); lowest risk (no new architecture, no schema movement, reuses the everyday-practice + inventory + witnessing patterns); strengthens the core everyday-activities loop without adding a disconnected mechanic. NPC participation in activities remains deferred pending simulation-owner coordination (do not build a second simulation framework).
-
-Each activity must have a meaningful place in the neighborhood simulation. Do not turn these into repetitive grinding systems.
+Each activity must keep a meaningful place in the neighborhood simulation; no repetitive grinding systems. NPC participation in activities remains deferred pending simulation-owner coordination (do not build a second simulation framework).
 
 ### Stage 4 — Living World Expansion
 - NPC autonomy deepening (NPC Intelligence Evolution Tier 1-3, G1-G9).
