@@ -25,6 +25,12 @@ import {
   WorldState,
 } from './types';
 import {
+  LOCAL_WITNESS_RADIUS,
+  collectWitnessesForPosition,
+  createNpcMemoryEntry,
+  recordNpcMemoryInPlace,
+} from './memories';
+import {
   GREENHOUSE_CROPS,
   GreenhouseCropDef,
   createInitialGreenhousePlot,
@@ -342,6 +348,49 @@ export function tendResidentGardenInPlace(
   // corrupt saves, future features (e.g. rain waters outdoor beds), and
   // test fixtures that set wateredToday=true without stamping the gate.
   state.lastTendedDay = world.day;
+
+  // D-2 fix: Write witness memories for nearby residents who saw the NPC
+  // tending their garden. The GARDEN_ECHO_TOPICS dialogue module (registered
+  // in dialogue/index.ts) consumes memories with tag 'garden' to produce
+  // contextual dialogue echoes. Only residents within LOCAL_WITNESS_RADIUS
+  // of the tending NPC's position get the memory — no omniscience.
+  if (didSomething && world.npcMemories) {
+    const tenderPos = world.npcRuntime?.[residentId]?.position;
+    if (tenderPos) {
+      const witnesses = collectWitnessesForPosition(
+        world,
+        tenderPos,
+        LOCAL_WITNESS_RADIUS,
+        { excludeIds: [residentId] }, // the tender knows they tended; no self-witness
+      );
+      const witnessEventId = `garden_${gardenId}_d${world.day}`;
+      const roundedMinute = Math.round(world.minuteOfDay);
+      for (const witnessId of witnesses) {
+        recordNpcMemoryInPlace(
+          world.npcMemories,
+          witnessId,
+          createNpcMemoryEntry({
+            id: witnessEventId,
+            eventId: witnessEventId,
+            tag: 'garden',
+            category: 'event',
+            subjectPlayer: false,
+            subjectResidents: [residentId],
+            provenance: 'firsthand',
+            sourceKind: 'witness',
+            createdDay: world.day,
+            createdMinute: roundedMinute,
+            importance: 2,
+            retention: 'ephemeral',
+            valence: 'warm',
+            emotionalWeight: 30,
+            detail: { placeName: def.label },
+          }),
+          world.day,
+        );
+      }
+    }
+  }
 }
 
 /**

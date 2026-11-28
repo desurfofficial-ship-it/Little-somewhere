@@ -324,13 +324,14 @@ test('LR4-04: Nora teaching topic stays hidden before grant, surfaces immediatel
   );
   assert.equal(claraOnly.topicId, 'everyday_shared_visit_echo');
 
-  // Golden snapshot matches 101 topics after LR-5 (+4 invitation, +1 teaching at tail)
+  // Golden snapshot matches 105 topics after Everyday Activity Social Integration
+  // (+2 GARDEN_ECHO, +2 FISHING_ECHO appended before TEACHING_TOPICS)
   const goldenPath = new URL('../../scripts/dialogue-topics-golden.json', import.meta.url);
   const golden = JSON.parse(readFileSync(goldenPath, 'utf8')) as {
     count: number;
     topics: Array<{ id: string }>;
   };
-  assert.equal(golden.count, 101);
+  assert.equal(golden.count, 105);
   assert.equal(golden.count, DIALOGUE_TOPICS.length);
   assert.ok(golden.topics.some((t) => t.id === 'teaching_nora_featured_reading'));
   assert.equal(golden.topics.at(-1)?.id, 'teaching_arthur_escapement_basics');

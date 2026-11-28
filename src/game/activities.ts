@@ -280,7 +280,11 @@ export function applySharedActivityAffinity(
     ...existingRel,
     affinity: nextAffinity,
     reliability: nextReliability,
-    favorsCompleted: (existingRel.favorsCompleted ?? 0) + 1,
+    // D-5 fix: favorsCompleted is reserved for story-milestone favors
+    // (relationships.ts:425 increments it only for isStoryMilestone). Shared
+    // activities are everyday interactions, not story favors — incrementing
+    // here conflated two semantic categories. The affinity/reliability deltas
+    // above are the correct reward for shared activity completion.
     lastEmotion: 'happy',
   };
 

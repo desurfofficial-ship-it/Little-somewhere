@@ -244,44 +244,45 @@ export function applyDialogueChoice(
   // so smalltalk caps are never read/mutated and completion remains single-source & idempotent.
   if (choice.completeSharedActivityId) {
     const phaseNow = getTimePhase(world.minuteOfDay);
-    const nextTopicHistory = { ...(world.topicHistory ?? {}) };
-    const nextLastTopic = { ...(world.lastTopicByResident ?? {}) };
-    const historyKey = session.topicHistoryKey ?? session.topicId;
-    if (session.topicId && historyKey) {
-      const prevHist = nextTopicHistory[historyKey];
-      const chosenIds = prevHist?.chosenChoiceIds.includes(choice.id)
-        ? prevHist.chosenChoiceIds
-        : [...(prevHist?.chosenChoiceIds ?? []), choice.id].slice(-8);
-      nextTopicHistory[historyKey] = {
-        seenCount: (prevHist?.seenCount ?? 0) + 1,
-        lastSeenDay: world.day,
-        lastSeenPhase: phaseNow,
-        chosenChoiceIds: chosenIds,
-      };
-      nextLastTopic[residentId] = session.topicId;
-    }
-
     const res = completeSharedActivity(world, choice.completeSharedActivityId);
+    // D-4 fix: only commit topic history on successful completion. A refused
+    // completion (host drifted, invalid state, etc.) must NOT burn the topic's
+    // seenCount or chosenChoiceIds — the player didn't actually complete the
+    // activity, so the topic should remain available as if unchosen.
     const finalWorld: WorldState = res.ok
-      ? {
-          ...res.world,
-          topicHistory: nextTopicHistory,
-          lastTopicByResident: nextLastTopic,
-          residents: {
-            ...res.world.residents,
-            [residentId]: {
-              ...res.world.residents[residentId],
-              met: true,
-              talkedToday: true,
-              lastDialogueId: choice.nextNodeId,
+      ? (() => {
+          const nextTopicHistory = { ...(world.topicHistory ?? {}) };
+          const nextLastTopic = { ...(world.lastTopicByResident ?? {}) };
+          const historyKey = session.topicHistoryKey ?? session.topicId;
+          if (session.topicId && historyKey) {
+            const prevHist = nextTopicHistory[historyKey];
+            const chosenIds = prevHist?.chosenChoiceIds.includes(choice.id)
+              ? prevHist.chosenChoiceIds
+              : [...(prevHist?.chosenChoiceIds ?? []), choice.id].slice(-8);
+            nextTopicHistory[historyKey] = {
+              seenCount: (prevHist?.seenCount ?? 0) + 1,
+              lastSeenDay: world.day,
+              lastSeenPhase: phaseNow,
+              chosenChoiceIds: chosenIds,
+            };
+            nextLastTopic[residentId] = session.topicId;
+          }
+          return {
+            ...res.world,
+            topicHistory: nextTopicHistory,
+            lastTopicByResident: nextLastTopic,
+            residents: {
+              ...res.world.residents,
+              [residentId]: {
+                ...res.world.residents[residentId],
+                met: true,
+                talkedToday: true,
+                lastDialogueId: choice.nextNodeId,
+              },
             },
-          },
-        }
-      : {
-          ...world,
-          topicHistory: nextTopicHistory,
-          lastTopicByResident: nextLastTopic,
-        };
+          };
+        })()
+      : world; // Refusal: world unchanged, no topic history burned
     const nextAffinity =
       finalWorld.playerRelations?.[residentId]?.affinity ?? currentRes.trust * 20;
     return {
@@ -2504,6 +2505,16 @@ export function interactWithCottageProp(
       inventory: invRes.inventory,
       discoveredItemIds: invRes.discoveredItemIds,
       dailyActivities: { ...da, cottagePlanterTendedToday: true },
+      // D-6 fix: increment planterTendedCount so the gardening practice tier
+      // advances when the player tends the sill planter (matching the
+      // touched-today flag that was already set).
+      sideFlags: {
+        ...(world.sideFlags ?? {}),
+        planterTendedCount:
+          (typeof world.sideFlags?.planterTendedCount === 'number'
+            ? Math.max(0, Math.floor(world.sideFlags.planterTendedCount))
+            : 0) + 1,
+      },
     },
     title: 'Sunlit Sill Planter',
     body: 'Clipped fresh Chamomile Blossoms from the warm wooden sill box and tucked them into your satchel (+10m).',

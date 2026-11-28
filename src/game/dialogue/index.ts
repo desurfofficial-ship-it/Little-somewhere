@@ -34,6 +34,8 @@ import { EVERYDAY_HOME_TOPICS } from './everyday/home';
 import { REFLECTION_TOPICS } from './everyday/reflections';
 import { COMMUNITY_ECHO_TOPICS } from './everyday/communityEcho';
 import { PHOTO_ECHO_TOPICS } from './everyday/photoEcho';
+import { GARDEN_ECHO_TOPICS } from './everyday/gardenEcho';
+import { FISHING_ECHO_TOPICS } from './everyday/fishingEcho';
 import { TEACHING_TOPICS } from './everyday/teaching';
 import { GREENHOUSE_TOPICS } from './interiors/greenhouse';
 import { BAKERY_TOPICS } from './interiors/bakery';
@@ -85,6 +87,16 @@ export const DIALOGUE_TOPICS: readonly DialogueTopic[] = [
   // `'shared_photo'`) → no SF-4 R1 context boost → these topics stay gentle
   // below the community band. Golden snapshot regenerated 93 → 95.
   ...PHOTO_ECHO_TOPICS,
+  // Gardening social afterlife (Everyday Activity Social Integration): two
+  // stage-aware echoes of the tendResidentGardenInPlace reducer's 'garden'-
+  // tagged witness memory writes. Appended after PHOTO_ECHO_TOPICS per the
+  // append-only ordering contract. Tag is 'garden' (not 'shared_garden') →
+  // no SF-4 boost → stays gentle below the community band.
+  ...GARDEN_ECHO_TOPICS,
+  // Fishing social afterlife (Everyday Activity Social Integration): echoes
+  // of the fishing reducer's 'fishing'-tagged witness memory writes. Appended
+  // after GARDEN_ECHO_TOPICS per the append-only ordering contract.
+  ...FISHING_ECHO_TOPICS,
   // Living Relationships LR-4 (2026-11): first `requiresTeachingKnown`
   // content topic (`teaching_nora_featured_reading`), appended strictly after
   // PHOTO_ECHO_TOPICS per the append-only ordering contract. Golden snapshot
