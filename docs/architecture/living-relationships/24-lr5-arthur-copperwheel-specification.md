@@ -1,7 +1,7 @@
 # 24 — LR-5 Arthur / Copperwheel Hosting Specification (implementation-ready)
 
-- **Date**: 2026-11-22
-- **Status**: READY-WITH-EXPLICIT-DECISIONS — implementation-ready pending the decision register §5; no feature code written (deliberate).
+- **Date**: 2026-11-22 (Implemented & Verified: 2026-11-27)
+- **Status**: IMPLEMENTED & VERIFIED — settled decisions `D-5A`..`D-5E` documented in [`26-lr5-implementation-proposal.md`](./26-lr5-implementation-proposal.md); full unit (`1075/1075`), boundary, deterministic stress, production build, and live Desktop/Mobile Chromium QA verified.
 - **Definition of record**: `14-revised-architecture.md` §10 LR-5 row: *"Arthur / Copperwheel only after Build 9 has merged"* (`:297`); Build 9 (Copperwheel Cottage, WorldState v10) IS merged; LR-5 additionally inherits LR-3's shipped patterns (enter helper, offerPhases, venue-true toasts) per its dependency row.
 - **Preparation audit**: `docs/architecture/social-foundation/01-audit-synthesis.md` §5; LR-3 contract inheritance `03-lr3-scope-and-acceptance.md` §4.
 

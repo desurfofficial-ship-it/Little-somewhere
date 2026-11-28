@@ -1589,3 +1589,24 @@ conciliation for Phase C finalization)
   - `vite build` (`compile_applet`): green.
   - Headless Chromium (`playwright-cli` on `http://localhost:3000/?autostart=1`): Desktop (`1440×900`) & Mobile (`390×844`, `scrollW === 390`, zero overflow) layout checks; dirty-save sanitizer warning + survival test; full end-to-end outdoors invite -> Linden Book Nook `Share Reading with Nora` -> `localStorage` `["nora_featured_reading"]` -> exterior `teaching_nora_featured_reading` dialogue UI -> reload persistence verified with `0` console/page errors.
 
+---
+
+## Living Relationships LR-5 — Arthur · Copperwheel Workshop & `arthur_escapement_basics` (2026-11-27)
+
+- **Status**: `Tested` & `Runtime-verified` locally (`WorldState` remains **v13**; feature branch `feat/lr5-arthur-copperwheel` prepared for GitHub push & PR)
+- **Proposal & Spec**: `docs/architecture/living-relationships/26-lr5-implementation-proposal.md` (reconciled `D-5A`..`D-5E`), `24-lr5-arthur-copperwheel-specification.md`
+- **Key Deliverables**:
+  - **`src/game/copperwheel.ts` & `src/game/walkability.ts`**: Exported `CW_BENCH_STATION_ID = 'cw_bench'`, `CW_OCCUPANT_POS = { x: -1.92, z: -1.18 }`, `CW_OCCUPANT_APPROACH_POS = { x: -1.05, z: -0.95 }`, `CW_OCCUPANT_FACING`; wired `getOccupantAt(world, 'copperwheel_interior')` candidate into `selectBestCopperwheelTarget` and `occupantApproachPos('copperwheel_interior')`.
+  - **`src/game/activities.ts` & `src/game/invitationFramework.ts`**: Registered `share_workbench_hour` (`hostId: 'arthur'`, `location: 'copperwheel_interior'`, `stationId: 'cw_bench'`, `minTier: 'friendly'`, `minAffinity: 45`, `offerPhases: ['morning', 'dusk']`, `knowledgeGranted: 'arthur_escapement_basics'`, `memoryId: 'mem_lr_arthur_workbench_hour'`, `npcMemoryTag: 'shared_workbench_hour'`, graceful `bench_rest` `summaryCompose`). `KNOWN_KNOWLEDGE_IDS` dynamically grew to `['nora_featured_reading', 'arthur_escapement_basics']`. Generalized `INVITATION_REASON_LABELS.offer_phase_closed` across morning-only and morning/dusk hosts.
+  - **`src/game/actions.ts` & `src/App.tsx`**: Grafted `reconcileInvitedInteriorEntry(working, 'copperwheel_interior')` into `enterCopperwheelAction` and `clearOccupant` + `activeActivity: null` into `exitCopperwheelAction`; added `cw_bench` PropCard delegation (`actionType: 'share_workbench_hour'`), `isCopperwheelSessionClaimingStation` guard on `checkWorkbenchProjectAction`, and `cw_seat_armchair` sit refusal while occupied; wired `'share_workbench_hour'` single-transaction dispatch in `App.tsx`.
+  - **Dialogue & Golden Snapshot (`src/game/dialogue/invitations/arthur.ts`, `invitations/index.ts`, `everyday/teaching.ts`)**: Added Arthur's 4 invitation topics (`D-5A` `sideFlagsTrue: ['copperwheelVisited']`, `D-5B` `offerPhases: ['morning', 'dusk']`) and `teaching_arthur_escapement_basics` (`event_reaction`, priority `20` -> score `88 > 87`, singular `requiresNpcMemory.tag: 'shared_workbench_hour'`, `maxSeenCount: 1`). Regenerated `scripts/dialogue-topics-golden.json` (`96 -> 101` topics) and updated `scripts/dialogue-topics-golden-justification.md`.
+  - **`src/scene/NeighborhoodCanvas.tsx`**: Added `copperwheelOccupantRig`, `copperwheelOccupantHitProxy`, `copperwheelInteractablesWithOccupant`, parameterized pre-allocated `occupantRigConfigs` (`pose: 'work'`, `y = 0`, `seatedReading: false` for Copperwheel vs `'sit'` for Nook/Bakery), raycast priority, seasonal winter knit tinting, and clean disposal.
+  - **Tests (`src/game/lr5-arthur.test.ts`, `src/scene/copperwheelInterior.test.ts`)**: Added 13 unit/acceptance tests covering `LR5-01`..`LR5-14` + Copperwheel occupant obstacle-clearance & walkability invariants; updated 4 tail-pin assertions (`lr4-teaching.test.ts`, `community-dialogue.test.ts`, `dialogueContext.test.ts`, `stage3-baseline.test.ts`). LR-3 (`clara`) and LR-4 (`nora`) runtime behavior preserved untouched.
+- **Verification**:
+  - `npm test`: **1075/1075 passed** (`0` failures).
+  - `npm run lint` (`tsc --noEmit`): **0 errors**.
+  - `npx --yes tsx scripts/check_layer_boundaries.ts`: exit `0` (`75` game files, `83` scene files, `15` component files; acyclic).
+  - `npx --yes tsx scripts/longrun_stress.ts --quick`: exit `0` (all scenarios clean; `F_deterministic_replay` & `B_twin_continuity` byte-identical).
+  - `vite build` (`compile_applet`): green.
+  - Headless Chromium (`playwright-cli` on `http://localhost:3000/?autostart=1`): Desktop (`1440×900`) & Mobile (`390×844`, `scrollW === 390`, zero overflow) verified visually via screenshots (`Share Workbench Hour with Arthur [E]`, Arthur standing `'work'` pose at `y = 0` beside `cw_bench`, live completion to `arthur_escapement_basics` + `mem_lr_arthur_workbench_hour` with solo `copperwheelState` counters untouched, `teaching_arthur_escapement_basics` follow-up dialogue UI, and reload persistence with `0` console/page errors).
+

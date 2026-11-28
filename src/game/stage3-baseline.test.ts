@@ -513,21 +513,21 @@ test('S3-G §3.3: dialogue registry count matches the golden snapshot', () => {
   );
   assert.equal(golden.count, golden.topics.length, 'golden internally consistent');
   // Stage 3 Photography (`PHOTO_ECHO_TOPICS`, 2 topics) sits right after
-  // `COMMUNITY_ECHO_TOPICS` (3 topics), and LR-4 `TEACHING_TOPICS` (1 topic)
-  // occupies the append-only tail (`slice(-1)`). Verify exact contiguous order.
-  const tailTeaching = DIALOGUE_TOPICS.slice(-1).map((t) => t.id);
+  // `COMMUNITY_ECHO_TOPICS` (3 topics), and LR-4 + LR-5 `TEACHING_TOPICS`
+  // (2 topics) occupy the append-only tail (`slice(-2)`). Verify exact order.
+  const tailTeaching = DIALOGUE_TOPICS.slice(-2).map((t) => t.id);
   assert.deepEqual(
     tailTeaching,
-    ['teaching_nora_featured_reading'],
-    'LR-4 teaching topic occupies the append-only tail',
+    ['teaching_nora_featured_reading', 'teaching_arthur_escapement_basics'],
+    'LR-4 & LR-5 teaching topics occupy the append-only tail',
   );
-  const tailPhoto = DIALOGUE_TOPICS.slice(-3, -1).map((t) => t.id);
+  const tailPhoto = DIALOGUE_TOPICS.slice(-4, -2).map((t) => t.id);
   assert.deepEqual(
     tailPhoto,
     ['everyday_photo_witness_echo', 'everyday_photo_noticer'],
-    'photo echo topics remain contiguous immediately before the LR-4 teaching tail',
+    'photo echo topics remain contiguous immediately before the teaching tail',
   );
-  const tailCommunity = DIALOGUE_TOPICS.slice(-6, -3).map((t) => t.id);
+  const tailCommunity = DIALOGUE_TOPICS.slice(-7, -4).map((t) => t.id);
   assert.deepEqual(
     tailCommunity,
     [...ECHO_TOPIC_IDS],

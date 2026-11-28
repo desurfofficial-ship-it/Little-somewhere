@@ -338,12 +338,12 @@ test('SC-A-06: COMMUNITY_ECHO_TOPICS are contiguous, photo echoes follow at the 
   assert.equal(golden.count, DIALOGUE_TOPICS.length,
     `golden count matches registry: golden=${golden.count} registry=${DIALOGUE_TOPICS.length}`);
   // Append-only ordering contract milestone pin migrated: the registry tail is
-  // now `teaching_nora_featured_reading` (the TEACHING_TOPICS module's LR-4
-  // topic), appended strictly after PHOTO_ECHO_TOPICS. Both community echoes
-  // and photo echoes remain field-for-field pinned below. Each future append
-  // must similarly migrate this assertion, never reorder.
-  assert.equal(golden.topics.at(-1)!.id, 'teaching_nora_featured_reading',
-    'golden tail is the LR-4 teaching topic (milestone pin migrated from everyday_photo_noticer)');
+  // now `teaching_arthur_escapement_basics` (TEACHING_TOPICS LR-5 topic),
+  // appended strictly after `teaching_nora_featured_reading`. Both prior milestones,
+  // community echoes, and photo echoes remain pinned below.
+  assert.ok(golden.topics.some((t) => t.id === 'teaching_nora_featured_reading'));
+  assert.equal(golden.topics.at(-1)!.id, 'teaching_arthur_escapement_basics',
+    'golden tail is the LR-5 teaching topic (milestone pin migrated from teaching_nora_featured_reading)');
 
   // Field-for-field pin on the three community echo topics (anti-fraud backstop).
   for (const expected of [

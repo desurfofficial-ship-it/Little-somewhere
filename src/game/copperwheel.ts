@@ -8,6 +8,8 @@ import {
   WorldState,
 } from './types';
 import { computeFacingAlignment, distance2D } from './worldMap';
+import { getOccupantAt } from './occupancy';
+import { RESIDENTS } from './residents';
 
 /**
  * Copperwheel Cottage enterable interior (Milestone 3 Build 9).
@@ -38,6 +40,19 @@ export const COPPERWHEEL_PORCH_EXIT_FACING = Math.PI; // Facing north back towar
 
 export const COPPERWHEEL_DOOR_SPAWN: Vec2 = { x: 1.0, z: 1.75 };
 export const COPPERWHEEL_DOOR_DEFAULT_FACING = Math.PI; // Facing inward north into the workshop room
+
+/**
+ * LR-5 workbench station & occupant placement anchors.
+ * Mirrors D-5D (`cw_bench` stationId reuse; armchair remains the sole seat in
+ * `COPPERWHEEL_SEAT_SPOTS`). `CW_OCCUPANT_POS` keeps Arthur grounded on the
+ * workshop floor clear south of the bench (`z = -1.52`) and north-east of
+ * the shelf (`x = -2.18, z = -0.85`), facing the bench project mount `(-1.35, -1.95)`.
+ * `CW_OCCUPANT_APPROACH_POS` stays strictly walkable under actorRadius 0.42.
+ */
+export const CW_BENCH_STATION_ID = 'cw_bench';
+export const CW_OCCUPANT_POS: Vec2 = { x: -1.92, z: -1.18 };
+export const CW_OCCUPANT_APPROACH_POS: Vec2 = { x: -1.05, z: -0.95 };
+export const CW_OCCUPANT_FACING = Math.atan2(-1.35 - CW_OCCUPANT_POS.x, -1.95 - CW_OCCUPANT_POS.z);
 
 export interface CopperwheelInteriorBoxObstacle {
   id: CopperwheelInteractableId;
@@ -395,6 +410,35 @@ export function selectBestCopperwheelTarget(world: WorldState): InteractiveTarge
       },
       effDist + facingPenalty,
     );
+  }
+
+  // LR-5 occupant target: when Arthur is hosting a shared workbench hour inside
+  // Copperwheel Cottage, surface him directly like Nora in Linden Book Nook.
+  const occupant = getOccupantAt(world, 'copperwheel_interior');
+  if (occupant) {
+    const resName = RESIDENTS[occupant.residentId]?.name ?? 'Neighbor';
+    const dist = Math.min(
+      distance2D(world.playerPos, occupant.localPos),
+      distance2D(world.playerPos, CW_OCCUPANT_APPROACH_POS) + 0.25,
+    );
+    if (dist <= 2.45) {
+      const align = computeFacingAlignment(world.playerPos, world.playerFacing, occupant.localPos);
+      const facingPenalty = (1 - align) * 0.45;
+      evaluateCandidate(
+        {
+          kind: 'resident',
+          id: occupant.residentId,
+          label: resName,
+          actionLabel:
+            world.activeActivity?.activityId === 'share_workbench_hour'
+              ? `Share Workbench Hour with ${resName}`
+              : `Talk to ${resName}`,
+          distance: dist,
+          worldPos: { ...occupant.localPos },
+        },
+        dist + facingPenalty - 0.12,
+      );
+    }
   }
 
   // Window armchair seat: offered like the cottage stools and café chair, weighted

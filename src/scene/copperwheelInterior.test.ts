@@ -2,9 +2,14 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as THREE from 'three';
 import {
+  COPPERWHEEL_BOUNDS,
   COPPERWHEEL_INTERACTABLES,
+  COPPERWHEEL_INTERIOR_OBSTACLES,
   COPPERWHEEL_SEAT_SPOTS,
+  CW_OCCUPANT_APPROACH_POS,
+  CW_OCCUPANT_POS,
   getProjectForDay,
+  isCopperwheelInteriorWalkable,
 } from '../game/copperwheel';
 import { createFreshWorldState } from '../game/storage';
 import { MaterialPalette, STORYBOOK_PALETTE } from './materials';
@@ -237,4 +242,29 @@ test('copperwheel shell tags: N/W full assembly + wall props tagged, E/S curbs t
 
   rig.dispose();
   palette.disposeAll();
+});
+
+test('LR-5 Copperwheel occupant anchor clears bench & shelf geometry and approach stays walkable', () => {
+  // Arthur stands cleanly inside the workshop floor bounds without overlapping
+  // any raw furniture obstacle box (cw_bench z <= -1.52; cw_shelf x <= -2.18).
+  assert.ok(CW_OCCUPANT_POS.x > COPPERWHEEL_BOUNDS.minX && CW_OCCUPANT_POS.x < COPPERWHEEL_BOUNDS.maxX);
+  assert.ok(CW_OCCUPANT_POS.z > COPPERWHEEL_BOUNDS.minZ && CW_OCCUPANT_POS.z < COPPERWHEEL_BOUNDS.maxZ);
+  for (const box of COPPERWHEEL_INTERIOR_OBSTACLES) {
+    const insideRawBox =
+      CW_OCCUPANT_POS.x > box.minX &&
+      CW_OCCUPANT_POS.x < box.maxX &&
+      CW_OCCUPANT_POS.z > box.minZ &&
+      CW_OCCUPANT_POS.z < box.maxZ;
+    assert.equal(insideRawBox, false, `occupant pos must clear raw furniture box ${box.id}`);
+  }
+  assert.equal(
+    isCopperwheelInteriorWalkable(CW_OCCUPANT_APPROACH_POS.x, CW_OCCUPANT_APPROACH_POS.z, 0.42),
+    true,
+    'player approach anchor is strictly walkable',
+  );
+  const separation = Math.hypot(
+    CW_OCCUPANT_APPROACH_POS.x - CW_OCCUPANT_POS.x,
+    CW_OCCUPANT_APPROACH_POS.z - CW_OCCUPANT_POS.z,
+  );
+  assert.ok(separation >= 0.75 && separation <= 1.5, `natural standing separation: ${separation.toFixed(2)}m`);
 });
