@@ -17,6 +17,7 @@
 import { countExploredDiscoveries } from './exploration';
 import { countCommunityContributions } from './community';
 import { isDoneToday } from './time';
+import { getGardenDef } from './gardens';
 import type { WorldState } from './types';
 
 export type EverydayPracticeId =
@@ -169,8 +170,16 @@ const PRACTICE_DEFS: Record<EverydayPracticeId, EverydayPracticeDef> = {
       let total = safeCounter(world.greenhouseState?.totalHarvests);
       const gardens = world.gardens;
       if (gardens && typeof gardens === 'object') {
-        for (const g of Object.values(gardens)) {
-          if (g) total += safeCounter(g.totalHarvests);
+        for (const gardenId of Object.keys(gardens)) {
+          const g = gardens[gardenId];
+          if (!g) continue;
+          // Only count player-harvestable gardens (player-owned or community).
+          // Resident-owned gardens are tended autonomously by NPCs; their
+          // harvests are composted silently and must NOT inflate the player's
+          // gardening practice count.
+          const def = getGardenDef(gardenId);
+          if (def && def.ownerId !== 'player' && def.ownerId !== 'community') continue;
+          total += safeCounter(g.totalHarvests);
         }
       }
       return total;
@@ -339,17 +348,19 @@ function deriveTouchedToday(world: WorldState, day: number): EverydayPracticeId[
   }
 
   // Gardening Expansion — outdoor garden tending counts as gardening practice.
-  // Any garden with lastTendedDay === today was tended (planted, watered, or
-  // harvested) by the player. Uses the garden's own lastTendedDay stamp, not
-  // a separate daily boolean — so no new dailyActivities field is needed.
+  // Only player-harvestable gardens (player-owned or community) count toward the
+  // player's "touched today" — resident-owned gardens are tended autonomously by
+  // NPCs and must NOT credit the player. Uses the garden's own lastTendedDay stamp
+  // (set by player plant/water/harvest actions), not a separate daily boolean.
   const gardens = world.gardens;
   if (gardens && typeof gardens === 'object') {
     for (const gardenId of Object.keys(gardens)) {
       const g = gardens[gardenId];
-      if (g && g.lastTendedDay === day) {
-        touched.add('gardening');
-        break;
-      }
+      if (!g || g.lastTendedDay !== day) continue;
+      const def = getGardenDef(gardenId);
+      if (def && def.ownerId !== 'player' && def.ownerId !== 'community') continue;
+      touched.add('gardening');
+      break;
     }
   }
 

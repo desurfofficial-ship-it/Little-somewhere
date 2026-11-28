@@ -96,6 +96,11 @@ export function GardenPanel({
     ? GREENHOUSE_CROPS.filter((c) => def.allowedCropIds!.includes(c.id))
     : GREENHOUSE_CROPS;
 
+  // Resident-owned gardens: the NPC owner tends autonomously. The player may
+  // co-tend by watering (free) but cannot plant (would waste seeds — NPC
+  // composts the harvest) or harvest (ownership guard in the action rejects).
+  const isResidentOwned = def.ownerId !== 'player' && def.ownerId !== 'community';
+
   // Seeds the player actually has in their satchel.
   const availableSeeds = allowedCrops.filter((c) => getItemCount(world.inventory, c.seedItemId) > 0);
 
@@ -123,6 +128,11 @@ export function GardenPanel({
         <div className="flex items-center gap-2">
           <Sprout className="w-5 h-5 text-sage-deep" />
           <h2 className="font-display text-lg sm:text-xl text-espresso">{def.label}</h2>
+          {isResidentOwned && (
+            <span className="px-2 py-0.5 rounded-full bg-terracotta/15 text-xs font-semibold text-terracotta">
+              Resident's bed
+            </span>
+          )}
         </div>
         <button
           type="button"
@@ -170,6 +180,7 @@ export function GardenPanel({
               plotIndex={idx}
               gardenId={gardenId}
               onHarvest={onHarvestPlot}
+              isResidentOwned={isResidentOwned}
             />
           ))}
         </div>
@@ -186,8 +197,8 @@ export function GardenPanel({
           </button>
         )}
 
-        {/* Planting section */}
-        {emptyPlots.length > 0 && availableSeeds.length > 0 && (
+        {/* Planting section — hidden for resident-owned gardens (player cannot harvest there) */}
+        {!isResidentOwned && emptyPlots.length > 0 && availableSeeds.length > 0 && (
           <div className="space-y-2">
             <h3 className="text-xs font-semibold text-espresso-muted uppercase tracking-wide">
               Plant a seed
@@ -232,11 +243,13 @@ function PlotRow({
   plotIndex,
   gardenId,
   onHarvest,
+  isResidentOwned,
 }: {
   plot: GreenhousePlotState;
   plotIndex: number;
   gardenId: string;
   onHarvest: (gardenId: string, plotIndex: number) => void;
+  isResidentOwned: boolean;
 }) {
   const cropDef = plot.cropId
     ? GREENHOUSE_CROPS.find((c) => c.id === plot.cropId)
@@ -252,7 +265,7 @@ function PlotRow({
           {isReady ? (
             <Leaf className="w-4 h-4 text-sage-deep" />
           ) : isGrowing ? (
-            <Sprout className="w-4 h-4 text-amber-honey" />
+            <Sprout className="w-4 h-4 text-honey" />
           ) : (
             <div className="w-3 h-3 rounded-full bg-stone-line" />
           )}
@@ -270,7 +283,7 @@ function PlotRow({
           </p>
         </div>
       </div>
-      {isReady && (
+      {isReady && !isResidentOwned && (
         <button
           type="button"
           onClick={() => onHarvest(gardenId, plotIndex)}
@@ -279,6 +292,11 @@ function PlotRow({
           <Scissors className="w-3.5 h-3.5" />
           Harvest
         </button>
+      )}
+      {isReady && isResidentOwned && (
+        <span className="text-xs text-espresso-muted italic px-2">
+          Tended by the owner
+        </span>
       )}
     </div>
   );

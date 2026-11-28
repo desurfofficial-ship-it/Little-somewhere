@@ -36,6 +36,7 @@ import {
 import { GREENHOUSE_CROPS, createInitialGreenhousePlot, stageForNights } from './greenhouse';
 import { applyItemGrants, consumeItemFromInventory, getItemCount } from './inventory';
 import { PERSONAL_ITEM_MAP } from './inventory';
+import { deriveEverydayPracticeProfile } from './everyday';
 import type { WorldState, GardenState, GreenhousePlotState, PersonalItemId } from './types';
 
 // ── Registry ──────────────────────────────────────────────────────────────────
@@ -174,11 +175,11 @@ test('plantInGardenAction: valid planting consumes seed and sets plot', () => {
   world = { ...world, inventory: invRes.inventory, discoveredItemIds: invRes.discoveredItemIds };
   const beforeSeeds = getItemCount(world.inventory, 'sage_seeds');
   assert.equal(beforeSeeds, 1, 'player has 1 marigold seed');
-  const result = plantInGardenAction(world, 'clara_herb_garden', 'sage_seeds', 0);
+  const result = plantInGardenAction(world, 'beeline_pollinator_bed', 'sage_seeds', 0);
   assert.ok(result.ok, 'planting succeeded');
   const afterSeeds = getItemCount(result.nextWorld.inventory, 'sage_seeds');
   assert.equal(afterSeeds, 0, 'seed consumed');
-  const garden = result.nextWorld.gardens!['clara_herb_garden'];
+  const garden = result.nextWorld.gardens!['beeline_pollinator_bed'];
   assert.ok(garden); assert.equal(garden.plots[0].cropId, 'sage', 'plot 0 has marigold');
   assert.ok(garden); assert.equal(garden.plots[0].stage, 0, 'stage 0');
   assert.ok(garden); assert.equal(garden.plots[0].wateredToday, true, 'watered on sowing');
@@ -197,25 +198,25 @@ test('plantInGardenAction: occupied plot fails', () => {
   let world = createFreshWorldState();
   const invRes = applyItemGrants(world.inventory, world.discoveredItemIds, [{ itemId: 'sage_seeds', amount: 2 }]);
   world = { ...world, inventory: invRes.inventory, discoveredItemIds: invRes.discoveredItemIds };
-  const r1 = plantInGardenAction(world, 'clara_herb_garden', 'sage_seeds', 0);
+  const r1 = plantInGardenAction(world, 'beeline_pollinator_bed', 'sage_seeds', 0);
   assert.ok(r1.ok);
-  const r2 = plantInGardenAction(r1.nextWorld, 'clara_herb_garden', 'sage_seeds', 0);
+  const r2 = plantInGardenAction(r1.nextWorld, 'beeline_pollinator_bed', 'sage_seeds', 0);
   assert.ok(!r2.ok, 'cannot plant in occupied plot');
 });
 
 test('plantInGardenAction: incompatible crop fails', () => {
   let world = createFreshWorldState();
-  // foxglove is NOT in clara_herb_garden's allowedCropIds (sage, thyme, lavender).
+  // foxglove is NOT in beeline_pollinator_bed's allowedCropIds (sage, thyme, lavender).
   const invRes = applyItemGrants(world.inventory, world.discoveredItemIds, [{ itemId: 'foxglove_seeds', amount: 1 }]);
   world = { ...world, inventory: invRes.inventory, discoveredItemIds: invRes.discoveredItemIds };
-  const result = plantInGardenAction(world, 'clara_herb_garden', 'foxglove_seeds', 0);
-  assert.ok(!result.ok, 'foxglove rejected for clara_herb_garden');
+  const result = plantInGardenAction(world, 'beeline_pollinator_bed', 'foxglove_seeds', 0);
+  assert.ok(!result.ok, 'foxglove rejected for beeline_pollinator_bed');
 });
 
 test('plantInGardenAction: insufficient seeds fails', () => {
   const world = createFreshWorldState();
   // No seeds in inventory.
-  const result = plantInGardenAction(world, 'clara_herb_garden', 'sage_seeds', 0);
+  const result = plantInGardenAction(world, 'beeline_pollinator_bed', 'sage_seeds', 0);
   assert.ok(!result.ok, 'planting without seeds fails');
 });
 
@@ -226,13 +227,13 @@ test('waterGardenAction: waters thirsty plots', () => {
   const invRes = applyItemGrants(world.inventory, world.discoveredItemIds, [{ itemId: 'sage_seeds', amount: 1 }]);
   world = { ...world, inventory: invRes.inventory, discoveredItemIds: invRes.discoveredItemIds };
   // Plant and then advance a day to make it thirsty.
-  const plantRes = plantInGardenAction(world, 'clara_herb_garden', 'sage_seeds', 0);
+  const plantRes = plantInGardenAction(world, 'beeline_pollinator_bed', 'sage_seeds', 0);
   assert.ok(plantRes.ok);
   world = advanceToNextDay(plantRes.nextWorld);
-  const garden = world.gardens!['clara_herb_garden'];
+  const garden = world.gardens!['beeline_pollinator_bed'];
   assert.ok(garden); assert.equal(garden.plots[0].wateredToday, false, 'plot is thirsty after day advance');
-  const waterRes = waterGardenAction(world, 'clara_herb_garden');
-  const wateredGarden = waterRes.nextWorld.gardens!['clara_herb_garden'];
+  const waterRes = waterGardenAction(world, 'beeline_pollinator_bed');
+  const wateredGarden = waterRes.nextWorld.gardens!['beeline_pollinator_bed'];
   assert.ok(wateredGarden); assert.equal(wateredGarden.plots[0].wateredToday, true, 'plot watered');
 });
 
@@ -240,9 +241,9 @@ test('waterGardenAction: no thirsty plots returns info', () => {
   let world = createFreshWorldState();
   const invRes = applyItemGrants(world.inventory, world.discoveredItemIds, [{ itemId: 'sage_seeds', amount: 1 }]);
   world = { ...world, inventory: invRes.inventory, discoveredItemIds: invRes.discoveredItemIds };
-  const plantRes = plantInGardenAction(world, 'clara_herb_garden', 'sage_seeds', 0);
+  const plantRes = plantInGardenAction(world, 'beeline_pollinator_bed', 'sage_seeds', 0);
   // Just planted — already watered (sowing-night watering).
-  const waterRes = waterGardenAction(plantRes.nextWorld, 'clara_herb_garden');
+  const waterRes = waterGardenAction(plantRes.nextWorld, 'beeline_pollinator_bed');
   assert.ok(waterRes.body.includes('already watered'), 'no thirsty plots message');
 });
 
@@ -252,8 +253,8 @@ test('harvestFromGardenAction: premature harvest fails', () => {
   let world = createFreshWorldState();
   const invRes = applyItemGrants(world.inventory, world.discoveredItemIds, [{ itemId: 'sage_seeds', amount: 1 }]);
   world = { ...world, inventory: invRes.inventory, discoveredItemIds: invRes.discoveredItemIds };
-  const plantRes = plantInGardenAction(world, 'clara_herb_garden', 'sage_seeds', 0);
-  const harvestRes = harvestFromGardenAction(plantRes.nextWorld, 'clara_herb_garden', 0);
+  const plantRes = plantInGardenAction(world, 'beeline_pollinator_bed', 'sage_seeds', 0);
+  const harvestRes = harvestFromGardenAction(plantRes.nextWorld, 'beeline_pollinator_bed', 0);
   assert.ok(!harvestRes.ok, 'premature harvest fails');
 });
 
@@ -262,23 +263,23 @@ test('harvestFromGardenAction: mature harvest grants items and resets plot', () 
   const invRes = applyItemGrants(world.inventory, world.discoveredItemIds, [{ itemId: 'sage_seeds', amount: 1 }]);
   world = { ...world, inventory: invRes.inventory, discoveredItemIds: invRes.discoveredItemIds };
   // Plant, water, advance days until mature.
-  let w = plantInGardenAction(world, 'clara_herb_garden', 'sage_seeds', 0).nextWorld;
+  let w = plantInGardenAction(world, 'beeline_pollinator_bed', 'sage_seeds', 0).nextWorld;
   // Sage is 2-night growth. Advance 3 days with watering.
   for (let d = 0; d < 3; d++) {
     w = advanceToNextDay(w);
-    const waterRes = waterGardenAction(w, 'clara_herb_garden');
+    const waterRes = waterGardenAction(w, 'beeline_pollinator_bed');
     w = waterRes.nextWorld;
   }
-  const garden = w.gardens!['clara_herb_garden'];
+  const garden = w.gardens!['beeline_pollinator_bed'];
   assert.ok(garden); assert.equal(garden.plots[0].stage, 3, 'plot is mature after 3 watered nights');
   const beforeBlooms = getItemCount(w.inventory, 'sage_sprig');
-  const harvestRes = harvestFromGardenAction(w, 'clara_herb_garden', 0);
+  const harvestRes = harvestFromGardenAction(w, 'beeline_pollinator_bed', 0);
   assert.ok(harvestRes.ok, 'harvest succeeded');
   const afterBlooms = getItemCount(harvestRes.nextWorld.inventory, 'sage_sprig');
   assert.ok(afterBlooms > beforeBlooms, 'marigold blooms granted');
   const afterSeeds = getItemCount(harvestRes.nextWorld.inventory, 'sage_seeds');
   assert.ok(afterSeeds >= 1, 'seed returned');
-  const harvestedGarden = harvestRes.nextWorld.gardens!['clara_herb_garden'];
+  const harvestedGarden = harvestRes.nextWorld.gardens!['beeline_pollinator_bed'];
   assert.ok(harvestedGarden); assert.equal(harvestedGarden.plots[0].cropId, null, 'plot reset to empty');
   assert.ok(harvestedGarden); assert.equal(harvestedGarden.totalHarvests, 1, 'totalHarvests incremented');
 });
@@ -290,27 +291,27 @@ test('advanceAllGardensNightlyGrowthInPlace: advances all gardens', () => {
   // Plant in two gardens.
   const invRes = applyItemGrants(world.inventory, world.discoveredItemIds, [
     { itemId: 'sage_seeds', amount: 1 },
-    { itemId: 'lavender_seeds', amount: 1 },
+    { itemId: 'foxglove_seeds', amount: 1 },
   ]);
   world = { ...world, inventory: invRes.inventory, discoveredItemIds: invRes.discoveredItemIds };
-  world = plantInGardenAction(world, 'clara_herb_garden', 'sage_seeds', 0).nextWorld;
-  world = plantInGardenAction(world, 'nook_lavender_bed', 'lavender_seeds', 0).nextWorld;
+  world = plantInGardenAction(world, 'beeline_pollinator_bed', 'sage_seeds', 0).nextWorld;
+  world = plantInGardenAction(world, 'pond_iris_border', 'foxglove_seeds', 0).nextWorld;
   // Advance a day — both should grow.
   world = advanceToNextDay(world);
-  const claraGarden = world.gardens!['clara_herb_garden'];
-  const nookGarden = world.gardens!['nook_lavender_bed'];
-  assert.ok(claraGarden, "clara garden exists"); assert.equal(claraGarden.plots[0].nightsGrown, 1, 'clara garden grew');
-  assert.ok(nookGarden, "nook garden exists"); assert.equal(nookGarden.plots[0].nightsGrown, 1, 'nook garden grew');
+  const beeGarden = world.gardens!['beeline_pollinator_bed'];
+  const pondGarden = world.gardens!['pond_iris_border'];
+  assert.ok(beeGarden, "bee garden exists"); assert.equal(beeGarden.plots[0].nightsGrown, 1, 'bee garden grew');
+  assert.ok(pondGarden, "pond garden exists"); assert.equal(pondGarden.plots[0].nightsGrown, 1, 'pond garden grew');
   // Both should be watered=false (reset by nightly growth).
-  assert.ok(claraGarden, "clara garden exists"); assert.equal(claraGarden.plots[0].wateredToday, false);
-  assert.ok(nookGarden, "nook garden exists"); assert.equal(nookGarden.plots[0].wateredToday, false);
+  assert.ok(beeGarden, "bee garden exists"); assert.equal(beeGarden.plots[0].wateredToday, false);
+  assert.ok(pondGarden, "pond garden exists"); assert.equal(pondGarden.plots[0].wateredToday, false);
 });
 
 test('advanceAllGardensNightlyGrowthInPlace: does not mutate input', () => {
   let world = createFreshWorldState();
   const invRes = applyItemGrants(world.inventory, world.discoveredItemIds, [{ itemId: 'sage_seeds', amount: 1 }]);
   world = { ...world, inventory: invRes.inventory, discoveredItemIds: invRes.discoveredItemIds };
-  world = plantInGardenAction(world, 'clara_herb_garden', 'sage_seeds', 0).nextWorld;
+  world = plantInGardenAction(world, 'beeline_pollinator_bed', 'sage_seeds', 0).nextWorld;
   const beforeJson = serializeWorldState(world);
   advanceToNextDay(world);
   const afterJson = serializeWorldState(world);
@@ -323,7 +324,7 @@ test('persistence: garden state round-trips through serialize/deserialize', () =
   let world = createFreshWorldState();
   const invRes = applyItemGrants(world.inventory, world.discoveredItemIds, [{ itemId: 'sage_seeds', amount: 1 }]);
   world = { ...world, inventory: invRes.inventory, discoveredItemIds: invRes.discoveredItemIds };
-  world = plantInGardenAction(world, 'clara_herb_garden', 'sage_seeds', 0).nextWorld;
+  world = plantInGardenAction(world, 'beeline_pollinator_bed', 'sage_seeds', 0).nextWorld;
   const reloaded = deserializeWorldState(serializeWorldState(world)).state;
   assert.deepEqual(reloaded.gardens, world.gardens, 'gardens round-trip byte-identical');
 });
@@ -370,10 +371,10 @@ test('determinism: twin simulation with gardens produces identical state', () =>
   // Seed both with the same garden state.
   const invRes = applyItemGrants(simA.inventory, simA.discoveredItemIds, [{ itemId: 'sage_seeds', amount: 1 }]);
   simA = { ...simA, inventory: invRes.inventory, discoveredItemIds: invRes.discoveredItemIds };
-  simA = plantInGardenAction(simA, 'clara_herb_garden', 'sage_seeds', 0).nextWorld;
+  simA = plantInGardenAction(simA, 'beeline_pollinator_bed', 'sage_seeds', 0).nextWorld;
   const invResB = applyItemGrants(simB.inventory, simB.discoveredItemIds, [{ itemId: 'sage_seeds', amount: 1 }]);
   simB = { ...simB, inventory: invResB.inventory, discoveredItemIds: invResB.discoveredItemIds };
-  simB = plantInGardenAction(simB, 'clara_herb_garden', 'sage_seeds', 0).nextWorld;
+  simB = plantInGardenAction(simB, 'beeline_pollinator_bed', 'sage_seeds', 0).nextWorld;
   // Step and advance identically.
   for (let f = 0; f < 50; f++) {
     simA = stepSimulation(simA, 0.25);
@@ -395,7 +396,7 @@ test('cross-activity: garden planting does not affect greenhouse plots', () => {
   const ghBefore = JSON.stringify(world.greenhouseState);
   const invRes = applyItemGrants(world.inventory, world.discoveredItemIds, [{ itemId: 'sage_seeds', amount: 1 }]);
   world = { ...world, inventory: invRes.inventory, discoveredItemIds: invRes.discoveredItemIds };
-  world = plantInGardenAction(world, 'clara_herb_garden', 'sage_seeds', 0).nextWorld;
+  world = plantInGardenAction(world, 'beeline_pollinator_bed', 'sage_seeds', 0).nextWorld;
   const ghAfter = JSON.stringify(world.greenhouseState);
   assert.equal(ghBefore, ghAfter, 'greenhouse state unchanged by garden planting');
 });
@@ -406,12 +407,12 @@ test('cross-activity: garden harvest does not duplicate greenhouse harvests', ()
   // Grow and harvest a garden plot.
   const invRes = applyItemGrants(world.inventory, world.discoveredItemIds, [{ itemId: 'sage_seeds', amount: 1 }]);
   world = { ...world, inventory: invRes.inventory, discoveredItemIds: invRes.discoveredItemIds };
-  world = plantInGardenAction(world, 'clara_herb_garden', 'sage_seeds', 0).nextWorld;
+  world = plantInGardenAction(world, 'beeline_pollinator_bed', 'sage_seeds', 0).nextWorld;
   for (let d = 0; d < 3; d++) {
     world = advanceToNextDay(world);
-    world = waterGardenAction(world, 'clara_herb_garden').nextWorld;
+    world = waterGardenAction(world, 'beeline_pollinator_bed').nextWorld;
   }
-  world = harvestFromGardenAction(world, 'clara_herb_garden', 0).nextWorld;
+  world = harvestFromGardenAction(world, 'beeline_pollinator_bed', 0).nextWorld;
   assert.equal(world.greenhouseState.totalHarvests, ghHarvestsBefore, 'greenhouse harvests unchanged');
 });
 
@@ -420,13 +421,13 @@ test('cross-activity: garden harvest does not duplicate greenhouse harvests', ()
 test('cloneGardens: deep-clones garden state', () => {
   const world = createFreshWorldState();
   const invRes = applyItemGrants(world.inventory, world.discoveredItemIds, [{ itemId: 'sage_seeds', amount: 1 }]);
-  const w = plantInGardenAction({ ...world, inventory: invRes.inventory, discoveredItemIds: invRes.discoveredItemIds }, 'clara_herb_garden', 'sage_seeds', 0).nextWorld;
+  const w = plantInGardenAction({ ...world, inventory: invRes.inventory, discoveredItemIds: invRes.discoveredItemIds }, 'beeline_pollinator_bed', 'sage_seeds', 0).nextWorld;
   const cloned = cloneGardens(w.gardens);
   assert.deepEqual(cloned, w.gardens, 'clone matches original');
   // Mutate the clone — original should be unaffected.
-  if (cloned['clara_herb_garden']) {
-    cloned['clara_herb_garden'].plots[0].cropId = 'thyme';
-    assert.notEqual(cloned['clara_herb_garden'].plots[0].cropId, w.gardens!['clara_herb_garden']!.plots[0].cropId, 'clone is independent');
+  if (cloned['beeline_pollinator_bed']) {
+    cloned['beeline_pollinator_bed'].plots[0].cropId = 'thyme';
+    assert.notEqual(cloned['beeline_pollinator_bed'].plots[0].cropId, w.gardens!['beeline_pollinator_bed']!.plots[0].cropId, 'clone is independent');
   }
 });
 
@@ -580,7 +581,7 @@ test('D3: plantInGardenAction does not mutate input world.gardens', () => {
   world.playerLocation = 'exterior';
   world.inventory = { ...world.inventory, sage_seeds: 2 };
   const gardensBefore = JSON.stringify(world.gardens);
-  plantInGardenAction(world, 'clara_herb_garden', 'sage_seeds' as PersonalItemId, 0);
+  plantInGardenAction(world, 'beeline_pollinator_bed', 'sage_seeds' as PersonalItemId, 0);
   const gardensAfter = JSON.stringify(world.gardens);
   assert.equal(gardensAfter, gardensBefore, 'input world.gardens not mutated by plantInGardenAction (D3 fix)');
 });
@@ -624,4 +625,125 @@ test('D6: simulation steps eventually trigger resident garden tending (integrati
       }
     }
   }
+});
+
+// ── Critical Phase III tests: ownership guards, activation, everyday integrity ──
+
+test('CRITICAL: player cannot harvest resident-owned garden (exploit guard)', () => {
+  const world = createFreshWorldState();
+  const state = getOrCreateGardenState(world, 'clara_herb_garden')!;
+  sowPlotInPlace(state.plots[0], 'sage', world.day);
+  state.plots[0].stage = 3;
+  const beforeSprigs = getItemCount(world.inventory, 'sage_sprig');
+  const res = harvestFromGardenAction(world, 'clara_herb_garden', 0);
+  assert.ok(!res.ok, 'player cannot harvest Clara\'s NPC-owned garden');
+  assert.equal(getItemCount(res.nextWorld.inventory, 'sage_sprig'), beforeSprigs, 'no items granted');
+  const afterState = getGardenState(res.nextWorld, 'clara_herb_garden')!;
+  assert.equal(afterState.plots[0].cropId, 'sage', 'crop not harvested');
+});
+
+test('CRITICAL: player cannot harvest Nora\'s or Barnaby\'s garden', () => {
+  const world = createFreshWorldState();
+  for (const [gid, crop] of [
+    ['nook_lavender_bed', 'lavender'],
+    ['barnaby_compost_garden', 'marigold'],
+  ] as const) {
+    const state = getOrCreateGardenState(world, gid)!;
+    sowPlotInPlace(state.plots[0], crop, world.day);
+    state.plots[0].stage = 3;
+    const res = harvestFromGardenAction(world, gid, 0);
+    assert.ok(!res.ok, `player cannot harvest ${gid}`);
+  }
+});
+
+test('CRITICAL: player can harvest community-owned garden', () => {
+  const world = createFreshWorldState();
+  const state = getOrCreateGardenState(world, 'beeline_pollinator_bed')!;
+  sowPlotInPlace(state.plots[0], 'sage', world.day);
+  state.plots[0].stage = 3;
+  const before = getItemCount(world.inventory, 'sage_sprig');
+  const res = harvestFromGardenAction(world, 'beeline_pollinator_bed', 0);
+  assert.ok(res.ok, 'community garden harvestable');
+  assert.ok(getItemCount(res.nextWorld.inventory, 'sage_sprig') > before, 'items granted');
+});
+
+test('CRITICAL: player cannot plant in resident-owned garden (seed-loss guard)', () => {
+  const world = createFreshWorldState();
+  const invRes = applyItemGrants(world.inventory, world.discoveredItemIds, [{ itemId: 'sage_seeds', amount: 1 }]);
+  const w = { ...world, inventory: invRes.inventory, discoveredItemIds: invRes.discoveredItemIds };
+  const before = getItemCount(w.inventory, 'sage_seeds');
+  const res = plantInGardenAction(w, 'clara_herb_garden', 'sage_seeds', 0);
+  assert.ok(!res.ok, 'player cannot plant in Clara\'s garden');
+  assert.equal(getItemCount(res.nextWorld.inventory, 'sage_seeds'), before, 'seed not consumed');
+});
+
+test('CRITICAL: stepSimulation activates garden-tend (feature is not inert)', () => {
+  let world = createFreshWorldState();
+  const GARDEN_IDS = ['clara_herb_garden', 'nook_lavender_bed', 'barnaby_compost_garden'] as const;
+  let tended = false;
+  for (let day = 0; day < 2; day++) {
+    for (let step = 0; step < 900; step++) {
+      world = stepSimulation(world, 0.25);
+    }
+    for (const gid of GARDEN_IDS) {
+      if ((getGardenState(world, gid)?.totalPlanted ?? 0) > 0) tended = true;
+    }
+    if (tended) break;
+    world = advanceToNextDay(world);
+  }
+  assert.ok(tended, 'at least one resident garden tended via arrival hook within 2 sim days');
+});
+
+test('CRITICAL: garden-tend fires at most once per day (non-vacuous)', () => {
+  let world = createFreshWorldState();
+  const GARDEN_IDS = ['clara_herb_garden', 'nook_lavender_bed', 'barnaby_compost_garden'] as const;
+  const plantedDeltaByDay: Record<string, number[]> = {};
+  for (const gid of GARDEN_IDS) plantedDeltaByDay[gid] = [];
+  let totalTends = 0;
+  for (let day = 0; day < 4; day++) {
+    const startPlanted: Record<string, number> = {};
+    for (const gid of GARDEN_IDS) startPlanted[gid] = getGardenState(world, gid)?.totalPlanted ?? 0;
+    for (let step = 0; step < 900; step++) world = stepSimulation(world, 0.25);
+    for (const gid of GARDEN_IDS) {
+      const after = getGardenState(world, gid)?.totalPlanted ?? 0;
+      const delta = after - startPlanted[gid];
+      plantedDeltaByDay[gid].push(delta);
+      if (delta > 0) totalTends++;
+      const lt = getGardenState(world, gid)?.lastTendedDay ?? 0;
+      assert.ok(lt <= world.day, `${gid}: lastTendedDay ${lt} <= day ${world.day}`);
+    }
+    world = advanceToNextDay(world);
+  }
+  assert.ok(totalTends > 0, `feature active: ${totalTends} tend events in 4 days`);
+  for (const gid of GARDEN_IDS) {
+    const maxDelta = Math.max(...plantedDeltaByDay[gid]);
+    assert.ok(maxDelta <= 2, `${gid}: max planted delta/day = ${maxDelta} (≤ 2 plots, no multi-tend)`);
+  }
+});
+
+test('CRITICAL: everyday practice excludes NPC tending', () => {
+  const world = createFreshWorldState();
+  tendResidentGardenInPlace(world, 'clara_herb_garden', 'clara');
+  const profile = deriveEverydayPracticeProfile(world);
+  assert.ok(!profile.touchedToday.includes('gardening' as never), 'NPC tending does not credit player');
+});
+
+test('CRITICAL: twin determinism via arrival hook pathway', () => {
+  let simA = createFreshWorldState();
+  let simB = createFreshWorldState();
+  for (let day = 0; day < 2; day++) {
+    for (let f = 0; f < 900; f++) {
+      simA = stepSimulation(simA, 0.25);
+      simB = stepSimulation(simB, 0.25);
+    }
+    simA = advanceToNextDay(simA);
+    simB = advanceToNextDay(simB);
+  }
+  const ca = getGardenState(simA, 'clara_herb_garden');
+  const cb = getGardenState(simB, 'clara_herb_garden');
+  assert.ok(ca, 'arrival hook fired in simA: Clara garden state exists');
+  assert.ok(cb, 'arrival hook fired in simB: Clara garden state exists');
+  assert.equal(ca!.lastTendedDay, cb!.lastTendedDay, 'twin lastTendedDay matches');
+  assert.equal(ca!.totalPlanted, cb!.totalPlanted, 'twin totalPlanted matches');
+  assert.deepEqual(simA, simB, 'twin runs identical via arrival hook');
 });
