@@ -1603,7 +1603,7 @@ conciliation for Phase C finalization)
   - **`src/scene/NeighborhoodCanvas.tsx`**: Added `copperwheelOccupantRig`, `copperwheelOccupantHitProxy`, `copperwheelInteractablesWithOccupant`, parameterized pre-allocated `occupantRigConfigs` (`pose: 'work'`, `y = 0`, `seatedReading: false` for Copperwheel vs `'sit'` for Nook/Bakery), raycast priority, seasonal winter knit tinting, and clean disposal.
   - **Tests (`src/game/lr5-arthur.test.ts`, `src/scene/copperwheelInterior.test.ts`)**: Added 13 unit/acceptance tests covering `LR5-01`..`LR5-14` + Copperwheel occupant obstacle-clearance & walkability invariants; updated 4 tail-pin assertions (`lr4-teaching.test.ts`, `community-dialogue.test.ts`, `dialogueContext.test.ts`, `stage3-baseline.test.ts`). LR-3 (`clara`) and LR-4 (`nora`) runtime behavior preserved untouched.
 - **Verification**:
-  - `npm test`: **1075/1075 passed** (`0` failures).
+  - `npm test`: **1086/1086 passed** (`0` failures; incl. `lr3-restday-gate.test.ts` merged from `main` PR #45 + 13 LR-5 suites).
   - `npm run lint` (`tsc --noEmit`): **0 errors**.
   - `npx --yes tsx scripts/check_layer_boundaries.ts`: exit `0` (`75` game files, `83` scene files, `15` component files; acyclic).
   - `npx --yes tsx scripts/longrun_stress.ts --quick`: exit `0` (all scenarios clean; `F_deterministic_replay` & `B_twin_continuity` byte-identical).
