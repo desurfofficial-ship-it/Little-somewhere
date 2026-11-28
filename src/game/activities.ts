@@ -4,6 +4,12 @@ import { RESIDENTS, getTimePhase } from './residents';
 import { getFeaturedBookForDay } from './bookNook';
 import { BAKERY_SEAT_SPOTS, getBakeForDay } from './bakery';
 import {
+  CW_BENCH_STATION_ID,
+  CW_OCCUPANT_FACING,
+  CW_OCCUPANT_POS,
+  getProjectForDay,
+} from './copperwheel';
+import {
   InteriorLocation,
   JournalMemory,
   PlayerNpcRelation,
@@ -170,14 +176,52 @@ export const SHARED_ACTIVITIES: Readonly<Record<string, SharedActivityDef>> = {
       eventSummary: `Shared the morning pastry with ${RESIDENTS.clara.name} at Hearth & Crumb.`,
     }),
   },
+  // LR-5 (doc 24 / doc 26): Arthur's workbench hour inside Copperwheel Cottage.
+  // Reuses cw_bench stationId (D-5D), restricts offers to morning & dusk (D-5B
+  // so Gazebo golden hour never false-opens), and grants arthur_escapement_basics.
+  share_workbench_hour: {
+    id: 'share_workbench_hour',
+    hostId: 'arthur',
+    title: 'Shared Workbench Hour',
+    location: 'copperwheel_interior',
+    stationId: CW_BENCH_STATION_ID,
+    seatPos: { ...CW_OCCUPANT_POS },
+    seatFacing: CW_OCCUPANT_FACING,
+    minTier: 'friendly',
+    minAffinity: 45,
+    defaultDurationMinutes: 180,
+    minutesSpent: 15,
+    affinityDelta: 6,
+    reliabilityDelta: 2,
+    memoryId: 'mem_lr_arthur_workbench_hour',
+    memoryTitle: 'Oil Before Force at the Bench',
+    npcMemoryTag: 'shared_workbench_hour',
+    knowledgeGranted: 'arthur_escapement_basics',
+    activityNoun: 'workbench hour',
+    offerPhases: ['morning', 'dusk'],
+    arrivalLine: (hostName) =>
+      `${hostName} sets the brass loupe beside the felt mat and clears elbow room beside the lamp.`,
+    summaryCompose: (world) => {
+      const project = getProjectForDay(world.day);
+      const isRest = project.id === 'bench_rest';
+      return {
+        memorySummary: isRest
+          ? `Kept a quiet workbench hour beside ${RESIDENTS.arthur.name} at Copperwheel Cottage — oiled tools resting under felt, regulator ticking steady, and a warm lesson in listening before touching a single gear.`
+          : `Shared a steady workbench hour with ${RESIDENTS.arthur.name} over ${project.label.toLowerCase()} at Copperwheel Cottage — oil before force, one careful breath on the escapement at a time.`,
+        eventSummary: isRest
+          ? `Shared a quiet workbench hour with ${RESIDENTS.arthur.name} at Copperwheel Cottage.`
+          : `Shared a workbench hour over ${project.label.toLowerCase()} with ${RESIDENTS.arthur.name} at Copperwheel Cottage.`,
+      };
+    },
+  },
 };
 
 /**
- * Canonical Knowledge Registry (Living Relationships — LR-4, D-4A).
+ * Canonical Knowledge Registry (Living Relationships — LR-4 & LR-5).
  *
  * Derived directly from SHARED_ACTIVITIES entries carrying `knowledgeGranted`
- * (`{'nora_featured_reading'}`; Clara's LR-3 `share_morning_pastry` has none
- * per LR3-48). Authoritative validation set for `migrations.ts` sanitizer.
+ * (`{'nora_featured_reading', 'arthur_escapement_basics'}`).
+ * Authoritative validation set for `migrations.ts` sanitizer.
  */
 export const KNOWN_KNOWLEDGE_IDS: readonly string[] = Object.freeze(
   Array.from(

@@ -2,7 +2,7 @@ import { PlayerLocation, SeatSpot, Vec2 } from './types';
 import { isInteriorPointWalkable } from './cottage';
 import { BAKERY_SEAT_SPOTS, isBakeryInteriorWalkable } from './bakery';
 import { isNookInteriorWalkable } from './bookNook';
-import { isCopperwheelInteriorWalkable } from './copperwheel';
+import { CW_OCCUPANT_APPROACH_POS, isCopperwheelInteriorWalkable } from './copperwheel';
 import { isGreenhouseInteriorWalkable } from './greenhouse';
 import { isPointWalkable } from './worldMap';
 import { NOOK_OCCUPANT_APPROACH_POS } from './occupancy';
@@ -72,6 +72,8 @@ export function occupantApproachPos(location: PlayerLocation): Vec2 | null {
       return { ...NOOK_OCCUPANT_APPROACH_POS };
     case 'bakery_interior':
       return { ...BAKERY_SEAT_SPOTS[0].approachPos };
+    case 'copperwheel_interior':
+      return { ...CW_OCCUPANT_APPROACH_POS };
     default:
       return null;
   }

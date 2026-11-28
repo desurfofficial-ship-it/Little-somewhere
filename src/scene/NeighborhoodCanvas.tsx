@@ -1094,6 +1094,40 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
     interiorRoot.add(copperwheelInteriorRig.group);
     copperwheelInteriorRig.group.userData.contactBatchRoot = true;
 
+    // Living Relationships (LR-5): indoor Arthur rig standing at Copperwheel workbench
+    const copperwheelOccupantRig = buildStorybookCharacter(
+      RESIDENTS.arthur.appearance,
+      palette,
+      shadowTex,
+      'arthur',
+    );
+    copperwheelOccupantRig.root.visible = false;
+    const copperwheelOccupantHitGeo = new THREE.CylinderGeometry(0.65, 0.65, 1.85, 8);
+    const copperwheelOccupantHitMat = new THREE.MeshBasicMaterial({ visible: false });
+    const copperwheelOccupantHitProxy = new THREE.Mesh(
+      copperwheelOccupantHitGeo,
+      copperwheelOccupantHitMat,
+    );
+    copperwheelOccupantHitProxy.position.y = 0.92;
+    copperwheelOccupantHitProxy.userData = { targetKind: 'resident', targetId: 'arthur' };
+    copperwheelOccupantRig.root.add(copperwheelOccupantHitProxy);
+    copperwheelInteriorRig.group.add(copperwheelOccupantRig.root);
+    const copperwheelInteractablesWithOccupant: THREE.Object3D[] = [
+      ...copperwheelInteriorRig.hitProxies,
+      copperwheelOccupantHitProxy,
+    ];
+
+    const occupantRigConfigs: ReadonlyArray<{
+      venue: PlayerLocation;
+      rig: ReturnType<typeof buildStorybookCharacter>;
+      pose: 'sit' | 'work';
+      seatedReading: boolean;
+    }> = [
+      { venue: 'nook_interior', rig: nookOccupantRig, pose: 'sit', seatedReading: true },
+      { venue: 'bakery_interior', rig: bakeryOccupantRig, pose: 'sit', seatedReading: true },
+      { venue: 'copperwheel_interior', rig: copperwheelOccupantRig, pose: 'work', seatedReading: false },
+    ];
+
     // Overhaul Phase 3 (E-6): collect the tagged shell walls once per interior
     // rig; the per-frame cutaway hides near-camera full walls so rotation never
     // blocks the room. Greenhouse is a glass shell — untagged, never hidden.
@@ -1551,7 +1585,9 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
           ? nookInteractablesWithOccupant
           : nookInteriorRig.hitProxies
         : worldRef.current.playerLocation === 'copperwheel_interior'
-        ? copperwheelInteriorRig.hitProxies
+        ? worldRef.current.occupancy?.location === 'copperwheel_interior'
+          ? copperwheelInteractablesWithOccupant
+          : copperwheelInteriorRig.hitProxies
         : cottageInteriorRig.hitProxies;
       const hits = _raycaster.intersectObjects(activeInteractables, false);
       if (hits.length > 0) {
@@ -1562,7 +1598,9 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
           (worldRef.current.playerLocation === 'nook_interior' &&
             worldRef.current.occupancy?.location === 'nook_interior') ||
           (worldRef.current.playerLocation === 'bakery_interior' &&
-            worldRef.current.occupancy?.location === 'bakery_interior')
+            worldRef.current.occupancy?.location === 'bakery_interior') ||
+          (worldRef.current.playerLocation === 'copperwheel_interior' &&
+            worldRef.current.occupancy?.location === 'copperwheel_interior')
         ) {
           const occupantHit = hits.find((h) => h.object.userData.targetKind === 'resident');
           if (occupantHit) chosen = occupantHit;
@@ -2522,26 +2560,21 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
         }
       }
 
-      // Sync seated indoor occupants (LR-2 nook + LR-3 bakery — D8 parameterized:
-      // one loop over the (venue, rig) pairs, identical math per venue, no
-      // second copy. BUILD-04's emotionIntensity reset is carried for every rig.)
-      const occupantRigs: Array<[
-        PlayerLocation,
-        ReturnType<typeof buildStorybookCharacter>,
-      ]> = [
-        ['nook_interior', nookOccupantRig],
-        ['bakery_interior', bakeryOccupantRig],
-      ];
+      // Sync indoor occupants (LR-2 nook, LR-3 bakery, LR-5 copperwheel —
+      // zero-allocation pre-built config list; Copperwheel stands in 'work' pose
+      // at y = 0 beside the bench while Nook/Bakery sit cleanly at computeSitGroundY).
       let activeOccupantSynced = false;
-      for (const [venue, rig] of occupantRigs) {
+      for (const cfg of occupantRigConfigs) {
+        const { venue, rig, pose, seatedReading } = cfg;
         const venueOcc =
           curLoc === venue && world.occupancy?.location === venue ? world.occupancy : null;
         if (venueOcc) {
           activeOccupantSynced = true;
           const occDef = RESIDENTS[venueOcc.residentId];
           rig.root.visible = true;
-          const occSeatY = computeSitGroundY(0.5, occDef.appearance.heightScale);
-          rig.root.position.set(venueOcc.localPos.x, occSeatY, venueOcc.localPos.z);
+          const occGroundY =
+            pose === 'sit' ? computeSitGroundY(0.5, occDef.appearance.heightScale) : 0;
+          rig.root.position.set(venueOcc.localPos.x, occGroundY, venueOcc.localPos.z);
           rig.root.rotation.y = venueOcc.facing;
           const ldx = world.playerPos.x - venueOcc.localPos.x;
           const ldz = world.playerPos.z - venueOcc.localPos.z;
@@ -2565,10 +2598,10 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
           // object is shared with the resident loop above, and a stale value
           // would leak into the occupant's face amplitudes (zero-GC scratch rule).
           _npcAnimOpts.emotionIntensity = 0.75;
-          _npcAnimOpts.seatHeight = 0.5;
+          _npcAnimOpts.seatHeight = pose === 'sit' ? 0.5 : 0;
           _npcAnimOpts.speed = undefined;
-          _npcAnimOpts.seatedReading = Boolean(venueOcc.invitationId);
-          animateCharacterRig(rig, 'sit', 0, elapsed, dt, 1.3, _npcAnimOpts);
+          _npcAnimOpts.seatedReading = seatedReading && Boolean(venueOcc.invitationId);
+          animateCharacterRig(rig, pose, 0, elapsed, dt, 1.3, _npcAnimOpts);
 
           const occCue = getResidentAvailableQuestCue(venueOcc.residentId, world);
           rig.questPip.visible = occCue !== 'none';
@@ -2662,6 +2695,7 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
         applyCharacterWinterTint(playerRig, world.season);
         applyCharacterWinterTint(nookOccupantRig, world.season);
         applyCharacterWinterTint(bakeryOccupantRig, world.season);
+        applyCharacterWinterTint(copperwheelOccupantRig, world.season);
         for (const rid of RESIDENT_ORDER) {
           applyCharacterWinterTint(residentRigs[rid], world.season);
         }
@@ -3245,6 +3279,8 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
       nookOccupantHitMat.dispose();
       bakeryOccupantHitGeo.dispose();
       bakeryOccupantHitMat.dispose();
+      copperwheelOccupantHitGeo.dispose();
+      copperwheelOccupantHitMat.dispose();
       copperwheelInteriorRig.dispose();
       meadowDressing.dispose();
       structureDressing.dispose();

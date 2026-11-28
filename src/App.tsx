@@ -1134,8 +1134,12 @@ export default function App() {
         setActivePropId(null);
         setPropCard(null);
         showToast(res.toast);
-      } else if (actionType === 'share_featured_reading' || actionType === 'share_morning_pastry') {
-        // LR-3 dual-surface completion (QA-07 / LR3-36; proposal constraint F-P4):
+      } else if (
+        actionType === 'share_featured_reading' ||
+        actionType === 'share_morning_pastry' ||
+        actionType === 'share_workbench_hour'
+      ) {
+        // LR-3 / LR-5 dual-surface completion (QA-07 / LR3-36; proposal constraint F-P4):
         // the activityId derives from the LIVE accepted invitation — never a
         // second hardcoded literal — so both surfaces route through the same
         // single transaction (completeSharedActivity) with identical deltas.

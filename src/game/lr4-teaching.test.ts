@@ -80,8 +80,9 @@ function stageMorningNookVisit(overrides?: { nookVisited?: boolean }): WorldStat
 test('LR4-01: registry exports nora_featured_reading cleanly and fresh reading completion grants it once', () => {
   assert.equal(KNOWN_KNOWLEDGE_IDS.includes('nora_featured_reading'), true);
   assert.equal(KNOWLEDGE_IDS.has('nora_featured_reading'), true);
-  assert.equal(KNOWLEDGE_IDS.has('arthur_escapement_basics'), false, 'LR-5 stays out of scope');
-  assert.equal(KNOWLEDGE_IDS.size, 1, 'exactly one LR-4 knowledge id shipped');
+  // Pre-LR5 pin updated cleanly upon LR-5 shipment: both LR-4 & LR-5 ids live.
+  assert.equal(KNOWLEDGE_IDS.has('arthur_escapement_basics'), true, 'LR-5 shipped alongside LR-4');
+  assert.equal(KNOWLEDGE_IDS.size, 2, 'LR-4 + LR-5 knowledge ids');
 
   const staged = stageMorningNookVisit();
   assert.deepEqual(staged.teaching.known, [], 'empty before completion');
@@ -323,15 +324,16 @@ test('LR4-04: Nora teaching topic stays hidden before grant, surfaces immediatel
   );
   assert.equal(claraOnly.topicId, 'everyday_shared_visit_echo');
 
-  // Golden snapshot matches 96 topics with teaching_nora_featured_reading at tail
+  // Golden snapshot matches 101 topics after LR-5 (+4 invitation, +1 teaching at tail)
   const goldenPath = new URL('../../scripts/dialogue-topics-golden.json', import.meta.url);
   const golden = JSON.parse(readFileSync(goldenPath, 'utf8')) as {
     count: number;
     topics: Array<{ id: string }>;
   };
-  assert.equal(golden.count, 96);
+  assert.equal(golden.count, 101);
   assert.equal(golden.count, DIALOGUE_TOPICS.length);
-  assert.equal(golden.topics.at(-1)?.id, 'teaching_nora_featured_reading');
+  assert.ok(golden.topics.some((t) => t.id === 'teaching_nora_featured_reading'));
+  assert.equal(golden.topics.at(-1)?.id, 'teaching_arthur_escapement_basics');
 });
 
 test('LR4-05: sanitizer strips unknown knowledge ids with warning, dedupes valid ids, and preserves schema v13', () => {

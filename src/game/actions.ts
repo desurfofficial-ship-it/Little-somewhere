@@ -124,6 +124,7 @@ import {
   COPPERWHEEL_PORCH_EXIT_POS,
   COPPERWHEEL_TEA_ITEM_ID,
   COPPERWHEEL_TEA_MINUTES,
+  CW_BENCH_STATION_ID,
   createInitialCopperwheelState,
   getProjectForDay,
 } from './copperwheel';
@@ -214,7 +215,8 @@ export interface PropInteractionResult {
     | 'garden_panel'
     | 'community_projects_panel'
     | 'share_featured_reading'
-    | 'share_morning_pastry';
+    | 'share_morning_pastry'
+    | 'share_workbench_hour';
   memoryUnlockedTitle?: string;
   /** Explicit item-gain readout rendered as chips above the prose (everyday-life polish). */
   gainedItems?: GainedItemChip[];
@@ -1053,6 +1055,18 @@ export function togglePlayerSitAction(
       nextWorld: world,
       sat: false,
       toast: 'Clara is keeping the café corner for your shared pastry.',
+    };
+  }
+  // LR-5 station exclusivity: Arthur keeps the workbench lamp warm during
+  // his live shared workbench hour, so the window armchair sit pauses until done.
+  if (
+    seat.id === 'cw_seat_armchair' &&
+    isStationOccupied(world, 'copperwheel_interior', CW_BENCH_STATION_ID)
+  ) {
+    return {
+      nextWorld: world,
+      sat: false,
+      toast: 'Arthur has the workbench lamp warm for your shared hour right now.',
     };
   }
   // Cottage-interior seats are player-only (residents never enter the home), so the
@@ -3837,6 +3851,17 @@ export function enterCopperwheelAction(world: WorldState): { nextWorld: WorldSta
   const safeExteriorPos = isPointWalkable(working.playerPos.x, working.playerPos.z, 0.48)
     ? { ...working.playerPos }
     : { ...COPPERWHEEL_PORCH_EXIT_POS };
+
+  const reconciled = reconcileInvitedInteriorEntry(working, 'copperwheel_interior');
+  working = reconciled.world;
+
+  let toast = 'Stepped inside Copperwheel Cottage.';
+  if (reconciled.arrivalToast) {
+    toast = `Stepped inside Copperwheel Cottage — ${reconciled.arrivalToast}`;
+  } else if (reconciled.expiryToast) {
+    toast = `Stepped inside Copperwheel Cottage. ${reconciled.expiryToast}`;
+  }
+
   return {
     nextWorld: {
       ...working,
@@ -3848,7 +3873,7 @@ export function enterCopperwheelAction(world: WorldState): { nextWorld: WorldSta
       playerPosture: 'standing',
       playerSeatId: null,
     },
-    toast: 'Stepped inside Copperwheel Cottage.',
+    toast,
   };
 }
 
@@ -3856,19 +3881,28 @@ export function exitCopperwheelAction(world: WorldState): { nextWorld: WorldStat
   if (world.playerLocation !== 'copperwheel_interior') {
     return { nextWorld: world, toast: '' };
   }
-  const exPos = world.exteriorPlayerPos ?? COPPERWHEEL_PORCH_EXIT_POS;
+  const cleared = clearOccupant(world, 'copperwheel_interior');
+  const exPos = cleared.exteriorPlayerPos ?? COPPERWHEEL_PORCH_EXIT_POS;
   const safePos = isPointWalkable(exPos.x, exPos.z, 0.48) ? { ...exPos } : { ...PLAYER_SPAWN };
   return {
     nextWorld: {
-      ...world,
+      ...cleared,
       playerLocation: 'exterior',
       playerPos: safePos,
-      playerFacing: world.exteriorPlayerFacing ?? PLAYER_DEFAULT_FACING,
+      playerFacing: cleared.exteriorPlayerFacing ?? PLAYER_DEFAULT_FACING,
       playerPosture: 'standing',
       playerSeatId: null,
+      activeActivity: null,
     },
     toast: 'Stepped out beside Copperwheel Cottage.',
   };
+}
+
+function isCopperwheelSessionClaimingStation(world: WorldState): boolean {
+  return (
+    isStationOccupied(world, 'copperwheel_interior', CW_BENCH_STATION_ID) ||
+    world.activeActivity?.activityId === 'share_workbench_hour'
+  );
 }
 
 export function interactWithCopperwheelProp(
@@ -3886,6 +3920,25 @@ export function interactWithCopperwheelProp(
   }
 
   if (copperwheelPropId === 'cw_bench') {
+    const active = world.invitations?.active;
+    if (
+      isStationOccupied(world, 'copperwheel_interior', CW_BENCH_STATION_ID) &&
+      active?.status === 'accepted' &&
+      active.activityId === 'share_workbench_hour' &&
+      isInvitationLive(active, world.day, world.minuteOfDay)
+    ) {
+      const project = getProjectForDay(world.day);
+      const isRest = project.id === 'bench_rest';
+      return {
+        nextWorld: world,
+        title: 'Clockmaker’s Workbench — Shared Workbench Hour',
+        body: isRest
+          ? 'Even with the felt rolled and the tools resting in their oiled drawer, Arthur has lit the bench lamp and cleared elbow room beside the regulator. Share a quiet workbench hour together?'
+          : `Arthur has ${project.label.toLowerCase()} lit under the bench lamp and set the brass loupe where you can share the elbow room. Settle in together for your workbench hour?`,
+        actionLabel: 'Share a Workbench Hour',
+        actionType: 'share_workbench_hour',
+      };
+    }
     return checkWorkbenchProjectAction(world);
   }
 
@@ -3907,6 +3960,13 @@ export function interactWithCopperwheelProp(
  * project saves its own one-time memory the first time it is admired.
  */
 export function checkWorkbenchProjectAction(world: WorldState): PropInteractionResult {
+  if (isCopperwheelSessionClaimingStation(world)) {
+    return {
+      nextWorld: world,
+      title: 'Clockmaker’s Workbench',
+      body: 'Arthur already has the bench lamp set for your shared workbench hour — share the hour with him first.',
+    };
+  }
   const cws = getCopperwheelStateSafe(world);
   const project = getProjectForDay(world.day);
   const alreadyChecked = cws.benchCheckedDay === world.day;

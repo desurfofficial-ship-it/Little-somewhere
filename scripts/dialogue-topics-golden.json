@@ -1,5 +1,5 @@
 {
- "count": 96,
+ "count": 101,
  "topics": [
   {
    "index": 0,
@@ -1377,6 +1377,73 @@
   },
   {
    "index": 89,
+   "id": "inv_arthur_indoor_workbench",
+   "residentId": "arthur",
+   "category": "invitation",
+   "priority": 40,
+   "historyScope": null,
+   "condition": {
+    "requiresActiveInvitation": {
+     "hostId": "arthur",
+     "activityId": "share_workbench_hour",
+     "status": "accepted",
+     "requireLive": true,
+     "requireIndoors": true
+    }
+   }
+  },
+  {
+   "index": 90,
+   "id": "inv_arthur_pending_offer",
+   "residentId": "arthur",
+   "category": "invitation",
+   "priority": 10,
+   "historyScope": null,
+   "condition": {
+    "requiresActiveInvitation": {
+     "hostId": "arthur",
+     "activityId": "share_workbench_hour",
+     "status": "offered",
+     "requireLive": true
+    }
+   }
+  },
+  {
+   "index": 91,
+   "id": "inv_arthur_offer_workbench",
+   "residentId": "arthur",
+   "category": "invitation",
+   "priority": 8,
+   "historyScope": null,
+   "condition": {
+    "requiresMet": true,
+    "sideFlagsTrue": [
+     "copperwheelVisited"
+    ],
+    "requiresInvitationEligible": {
+     "hostId": "arthur",
+     "activityId": "share_workbench_hour"
+    }
+   }
+  },
+  {
+   "index": 92,
+   "id": "inv_arthur_accepted_reminder",
+   "residentId": "arthur",
+   "category": "invitation",
+   "priority": 6,
+   "historyScope": null,
+   "condition": {
+    "requiresActiveInvitation": {
+     "hostId": "arthur",
+     "activityId": "share_workbench_hour",
+     "status": "accepted",
+     "requireLive": true
+    }
+   }
+  },
+  {
+   "index": 93,
    "id": "everyday_shared_visit_echo",
    "residentId": "any",
    "category": "event_reaction",
@@ -1394,7 +1461,7 @@
    }
   },
   {
-   "index": 90,
+   "index": 94,
    "id": "everyday_community_basket_echo",
    "residentId": "any",
    "category": "event_reaction",
@@ -1413,7 +1480,7 @@
    }
   },
   {
-   "index": 91,
+   "index": 95,
    "id": "everyday_community_completion_celebration",
    "residentId": "any",
    "category": "event_reaction",
@@ -1439,7 +1506,7 @@
    }
   },
   {
-   "index": 92,
+   "index": 96,
    "id": "everyday_community_project_pride",
    "residentId": "any",
    "category": "event_reaction",
@@ -1455,7 +1522,7 @@
    }
   },
   {
-   "index": 93,
+   "index": 97,
    "id": "everyday_photo_witness_echo",
    "residentId": "any",
    "category": "event_reaction",
@@ -1474,7 +1541,7 @@
    }
   },
   {
-   "index": 94,
+   "index": 98,
    "id": "everyday_photo_noticer",
    "residentId": "any",
    "category": "event_reaction",
@@ -1494,7 +1561,7 @@
    }
   },
   {
-   "index": 95,
+   "index": 99,
    "id": "teaching_nora_featured_reading",
    "residentId": "nora",
    "category": "event_reaction",
@@ -1507,6 +1574,27 @@
     ],
     "requiresNpcMemory": {
      "tag": "shared_featured_reading",
+     "unmentionedOnly": true,
+     "maxDaysOld": 6
+    },
+    "notSeenToday": true,
+    "maxSeenCount": 1
+   }
+  },
+  {
+   "index": 100,
+   "id": "teaching_arthur_escapement_basics",
+   "residentId": "arthur",
+   "category": "event_reaction",
+   "priority": 20,
+   "historyScope": null,
+   "condition": {
+    "requiresMet": true,
+    "requiresTeachingKnown": [
+     "arthur_escapement_basics"
+    ],
+    "requiresNpcMemory": {
+     "tag": "shared_workbench_hour",
      "unmentionedOnly": true,
      "maxDaysOld": 6
     },
