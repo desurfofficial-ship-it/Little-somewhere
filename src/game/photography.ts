@@ -64,6 +64,14 @@ export interface PhotoSubjectDef {
   memoryTitle: string;
   /** First-of-subject journal row summary. */
   memorySummary: string;
+  /**
+   * Optional sideFlags key that must be `true` for the subject to be capturable.
+   * Used by community-project subjects (plaza_garlands, orchard_lanterns,
+   * pond_mosaic) so a photo of the completed garlands/lanterns/mosaic is only
+   * granted when the project is actually complete (D-3 fix) — and gives the
+   * community `worldFlag` completion sideFlags a real consumer (D-4 fix).
+   */
+  requiresSideFlag?: string;
 }
 
 /**
@@ -148,6 +156,7 @@ export const PHOTO_SUBJECTS: readonly PhotoSubjectDef[] = [
     memoryTitle: 'Garlands Across the Plaza',
     memorySummary:
       'Framed the marigold garlands strung across the plaza — the warm string the neighborhood hung together, glowing between the lampposts.',
+    requiresSideFlag: 'communityGarlandComplete',
   },
   {
     id: 'orchard_lanterns',
@@ -159,6 +168,7 @@ export const PHOTO_SUBJECTS: readonly PhotoSubjectDef[] = [
     memoryTitle: `Orchard Lantern Light`,
     memorySummary:
       'Caught the orchard tasting-table lanterns at dusk — crabapple jars lit from within, the lanterns the neighbors hung glowing warm between the boughs.',
+    requiresSideFlag: 'communityOrchardLanternsComplete',
   },
   {
     id: 'pond_mosaic',
@@ -169,6 +179,7 @@ export const PHOTO_SUBJECTS: readonly PhotoSubjectDef[] = [
     frameRadius: 12,
     memoryTitle: 'The Pond Mosaic Steps',
     memorySummary: `Photographed the new mosaic steps at Mirror Pond — river glass and fern pressed into ceramic, the neighborhood's hands in the tile.`,
+    requiresSideFlag: 'communityPondMosaicComplete',
   },
   {
     id: 'willow_jetty',
@@ -289,6 +300,19 @@ export function performPhotoAction(
   }
 
   const title = 'Camera';
+
+  // D-3/D-4 fix: community-project photo subjects are only capturable when the
+  // project is complete (the garlands aren't strung / lanterns aren't lit /
+  // mosaic isn't laid until then). The `requiresSideFlag` field gives the
+  // community `worldFlag` completion sideFlags a real consumer (D-4).
+  if (subject.requiresSideFlag && world.sideFlags[subject.requiresSideFlag] !== true) {
+    return {
+      nextWorld: world,
+      title,
+      body: `${subject.name} isn’t finished yet — the neighborhood hasn’t completed it. Come back when it’s done and frame it then.`,
+      subjectId,
+    };
+  }
 
   // Guard 1 — exterior only (the camera is a personal tool carried outdoors).
   if (world.playerLocation !== 'exterior') {

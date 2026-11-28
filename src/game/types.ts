@@ -644,6 +644,10 @@ export interface NpcMemoryDetail {
   acousticOnly?: boolean;
   /** S1: the landmark zone id where the memory formed, for place-affinity bias. */
   placeZoneId?: string;
+  /** Stage 2 Community Projects: the project id a witness/participant memory is
+   *  bound to, so dialogue echoes can recover the project title after save/load
+   *  (D-1 fix — previously stripped by the closed-shape sanitizer). */
+  projectId?: string;
 }
 
 export interface NpcMemoryEntry {

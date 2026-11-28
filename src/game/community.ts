@@ -43,6 +43,7 @@ import {
 import { pushWorldEventInPlace } from './relationships';
 import { getTimePhase } from './residents';
 import { applySharedActivityAffinity } from './activities';
+import { hashSeed, mulberry32 } from './rng';
 
 export interface CommunityProjectContributionDef {
   itemId: PersonalItemId;
@@ -514,9 +515,18 @@ export function contributeToCommunityProject(
   const completionEventId = `community_${projectId}_complete_d${world.day}`;
   // `projectId` rides in the memory detail for dialogue/telemetry consumers;
   // built as a record (not an inline literal into the typed param) so the extra
-  // key survives createNpcMemoryEntry's detail spread without fighting the
-  // closed NpcMemoryDetail shape.
-  const communityDetail = { placeName: def.venueLabel, projectId: def.id };
+  // key survives createNpcMemoryEntry's detail spread. (D-1 fix: projectId is now
+  // a declared NpcMemoryDetail field + sanitizer-preserved, so it round-trips
+  // through save/load — dialogue echoes recover the project title after reload.)
+  //
+  // D-2 fix: the WITNESS memory's placeName is where the witness actually was —
+  // the community shelf at the plaza noticeboard (where contributions dispatch),
+  // NOT the project's venue (which may be Fern Hollow Orchard or Mirror Pond —
+  // a geographic lie if the witness was at the plaza). The PARTICIPANT (thanksFrom)
+  // memory keeps the project's venueLabel, since the thanksFrom resident is
+  // associated with the project's venue.
+  const witnessDetail = { placeName: 'the community shelf', projectId: def.id };
+  const participantDetail = { placeName: def.venueLabel, projectId: def.id };
 
   // Living-world interconnection: neighbors within LOCAL_WITNESS_RADIUS hold a
   // firsthand witness memory of the contribution moment.
@@ -541,7 +551,7 @@ export function contributeToCommunityProject(
         retention: 'durable',
         valence: 'warm',
         emotionalWeight: 66,
-        detail: communityDetail,
+        detail: witnessDetail,
       }),
       world.day,
     );
@@ -595,7 +605,7 @@ export function contributeToCommunityProject(
           retention: 'durable',
           valence: 'warm',
           emotionalWeight: 80,
-          detail: communityDetail,
+          detail: participantDetail,
         }),
         world.day,
       );
@@ -605,6 +615,7 @@ export function contributeToCommunityProject(
   let nextWorld: WorldState = {
     ...world,
     inventory: consumed.inventory,
+    sideFlags: { ...(world.sideFlags ?? {}), communityLastDay: world.day },
     communityProjects: {
       ...(world.communityProjects ?? {}),
       [projectId]: {
@@ -668,4 +679,128 @@ export function contributeToCommunityProject(
     ...(memoryUnlockedTitle !== undefined ? { memoryUnlockedTitle } : {}),
     completedNow,
   };
+}
+
+// --- NPC participation (Stage 2 advance) ----------------------------------------------
+
+/**
+ * The daily chance each `thanksFrom` resident contributes 1 unit to an
+ * incomplete community project during the day-advance. Low enough that the
+ * player remains the primary driver; high enough that the neighborhood visibly
+ * helps. With 2 thanksFrom residents per project, the expected NPC contribution
+ * is ~0.5 units/project/day — a project completes in ~12-16 days without the
+ * player, slow enough that the player's participation is always meaningful.
+ */
+const NPC_DAILY_CONTRIBUTION_CHANCE = 0.25;
+
+/**
+ * A sibling contribution reducer for NPC autonomous participation. Mirrors the
+ * player reducer's discipline but:
+ * - Does NOT consume from a satchel (NPCs gather materials from the neighborhood).
+ * - Contributes exactly 1 unit, and ONLY if `prevContributed < goal - 1` — the
+ *   NPC always leaves the finishing touch for the player, so the player's
+ *   contribution is what completes the project (triggering the completion burst,
+ *   keepsake, gratitude). This preserves the player's agency: NPCs do the heavy
+ *   lifting, the player finishes it.
+ * - Writes a participant NPC memory (subjectPlayer false, sourceKind participant,
+ *   tag shared_community) so the contribution is remembered in the neighborhood's
+ *   social record.
+ *
+ * Pure: never mutates the input world. Same single-writer law (never touches
+ * invitations/occupancy/activeActivity).
+ */
+export function npcContributeToCommunityProject(
+  world: WorldState,
+  residentId: ResidentId,
+  projectId: string,
+  itemId: PersonalItemId,
+): { ok: boolean; world: WorldState; reason?: string } {
+  const def = getCommunityProjectDef(projectId);
+  if (!def) return { ok: false, world, reason: 'unknown_project' };
+  if (isCommunityProjectComplete(world, projectId)) {
+    return { ok: false, world, reason: 'project_completed' };
+  }
+  const goalDef = def.accepts.find((a) => a.itemId === itemId);
+  if (!goalDef) return { ok: false, world, reason: 'item_not_accepted' };
+  const progress = getCommunityProjectProgress(world, projectId);
+  const prevContributed = Math.floor(Number(progress.contributed?.[itemId] ?? 0));
+  // The NPC leaves the finishing touch: only contribute if there are >1 units
+  // remaining (so the player can contribute the final unit that completes).
+  if (prevContributed >= goalDef.goal - 1) {
+    return { ok: false, world, reason: 'npc_leaves_finishing_touch' };
+  }
+  const nextContributed: Partial<Record<PersonalItemId, number>> = {
+    ...progress.contributed,
+    [itemId]: prevContributed + 1,
+  };
+  const nextProjects: CommunityProjectsState = {
+    ...(world.communityProjects ?? {}),
+    [projectId]: { contributed: nextContributed, completedDay: 0 },
+  };
+  // Participant NPC memory: the resident contributed to the shelf.
+  const nextNpcMemories = cloneNpcMemories(world.npcMemories);
+  const npcEventId = `community_npc_${projectId}_${residentId}_${world.day}`;
+  recordNpcMemoryInPlace(
+    nextNpcMemories,
+    residentId,
+    createNpcMemoryEntry({
+      id: npcEventId,
+      eventId: npcEventId,
+      tag: 'shared_community',
+      category: 'event',
+      subjectPlayer: false,
+      subjectResidents: [residentId],
+      provenance: 'firsthand',
+      sourceKind: 'participant',
+      createdDay: world.day,
+      createdMinute: Math.round(world.minuteOfDay),
+      importance: 3,
+      retention: 'durable',
+      valence: 'warm',
+      emotionalWeight: 58,
+      detail: { placeName: def.venueLabel, projectId: def.id },
+    }),
+    world.day,
+  );
+  return {
+    ok: true,
+    world: {
+      ...world,
+      communityProjects: nextProjects,
+      npcMemories: nextNpcMemories,
+    },
+  };
+}
+
+/**
+ * The day-advance community tick: for each incomplete GA-1 project, each
+ * `thanksFrom` resident has a deterministic daily chance (seeded per
+ * simSeed/day/resident/project) to contribute 1 unit of a needed accepted item
+ * via `npcContributeToCommunityProject`. Called from `advanceToNextDay`
+ * (storage.ts) after the day rolls.
+ *
+ * Deterministic: the same save on the same day produces the same NPC
+ * contributions (seeded RNG, no wall-clock). Bounded: at most 1 unit per
+ * resident per project per day, and never the finishing touch. No new
+ * WorldState field — NPC contributions write the SAME `communityProjects[id]
+ * .contributed` map the player writes, so the visual stage advances naturally.
+ */
+export function npcCommunityDayTick(world: WorldState): WorldState {
+  let next = world;
+  for (const def of COMMUNITY_PROJECTS) {
+    if (isCommunityProjectComplete(next, def.id)) continue;
+    for (const rid of def.thanksFrom) {
+      const rand = mulberry32(hashSeed(world.simSeed, world.day, 'npc_community', def.id, rid));
+      if (rand() >= NPC_DAILY_CONTRIBUTION_CHANCE) continue;
+      // Find an accepted item the NPC can contribute without completing (remaining > 1).
+      const progress = getCommunityProjectProgress(next, def.id);
+      const candidate = def.accepts.find(
+        (a) => Math.floor(Number(progress.contributed?.[a.itemId] ?? 0)) < a.goal - 1,
+      );
+      if (!candidate) continue; // every item is at goal-1 or above — player must finish
+      const res = npcContributeToCommunityProject(next, rid, def.id, candidate.itemId);
+      if (res.ok) next = res.world;
+    }
+  }
+  return next;
 }

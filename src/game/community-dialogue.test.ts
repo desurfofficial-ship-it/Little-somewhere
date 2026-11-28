@@ -127,8 +127,8 @@ test('SC-A-01: a witness neighbor echoes the in-progress contribution via shared
 
   // Build text reflects the venue the witness memory carries.
   const rootText = session.nodes[session.currentNodeId].text;
-  assert.ok(rootText.includes('Marigold Garland') || rootText.includes('Village Plaza'),
-    `basket echo text references the project/venue; got: "${rootText}"`);
+  assert.ok(rootText.includes('marigold garland') || rootText.includes('the community shelf'),
+    `basket echo text references the project/place; got: "${rootText}"`);
   assert.ok(rootText.includes('saw you'),
     `witness voice distinguishes from the participant voice; got: "${rootText}"`);
 

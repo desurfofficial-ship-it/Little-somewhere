@@ -386,6 +386,13 @@ function deriveTouchedToday(world: WorldState, day: number): EverydayPracticeId[
     touched.add('photography');
   }
 
+  // Stage 2 Community Projects: the communityLastDay sideFlag (stamped by
+  // contributeToCommunityProject) gates the 'community' touched-today signal
+  // (R-2 fix — previously the community practice had no today-channel).
+  if (isDoneToday(Number(world.sideFlags?.communityLastDay), day)) {
+    touched.add('community');
+  }
+
   // Stable canonical order, deduplicated by the Set above.
   return EVERYDAY_PRACTICE_ORDER.filter((id) => touched.has(id));
 }

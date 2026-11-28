@@ -13,6 +13,7 @@ import {
   pruneExpiredNpcMemoriesInPlace,
 } from './memories';
 import { createInitialNpcRuntime } from './simulation';
+import { npcCommunityDayTick } from './community';
 import {
   COTTAGE_WAKE_FACING,
   COTTAGE_WAKE_SPAWN,
@@ -826,5 +827,8 @@ export function advanceToNextDay(state: WorldState): WorldState {
   // idempotent and operate only on the optional overlay/group fields.
   driftNpcPerceptionsInPlace(reconciled, nextDay);
   reconcileSocialGroupsInPlace(reconciled);
-  return reconciled;
+  // Stage 2 Community Projects advance: NPC autonomous daily contributions —
+  // thanksFrom neighbors help advance community shelves during the day roll,
+  // leaving the finishing touch for the player. Deterministic + bounded.
+  return npcCommunityDayTick(reconciled);
 }
