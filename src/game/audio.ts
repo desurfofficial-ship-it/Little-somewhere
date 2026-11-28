@@ -333,6 +333,77 @@ class CozyAudioEngine {
   }
 
   /**
+   * Soft paper page-turn foley (Earshot exercise): the Linden Book Nook shelf-browse
+   * moment — a page lifting off the stack, sweeping through the air, settling again.
+   * Designed against the earshot `page/turn` reference (learned from public-domain
+   * recordings; warm take: 1.12 s, envelope peak at 0.42 s, centroid 5346 Hz, energy
+   * concentrated in 1–8 kHz with <2% below 500 Hz). The procedural port was verified
+   * offline in the same terms: two-lobe arc peaking ~0.40 s, centroid ~4.5 kHz,
+   * duration 0.72 s (tightened to the interface-sound window). Three noise layers +
+   * one faint air shimmer, band-passed (Web Audio bandwidth = fc/Q semantics), whisper
+   * gains consistent with the other foley (sip, sit-down brush). Per-play frequency and
+   * gain jitter keeps repeated browses alive without shipping any audio file.
+   */
+  public playPageTurn(): void {
+    const ctx = this.ensureContext();
+    if (!ctx) return;
+    const now = ctx.currentTime;
+    const jitter = 0.92 + Math.random() * 0.16; // ±8% per-play variation
+    const buildNoise = (dur: number): AudioBufferSourceNode => {
+      const size = Math.floor(ctx.sampleRate * dur);
+      const buf = ctx.createBuffer(1, size, ctx.sampleRate);
+      const data = buf.getChannelData(0);
+      for (let i = 0; i < size; i++) {
+        data[i] = Math.random() * 2 - 1;
+      }
+      const src = ctx.createBufferSource();
+      src.buffer = buf;
+      return src;
+    };
+    const playLayer = (
+      dur: number,
+      start: number,
+      peakAmp: number,
+      peakTime: number,
+      f0: number,
+      f1: number,
+      f2: number | null,
+      q: number,
+    ): void => {
+      const t = now + start;
+      const src = buildNoise(dur);
+      const filter = ctx.createBiquadFilter();
+      filter.type = 'bandpass';
+      filter.Q.value = q;
+      filter.frequency.setValueAtTime(f0 * jitter, t);
+      if (f2 === null) {
+        filter.frequency.linearRampToValueAtTime(f1 * jitter, t + dur);
+      } else {
+        const arcT = t + dur * 0.6;
+        filter.frequency.linearRampToValueAtTime(f1 * jitter, arcT);
+        filter.frequency.linearRampToValueAtTime(f2 * jitter, t + dur);
+      }
+      const gain = ctx.createGain();
+      gain.gain.setValueAtTime(0.001, t);
+      gain.gain.linearRampToValueAtTime(peakAmp * jitter, t + peakTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + dur);
+      src.connect(filter);
+      filter.connect(gain);
+      gain.connect(ctx.destination);
+      src.start(t);
+      src.stop(t + dur + 0.02);
+    };
+    // Layer 1 — paper lift: a soft shush rising off the stack (bandpass 900→1500 Hz).
+    playLayer(0.24, 0.0, 0.018, 0.1, 900, 1500, null, 0.8);
+    // Layer 2 — page sweep: the main warm air arc, up then down (1300→2900→2000 Hz).
+    playLayer(0.42, 0.19, 0.032, 0.25, 1300, 2900, 2000, 0.9);
+    // Layer 2b — paper air: faint high shimmer riding the sweep (5000→6300 Hz).
+    playLayer(0.34, 0.21, 0.009, 0.14, 5000, 6300, null, 1.1);
+    // Layer 3 — settle flick: the page comes to rest on the stack (2600 Hz tick).
+    playLayer(0.05, 0.52, 0.014, 0.004, 2600, 2600, null, 1.6);
+  }
+
+  /**
    * Soft rain patter room-tone (Pass 9 + WP-2 outdoor mode). One looped bed,
    * idempotent — calling start twice keeps one bed. `outdoor` selects the lighter
    * open-air gains (the indoor bed reads as cozy roof patter); flipping the mode

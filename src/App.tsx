@@ -589,7 +589,13 @@ export default function App() {
           commitWorld(res.nextWorld);
         }
         triggerPlayerPulse('interact', target.worldPos);
-        cozyAudio.playUiTap(1.04);
+        if (nid === 'nook_shelf') {
+          // Earshot exercise: the shelf browse is a paper moment — featured book
+          // lifts off the stack and turns. Foley instead of the generic UI tap.
+          cozyAudio.playPageTurn();
+        } else {
+          cozyAudio.playUiTap(1.04);
+        }
         setDialogueSession(null);
         setActivePropId(null);
         setPropCard({ ...res, subjectImageKey: subjectKeyForNookProp(nid) });

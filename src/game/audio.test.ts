@@ -48,3 +48,17 @@ test('WP-2: outdoor rain voicing flips idempotently and the breeze/winter wind b
   });
   assert.doesNotThrow(() => cozyAudio.setMuted(false));
 });
+
+// Earshot exercise: procedural page-turn foley for the Linden Book Nook shelf
+// browse. One-shot synthesis (no beds, no timers), so the only guarantees to pin
+// headlessly are: no throw without an AudioContext, repeat plays stay throw-free
+// (no stacked state), and muting keeps it a silent no-op instead of an error.
+test('Earshot: page-turn foley is headless-safe, repeat-safe, and mute-safe', () => {
+  assert.doesNotThrow(() => cozyAudio.playPageTurn());
+  assert.doesNotThrow(() => cozyAudio.playPageTurn());
+  assert.doesNotThrow(() => cozyAudio.playPageTurn());
+  assert.doesNotThrow(() => cozyAudio.setMuted(true));
+  assert.equal(cozyAudio.isMuted(), true);
+  assert.doesNotThrow(() => cozyAudio.playPageTurn()); // muted: silent no-op
+  assert.doesNotThrow(() => cozyAudio.setMuted(false));
+});

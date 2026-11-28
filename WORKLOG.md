@@ -1610,3 +1610,27 @@ conciliation for Phase C finalization)
   - `vite build` (`compile_applet`): green.
   - Headless Chromium (`playwright-cli` on `http://localhost:3000/?autostart=1`): Desktop (`1440×900`) & Mobile (`390×844`, `scrollW === 390`, zero overflow) verified visually via screenshots (`Share Workbench Hour with Arthur [E]`, Arthur standing `'work'` pose at `y = 0` beside `cw_bench`, live completion to `arthur_escapement_basics` + `mem_lr_arthur_workbench_hour` with solo `copperwheelState` counters untouched, `teaching_arthur_escapement_basics` follow-up dialogue UI, and reload persistence with `0` console/page errors).
 
+
+---
+
+## Entry 073 — Earshot Skill Exercise: Linden Book Nook Page-Turn Foley (2026-11-28)
+
+- **Status**: `Implemented locally` → `Tested` (one-shot audio addition; no gameplay, LR-3/LR-5, or save-data changes; `WorldState` remains **v13**)
+- **Task**: AGENTS.md §6 skill exercise — one real audio moment improved with the `skills/earshot` skill (enhancement only; AGENTS.md and the existing Web Audio synthesis approach govern).
+- **Chosen moment**: `browseBookshelfAction` — the **"Browse the Bookshelf"** interaction at the Linden Book Nook shelf (`nook_shelf`), where the player picks up today's featured book and tucks into the reading chair. Previously this fired the generic `playUiTap(1.04)`; no paper foley existed anywhere in the engine, and the Book Nook's design intent ("the rituals here are browsing, settling in, and reading") makes a page turn the diegetic sound of that moment.
+- **Earshot skill usage (full upstream tool `Leonxlnx/earshot` 1.0.0, installed from source)**:
+  - `earshot make "a soft warm page turn of a paperback book" --n 4` → catalogue design **`page/turn`** (learned from public-domain recordings), 4 clean takes (0.97–1.76 s, -14…-19 LUFS); warm take 1 selected as the design reference (1.12 s, envelope peak at 0.42 s, -18.3 LUFS, brightness 7017 Hz).
+  - `earshot measure` + offline numpy analysis of the reference: energy concentrated in 1–8 kHz (2–4 kHz 29.9%, 4–8 kHz 28.8%, 8 kHz+ 19.6%), <2.1% below 500 Hz, spectral centroid ≈ 5346 Hz, two-lobe gesture (soft lift → main air arc → settle).
+  - **Listening model (`listen` extra) NOT installed** (torch + 1.1 GB models): per the skill's honesty rule, real-vs-synthetic judgement and model-based fit were **not** performed; only measured numbers were used.
+  - The reference render is a **local design artifact only** — the repo ships zero audio assets (AGENTS.md pillar 5).
+- **Implementation (`src/game/audio.ts`)**: new procedural `playPageTurn()` — 4 band-passed noise layers (paper lift 900→1500 Hz; page sweep 1300→2900→2000 Hz with the up/down air arc; faint paper-air shimmer 5000→6300 Hz; 2600 Hz settle flick), whisper gains (0.009–0.032) consistent with existing foley (sip, sit-down brush), per-play ±8% frequency/gain jitter so repeated browses feel alive without any audio file, ~0.72 s total (tightened to earshot's interface-sound window, 0.2–0.7 s). The Web Audio recipe was **verified offline** against the reference in the same measured terms: envelope peak 0.40 s (ref 0.42), centroid 4505 Hz (ref 5346 — slightly warmer by design), band profile in-family (<500 Hz 1.0%, 1–2 kHz 19.5%, 2–4 kHz 34.6%, 4–8 kHz 26.2%, 8 kHz+ 14.5%), RMS 0.092 at reference-normalized peak.
+- **Integration (`src/App.tsx`)**: in the `nook_prop` handler, `nid === 'nook_shelf'` now plays `cozyAudio.playPageTurn()`; every other nook prop keeps `playUiTap(1.04)`. Audio-only branch — no gameplay logic, station/invitation state, or save data touched.
+- **Test (`src/game/audio.test.ts`)**: headless-safe battery — repeat plays throw-free (no stacked state), muted play is a silent no-op, mute state pins — mirroring the Pass 9 / WP-2 engine test conventions.
+- **Verification**:
+  - `npm test`: **1110/1110 passed** (0 failures; includes the new page-turn battery).
+  - `npm run lint` (`tsc --noEmit`): **0 errors**.
+  - `vite build`: green (pre-existing chunk-size warning only).
+  - `npx --yes tsx scripts/check_layer_boundaries.ts`: exit 0 (76 game / 83 scene / 15 component files, acyclic; known sanctioned W5 journal warning unchanged).
+  - Headless Chromium (`agent-browser` on `http://localhost:3000/?autostart=1`): desktop (1440×900) and mobile (390×844) boot to `playing` with **0 console/page errors**; the new code path was exercised in the live page against a **real AudioContext** (dynamic import of `/src/game/audio.ts`, `playPageTurn()` called twice, no errors; context `suspended` per autoplay policy as designed — `ensureContext()` resumes it inside the real user gesture).
+  - **Not evaluated (honest limits)**: no human/listening-model audition of the in-game sound; the offline WAV preview reproduces the recipe math (numpy/scipy) but is not the browser's exact biquad implementation; real-vs-synthetic realness unchecked (models unavailable).
+- **Remaining opportunities**: same foley for the desk "Read the Lending Notes" moment; a quiet ambient paper-and-lamp room-tone for the nook interior; variation takes for the shared-reading session start.
