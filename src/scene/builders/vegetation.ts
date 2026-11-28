@@ -1029,19 +1029,37 @@ export function buildMirrorPondAndBridge(
   brassMergedBridge.name = 'bridge_brass_caps';
   bridgeGroup.add(brassMergedBridge);
 
-  // Hanging iron-and-brass lantern on the south-east rail post
+  // Hanging iron-and-brass lanterns on BOTH rail posts for balanced warm framing.
+  // Dream Loop: the original bridge had only a single lantern on the south-east
+  // post (x=+1.12). Adding a matching lantern on the north-west post (x=-1.12)
+  // balances the composition, doubles the warm light points at golden/dusk, and
+  // follows VISUAL_IDENTITY.md §5 (lanterns visibly brighten across golden→dusk).
+  // South-East lantern (original)
   ironBridgeGeos.push(bBake(new THREE.CylinderGeometry(0.045, 0.055, 0.52, 6), [1.12, 1.92, 1.5]));
   ironBridgeGeos.push(bBake(new THREE.BoxGeometry(0.24, 0.045, 0.045), [1.24, 2.14, 1.5]));
   ironBridgeGeos.push(bBake(new THREE.ConeGeometry(0.11, 0.08, 6), [1.32, 2.1, 1.5]));
+  // North-West lantern (Dream Loop addition — mirrored across the bridge centerline)
+  ironBridgeGeos.push(bBake(new THREE.CylinderGeometry(0.045, 0.055, 0.52, 6), [-1.12, 1.92, 1.5]));
+  ironBridgeGeos.push(bBake(new THREE.BoxGeometry(0.24, 0.045, 0.045), [-1.24, 2.14, 1.5]));
+  ironBridgeGeos.push(bBake(new THREE.ConeGeometry(0.11, 0.08, 6), [-1.32, 2.1, 1.5]));
   const ironMergedBridge = new THREE.Mesh(mergeGeometries(ironBridgeGeos)!, ironMat);
   ironMergedBridge.name = 'bridge_lantern_iron';
   bridgeGroup.add(ironMergedBridge);
+  // South-East lantern bulb (original)
   const bridgeLanternBulb = new THREE.Mesh(
     new THREE.CylinderGeometry(0.075, 0.06, 0.15, 6),
     pierLanternGlassMat,
   );
   bridgeLanternBulb.position.set(1.32, 2.0, 1.5);
   bridgeGroup.add(bridgeLanternBulb);
+  // North-West lantern bulb (Dream Loop addition — shares pierLanternGlassMat
+  // so it receives the same phase-based emissive intensity adjustment via lanternMats)
+  const bridgeLanternBulbNW = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.075, 0.06, 0.15, 6),
+    pierLanternGlassMat,
+  );
+  bridgeLanternBulbNW.position.set(-1.32, 2.0, 1.5);
+  bridgeGroup.add(bridgeLanternBulbNW);
 
   group.add(bridgeGroup);
 
