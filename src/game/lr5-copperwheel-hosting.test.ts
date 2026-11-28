@@ -140,6 +140,31 @@ test('LR5-02: enter after the away-afternoon window expires archives with no occ
   assert.match(entered.toast, /passed|expired|quietly/);
 });
 
+test('LR5-02b: entering inside the inherited [690,719] dead zone archives host_unavailable with no phantom occupant', () => {
+  // Inherited cross-venue quirk (NOT introduced by LR-5): a morning offer's
+  // anchored window caps at 719 (away-afternoon rule) while the phase table
+  // switches to afternoon at 690, and the enter reconcile re-checks
+  // availability against the CURRENT phase slot. Clara (8.9 m) and Nora
+  // (7.1 m) share the identical span; computeOfferWindow is chassis code
+  // outside LR-5 scope. Pin: entry inside the dead zone takes the live-window
+  // host-unavailable archive branch (not the expiry branch) — visible line,
+  // no phantom occupant, nothing granted.
+  const world = stageArthurWorld(WORK_DAY, 500);
+  const staged = stageAcceptedVisit(world);
+  assert.equal(staged.invitations?.active?.windowEndMinute, 719);
+  const deadZone = { ...staged, minuteOfDay: 700 };
+  const entered = enterCopperwheelAction(deadZone);
+  assert.equal(entered.nextWorld.playerLocation, 'copperwheel_interior');
+  assert.equal(entered.nextWorld.occupancy, null);
+  assert.equal(entered.nextWorld.invitations?.active, null);
+  assert.equal(entered.nextWorld.activeActivity, null);
+  const historyRow = entered.nextWorld.invitations?.history.at(-1);
+  assert.ok(historyRow);
+  assert.equal(historyRow.outcome, 'expired');
+  assert.equal(historyRow.reason, 'host_unavailable');
+  assert.match(entered.toast, /step out|passed|quietly/);
+});
+
 test('LR5-03: shared completion leaves every Copperwheel counter byte-identical', () => {
   const world = stageArthurWorld(WORK_DAY);
   const staged = stageAcceptedVisit(world);
@@ -236,17 +261,29 @@ test('LR5-08: schedule matrix — morning/dusk eligible, afternoon auto-blocked,
   const dusk = stageArthurWorld(WORK_DAY, 1150);
   assert.deepEqual(canOfferInvitation(dusk, 'arthur', 'share_workbench_hour'), { eligible: true });
 
-  // D-5C: availability consults the RAW schedule reader — a runtime position
-  // far from the yard slot does not flip eligibility (a reconciled override
-  // is a reconciliation state, not a hosting state).
+  // D-5C: availability consults the RAW `RESIDENTS[id].schedule` reader — a
+  // reconciled override is a reconciliation state, not a hosting state.
+  // Discriminating scenario of record: with `claraArthurReconciled` set at
+  // golden, the override-aware reader (`getResidentScheduleSlot`) would place
+  // Arthur at the reconciled Gazebo slot {1.1,-6.1} = 7.84 m from home (FAILS
+  // the 6 m gate) while the raw reader keeps the authored Gazebo Steps slot
+  // {3.4,-5.8} = 5.69 m (passes). Asserting availability === true here binds
+  // the raw-reader decision: swap the reader to override-aware and this pin
+  // fails.
+  const reconciledGolden = {
+    ...stageArthurWorld(WORK_DAY, 1000),
+    flags: { ...createFreshWorldState().flags, claraArthurReconciled: true },
+  };
+  assert.equal(isHostAvailableForActivity(reconciledGolden, 'arthur'), true, 'D-5C: raw reader ignores the reconciled override slot');
+
+  // A runtime position far from the yard slot likewise does not flip
+  // morning eligibility (the reader never consults npcRuntime).
+  const base = stageArthurWorld(WORK_DAY, 495);
   const rawReader = {
-    ...stageArthurWorld(WORK_DAY, 495),
+    ...base,
     npcRuntime: {
-      ...stageArthurWorld(WORK_DAY, 495).npcRuntime,
-      arthur: {
-        ...stageArthurWorld(WORK_DAY, 495).npcRuntime.arthur,
-        position: { x: -40, z: 40 },
-      },
+      ...base.npcRuntime,
+      arthur: { ...base.npcRuntime.arthur, position: { x: -40, z: 40 } },
     },
   };
   assert.equal(isHostAvailableForActivity(rawReader, 'arthur'), true);
@@ -419,6 +456,13 @@ test('LR5-13: SF integration picks Arthur up automatically — capability rows, 
   assert.equal(unvisitedRows[0].eligibility.eligible, false);
   assert.equal(unvisitedRows[0].eligibility.reason, 'story_gate_closed');
   assert.match(getInvitationReasonLabel('story_gate_closed'), /door/);
+
+  // The shared offer_phase_closed label must stay phase-neutral: Arthur's def
+  // offers morning AND dusk, so the historic morning-only copy would state a
+  // falsehood about his own ledger row (QA-04 label-slot obligation class).
+  const phaseLabel = getInvitationReasonLabel('offer_phase_closed');
+  assert.equal(/morning/i.test(phaseLabel), false, 'label must not claim morning-only');
+  assert.match(phaseLabel, /hours|time of day/);
 
   // Cancellation: the framework path archives with the machine reason.
   const staged = stageAcceptedVisit(world);

@@ -6,6 +6,7 @@ import {
   COPPERWHEEL_SEAT_SPOTS,
   getProjectForDay,
 } from '../game/copperwheel';
+import { CW_OCCUPANT_POS } from '../game/occupancy';
 import { createFreshWorldState } from '../game/storage';
 import { MaterialPalette, STORYBOOK_PALETTE } from './materials';
 import { collectShellSides } from './roomFraming';
@@ -38,6 +39,15 @@ test('copperwheel interior 3D rig exposes one hit proxy per station plus the win
       mesh.userData.targetKind === 'seat' && mesh.userData.targetId === COPPERWHEEL_SEAT_SPOTS[0].id,
   );
   assert.ok(seatProxy, 'window armchair seat proxy present');
+
+  // LR-5 L5-S6 mirror pin: the workbench stool is the occupant seat anchor.
+  // Its position MUST equal CW_OCCUPANT_POS so the seated Arthur rig and the
+  // authored furniture never drift apart (same contract class as the
+  // obstacle-mirror tests).
+  const stool = rig.group.children.find((child) => child.userData.copperwheelStool);
+  assert.ok(stool, 'workbench stool group present and tagged');
+  assert.equal(stool.position.x, CW_OCCUPANT_POS.x, 'stool x mirrors CW_OCCUPANT_POS');
+  assert.equal(stool.position.z, CW_OCCUPANT_POS.z, 'stool z mirrors CW_OCCUPANT_POS');
 
   const box = new THREE.Box3().setFromObject(rig.group);
   assert.ok(box.min.y >= -0.35 && box.max.y <= 4.3, `Bounds y: ${box.min.y.toFixed(2)}..${box.max.y.toFixed(2)}`);

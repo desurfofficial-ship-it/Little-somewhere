@@ -417,6 +417,9 @@ export function buildCopperwheelInterior(
   // only — the cw_bench obstacle table is unchanged (footprint mirrors the
   // cw_bench box; the stool sits outside it, at the seated occupant anchor).
   const stoolGroup = new THREE.Group();
+  // Mirror pin: this position MUST equal CW_OCCUPANT_POS (src/game/occupancy.ts)
+  // — the occupant rig seats on the stool. Asserted by the scene mirror test.
+  stoolGroup.userData.copperwheelStool = true;
   stoolGroup.position.set(-1.5, 0, -1.22);
   const stoolSeat = new THREE.Mesh(trackGeo(new THREE.CylinderGeometry(0.17, 0.17, 0.05, 10)), mapleMat);
   stoolSeat.position.y = 0.5;

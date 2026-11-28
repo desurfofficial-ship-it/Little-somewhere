@@ -70,8 +70,11 @@ export const INVITATION_REASON_LABELS: Readonly<Record<string, string>> = {
   spacing_cooldown: 'You shared a moment recently — let it breathe for a day or two.',
   host_guarded: 'They seem guarded today; maybe a kind word first.',
   tier_too_low: 'You are still getting to know each other.',
-  // LR-3 D10 (offerPhases gate — doc 05 §7.2; QA-04 label-slot obligation)
-  offer_phase_closed: 'That plan only happens in the morning — catch them earlier in the day.',
+  // LR-3 D10 (offerPhases gate — doc 05 §7.2; QA-04 label-slot obligation).
+  // Phase-neutral wording of record (LR-5): Clara offers ['morning'] while
+  // Arthur offers ['morning','dusk'], so the shared label must not claim a
+  // specific phase — the def, not the label, owns the hours.
+  offer_phase_closed: 'That plan keeps to its own hours — catch your host at the right time of day.',
   host_unavailable: 'They are away from home right now.',
   // LR-5 D-5A (story gate — doc 24 §5): the def-level requiresSideFlag gate
   story_gate_closed: 'That door hasn’t opened for you yet.',

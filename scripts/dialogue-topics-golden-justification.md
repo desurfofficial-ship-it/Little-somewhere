@@ -66,7 +66,7 @@ Exactly four topics were added — Arthur's invitation quartet (`src/game/dialog
 
 ## Integrity statement
 
-- All `96` pre-existing entries (`0..88` shifted per the fixed invitation-aggregator position, `93..99` shifted by +4) are **content-identical field-for-field** (id, residentId, category, priority, historyScope, condition) — the registry's fixed module order is preserved exactly (no reorder, no mutation).
+- All `96` pre-existing entries are **content-identical field-for-field** (id, residentId, category, priority, historyScope, condition). Entries `0..88` are position-identical (they precede the fixed invitation-aggregator insert point); former `89..95` shift to `93..99` (+4). The registry's fixed module order is preserved exactly (no reorder, no mutation).
 - The LR-4 teaching tail-pin holds: `teaching_nora_featured_reading` remains the last topic (index 99).
 - No existing topic's condition, priority, category, or text metadata changed. The golden contract test (`dialogueRegistry.test.ts`) passes against the regenerated snapshot.
 - The quartet topics reference the day's bench project (`getProjectForDay`) at build time — dynamic text, static metadata — so future project-cycle changes cannot alter topic identity or ordering. The bench-rest day is handled explicitly so no copy advertises work the rolled felt is not doing.

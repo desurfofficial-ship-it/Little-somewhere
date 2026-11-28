@@ -194,13 +194,14 @@ export function canOfferInvitation(
   }
 
   // [LR-5, D-5A (doc 24 §5)] Optional def-level story gate: Arthur's
-  // workbench-hour invitation only opens after the player has stepped inside
-  // his workshop (`copperwheelVisited` sideFlag, set by
-  // enterCopperwheelAction) — discoverability rides the authored first-visit
-  // arc, the Nora-postcard precedent. Field absence (Nora/Clara) leaves
-  // eligibility byte-identical. Checked with the other def-level
-  // preconditions, before the D10 phase gate, so the normative order stays
-  // tier → story → phase → roster → availability.
+  // workbench-hour invitation only opens once `copperwheelVisited` is truthy
+  // — set by the authored workshop-opening arc (the pre-existing
+  // side_arthur_workshop_bench topic sets the same side flag through its
+  // dialogue choice) and by enterCopperwheelAction on room entry, so
+  // discoverability rides the arc either way (the Nora-postcard precedent).
+  // Field absence (Nora/Clara) leaves eligibility byte-identical. Checked
+  // with the other def-level preconditions, before the D10 phase gate, so
+  // the normative order stays tier → story → phase → roster → availability.
   if (activity.requiresSideFlag && !world.sideFlags?.[activity.requiresSideFlag]) {
     return { eligible: false, reason: 'story_gate_closed' };
   }
@@ -496,8 +497,9 @@ export interface ReconciledInteriorEntry {
  *
  * Single owner of occupant creation, as part of the enter reducer's transaction
  * (doc 05 §5.2 — the helper IS the enter reducer's reconcile step, not a second
- * writer). Both invite-gated venues (nook + bakery) call this; cottage /
- * greenhouse / copperwheel enters remain untouched (behavioral no-op avoidance,
+ * writer). All three invite-gated venues (nook + bakery + copperwheel, the
+ * latter adopted by LR-5's L5-S3) call this; cottage / greenhouse enters remain
+ * untouched (no hosted activity defs there; behavioral no-op avoidance,
  * doc 05 §9.3). Pure, deterministic, allocation-light.
  *
  * Contract (order normative, doc 05 §5.1):

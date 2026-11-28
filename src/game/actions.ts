@@ -3863,9 +3863,13 @@ export function enterCopperwheelAction(world: WorldState): { nextWorld: WorldSta
       playerFacing: COPPERWHEEL_DOOR_DEFAULT_FACING,
       playerPosture: 'standing',
       playerSeatId: null,
-      // [LR-5, D-5A] First entry opens Arthur's workbench-hour story gate.
-      // sideFlags is a generic Record — additive key, sanitizeSideFlags passes
-      // it through, and old saves hydrate falsy (gate closed until first visit).
+      // [LR-5, D-5A] Entry opens Arthur's workbench-hour story gate. Note the
+      // gate ALSO opens through the authored workshop arc — the pre-existing
+      // side_arthur_workshop_bench topic sets the same copperwheelVisited
+      // side flag via its dialogue choice (dialogue/interiors/copperwheel.ts),
+      // so discoverability rides the arc either way. sideFlags is a generic
+      // Record — additive key, sanitizeSideFlags passes it through, and old
+      // saves hydrate falsy (gate closed until the arc plays).
       sideFlags: { ...(working.sideFlags ?? {}), copperwheelVisited: true },
     },
     toast,
