@@ -46,6 +46,11 @@ function stagedWorld(): WorldState {
   world.communityProjects = {
     marigold_garland: { contributed: { meadow_posy: 3 }, completedDay: 0 },
   };
+  // D-1 fix: the community readCount now reads from the player-only
+  // contribution counter (sideFlags.communityPlayerContributionCount)
+  // instead of countCommunityContributions. The staged world simulates 3
+  // player contributions, so we set the counter to match.
+  world.sideFlags = { ...world.sideFlags, communityPlayerContributionCount: 3 };
   return world;
 }
 
@@ -430,4 +435,30 @@ test('EP-08: journal Daily Practices card exists for staged worlds and stays qui
 
   // The line formatter itself is quiet for an empty day.
   assert.equal(formatTouchedTodayLine([]), 'Nothing tended yet today — the porch is patient.');
+});
+
+// ── D-1 regression: NPC contributions must NOT inflate player's community practice ──
+
+test('D-1 regression: NPC-only contributions do not inflate player community practice count', () => {
+  const world = freshWorld();
+  // Simulate NPC contributions without player participation: set communityProjects
+  // directly (as npcCommunityDayTick would), but do NOT set
+  // communityPlayerContributionCount (the player-only counter).
+  world.communityProjects = {
+    marigold_garland: { contributed: { meadow_posy: 3 }, completedDay: 0 },
+    orchard_lanterns: { contributed: { meadow_posy: 2 }, completedDay: 0 },
+  };
+  // No communityPlayerContributionCount in sideFlags — player never contributed.
+  const profile = deriveEverydayPracticeProfile(world);
+  const community = practiceOf(profile, 'community');
+  assert.equal(community.count, 0, 'NPC-only contributions must NOT inflate player community count');
+  assert.equal(community.tierLabel, 'Unmarked Shelf', 'player remains at bottom tier');
+});
+
+test('D-1 regression: player contributions ARE counted via communityPlayerContributionCount', () => {
+  const world = freshWorld();
+  world.sideFlags = { ...world.sideFlags, communityPlayerContributionCount: 5 };
+  const profile = deriveEverydayPracticeProfile(world);
+  const community = practiceOf(profile, 'community');
+  assert.equal(community.count, 5, 'player contributions counted correctly');
 });

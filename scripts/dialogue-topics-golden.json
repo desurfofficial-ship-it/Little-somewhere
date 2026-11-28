@@ -1,5 +1,5 @@
 {
- "count": 101,
+ "count": 105,
  "topics": [
   {
    "index": 0,
@@ -1562,6 +1562,82 @@
   },
   {
    "index": 99,
+   "id": "everyday_garden_witness_echo",
+   "residentId": "any",
+   "category": "event_reaction",
+   "priority": 10,
+   "historyScope": null,
+   "condition": {
+    "requiresNpcMemory": {
+     "tags": [
+      "garden"
+     ],
+     "unmentionedOnly": true,
+     "maxDaysOld": 4
+    },
+    "notSeenToday": true
+   }
+  },
+  {
+   "index": 100,
+   "id": "everyday_garden_noticer",
+   "residentId": "any",
+   "category": "event_reaction",
+   "priority": 6,
+   "historyScope": null,
+   "condition": {
+    "requiresNpcMemory": {
+     "tags": [
+      "garden"
+     ],
+     "unmentionedOnly": false,
+     "maxDaysOld": 4
+    },
+    "notSeenToday": true,
+    "maxSeenCount": 2
+   }
+  },
+  {
+   "index": 101,
+   "id": "everyday_fishing_witness_echo",
+   "residentId": "any",
+   "category": "event_reaction",
+   "priority": 10,
+   "historyScope": null,
+   "condition": {
+    "requiresNpcMemory": {
+     "tags": [
+      "fishing"
+     ],
+     "unmentionedOnly": true,
+     "maxDaysOld": 4,
+     "subjectPlayer": true
+    },
+    "notSeenToday": true
+   }
+  },
+  {
+   "index": 102,
+   "id": "everyday_fishing_noticer",
+   "residentId": "any",
+   "category": "event_reaction",
+   "priority": 6,
+   "historyScope": null,
+   "condition": {
+    "requiresNpcMemory": {
+     "tags": [
+      "fishing"
+     ],
+     "unmentionedOnly": false,
+     "maxDaysOld": 4,
+     "subjectPlayer": true
+    },
+    "notSeenToday": true,
+    "maxSeenCount": 2
+   }
+  },
+  {
+   "index": 103,
    "id": "teaching_nora_featured_reading",
    "residentId": "nora",
    "category": "event_reaction",
@@ -1582,7 +1658,7 @@
    }
   },
   {
-   "index": 100,
+   "index": 104,
    "id": "teaching_arthur_escapement_basics",
    "residentId": "arthur",
    "category": "event_reaction",

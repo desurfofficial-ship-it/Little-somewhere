@@ -37,6 +37,7 @@ import { GREENHOUSE_CROPS, createInitialGreenhousePlot, stageForNights } from '.
 import { applyItemGrants, consumeItemFromInventory, getItemCount } from './inventory';
 import { PERSONAL_ITEM_MAP } from './inventory';
 import { deriveEverydayPracticeProfile } from './everyday';
+import { DIALOGUE_TOPICS } from './dialogue';
 import type { WorldState, GardenState, GreenhousePlotState, PersonalItemId } from './types';
 
 // ── Registry ──────────────────────────────────────────────────────────────────
@@ -746,4 +747,41 @@ test('CRITICAL: twin determinism via arrival hook pathway', () => {
   assert.equal(ca!.lastTendedDay, cb!.lastTendedDay, 'twin lastTendedDay matches');
   assert.equal(ca!.totalPlanted, cb!.totalPlanted, 'twin totalPlanted matches');
   assert.deepEqual(simA, simB, 'twin runs identical via arrival hook');
+});
+
+// ── D-2 regression: tendResidentGardenInPlace writes witness memory ──
+
+test('D-2 regression: tendResidentGardenInPlace writes garden-tagged witness memory for nearby NPCs', () => {
+  const world = createFreshWorldState();
+  // Position a witness NPC near Clara's garden target.
+  // Clara's herb garden target is at (-12.4, -15.5) per residents.ts.
+  world.npcRuntime.mina.position = { x: -12.0, z: -15.0 };
+  world.npcRuntime.mina.posture = 'standing';
+  // Ensure Clara is at the garden.
+  world.npcRuntime.clara.position = { x: -12.4, z: -15.5 };
+  // Tend Clara's garden.
+  tendResidentGardenInPlace(world, 'clara_herb_garden', 'clara');
+  // Mina should have a witness memory with tag 'garden'.
+  const minaMemories = world.npcMemories?.mina ?? [];
+  const gardenMem = minaMemories.find((m) => m.tag === 'garden');
+  assert.ok(gardenMem, 'Mina has a garden-tagged witness memory after seeing Clara tend');
+  assert.equal(gardenMem!.subjectResidents?.[0], 'clara', 'memory subject is Clara');
+  assert.equal(gardenMem!.sourceKind, 'witness', 'memory is firsthand witness');
+});
+
+test('D-2 regression: GARDEN_ECHO_TOPICS registered in DIALOGUE_TOPICS', () => {
+  // Verify the garden echo topics are in the dialogue registry.
+  
+  const gardenTopicIds = DIALOGUE_TOPICS.filter((t) =>
+    t.id?.startsWith('everyday_garden_')
+  ).map((t) => t.id);
+  assert.ok(gardenTopicIds.length >= 2, `GARDEN_ECHO_TOPICS registered: ${gardenTopicIds.join(', ')}`);
+});
+
+test('D-3 regression: FISHING_ECHO_TOPICS registered in DIALOGUE_TOPICS', () => {
+  
+  const fishingTopicIds = DIALOGUE_TOPICS.filter((t) =>
+    t.id?.startsWith('everyday_fishing_')
+  ).map((t) => t.id);
+  assert.ok(fishingTopicIds.length >= 2, `FISHING_ECHO_TOPICS registered: ${fishingTopicIds.join(', ')}`);
 });

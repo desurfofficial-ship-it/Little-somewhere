@@ -182,6 +182,11 @@ const PRACTICE_DEFS: Record<EverydayPracticeId, EverydayPracticeDef> = {
           total += safeCounter(g.totalHarvests);
         }
       }
+      // D-6 fix: cottage sill planter is a daily gardening action that grants
+      // chamomile — it should count toward the gardening practice tier, not
+      // just the touched-today flag. The planterTendedCount sideFlag is
+      // incremented each time the player tends the sill planter.
+      total += safeCounter(world.sideFlags?.planterTendedCount);
       return total;
     },
     tiers: GARDENING_TIERS,
@@ -255,7 +260,11 @@ const PRACTICE_DEFS: Record<EverydayPracticeId, EverydayPracticeDef> = {
     label: 'Community Shelves',
     blurb:
       'Leaving a bloom or a field find in the plaza basket helps build something the whole town keeps.',
-    readCount: (world) => safeCounter(countCommunityContributions(world)),
+    // D-1 fix: read the player-only contribution counter instead of
+    // countCommunityContributions (which sums ALL contributions including
+    // NPC autonomous ones). This prevents NPC contributions from inflating
+    // the player's community practice tier.
+    readCount: (world) => safeCounter(world.sideFlags?.communityPlayerContributionCount),
     tiers: COMMUNITY_TIERS,
   },
   photography: {

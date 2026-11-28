@@ -66,3 +66,8 @@ Five topics were added strictly following the established LR-2/LR-3 + LR-4 appen
 
 - All `96` pre-existing topic entries remain **content-identical** (zero condition, priority, category, or ordering mutations; `0..88` position-identical, `89..95` shifted cleanly by `+4` for `INVITATION_TOPICS` concatenation).
 - All LR-3 (`share_morning_pastry`) and LR-4 (`teaching_nora_featured_reading`) topics remain untouched.
+
+
+## 2026-11-28 — Everyday Activity Social Integration (+4 topics)
+
+Appended GARDEN_ECHO_TOPICS (2 topics: everyday_garden_witness_echo, everyday_garden_garden_noticer) and FISHING_ECHO_TOPICS (2 topics: everyday_fishing_witness_echo, everyday_fishing_noticer) between PHOTO_ECHO_TOPICS and TEACHING_TOPICS. These close the social afterlife loop for gardening (witness memories from tendResidentGardenInPlace) and fishing (witness memories from performFishingAction). Golden snapshot regenerated 101 → 105.

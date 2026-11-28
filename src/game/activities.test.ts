@@ -361,3 +361,17 @@ test('H-1 companion pin: a morning-entered visit completing after the 690 phase 
   assert.equal(res.world.invitations.active, null, 'invite archived as completed');
   assert.equal(res.world.occupancy, null, 'occupancy cleared');
 });
+
+// ── D-5 regression: shared activity completion must NOT increment favorsCompleted ──
+
+test('D-5 regression: shared activity completion does not increment favorsCompleted', () => {
+  // favorsCompleted is reserved for story-milestone favors (relationships.ts:425).
+  // Shared activities grant affinity + reliability, not favorsCompleted.
+  const world = createFreshWorldState() as WorldState;
+  const before = world.playerRelations?.clara?.favorsCompleted ?? 0;
+  const res = completeSharedActivity(world, 'share_morning_pastry');
+  if (res.ok) {
+    const after = res.world.playerRelations?.clara?.favorsCompleted ?? 0;
+    assert.equal(after, before, 'favorsCompleted unchanged by shared activity completion');
+  }
+});

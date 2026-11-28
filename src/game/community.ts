@@ -615,7 +615,18 @@ export function contributeToCommunityProject(
   let nextWorld: WorldState = {
     ...world,
     inventory: consumed.inventory,
-    sideFlags: { ...(world.sideFlags ?? {}), communityLastDay: world.day },
+    sideFlags: {
+      ...(world.sideFlags ?? {}),
+      communityLastDay: world.day,
+      // D-1 fix: player-only contribution counter. The everyday practice
+      // community readCount reads this instead of countCommunityContributions
+      // (which sums ALL contributions including NPC autonomous ones). This
+      // prevents NPC contributions from inflating the player's practice tier.
+      communityPlayerContributionCount:
+        (typeof world.sideFlags?.communityPlayerContributionCount === 'number'
+          ? Math.max(0, Math.floor(world.sideFlags.communityPlayerContributionCount))
+          : 0) + actualAmount,
+    },
     communityProjects: {
       ...(world.communityProjects ?? {}),
       [projectId]: {
