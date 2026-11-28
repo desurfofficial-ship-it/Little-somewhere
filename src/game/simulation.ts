@@ -40,7 +40,7 @@ import {
   cloneNpcPerceptions,
   getPerceivedTierFast,
 } from './perceptions';
-import { cloneGardens, tendResidentGardenInPlace } from './gardens';
+import { cloneGardens, getGardenState, tendResidentGardenInPlace } from './gardens';
 import {
   computeSeparationVector,
   computeWaypointPath,
@@ -571,9 +571,25 @@ function selectActivityForResident(
     const candActivityId = `${phase}:${cand.id}`;
     if (rt.blockedActivityIds?.includes(candActivityId)) continue;
 
+    // Resident-garden eligibility: the garden-tend candidate fires at most once
+    // per in-game day. Skip it entirely when the garden was already tended today
+    // (lastTendedDay === world.day). When it IS eligible, apply a strong "my
+    // garden needs me" urgency boost (below) so the candidate reliably overcomes
+    // the anchor's continuation bonus — without this, baseWeight 1.0 never wins
+    // and the autonomous-tending feature stays inert (verified: 0 selections
+    // across 30k ticks pre-fix). After tending, lastTendedDay is set and this
+    // branch skips the candidate for the rest of the day, preventing repeat visits.
+    const gardenNeedsTend =
+      cand.gardenId &&
+      !(getGardenState(world, cand.gardenId)?.lastTendedDay === world.day);
+    if (cand.gardenId && !gardenNeedsTend) continue;
+
     const candGoalKind = cand.goalKind ?? null;
 
     let weight = cand.baseWeight;
+    if (gardenNeedsTend) {
+      weight *= 1.8;
+    }
     if (weather === 'light_rain') {
       if (cand.preferredWeathers?.includes('light_rain') || cand.sheltered) {
         weight *= def.traits.rainBehavior === 'umbrella_stroll' ? 1.15 : 2.1;

@@ -2956,6 +2956,18 @@ export function plantInGardenAction(
   if (!def) {
     return { ok: false, nextWorld: world, toast: 'That garden does not exist.' };
   }
+  // Resident-owned gardens are tended autonomously by their NPC owner. The
+  // player may NOT plant in these beds — any crop the player sows would be
+  // harvested and silently composted by the NPC, permanently consuming the
+  // player's seed with no yield. Watering (co-tending) remains allowed since
+  // it costs no inventory. See harvestFromGardenAction for the matching guard.
+  if (def.ownerId !== 'player' && def.ownerId !== 'community') {
+    return {
+      ok: false,
+      nextWorld: world,
+      toast: `${def.label.split("'")[0]} tends this bed — save your seeds for a community garden or the greenhouse.`,
+    };
+  }
   // Ensure exterior location (outdoor beds are exterior props, not interiors).
   if (world.playerLocation !== 'exterior') {
     return { ok: false, nextWorld: world, toast: 'Step outside to tend the garden beds.' };
@@ -3101,6 +3113,19 @@ export function harvestFromGardenAction(
   const def = getGardenDef(gardenId);
   if (!def) {
     return { ok: false, nextWorld: world, toast: 'That garden does not exist.' };
+  }
+  // Resident-owned gardens are tended autonomously by their NPC owner; the NPC
+  // composts the harvest silently (no item grant). The player may NOT harvest
+  // these beds — otherwise the NPC sows/waters for free and the player reaps
+  // the crop, creating a resource-production exploit. Watering (co-tending)
+  // remains intentionally allowed; planting and harvesting are both gated.
+  // See tendResidentGardenInPlace in gardens.ts for the NPC path.
+  if (def.ownerId !== 'player' && def.ownerId !== 'community') {
+    return {
+      ok: false,
+      nextWorld: world,
+      toast: `${def.label} is a resident's garden — the harvest composts back into the bed.`,
+    };
   }
   if (world.playerLocation !== 'exterior') {
     return { ok: false, nextWorld: world, toast: 'Step outside to harvest the garden beds.' };
