@@ -411,6 +411,30 @@ export function buildCopperwheelInterior(
   tagShell(loupeGlass, 'N', true);
   benchGroup.position.z = -1.97;
 
+  // LR-5 (doc 24 §2.1 L5-S6): Arthur's workbench stool, just south of the
+  // bench front apron. The occupant rig seats on it during a live workbench
+  // hour (seat height matches the shared 0.5 occupant sync constant). Visual
+  // only — the cw_bench obstacle table is unchanged (footprint mirrors the
+  // cw_bench box; the stool sits outside it, at the seated occupant anchor).
+  const stoolGroup = new THREE.Group();
+  stoolGroup.position.set(-1.5, 0, -1.22);
+  const stoolSeat = new THREE.Mesh(trackGeo(new THREE.CylinderGeometry(0.17, 0.17, 0.05, 10)), mapleMat);
+  stoolSeat.position.y = 0.5;
+  stoolSeat.castShadow = true;
+  stoolGroup.add(stoolSeat);
+  const stoolLegGeo = trackGeo(new THREE.CylinderGeometry(0.025, 0.03, 0.5, 6));
+  for (const [lx, lz] of [
+    [0.12, 0.0],
+    [-0.06, 0.1],
+    [-0.06, -0.1],
+  ]) {
+    const stoolLeg = new THREE.Mesh(stoolLegGeo, mapleEdgeMat);
+    stoolLeg.position.set(lx, 0.25, lz);
+    stoolLeg.castShadow = true;
+    stoolGroup.add(stoolLeg);
+  }
+  group.add(stoolGroup);
+
   // Hanging brass bench lamp over the workbench (pendant from the ceiling beam)
   const lampDrop = new THREE.Mesh(trackGeo(new THREE.CylinderGeometry(0.012, 0.012, 0.5, 5)), ironMat);
   lampDrop.position.set(-1.6, 2.31, -1.5);

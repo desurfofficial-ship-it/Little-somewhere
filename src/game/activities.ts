@@ -3,6 +3,7 @@ import { getRelationshipTier, pushWorldEventInPlace } from './relationships';
 import { RESIDENTS, getTimePhase } from './residents';
 import { getFeaturedBookForDay } from './bookNook';
 import { BAKERY_SEAT_SPOTS, getBakeForDay } from './bakery';
+import { getProjectForDay } from './copperwheel';
 import {
   InteriorLocation,
   JournalMemory,
@@ -15,6 +16,9 @@ import {
   WorldState,
 } from './types';
 import {
+  CW_BENCH_STATION_ID,
+  CW_OCCUPANT_FACING,
+  CW_OCCUPANT_POS,
   NOOK_CHAIR_STATION_ID,
   NOOK_OCCUPANT_FACING,
   NOOK_OCCUPANT_POS,
@@ -66,6 +70,15 @@ export interface SharedActivityDef {
    * phase gate, before schedule availability.
    */
   requiresShareableBake?: boolean;
+  /**
+   * [LR-5, D-5A — doc 24 §5] Optional story gate: when present,
+   * `canOfferInvitation` refuses with `story_gate_closed` until the named
+   * `world.sideFlags` key is truthy. Arthur's workbench hour requires
+   * `copperwheelVisited` — discoverability rides his own authored first-visit
+   * arc (the Nora-postcard precedent). Absence (Nora/Clara) leaves the
+   * generic gates untouched (byte-identical eligibility).
+   */
+  requiresSideFlag?: string;
   /**
    * [LR-3, doc 05 §5.1] Optional venue-voiced arrival line, composed by the
    * enter reducer when the helper places the occupant. Absent = generic line.
@@ -169,6 +182,52 @@ export const SHARED_ACTIVITIES: Readonly<Record<string, SharedActivityDef>> = {
       memorySummary: `Split ${getBakeForDay(world.day).label.toLowerCase()} with ${RESIDENTS.clara.name} at the café corner of Hearth & Crumb — first crackles, two cups, and a slow morning kept going.`,
       eventSummary: `Shared the morning pastry with ${RESIDENTS.clara.name} at Hearth & Crumb.`,
     }),
+  },
+  // LR-5 (doc 24 §2.1 L5-S1): Arthur's workbench hour at Copperwheel Cottage.
+  // Seat data IMPORTED from the occupancy anchor constants (D-5D: the station
+  // reuses the existing cw_bench interactable id; no re-typed literals).
+  // Offer window resolves through computeOfferWindow (morning capped at 719
+  // by the away-afternoon rule — Arthur's East Bench slot sits 11.6 m out).
+  // Decisions of record: D-5A story gate copperwheelVisited, D-5B(a)
+  // offerPhases ['morning','dusk'] (the golden Gazebo slot passes the generic
+  // 6 m gate at 5.69 m but would host Arthur AWAY from the bench), D-5E tier
+  // floors only. NO requiresShareableBake: the workbench hour is about the
+  // shared hour, not the day's project — bench-rest days still host (the
+  // summary composition says so honestly).
+  share_workbench_hour: {
+    id: 'share_workbench_hour',
+    hostId: 'arthur',
+    title: 'Shared Workbench Hour',
+    location: 'copperwheel_interior',
+    stationId: CW_BENCH_STATION_ID,
+    seatPos: { ...CW_OCCUPANT_POS },
+    seatFacing: CW_OCCUPANT_FACING,
+    minTier: 'friendly',
+    minAffinity: 45,
+    defaultDurationMinutes: 180,
+    minutesSpent: 15,
+    affinityDelta: 6,
+    reliabilityDelta: 2,
+    memoryId: 'mem_lr_arthur_workbench_hour',
+    memoryTitle: 'Brass Dust and Chamomile',
+    npcMemoryTag: 'shared_workbench_hour',
+    knowledgeGranted: 'arthur_escapement_basics',
+    activityNoun: 'workbench hour',
+    offerPhases: ['morning', 'dusk'],
+    requiresSideFlag: 'copperwheelVisited',
+    arrivalLine: (hostName) =>
+      `${hostName} looks up from the workbench and sets out the second stool.`,
+    summaryCompose: (world) => {
+      const project = getProjectForDay(world.day);
+      const memorySummary =
+        project.id === 'bench_rest'
+          ? `Sat the workbench hour with ${RESIDENTS.arthur.name} in Copperwheel Cottage on a bench-rest day — rolled felt, warm chamomile, and the regulator’s tick keeping the only time that mattered.`
+          : `Sat the workbench hour with ${RESIDENTS.arthur.name} in Copperwheel Cottage — ${project.label.toLowerCase()} under the loupe, brass dust on the felt, and one shared kettle of chamomile going quietly cold.`;
+      return {
+        memorySummary,
+        eventSummary: `Shared the workbench hour with ${RESIDENTS.arthur.name} at Copperwheel Cottage.`,
+      };
+    },
   },
 };
 

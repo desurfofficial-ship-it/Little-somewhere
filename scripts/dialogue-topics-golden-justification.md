@@ -43,3 +43,30 @@ One topic (`src/game/dialogue/everyday/teaching.ts` -> `TEACHING_TOPICS`) was ap
 - All `95` pre-existing entries (`0..94`) remain **content-identical and position-identical** (zero reordering, zero condition/priority mutation).
 - LR-3's bakery quartet (`85..88`) and SF-4 / GA-1 / Photography echoes (`89..94`) are completely untouched.
 
+
+---
+
+# Golden Snapshot Regeneration — Living Relationships LR-5 (96 → 100 Topics)
+
+- **Date**: 2026-11-27
+- **Regeneration**: `96 → 100` topics (`scripts/dialogue-topics-golden.json`).
+- **Generator**: `npx --yes tsx scripts/generate_dialogue_golden.ts`.
+- **Verification basis**: LR-5 build campaign on top of `main` @ `72dafe3` (post PR #45).
+
+## What changed and why it is behaviorally justified
+
+Exactly four topics were added — Arthur's invitation quartet (`src/game/dialogue/invitations/arthur.ts`, doc 24 §2.1 L5-S5), spread into the registry through `dialogue/invitations/index.ts` after Clara's quartet (same aggregator-insert precedent as LR-3's Clara quartet):
+
+| index | id | purpose |
+|---|---|---|
+| 89 | `inv_arthur_indoor_workbench` | Indoor completion topic (accepted + live + requireIndoors) — offers the `share_workbench_hour` completion choice, mirroring the Clara/NR-01 shape |
+| 90 | `inv_arthur_pending_offer` | Re-ask while an offer awaits response (accept/decline flags wired to the invitation writers); declined copy interval-accurate (day+2, no "tomorrow" — B-07 copy-class hygiene) |
+| 91 | `inv_arthur_offer_workbench` | Fresh offer gated by `requiresInvitationEligible` — structurally silent before the first workshop visit (D-5A `requiresSideFlag: 'copperwheelVisited'`) and outside morning/dusk (D-5B `offerPhases`) |
+| 92 | `inv_arthur_accepted_reminder` | Reminder while accepted and still outdoors |
+
+## Integrity statement
+
+- All `96` pre-existing entries (`0..88` shifted per the fixed invitation-aggregator position, `93..99` shifted by +4) are **content-identical field-for-field** (id, residentId, category, priority, historyScope, condition) — the registry's fixed module order is preserved exactly (no reorder, no mutation).
+- The LR-4 teaching tail-pin holds: `teaching_nora_featured_reading` remains the last topic (index 99).
+- No existing topic's condition, priority, category, or text metadata changed. The golden contract test (`dialogueRegistry.test.ts`) passes against the regenerated snapshot.
+- The quartet topics reference the day's bench project (`getProjectForDay`) at build time — dynamic text, static metadata — so future project-cycle changes cannot alter topic identity or ordering. The bench-rest day is handled explicitly so no copy advertises work the rolled felt is not doing.

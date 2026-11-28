@@ -171,6 +171,7 @@ import {
   reconcileInvitedInteriorEntry,
 } from './invitations';
 import {
+  CW_BENCH_STATION_ID,
   NOOK_CHAIR_STATION_ID,
   clearOccupant,
   isStationOccupied,
@@ -3837,6 +3838,21 @@ export function enterCopperwheelAction(world: WorldState): { nextWorld: WorldSta
   const safeExteriorPos = isPointWalkable(working.playerPos.x, working.playerPos.z, 0.48)
     ? { ...working.playerPos }
     : { ...COPPERWHEEL_PORCH_EXIT_POS };
+
+  // L5-S3 (doc 24 §2.1): adopt LR-3's F-ENTER-1 helper — reconcile invitation
+  // expiry + occupancy claim on room entry. The helper is venue-generic; this
+  // is the adoption LR-5 inherited (copperwheel was the last F-ENTER-1
+  // asymmetry), not a fork: no per-venue occupancy math here.
+  const reconciled = reconcileInvitedInteriorEntry(working, 'copperwheel_interior');
+  working = reconciled.world;
+
+  let toast = 'Stepped inside Copperwheel Cottage.';
+  if (reconciled.arrivalToast) {
+    toast = `Stepped inside Copperwheel Cottage — ${reconciled.arrivalToast}`;
+  } else if (reconciled.expiryToast) {
+    toast = `Stepped inside Copperwheel Cottage. ${reconciled.expiryToast}`;
+  }
+
   return {
     nextWorld: {
       ...working,
@@ -3847,8 +3863,12 @@ export function enterCopperwheelAction(world: WorldState): { nextWorld: WorldSta
       playerFacing: COPPERWHEEL_DOOR_DEFAULT_FACING,
       playerPosture: 'standing',
       playerSeatId: null,
+      // [LR-5, D-5A] First entry opens Arthur's workbench-hour story gate.
+      // sideFlags is a generic Record — additive key, sanitizeSideFlags passes
+      // it through, and old saves hydrate falsy (gate closed until first visit).
+      sideFlags: { ...(working.sideFlags ?? {}), copperwheelVisited: true },
     },
-    toast: 'Stepped inside Copperwheel Cottage.',
+    toast,
   };
 }
 
@@ -3856,16 +3876,22 @@ export function exitCopperwheelAction(world: WorldState): { nextWorld: WorldStat
   if (world.playerLocation !== 'copperwheel_interior') {
     return { nextWorld: world, toast: '' };
   }
-  const exPos = world.exteriorPlayerPos ?? COPPERWHEEL_PORCH_EXIT_POS;
+  // L5-S3: release the bench claim on exit, mirroring exitBakeryAction /
+  // exitNookAction. The location-guarded clear is a no-op when the occupant
+  // belongs to another venue (malformed states stay safe). The invite itself
+  // stays accepted+live — re-entry re-places the occupant idempotently (LR3-21).
+  const cleared = clearOccupant(world, 'copperwheel_interior');
+  const exPos = cleared.exteriorPlayerPos ?? COPPERWHEEL_PORCH_EXIT_POS;
   const safePos = isPointWalkable(exPos.x, exPos.z, 0.48) ? { ...exPos } : { ...PLAYER_SPAWN };
   return {
     nextWorld: {
-      ...world,
+      ...cleared,
       playerLocation: 'exterior',
       playerPos: safePos,
-      playerFacing: world.exteriorPlayerFacing ?? PLAYER_DEFAULT_FACING,
+      playerFacing: cleared.exteriorPlayerFacing ?? PLAYER_DEFAULT_FACING,
       playerPosture: 'standing',
       playerSeatId: null,
+      activeActivity: null,
     },
     toast: 'Stepped out beside Copperwheel Cottage.',
   };
@@ -3906,7 +3932,28 @@ export function interactWithCopperwheelProp(
  * +10m on working days (winding session counted), +8m when the bench rests. Each
  * project saves its own one-time memory the first time it is admired.
  */
+/**
+ * LR-5 S4 station exclusivity guard (doc 24 §2.1 L5-S4; pattern:
+ * isBakerySessionClaimingStation / LR2-06): while Arthur holds the bench for
+ * a live shared workbench hour, the co-located solo bench ritual refuses
+ * with a visible card and ZERO mutation. The other-room rituals (kettle,
+ * ledger, nightstand) are separate stations and stay untouched.
+ */
+function isCopperwheelSessionClaimingStation(world: WorldState): boolean {
+  return (
+    isStationOccupied(world, 'copperwheel_interior', CW_BENCH_STATION_ID) ||
+    world.activeActivity?.activityId === 'share_workbench_hour'
+  );
+}
+
 export function checkWorkbenchProjectAction(world: WorldState): PropInteractionResult {
+  if (isCopperwheelSessionClaimingStation(world)) {
+    return {
+      nextWorld: world,
+      title: 'Clockmaker’s Workbench',
+      body: 'Arthur is holding the bench for your shared workbench hour — the solo check can wait. Settle onto the stool beside him and let the hour run.',
+    };
+  }
   const cws = getCopperwheelStateSafe(world);
   const project = getProjectForDay(world.day);
   const alreadyChecked = cws.benchCheckedDay === world.day;

@@ -193,6 +193,18 @@ export function canOfferInvitation(
     return { eligible: false, reason: 'tier_too_low' };
   }
 
+  // [LR-5, D-5A (doc 24 §5)] Optional def-level story gate: Arthur's
+  // workbench-hour invitation only opens after the player has stepped inside
+  // his workshop (`copperwheelVisited` sideFlag, set by
+  // enterCopperwheelAction) — discoverability rides the authored first-visit
+  // arc, the Nora-postcard precedent. Field absence (Nora/Clara) leaves
+  // eligibility byte-identical. Checked with the other def-level
+  // preconditions, before the D10 phase gate, so the normative order stays
+  // tier → story → phase → roster → availability.
+  if (activity.requiresSideFlag && !world.sideFlags?.[activity.requiresSideFlag]) {
+    return { eligible: false, reason: 'story_gate_closed' };
+  }
+
   // D10 (doc 05 §7.2; USER APPROVED 2026-11-21, registered verbatim in
   // systemic-reliability-integration/08): optional def-level offer-phase
   // constraint, checked after the tier gate and before availability. Clara's

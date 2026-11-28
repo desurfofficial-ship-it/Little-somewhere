@@ -1094,6 +1094,33 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
     interiorRoot.add(copperwheelInteriorRig.group);
     copperwheelInteriorRig.group.userData.contactBatchRoot = true;
 
+    // LR-5 D8 (doc 24 §2.1 L5-S6): the copperwheel gains its own occupant rig
+    // from the same venue-agnostic pattern — Arthur seated on the workbench
+    // stool during a live workbench-hour session, hit proxy routing to him
+    // with def-derived walk destination and labels. No second math copy: the
+    // per-frame sync below loops over all three (venue, rig) pairs.
+    const copperwheelOccupantRig = buildStorybookCharacter(
+      RESIDENTS.arthur.appearance,
+      palette,
+      shadowTex,
+      'arthur',
+    );
+    copperwheelOccupantRig.root.visible = false;
+    const copperwheelOccupantHitGeo = new THREE.CylinderGeometry(0.65, 0.65, 1.85, 8);
+    const copperwheelOccupantHitMat = new THREE.MeshBasicMaterial({ visible: false });
+    const copperwheelOccupantHitProxy = new THREE.Mesh(
+      copperwheelOccupantHitGeo,
+      copperwheelOccupantHitMat,
+    );
+    copperwheelOccupantHitProxy.position.y = 0.92;
+    copperwheelOccupantHitProxy.userData = { targetKind: 'resident', targetId: 'arthur' };
+    copperwheelOccupantRig.root.add(copperwheelOccupantHitProxy);
+    copperwheelInteriorRig.group.add(copperwheelOccupantRig.root);
+    const copperwheelInteractablesWithOccupant: THREE.Object3D[] = [
+      ...copperwheelInteriorRig.hitProxies,
+      copperwheelOccupantHitProxy,
+    ];
+
     // Overhaul Phase 3 (E-6): collect the tagged shell walls once per interior
     // rig; the per-frame cutaway hides near-camera full walls so rotation never
     // blocks the room. Greenhouse is a glass shell — untagged, never hidden.
@@ -1551,7 +1578,9 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
           ? nookInteractablesWithOccupant
           : nookInteriorRig.hitProxies
         : worldRef.current.playerLocation === 'copperwheel_interior'
-        ? copperwheelInteriorRig.hitProxies
+        ? worldRef.current.occupancy?.location === 'copperwheel_interior'
+          ? copperwheelInteractablesWithOccupant
+          : copperwheelInteriorRig.hitProxies
         : cottageInteriorRig.hitProxies;
       const hits = _raycaster.intersectObjects(activeInteractables, false);
       if (hits.length > 0) {
@@ -1562,7 +1591,9 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
           (worldRef.current.playerLocation === 'nook_interior' &&
             worldRef.current.occupancy?.location === 'nook_interior') ||
           (worldRef.current.playerLocation === 'bakery_interior' &&
-            worldRef.current.occupancy?.location === 'bakery_interior')
+            worldRef.current.occupancy?.location === 'bakery_interior') ||
+          (worldRef.current.playerLocation === 'copperwheel_interior' &&
+            worldRef.current.occupancy?.location === 'copperwheel_interior')
         ) {
           const occupantHit = hits.find((h) => h.object.userData.targetKind === 'resident');
           if (occupantHit) chosen = occupantHit;
@@ -2531,6 +2562,7 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
       ]> = [
         ['nook_interior', nookOccupantRig],
         ['bakery_interior', bakeryOccupantRig],
+        ['copperwheel_interior', copperwheelOccupantRig],
       ];
       let activeOccupantSynced = false;
       for (const [venue, rig] of occupantRigs) {
@@ -2662,6 +2694,7 @@ export const NeighborhoodCanvas: React.FC<NeighborhoodCanvasProps> = ({
         applyCharacterWinterTint(playerRig, world.season);
         applyCharacterWinterTint(nookOccupantRig, world.season);
         applyCharacterWinterTint(bakeryOccupantRig, world.season);
+        applyCharacterWinterTint(copperwheelOccupantRig, world.season);
         for (const rid of RESIDENT_ORDER) {
           applyCharacterWinterTint(residentRigs[rid], world.season);
         }

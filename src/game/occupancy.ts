@@ -22,6 +22,27 @@ export const NOOK_OCCUPANT_APPROACH_POS: Vec2 = { x: -0.9, z: 0.55 };
 /** Seated facing forward (+Z out of the nook armchair toward the center of the room). */
 export const NOOK_OCCUPANT_FACING = 0.15;
 
+/**
+ * Living Relationships (LR-5, doc 24 §2.1 L5-S2): Arthur's bench occupant
+ * anchor, mirroring the nook pattern (seated occupant anchored in furniture).
+ *
+ * - The station REUSES the existing `cw_bench` interactable id (D-5D) — no
+ *   second station registry entry.
+ * - `CW_OCCUPANT_POS` sits on the bench front where the workbench stool lives
+ *   in the interior rig (`src/scene/builders/copperwheelInterior.ts`); like
+ *   the nook armchair, a seated occupant anchored in furniture is
+ *   intentionally not walkable.
+ * - `CW_OCCUPANT_APPROACH_POS` is the player-facing "watch the bench" aisle
+ *   spot south of the bench; validated walkable (clears the cw_bench obstacle
+ *   expansion) and pinned by the LR5-14 clearance assertions.
+ * - Facing is computed with the room's `atan2(deltaX, deltaZ)` convention,
+ *   aimed at the bench work surface.
+ */
+export const CW_BENCH_STATION_ID = 'cw_bench';
+export const CW_OCCUPANT_POS: Vec2 = { x: -1.5, z: -1.22 };
+export const CW_OCCUPANT_APPROACH_POS: Vec2 = { x: -1.15, z: -0.55 };
+export const CW_OCCUPANT_FACING = Math.atan2(-1.6 - CW_OCCUPANT_POS.x, -2.4 - CW_OCCUPANT_POS.z);
+
 export function createInitialOccupancy(): InteriorOccupant | null {
   return null;
 }

@@ -73,6 +73,8 @@ export const INVITATION_REASON_LABELS: Readonly<Record<string, string>> = {
   // LR-3 D10 (offerPhases gate — doc 05 §7.2; QA-04 label-slot obligation)
   offer_phase_closed: 'That plan only happens in the morning — catch them earlier in the day.',
   host_unavailable: 'They are away from home right now.',
+  // LR-5 D-5A (story gate — doc 24 §5): the def-level requiresSideFlag gate
+  story_gate_closed: 'That door hasn’t opened for you yet.',
   // accept / decline / expiry transitions (invitations.ts)
   no_offered_invitation: 'There is no open invitation to answer.',
   invitation_expired: 'That invitation has quietly passed.',

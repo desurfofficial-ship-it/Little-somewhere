@@ -5,7 +5,7 @@ import { isNookInteriorWalkable } from './bookNook';
 import { isCopperwheelInteriorWalkable } from './copperwheel';
 import { isGreenhouseInteriorWalkable } from './greenhouse';
 import { isPointWalkable } from './worldMap';
-import { NOOK_OCCUPANT_APPROACH_POS } from './occupancy';
+import { CW_OCCUPANT_APPROACH_POS, NOOK_OCCUPANT_APPROACH_POS } from './occupancy';
 
 /**
  * Location-aware walkability dispatch.
@@ -72,6 +72,9 @@ export function occupantApproachPos(location: PlayerLocation): Vec2 | null {
       return { ...NOOK_OCCUPANT_APPROACH_POS };
     case 'bakery_interior':
       return { ...BAKERY_SEAT_SPOTS[0].approachPos };
+    case 'copperwheel_interior':
+      // LR-5 D8 (doc 24 §2.1 L5-S6): the workbench-hour approach aisle.
+      return { ...CW_OCCUPANT_APPROACH_POS };
     default:
       return null;
   }
